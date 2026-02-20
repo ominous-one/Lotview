@@ -1,0 +1,34 @@
+Description of business use(s) you intend to use the data for: 
+We are integrating AI to build an internal appointment and follow-up system to generate more sales, service, and parts revenue, while keeping PBS as the system of record for all customer data.
+Sales: AI will help respond to Facebook Marketplace, email, and SMS conversations, check if the contact already exists in PBS, and then book or update sales appointments. It will also update the applicable workplan events so staff can see what’s been done in v10.
+Service: For inbound calls and online requests, the AI assistant will recognize who is calling, confirm their contact details (address, email, phone), and reference their vehicle (year/make/model), previous service history, and recommended services. It will then book or modify service appointments in PBS.
+Parts: AI and internal tools will be able to look up parts availability and pricing (including MSRP), check tire storage status, and coordinate booking service appointments in the PBS scheduler when installation is required.
+All of this is front-end/customer-facing, but PBS will remain the backbone where all customers, appointments, repair orders, and parts transactions are stored and maintained.
+
+Dealership Name: Olympic Hyundai Vancouver 
+Group (if applicable): Olympic Auto Group
+Address: 1395 W Broadway, Vancouver, BC, V6H 1G9
+Phone: 778-800-0491
+
+Who is performing the technical/development work? 
+Contracting Business (if applicable): Framework Consulting Corp
+Contact Name: Riley Abreo - General Manager at Olympic Hyundai Vancouver. Development and integration are being handled in-house by myself through my consulting company.
+Phone: 604-833-4967
+Email: riley@frameworkconsulting.ca
+Description of Data Required (Get/Read):
+Sales: ContactGet, ContactVehicleGet, WorkplanEventGet,  WorkplanAppointmentContactGet, WorkplanReminderGet, WorkplanAppointmentGet
+
+Service: AppointmentBookingGet, AppointmentContactVehicleGet, AppointmentContactVehicleInfoGet, AppointmentGet, ,  RepairOrderContactVehicleGet, RepairOrderGet
+
+Parts: , , PartsInventoryGet, PartsOrderGet, PurchaseOrderGet, TireStorageGet, ShopGet
+
+Description of potential data updates or changes to DMS data (Writeback/Post):
+Sales: ContactChange, , ContactSave, WorkplanEventChange, , , WorkplanAppointmentChange, ,  
+
+Service: , , AppointmentChange, AppointmentContactVehicleChange, RepairOrderChange, , RepairOrderContactVehicleChange,  
+
+Parts: Nothing will be written for now. 
+
+Comments:
+Auth (FOR API Authentication/session management)
+Login

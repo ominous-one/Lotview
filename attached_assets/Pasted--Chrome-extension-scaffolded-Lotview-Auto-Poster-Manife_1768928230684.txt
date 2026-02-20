@@ -1,0 +1,31 @@
+
+  - Chrome extension scaffolded (Lotview Auto Poster):
+      - Manifest (MV3), popup (login, vehicle picker, platform/template selection), background (auth, inventory/templates fetch, posting log, image prep), FB content script (fills Marketplace form, uploads
+        photos).
+      - Template editor in popup to create/save personal/shared templates using existing ad_template endpoints.
+      - Shared types and README added; build placeholder (extension/build.js) in place.
+  - Backend support:
+      - Extension endpoints: POST /api/extension/login, GET /api/extension/inventory (dealer-scoped, signed image URLs), GET /api/extension/templates, POST /api/extension/postings.
+      - Object storage: getSignedUrl helper for signing images for the extension.
+  - Frontend/backend docs updated: README (admin header, FB cap), CHANGES log.
+
+  What’s next to make it world-class
+
+  1. Extension build pipeline & assets
+      - Add dedicated vite.config.extension.ts (or equivalent) to emit background.js, content-facebook.js, popup.js/css into extension/dist, copy manifest/icons.
+      - Add icons and CSS for the popup; lint/format.
+  2. UX polish & resiliency
+      - Popup toasts/status for save/fill errors; show per-user caps/duplicate status using posting log and limits endpoint.
+      - Better empty/error states and loading indicators; recent-post history in popup.
+  3. Driver architecture & platforms
+      - Driver registry in background to route to FB driver now; stub Kijiji/Craigslist drivers with detect/fill/upload scaffolds.
+      - Selector drift handling: diagnostics logging when fills fail; quick-copy fallback in content script.
+  4. Safety/limits
+      - Implement /api/extension/limits to return per-user daily caps and enforce in popup/background.
+      - Duplicate guard: mark already-posted vehicles per platform; warn in popup.
+  5. Admin-side visibility
+      - Admin dashboard view of extension posting logs (per user/vehicle/platform), caps, and errors.
+      - Toggle to enable/disable platforms per dealership.
+  6. Packaging & release
+      - Build, zip, and sign extension; add install docs.
+      - Add E2E smoke (Playwright) to validate DOM selectors for FB create-listing fill.

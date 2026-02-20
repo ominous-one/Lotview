@@ -1,0 +1,80 @@
+  “Act as a senior Chrome Extension architect and security engineer. Build and harden a Manifest V3 extension named ‘Lotview Auto Poster’ with these non-negotiables:
+
+  - Messaging & Auth: Whitelist message types, validate sender.id, validate payload shapes, and version the protocol. Keep tokens in memory or chrome.storage.session with expiry/auto-logout; never sync
+    secrets. Enforce HTTPS API base URL restricted to trusted production domains (no localhost in prod).
+  - Network & Validation: All fetches use timeouts and defensive error parsing. Validate all API responses and popup→background payloads with runtime guards; reject malformed data with user-visible errors. Add    retry/backoff for transient network failures.
+  - Image Handling: Download images only from allowlisted HTTPS hosts with max count/size/total bytes and Content-Type: image/*; fail fast and show a clear error.
+  - Form Fill Robustness: Content script must treat missing required fields (title/price/description) as errors returned to the popup; include selector fallbacks and a single notification element with cleanup.  - Manifest Hygiene: Minimal permissions (storage, activeTab, scripting, tabs). Narrow host_permissions to FB Marketplace create paths and trusted Lotview domains; ship a separate dev manifest for localhost/
+    replit.
+  - UX & Resilience: Toast all failure states; disable actions on stale data; show limits/duplicates; race-safe history writes; bounded image uploads. Provide polished popup CSS and icons.
+  - Testing & Tooling: Add validators for all data types; unit tests for URL policy, validators, required-field detection; lint/format. Include build config for production/dev manifests.
+
+  Return production-ready, well-commented code: manifest(s), background, content script, drivers, validators, types, popup (TSX/CSS/HTML), icons, build config, and tests. Default to secure, least-privilege,
+  and Chrome Web Store readiness.”
+
+  ———
+
+  ### Comprehensive To-Do List (by category)
+
+  #### Security (raise to 9.5+)
+
+  1. Image fetch hardening
+      - Allowlist image hosts (Lotview CDN/domains), enforce HTTPS, max count (e.g., 10), max per-file size (e.g., 10 MB) and total bytes, require Content-Type: image/*. Surface clear errors, not silent skips.  2. Server URL policy
+      - Production: restrict base URL to a small trusted set (e.g., https://*.lotview.ai). Disallow localhost/127 in prod; permit only in dev builds.
+  3. Token handling
+      - Store auth in memory or chrome.storage.session; add expiry metadata and auto-logout on expiry/401; avoid sync storage for tokens. Consider short-lived access + refresh flow.
+  4. Payload/response validation
+      - Apply validators.ts to all API responses (inventory/templates/limits) and to popup→background payloads (SAVE_TEMPLATE, FILL_CONTENT, LOG_POSTING). Reject malformed data with user-visible errors.
+  5. Message schema/versioning
+      - Add a protocol version to messages; fail gracefully on mismatches to prevent stale popup/background interactions.
+  6. Host permissions hygiene
+      - Split prod/dev manifests; prod removes Replit/localhost, keeps only FB Marketplace create paths and Lotview domains.
+
+  #### Reliability & Resilience
+
+  1. Required-field enforcement
+      - In content-facebook.ts, treat missing title/price/description as hard errors returned to the popup; show explicit notifications (e.g., “Title field not found—Facebook layout changed”).
+  2. Image upload bounds
+      - Enforce count/size/type checks before uploadImages; fail fast with a surfaced error.
+  3. Retry/backoff
+      - Add retry with backoff for transient fetch failures (inventory/templates/limits/login), with capped attempts.
+  4. Race-proof history
+      - Use functional updates and/or re-read from storage before writes to avoid dropping posting records.
+  5. Comprehensive error surfacing
+      - Toast/inline messages for all failures (fetchTemplates, fetchLimits, etc.), not just console logs.
+
+  #### Code Quality & Maintainability
+
+  1. Centralized validation utilities
+      - Use validators.ts everywhere; add tests for them. Add type guards for all message payloads.
+  2. Config flags
+      - Introduce build-time flags for prod/dev behaviors (URL policy, host permissions, localhost allowance).
+  3. Lint/tests
+      - Add ESLint/Prettier configs; unit tests for URL policy, validators, required-field detection; integration test for fill flow with mocked DOM.
+
+  #### Performance
+
+  1. Limit heavy operations
+      - Keep image bounds; ensure content script doesn’t hold onto large blobs after upload.
+  2. Bundle hygiene
+      - Verify tree-shaking and minimal popup bundle; code-split if necessary (not critical but nice).
+
+  #### UX/Clarity
+
+  1. User feedback on failure
+      - Clear, actionable errors for missing fields, image validation, URL policy violations, and auth expiry.
+  2. State guarding
+      - Disable actions while data is stale/loading; show skeleton/loading states where appropriate.
+  3. Polish notifications
+      - Single notification element in content script; clean up on page hide/unload.
+
+  ———
+
+  ### Implementation Order (suggested)
+
+  1. Security core: server URL policy, token/session handling, host allowlist for images, manifest split.
+  2. Validation: apply validators to all responses/payloads; message protocol versioning.
+  3. Content script robustness: required-field errors, image upload bounds, notification cleanup.
+  4. UX/error surfacing: toasts for all failures, disable on stale data, race-proof history.
+  5. Tests/tooling: validators tests, URL policy tests, required-field detection test; lint/format.
+  6. Performance tidy-up: ensure blobs discarded, bundle hygiene check.

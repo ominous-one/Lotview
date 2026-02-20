@@ -1,0 +1,407 @@
+You are a junior developer working under a Staff Engineer. You must complete every checkbox below. You are not allowed to claim completion unless you provide verifiable proof (commands + outputs). No placeholders, no TODOs, no “assume”, no “should”.
+
+SECTION 0 — Completion Contract
+
+Definition of DONE:
+✅ Every checkbox below is implemented AND proven with:
+
+a) File evidence (which file / what lines / what functions), AND
+
+b) Command evidence (exact commands to run), AND
+
+c) Output evidence (paste the actual terminal output).
+
+If you cannot paste terminal output, you must provide a “Proof Script” that the user runs, and you must specify exact expected output for each step.
+
+Absolute Rules:
+
+❌ No TODOs anywhere in repo
+
+❌ No “mock” implementations pretending to work
+
+❌ No commented-out dead code
+
+❌ No secrets committed in code
+
+✅ Every code file must pass formatting + lint + typecheck + tests (where applicable)
+
+✅ Every feature must be tenant-safe (multi-dealership SaaS)
+
+SECTION 1 — Repo Scanning & Baseline
+1.1 Inventory the Repo (Required)
+
+ Print repository tree (top-level + important subfolders)
+
+ Identify stack: language(s), framework(s), package manager, build commands
+
+ Identify runtime entrypoint(s)
+
+ Identify DB technology and schema location
+
+ Identify all API routes and frontend routes/pages
+
+Proof required
+
+ Paste repo tree output (command + output)
+
+ Paste “stack summary” listing exact filenames used to infer stack (e.g., package.json, pyproject, etc.)
+
+SECTION 2 — Multi-Tenancy (No Data Leakage)
+2.1 Tenant Model and Enforcement
+
+ Create tenants entity/table/model
+
+ Every user belongs to exactly one tenant
+
+ Every business entity includes tenant_id (inventory, leads, messages, appointments, etc.)
+
+ No query returns data without tenant scoping
+
+2.2 Tenant Scoping Middleware (Mandatory)
+
+ Implement middleware that injects tenantId into request context
+
+ Data-access layer refuses queries without tenantId (hard failure)
+
+2.3 Tenant Isolation Tests (Mandatory)
+
+ Create test: Tenant A cannot access Tenant B data via API
+
+ Create test: direct DB access helpers enforce tenant filter
+
+ Tests must run in CI/test mode automatically
+
+Proof required
+
+ Show schema/migration includes tenant_id on every relevant table/model
+
+ Paste test file(s)
+
+ Paste passing test output
+
+SECTION 3 — Authentication, Authorization, RBAC
+3.1 Authentication (Enterprise)
+
+ Email/password login implemented
+
+ Passwords hashed using bcrypt/argon2 (never plaintext)
+
+ Password reset flow implemented (token + expiry + revoke)
+
+ Session management implemented securely (cookie session with CSRF OR JWT+refresh)
+
+ Account lockout / rate limiting on auth routes
+
+3.2 Authorization & Roles
+
+ RBAC roles: OWNER, MANAGER, SALES, SERVICE, READONLY
+
+ Every protected API route checks auth + role permissions
+
+ Frontend route guards enforce access consistently
+
+Proof required
+
+ Paste auth middleware / guard files
+
+ Paste a table listing endpoints + required roles
+
+ Paste tests verifying: unauthorized blocked, wrong role blocked, correct role allowed
+
+SECTION 4 — Security Hardening (OWASP baseline)
+4.1 Injection & Input Safety
+
+ No string-concatenated SQL anywhere
+
+ All DB access is parameterized or ORM-based
+
+ Validate request payloads with schemas on every route (Zod/Joi/Pydantic/etc.)
+
+ Reject unknown fields (strict mode) where safe
+
+ Output encoding/sanitization where needed to prevent XSS
+
+4.2 HTTP Security
+
+ Secure headers enabled (Helmet or equivalent)
+
+ CORS configured to only allow known origins
+
+ CSRF protection enabled if using cookies
+
+ Rate limiting enabled for public endpoints
+
+ Request size limits configured (JSON + uploads)
+
+4.3 Secrets Hygiene
+
+ All secrets moved to environment variables (Replit Secrets)
+
+ Repo contains no API keys, passwords, tokens
+
+ Add a secrets scan script (simple grep guard) to fail if secrets appear
+
+Proof required
+
+ Provide “security proof script” that scans for:
+
+sk- patterns, API_KEY=, password=, JWT secrets, etc.
+
+ Paste results (must show “0 matches”)
+
+SECTION 5 — Error Handling, Logging, Observability
+5.1 Errors
+
+ Central error handler returns consistent JSON error format:
+{ error: { code, message, details?, requestId } }
+
+ No stack traces leaked in production mode
+
+ All errors logged with requestId, tenantId, userId when available
+
+5.2 Logging
+
+ Structured JSON logs (not random console logs)
+
+ Log request start/finish with duration, status, route
+
+ Redact sensitive fields (passwords, tokens, etc.)
+
+5.3 Health Checks
+
+ /health returns OK if server running
+
+ /ready checks DB + dependencies
+
+Proof required
+
+ Paste example logs for 2 successful requests and 1 failing request
+
+ Paste outputs from calling /health and /ready
+
+SECTION 6 — Database Migrations, Seeds, Environments
+6.1 Migrations
+
+ Migrations exist and fully recreate schema from scratch
+
+ One command applies migrations to a blank DB
+
+ DB constraints present: NOT NULL, indexes, FK constraints where appropriate
+
+ Tenant_id indexed on all large tables
+
+6.2 Seeds
+
+ Seed script creates:
+
+1 tenant
+
+1 OWNER user
+
+Sample inventory/lead data under that tenant
+
+6.3 Environment Configuration
+
+ .env.example exists (no real secrets)
+
+ README lists all required env vars with purpose
+
+ App fails fast with clear error if required env missing
+
+Proof required
+
+ Paste migration commands + output
+
+ Paste seed command + output
+
+ Paste DB schema summary (tables + key columns)
+
+SECTION 7 — Frontend Quality Gates (If frontend exists)
+7.1 UX & Correctness
+
+ All API calls include auth credentials + tenant context
+
+ Frontend handles loading/error states correctly
+
+ No data leakage across tenants in UI state
+
+ Input forms validate client-side and server-side
+
+7.2 Frontend Build Checks
+
+ Frontend build passes with no warnings
+
+ Lint passes
+
+ Typecheck passes (if TS)
+
+ No hardcoded URLs (use env config)
+
+Proof required
+
+ Paste build output
+
+ Paste typecheck output
+
+ Paste lint output
+
+SECTION 8 — Background Jobs (If slow operations exist)
+
+Only apply if repo performs scraping, AI calls, image processing, or long tasks:
+
+ Move long tasks to job queue (BullMQ/Celery/etc.)
+
+ Add retries with backoff
+
+ Job status endpoint implemented
+
+ Tenant-safe job payloads enforced
+
+Proof required
+
+ Show job worker file
+
+ Show job enqueue call site
+
+ Show job status response example
+
+SECTION 9 — Testing Suite (Mandatory)
+9.1 Required Test Types
+
+ Unit tests for core business logic
+
+ Integration tests for API endpoints
+
+ Auth tests
+
+ Tenant isolation tests
+
+ Validation tests (invalid payload rejected)
+
+9.2 Test Execution
+
+ Single command runs all tests
+
+ Tests run against a test database (not production)
+
+ Tests are deterministic (no flaky timeouts)
+
+Proof required
+
+ Paste full test command output showing PASS
+
+SECTION 10 — Code Quality Gates for EVERY CODE FILE
+
+This section is mandatory. “We didn’t have time” is not allowed.
+
+10.1 Formatting
+
+ Add formatter config (Prettier/Black/gofmt/etc.)
+
+ Add format script
+
+ Run formatter on entire repo
+
+10.2 Linting
+
+ Add linter config (ESLint/Flake8/Ruff/etc.)
+
+ Add lint script
+
+ Lint passes with 0 errors
+
+10.3 Typechecking (if TS / Python typing)
+
+ Enable strict type checking where possible
+
+ Add typecheck script
+
+ Typecheck passes with 0 errors
+
+10.4 Build / Run Validation
+
+ Add build script if applicable
+
+ Add start script
+
+ Add validate script that runs:
+format:check + lint + typecheck + test + build
+
+Proof required
+
+ Paste the scripts section from package.json / pyproject
+
+ Paste output of validate showing success
+
+SECTION 11 — Documentation & “Enterprise Readiness” Proof
+11.1 README
+
+ Setup steps (Replit)
+
+ Env vars list
+
+ DB migration/seed steps
+
+ How to run tests
+
+ How to deploy
+
+ Troubleshooting section
+
+11.2 SaaS Readiness Features
+
+ Tenant onboarding:
+
+OWNER can create tenant and invite users
+
+ Audit trail:
+
+log critical actions (create/update/delete inventory, user invites)
+
+ Basic billing-readiness placeholder (not payment integration):
+
+tenant plan fields + feature flags
+
+Proof required
+
+ Paste README sections
+
+ Demonstrate onboarding flow via API calls or UI steps
+
+SECTION 12 — Required Output Format (Do Not Deviate)
+
+When you finish, output exactly:
+
+CHECKLIST RESULTS TABLE
+Each checkbox line item must be listed with:
+
+Status: PASS/FAIL
+
+Where: file path(s)
+
+Proof: command + output excerpt
+
+PASTE-READY UNIFIED DIFFS (all changes)
+No snippets—real diffs.
+
+PROOF SCRIPT
+A single command sequence the user runs to verify everything, e.g.:
+
+install
+
+migrate
+
+seed
+
+validate
+
+curl health/ready
+
+run tests
+
+KNOWN LIMITATIONS (if any)
+If any checkbox is FAIL, list exactly what is missing and do not claim done.
+
+Start Now
+
+Do repo mapping first, then implement, then produce the required output with proofs.

@@ -1,0 +1,264 @@
+import puppeteer from 'puppeteer';
+import { execSync } from 'child_process';
+
+// --- CONFIGURATION ---
+const DEALER_CONFIGS = [
+  {
+    name: 'Olympic Hyundai Vancouver',
+    cgUrl: 'https://www.cargurus.ca/Cars/m-Olympic-Hyundai-Vancouver-sp459833',
+    dealerDomain: 'olympichyundaivancouver.com',
+    dealershipId: 1,
+    location: 'Vancouver'
+  },
+  {
+    name: 'Boundary Hyundai',
+    cgUrl: 'https://www.cargurus.ca/Cars/m-Boundary-Hyundai-sp393663',
+    dealerDomain: 'boundaryhyundai.com',
+    dealershipId: 2,
+    location: 'Burnaby'
+  },
+  {
+    name: 'Kia Vancouver',
+    cgUrl: 'https://www.cargurus.ca/Cars/m-Kia-Vancouver-sp357122',
+    dealerDomain: 'kiavancouver.com',
+    dealershipId: 3,
+    location: 'Vancouver'
+  }
+];
+
+interface CarGurusVehicle {
+  year: number;
+  make: string;
+  model: string;
+  trim: string;
+  type: string;
+  price: number;
+  odometer: number;
+  images: string[];
+  badges: string[];
+  location: string;
+  dealership: string;
+  dealershipId: number;
+  description: string;
+  vin: string;
+  stockNumber: string;
+  carfaxUrl: string | null;
+  dealRating: string;
+  cargurusPrice: number;
+  cargurusUrl: string;
+}
+
+// --- HELPER FUNCTIONS ---
+
+function determineBodyType(text: string): string {
+  const t = text.toLowerCase();
+  if (t.includes('sedan')) return 'Sedan';
+  if (t.includes('suv') || t.includes('utility') || t.includes('crossover')) return 'SUV';
+  if (t.includes('truck') || t.includes('pickup') || t.includes('crew')) return 'Truck';
+  if (t.includes('van') || t.includes('minivan')) return 'Minivan';
+  if (t.includes('coupe')) return 'Coupe';
+  if (t.includes('hatch')) return 'Hatchback';
+  return 'SUV'; // Safe default
+}
+
+function detectBadges(text: string): string[] {
+  const badges = new Set<string>();
+  const t = text.toLowerCase();
+  
+  if (t.includes('one owner') || t.includes('1 owner')) badges.add('One Owner');
+  if (t.includes('no accident') || t.includes('clean carfax') || t.includes('accident free')) badges.add('No Accidents');
+  if (t.includes('certified')) badges.add('Certified');
+  if (t.includes('manager special') || t.includes('clearance')) badges.add('Manager Special');
+  if (t.includes('low km') || t.includes('low mileage')) badges.add('Low Kilometers');
+
+  return Array.from(badges);
+}
+
+// --- DEALER SITE SCRAPER (The "Jump" Logic) ---
+
+async function scrapeDealerVDP(browser: any, vin: string, domain: string): Promise<{ carfax: string | null, images: string[] }> {
+  if (!vin || !domain) return { carfax: null, images: [] };
+  
+  const page = await browser.newPage();
+  // Construct likely VDP search URL on dealer site
+  // Most dealer sites (Convertus/Dealer.com) support searching by VIN in URL
+  const dealerSearchUrl = `https://www.${domain}/vehicles/used/?st=price,desc&view=grid&sc=used&q=${vin}`;
+  
+  try {
+    console.log(`    ... Jumping to Dealer Site: ${domain} for VIN ${vin}`);
+    await page.goto(dealerSearchUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
+
+    // 1. Try to find Carfax Link directly on search results or VDP
+    const result = await page.evaluate(() => {
+       // Look for ANY link containing carfax
+       const links = Array.from(document.querySelectorAll('a'));
+       const carfaxLink = links.find(a => (a.href || '').includes('carfax.ca'));
+       
+       // Look for high-res images
+       const imgs = Array.from(document.querySelectorAll('img'));
+       const validImages = imgs
+          .map(i => i.src || i.getAttribute('data-src'))
+          .filter(src => src && src.length > 20 && !src.includes('logo') && !src.includes('icon') && !src.includes('banner'))
+          .slice(0, 15); // Limit to 15
+
+       return {
+           carfax: carfaxLink ? carfaxLink.href : null,
+           images: validImages
+       };
+    });
+    
+    await page.close();
+    return { carfax: result.carfax, images: result.images as string[] };
+
+  } catch (e) {
+    console.log(`    ⚠ Failed to scrape dealer site for ${vin}`);
+    await page.close();
+    return { carfax: null, images: [] };
+  }
+}
+
+// --- CARGURUS SCRAPER (The "Index") ---
+
+async function scrapeCarGurusVehicleDetail(page: any, listingUrl: string, config: any): Promise<CarGurusVehicle | null> {
+  try {
+    await page.goto(listingUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+
+    // 1. EXTRACT CORE DATA FROM DOM
+    const data = await page.evaluate(() => {
+      // Title
+      const h1 = document.querySelector('h1[data-cg-ft="vehicle-title"], h1')?.textContent?.trim() || '';
+      const yearMatch = h1.match(/^(\d{4})/);
+      
+      // Price (Cash Price Logic)
+      const priceEls = Array.from(document.querySelectorAll('h2, h3, span'));
+      let maxPrice = 0;
+      priceEls.forEach(el => {
+          const txt = el.textContent?.trim() || '';
+          if (txt.match(/^\$[0-9,]+$/)) {
+             const val = parseInt(txt.replace(/[^0-9]/g, ''));
+             // Filter valid range (ignore monthly payments and phone numbers)
+             if (val > 4000 && val < 200000 && val > maxPrice) maxPrice = val;
+          }
+      });
+
+      // VIN & Odometer
+      let vin = '', odo = 0;
+      const specs = Array.from(document.querySelectorAll('li, div, span'));
+      specs.forEach(el => {
+          const t = el.textContent?.toLowerCase() || '';
+          if (t.includes('vin') && t.length > 20) vin = t.replace(/.*vin[:\s]*/, '').trim().split(' ')[0];
+          if ((t.includes('km') || t.includes('mileage')) && t.match(/\d/)) {
+              const o = parseInt(t.replace(/[^0-9]/g, ''));
+              if (o > odo) odo = o; // Take largest number associated with mileage
+          }
+      });
+      
+      // Description
+      const desc = document.querySelector('[class*="description"]')?.textContent?.trim() || '';
+
+      return {
+          title: h1,
+          year: yearMatch ? parseInt(yearMatch[1]) : new Date().getFullYear(),
+          price: maxPrice,
+          vin: vin,
+          odometer: odo,
+          description: desc
+      };
+    });
+
+    // 2. PARSE TITLE
+    const titleParts = data.title.replace(data.year.toString(), '').trim().split(' ');
+    const make = titleParts[0] || 'Unknown';
+    const model = titleParts[1] || 'Vehicle';
+    const trim = titleParts.slice(2).join(' ');
+
+    // 3. HYBRID FETCH (Jump to Dealer Site)
+    let carfaxUrl = null;
+    let images: string[] = [];
+    
+    // Try to get images from CarGurus first
+    const cgImages = await page.evaluate(() => {
+        const imgs = Array.from(document.querySelectorAll('img'));
+        return imgs
+            .map(i => i.src || i.getAttribute('data-src'))
+            .filter(src => src && src.includes('cargurus') && !src.includes('logo') && !src.includes('icon'))
+            .map(src => src?.split('?')[0] + '?io=true&width=1024&height=768&fit=bounds&format=jpg');
+    });
+    images = [...new Set(cgImages as string[])];
+
+    // If VIN exists, check Dealer Site for Carfax & Better Images
+    if (data.vin) {
+        const dealerData = await scrapeDealerVDP(page.browser(), data.vin, config.dealerDomain);
+        if (dealerData.carfax) carfaxUrl = dealerData.carfax;
+        if (dealerData.images.length > images.length) images = dealerData.images; // Use dealer images if they have more
+    }
+
+    // 4. CONSTRUCT FINAL OBJECT
+    const vehicle: CarGurusVehicle = {
+      year: data.year,
+      make: make,
+      model: model,
+      trim: trim,
+      type: determineBodyType(data.description + " " + model),
+      price: data.price,
+      odometer: data.odometer,
+      images: images,
+      badges: detectBadges(data.description),
+      location: config.location,
+      dealership: config.name,
+      dealershipId: config.dealershipId,
+      description: data.description,
+      vin: data.vin,
+      stockNumber: data.vin.substring(11), // Fallback stock
+      carfaxUrl: carfaxUrl, // Now populated from Dealer Site!
+      dealRating: 'Great Price',
+      cargurusPrice: data.price,
+      cargurusUrl: listingUrl
+    };
+    
+    console.log(`    ✓ Scraped: ${vehicle.year} ${vehicle.model} | $${vehicle.price} | Carfax: ${vehicle.carfaxUrl ? 'YES' : 'NO'}`);
+    return vehicle;
+
+  } catch (e) {
+    console.log(`    ✗ Error on ${listingUrl}`);
+    return null;
+  }
+}
+
+async function scrapeDealerListings(browser: any, config: any): Promise<CarGurusVehicle[]> {
+    const page = await browser.newPage();
+    await page.goto(config.cgUrl, { waitUntil: 'networkidle2' });
+    
+    // Get Detail URLs
+    const urls = await page.evaluate(() => {
+        const links = Array.from(document.querySelectorAll('a[href*="listing="], a[href*="/link/"]'));
+        return [...new Set(links.map(a => a.href))];
+    });
+    
+    console.log(`  Found ${urls.length} listings for ${config.name}`);
+    
+    const vehicles = [];
+    for (const url of urls.slice(0, 20)) { // Limit 20 for testing
+        const v = await scrapeCarGurusVehicleDetail(page, url, config);
+        if (v) vehicles.push(v);
+    }
+    
+    await page.close();
+    return vehicles;
+}
+
+export async function scrapeAllCarGurusDealers(): Promise<CarGurusVehicle[]> {
+  console.log('\n=== STARTING HYBRID SCRAPER ===');
+  const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
+  
+  const allVehicles = [];
+  
+  for (const config of DEALER_CONFIGS) {
+      console.log(`\nScraping Dealer: ${config.name}...`);
+      const vs = await scrapeDealerListings(browser, config);
+      allVehicles.push(...vs);
+  }
+  
+  await browser.close();
+  return allVehicles;
+}

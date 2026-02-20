@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 40" width="180" height="40">
+  <defs>
+    <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#022d60"/>
+      <stop offset="100%" style="stop-color:#00aad2"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="5" width="32" height="30" rx="6" fill="url(#logoGradient)"/>
+  <path d="M8 20 L14 28 L24 14" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <text x="40" y="28" font-family="Inter, system-ui, sans-serif" font-size="22" font-weight="700" fill="#022d60">
+    Lot<tspan fill="#00aad2">View</tspan>
+  </text>
+  <text x="138" y="28" font-family="Inter, system-ui, sans-serif" font-size="14" font-weight="500" fill="#00aad2">.ai</text>
+</svg>

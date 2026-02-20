@@ -1,0 +1,49 @@
+{
+  "manifest_version": 3,
+  "name": "Lotview Auto Poster",
+  "description": "Auto-fill Facebook Marketplace listings from Lotview inventory.",
+  "version": "1.2.0",
+  "permissions": ["storage", "scripting", "downloads", "cookies"],
+  "host_permissions": [
+    "https://www.facebook.com/marketplace/create/*",
+    "https://www.facebook.com/marketplace/you/selling*",
+    "https://lotview.ai/*",
+    "https://*.lotview.ai/*",
+    "https://olympicautogroup.ca/*",
+    "https://*.olympicautogroup.ca/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Lotview Auto Poster"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.facebook.com/marketplace/create/*",
+        "https://www.facebook.com/marketplace/you/selling*"
+      ],
+      "js": ["content-facebook.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://lotview.ai/vehicle/*",
+        "https://*.lotview.ai/vehicle/*"
+      ],
+      "js": ["content-lotview.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

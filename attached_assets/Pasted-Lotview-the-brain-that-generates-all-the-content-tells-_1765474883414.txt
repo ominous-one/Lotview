@@ -1,0 +1,510 @@
+Lotview = the brain that generates all the content + tells staff what to post.
+Staff = the hands that actually click “Post” inside Facebook/Marketplace.
+
+No bots, no API posting, just world-class assist.
+
+I’ll break it down into very concrete steps:
+
+0. Architecture in one picture
+
+Flow per vehicle:
+
+Vehicle lands in Lotview (scraper / DMS / CSV → DB).
+
+Lotview calls AI → generates copy for Marketplace / Page posts / IG / replies.
+
+That copy is saved in your DB.
+
+In the UI, reps see a “Today’s vehicles to post” board.
+
+They click Copy (or “Copy all”) → Lotview puts the text on their clipboard.
+
+They go to Facebook (Marketplace / Page) and paste → tweak → Publish.
+
+They click “Mark as posted” back in Lotview for tracking.
+
+Optionally later: Chrome extension that fills the Marketplace form fields when they click a button, but still leaves “Publish” to them.
+
+1. Data model you need
+
+You probably already have vehicles. Add tables (or columns) for content and posting state.
+
+1. Vehicles
+
+Minimal:
+
+// vehicles
+id: string
+dealer_id: string
+stock_number: string
+vin: string
+year: number
+make: string
+model: string
+trim: string | null
+price: number | null
+kilometers: number | null
+body_style: string | null
+drive_type: string | null
+transmission: string | null
+exterior_color: string | null
+images: string[]  // array JSON in postgres
+days_in_stock: number
+priority_score: number   // your scoring (aged, margin, etc.)
+created_at: Date
+updated_at: Date
+
+
+2. Social content per vehicle
+
+// social_content
+id: string
+vehicle_id: string (FK -> vehicles.id)
+channel: "MARKETPLACE" | "PAGE_POST" | "INSTAGRAM" | "REPLY_TEMPLATE"
+title: string | null       // used for Marketplace / Page posts
+body: string               // main text
+hashtags: string | null    // e.g. "#hyundaicanada #vancouvercars"
+cta_hint: string | null    // "DM us 'TUCSON' for more info"
+version: number            // for regenerations
+generated_at: Date
+
+
+You can either:
+
+Store one row per channel, or
+
+Store one JSON blob per vehicle with all texts inside.
+
+JSON option:
+
+// vehicles.social_templates JSON
+{
+  "marketplace": { "title": "...", "body": "...", "hashtags": "..." },
+  "page_post": { "body": "...", "hashtags": "..." },
+  "instagram": { "caption": "...", "hashtags": "..." },
+  "reply": { "first_message": "...", "followup": "..." }
+}
+
+
+3. Posting tracker (optional but nice)
+
+// social_posting_log
+id: string
+vehicle_id: string
+user_id: string         // sales rep
+channel: "MARKETPLACE" | "PAGE" | "INSTAGRAM"
+posted_at: Date
+notes: string | null    // e.g. "Posted to personal profile in 3 groups"
+
+
+Then you can show “✅ Posted to Marketplace yesterday by John” in the UI.
+
+2. AI content generation pipeline
+2.1. Trigger
+
+Options:
+
+Cron job every X minutes: find all vehicles where:
+
+social_templates is null OR
+
+updated_at > templates.generated_at
+
+Or a queue/event: when a new vehicle comes in, push a job “GenerateSocialTemplates(vehicle_id)”.
+
+2.2. Prompt design
+
+You want structured JSON back, not raw prose, so you can directly store it.
+
+Example prompt (pseudo):
+
+You are a copywriter for Canadian car dealerships.
+I will give you details about a vehicle and dealership.
+Return SHORT, punchy copy for 4 use cases:
+
+Facebook Marketplace listing (title + description)
+
+Facebook Page post (body only)
+
+Instagram caption (body + hashtags)
+
+First reply message when someone asks “Is this available?”
+
+Requirements:
+
+Be clear, honest, and compliant with Canadian car advertising norms.
+
+Don’t mention financing rates or approvals; focus on condition, history, and value.
+
+Keep tone professional but friendly.
+
+Return valid JSON ONLY in this format:
+
+{
+  "marketplace": { "title": "...", "body": "..." },
+  "page_post": { "body": "..." },
+  "instagram": { "caption": "...", "hashtags": "..." },
+  "reply": { "message": "..." }
+}
+
+
+VEHICLE:
+
+Year: {{year}}
+
+Make: {{make}}
+
+Model: {{model}}
+
+Trim: {{trim}}
+
+KMs: {{kms}}
+
+Price: ${{price}}
+
+Location: {{dealer_city}}, {{dealer_province}}
+
+Notes: {{if one-owner, clean Carfax, etc.}}
+
+DEALER:
+
+Name: {{dealer_name}}
+
+Main value props: {{e.g. “family-owned, no doc fee surprises, 4.9★ Google rating”}}
+
+You call the LLM (OpenAI / Anthropic / etc.), parse JSON, validate lengths, then save to social_templates.
+
+2.3. Regeneration
+
+In the UI, add a “Regenerate copy” button per vehicle:
+
+Call AI again with updated notes (e.g., new promo).
+
+Increment version.
+
+Log who requested the regen (for audit).
+
+3. Lotview UI – “Today’s Social Queue”
+
+Think of a page like:
+
+/social → Social Playbook
+
+3.1. Top-level layout
+
+Filters:
+
+Rooftop
+
+Channel (Marketplace / Page / IG)
+
+Days in stock (“Aged 45+ days first”)
+
+Sort:
+
+Priority score, price, date added.
+
+Then show a card list of vehicles:
+
+Each card shows:
+
+Main photo
+
+Year / Make / Model / Trim
+
+Price & KM
+
+Days in stock, priority tag
+
+Badges like “✅ Posted to Marketplace yesterday” if you use the posting log
+
+And then channel buttons:
+
+Copy Marketplace
+
+Copy Page Post
+
+Copy IG Caption
+
+View Reply Script
+
+Clicking a button:
+
+Copies the right text to clipboard
+
+Shows a toast “Copied Marketplace listing for 2023 Tucson Preferred”.
+
+3.2. “Copy all” UX
+
+Inside the card, you can also have:
+
+A “Preview & Copy All” modal:
+
+Tabs: Marketplace / Page / IG / Replies
+
+At bottom, a big Copy to Clipboard button for whichever tab is active.
+
+3.3. React copy implementation (concrete code)
+
+You can build a reusable CopyButton component.
+
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Check, Copy } from "lucide-react";
+import { toast } from "sonner";
+
+interface CopyButtonProps {
+  text: string;
+  label?: string;
+}
+
+export function CopyButton({ text, label = "Copy" }: CopyButtonProps) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        // Fallback for older browsers
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.style.position = "fixed";
+        textarea.style.left = "-9999px";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+
+      setCopied(true);
+      toast.success("Copied to clipboard");
+      setTimeout(() => setCopied(false), 1800);
+    } catch (err) {
+      console.error("Copy failed", err);
+      toast.error("Unable to copy. Please copy manually.");
+    }
+  };
+
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className="rounded-full text-xs"
+      onClick={handleCopy}
+    >
+      {copied ? (
+        <>
+          <Check className="w-3 h-3 mr-1" />
+          Copied
+        </>
+      ) : (
+        <>
+          <Copy className="w-3 h-3 mr-1" />
+          {label}
+        </>
+      )}
+    </Button>
+  );
+}
+
+
+Usage inside a vehicle card:
+
+<CopyButton
+  label="Copy Marketplace"
+  text={`${templates.marketplace.title}\n\n${templates.marketplace.body}`}
+/>
+
+<CopyButton
+  label="Copy Page Post"
+  text={templates.page_post.body}
+/>
+
+<CopyButton
+  label="Copy IG Caption"
+  text={`${templates.instagram.caption}\n\n${templates.instagram.hashtags}`}
+/>
+
+4. Staff workflow: how reps will actually use it
+
+This is important so it feels like “almost autopost” to them:
+
+Start of shift
+
+Rep logs into Lotview → goes to Social Playbook.
+
+Filters by their rooftop & channel (e.g., “Marketplace today”).
+
+For each vehicle:
+
+Clicks the vehicle card → sees the recommended copy + main photos.
+
+Clicks Copy Marketplace.
+
+Switches to Facebook → Marketplace → “Create listing → Vehicles”.
+
+Pastes the title & description, uploads photos (you can list which photos to use).
+
+Tweaks if needed → clicks Publish.
+
+Back in Lotview
+
+Clicks “Mark as posted to Marketplace”.
+
+Your app records social_posting_log entry (vehicle, user, channel, timestamp).
+
+End result
+
+Manager can see: “John posted 7 units to Marketplace this morning; here are the stock numbers and timestamps.”
+
+You can also add:
+
+A progress bar at the top:
+
+“You’ve posted 3 / 10 recommended units today.”
+
+5. Optional: helper browser extension (slightly more advanced)
+
+This is 100% optional, but it can make it feel like magic.
+
+Goal: When a rep is on the “Create Marketplace listing” page, they can click your Chrome extension → choose the vehicle → it fills in title/description for them.
+
+Still:
+
+User opened Facebook themselves
+
+User installed the extension
+
+User clicks the button & reviews text
+
+User still clicks Publish
+
+5.1. High-level design
+
+Chrome extension (Manifest v3) with:
+
+A popup UI (search by stock # or VIN).
+
+A content script that can read/write form fields on Facebook.
+
+Secure API endpoint in Lotview:
+
+GET /api/social-template?stock=ABC123
+
+Returns the JSON templates for that user/dealer.
+
+5.2. Minimal flow
+
+Rep opens Facebook → Marketplace → “Create listing (vehicle)”.
+
+Clicks the Lotview Chrome extension icon.
+
+Types stock number or VIN (or sees a dropdown of “today’s priority cars”).
+
+Extension fetches from your API:
+
+{
+  "marketplace": {
+    "title": "2022 Hyundai Tucson Preferred AWD | One Owner | No Accidents",
+    "body": "Clean Carfax, heated seats, blind spot, ...",
+    "hashtags": "#hyundaicanada #vancouvercars"
+  }
+}
+
+
+Content script runs something like:
+
+// VERY simplified example, you'd need real selectors:
+document.querySelector('input[name="title"]').value = data.marketplace.title;
+document.querySelector('textarea[name="description"]').value =
+  data.marketplace.body + "\n\n" + data.marketplace.hashtags;
+
+
+Rep reviews the listing, adds photos, and clicks Publish.
+
+Important:
+You have to treat this as a local assist tool, not a hidden bot. No automatic posting, no background spam. Everything happens because the rep:
+
+Opened the page
+
+Clicked your icon
+
+Chose the vehicle
+
+Clicked Publish
+
+6. Guardrails & compliance
+
+To stay aligned with what you already told Meta:
+
+“Clients stay in full control and publish posts themselves from their own accounts; we do not log in or post on their behalf.”
+
+Make sure:
+
+Lotview never handles Facebook logins
+
+No “Connect your Facebook” login flow for this feature.
+
+You’re just generating text.
+
+No automation without user presence
+
+Don’t schedule background scripts that fire off posts.
+
+Don’t auto-fill forms behind the scenes.
+
+Clear language in your UI
+
+“Step 1: Copy this text.
+Step 2: Paste into Marketplace / your Page.
+Step 3: Mark as posted.”
+
+Internal note in your docs
+
+“This feature is assistive only. All posting is done manually by staff. Lotview never uses scripts or bots to log in or publish.”
+
+7. Concrete next steps (for you this week)
+
+If you want to actually ship v1:
+
+Add social_templates JSON column to vehicles.
+
+Create a small “Generate templates” script that:
+
+Pulls 5 test vehicles
+
+Calls your AI of choice with the prompt above
+
+Stores the templates JSON.
+
+Build a simple /social page in your existing Replit app:
+
+List vehicles with social_templates IS NOT NULL
+
+Add the CopyButton component for:
+
+Marketplace
+
+Page post
+
+IG caption
+
+Sit with 1–2 salespeople and watch them:
+
+Use Lotview
+
+Go to Facebook
+
+Paste + post
+
+Note the friction → adjust copy length / structure.
+
+Once that’s live and smooth, we can design v2 with:
+
+Better scoring / sorting (“Top 10 to post today”)
+
+Posting log + KPI dashboard
+
+Extension mock for later.

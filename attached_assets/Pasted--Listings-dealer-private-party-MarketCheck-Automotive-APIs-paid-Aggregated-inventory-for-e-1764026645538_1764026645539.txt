@@ -1,0 +1,183 @@
+🚗 Listings (dealer + private party)
+
+MarketCheck Automotive APIs (paid)
+
+Aggregated inventory for every dealership in US & Canada, plus private party feeds.
+MarketCheck
++2
+Postman Documenter
++2
+
+Key APIs for you:
+
+Cars Search / Recent Inventory – dealer inventory search by Y/M/M/Trim, VIN, radius, etc.
+MarketCheck
++2
+Postman Documenter
++2
+
+Private Party Listings / FSBO APIs – private seller listings data by region/YMMT/VIN.
+Datarade
++2
+MarketCheck
++2
+
+This gives you most of the “vAuto view” with one provider (price, dealer, URL, days on market, etc.).
+
+🇨🇦 Extra Canada coverage (optional but nice)
+
+If you want to be obscenely complete for Canada, layer in marketplace scrapers via Apify:
+
+Autotrader.ca scraper actor – automates pulling vehicle listings (year/make/model, price, mileage, status, etc.) from Autotrader.ca at scale.
+Apify
++2
+Apify
++2
+
+Kijiji.ca auto/classifieds scraper actors – scrape Kijiji.ca search results: price, location, title, etc.
+Apify
++3
+Apify
++3
+Apify
++3
+
+Apify runs the browser, you just hit their REST API, and you get JSON.
+
+Design rule: from these scrapers, you store price/specs + platform name + link, not private seller identity.
+
+2. Automation / orchestration tools (how you “glue” it together)
+🔄 n8n (you already use this – make it the hub)
+
+Use n8n as your automation backbone:
+
+Cron nodes
+
+Nightly “market refresh” flow:
+
+For each VIN in your inventory table:
+
+Call VIN decoder if missing cached decode.
+
+Call MarketCheck dealer search.
+
+Call MarketCheck private/FSBO search.
+
+Optionally call Apify Autotrader.ca + Kijiji actors.
+
+Upsert into market_listings table.
+
+Run aggregation to update market_comps.
+
+HTTP Webhook nodes
+
+/appraise endpoint:
+
+Input: VIN, kms, postal code.
+
+n8n decodes VIN → calls APIs → returns JSON comps in real time.
+
+GHL, a custom React app, or even a Google Sheet can hit this webhook.
+
+Database nodes
+
+Direct Postgres/MySQL write for:
+
+vehicles
+
+market_listings
+
+market_comps
+
+HTTP Request nodes
+
+To call:
+
+NHTSA vPIC VIN API
+NHTSA VPIC
++1
+
+MarketCheck search APIs
+MarketCheck
++2
+Postman Documenter
++2
+
+Apify actor runs & result datasets
+Apify
++4
+Apify
++4
+Apify
++4
+
+🕷️ Apify (for scrapers + scheduling)
+
+Apify gives you:
+
+Managed scraping actors for Autotrader.ca and Kijiji.ca.
+Apify
++4
+Apify
++4
+Apify
++4
+
+Built-in schedules: you can schedule scrapes every X hours for saved searches (e.g., “Tucson Preferred within BC”), and n8n just pulls the dataset URL.
+
+You can do either:
+
+Let Apify handle schedules and n8n reads datasets, or
+
+Let n8n trigger Apify runs via API when needed.
+
+3. Storage & backend tools
+🗄️ Database
+
+Pick Postgres and forget about it:
+
+Hosted options that work well with n8n and your stack:
+
+Neon, Supabase, or Railway Postgres (all easy Postgres-as-a-service).
+
+Tables you’ll want:
+
+vehicles – VIN, Y/M/M/Trim, body, engine, etc.
+
+market_listings – one row per found listing:
+
+source (marketcheck_dealer, marketcheck_private, autotrader, kijiji)
+
+dealer_name OR platform_name
+
+price, kms, condition, city/province, URL
+
+market_comps – aggregated stats per VIN/YMMT/region:
+
+count, min/median/max price
+
+dealer vs private counts
+
+days_on_market metrics
+
+🧠 Backend / API layer
+
+You can go two ways:
+
+No custom backend (fastest)
+
+Use n8n webhooks as your “API”.
+
+GHL or your web UI calls n8n’s webhook, n8n returns JSON.
+
+Light backend (more control)
+
+Build a small FastAPI (Python) or Node + Express/Next.js API routes service that:
+
+Talks to Postgres,
+
+Exposes /vin/{vin}/comps endpoint,
+
+Handles auth / rate limiting more cleanly.
+
+You’re technical enough that a small FastAPI service on Railway/Fly.io/Render will be easy.

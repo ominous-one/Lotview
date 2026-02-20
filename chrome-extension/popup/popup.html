@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lotview Auto Poster</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div class="logo">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+          <line x1="9" y1="9" x2="9.01" y2="9"/>
+          <line x1="15" y1="9" x2="15.01" y2="9"/>
+        </svg>
+        <span>Lotview Auto Poster</span>
+      </div>
+      <div id="header-user" class="header-user" style="display: none;">
+        <span id="header-user-name"></span>
+        <button id="logout-btn" class="btn-link-white">Logout</button>
+      </div>
+    </header>
+
+    <div id="login-view" class="view">
+      <h2>Sign In</h2>
+      <p class="subtitle">Use your Lotview account</p>
+      
+      <form id="login-form">
+        <div class="form-group">
+          <label for="server-url">Server URL</label>
+          <input type="url" id="server-url" required placeholder="https://your-lotview.replit.app">
+        </div>
+        
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input type="email" id="email" required placeholder="your@email.com">
+        </div>
+        
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" required placeholder="Password">
+        </div>
+        
+        <div id="login-error" class="error-message"></div>
+        
+        <button type="submit" class="btn btn-primary" id="login-btn">
+          <span class="btn-text">Sign In</span>
+          <span class="btn-loading" style="display: none;">Signing in...</span>
+        </button>
+      </form>
+    </div>
+
+    <div id="main-view" class="view" style="display: none;">
+      <nav class="tabs">
+        <button class="tab active" data-tab="inventory">Inventory</button>
+        <button class="tab" data-tab="templates">Templates</button>
+        <button class="tab" data-tab="ai-tools">AI Tools</button>
+      </nav>
+
+      <div id="tab-inventory" class="tab-content active">
+        <div class="search-bar">
+          <input type="text" id="vehicle-search" placeholder="Search vehicles by name, stock #, or VIN...">
+        </div>
+
+        <div class="vehicle-list" id="vehicle-list">
+          <div class="loading">Loading vehicles...</div>
+        </div>
+
+        <div id="selected-vehicle" class="selected-vehicle" style="display: none;">
+          <h3>Selected Vehicle</h3>
+          <div class="vehicle-preview">
+            <img id="preview-image" src="" alt="Vehicle">
+            <div class="vehicle-info">
+              <strong id="preview-title"></strong>
+              <span id="preview-price"></span>
+            </div>
+          </div>
+          
+          <div class="description-preview">
+            <label>Description Preview:</label>
+            <textarea id="description-preview" rows="4" readonly></textarea>
+          </div>
+          
+          <button id="fill-form-btn" class="btn btn-primary">
+            Fill Facebook Form
+          </button>
+          <button id="clear-selection-btn" class="btn btn-secondary">
+            Clear Selection
+          </button>
+        </div>
+      </div>
+
+      <div id="tab-templates" class="tab-content">
+        <div class="template-section">
+          <h3>Description Template</h3>
+          <p class="section-desc">Set required text that always appears in your descriptions.</p>
+          
+          <div class="form-group">
+            <label>Header (appears at top)</label>
+            <textarea id="template-header" rows="2" placeholder="e.g., Olympic Hyundai Vancouver - Quality Pre-Owned Vehicles"></textarea>
+          </div>
+          
+          <div class="form-group">
+            <label>Must-Include Points</label>
+            <textarea id="template-musts" rows="4" placeholder="Enter required points (one per line):
+- Financing available OAC
+- All vehicles inspected
+- Trade-ins welcome"></textarea>
+          </div>
+          
+          <div class="form-group">
+            <label>Footer / Call to Action</label>
+            <textarea id="template-footer" rows="2" placeholder="e.g., Message us today to schedule your test drive!"></textarea>
+          </div>
+          
+          <div class="form-group">
+            <label>Tone / Style</label>
+            <select id="template-tone">
+              <option value="professional">Professional & Refined</option>
+              <option value="friendly">Friendly & Approachable</option>
+              <option value="excited">Excited & Energetic</option>
+              <option value="luxury">Luxury & Exclusive</option>
+              <option value="value">Value-Focused</option>
+            </select>
+          </div>
+          
+          <div class="checkbox-group">
+            <label>
+              <input type="checkbox" id="template-use-emojis" checked>
+              Use emojis in descriptions
+            </label>
+          </div>
+          
+          <button id="save-template-btn" class="btn btn-primary">Save Template Settings</button>
+        </div>
+      </div>
+
+      <div id="tab-ai-tools" class="tab-content">
+        <div class="ai-tools-section">
+          <h3>AI Content Generator</h3>
+          <p class="section-desc">Generate specific content sections using AI. Select a vehicle first, then click a button to generate content.</p>
+          
+          <div id="ai-vehicle-info" class="ai-vehicle-info" style="display: none;">
+            <span>Selected: </span><strong id="ai-vehicle-name"></strong>
+          </div>
+          
+          <div class="ai-buttons-grid">
+            <button class="ai-btn" data-type="engine">
+              <span class="ai-btn-icon">🔧</span>
+              <span class="ai-btn-label">Engine Features</span>
+              <span class="ai-btn-desc">Power, performance, fuel economy</span>
+            </button>
+            
+            <button class="ai-btn" data-type="tech">
+              <span class="ai-btn-icon">📱</span>
+              <span class="ai-btn-label">Tech Features</span>
+              <span class="ai-btn-desc">Infotainment, connectivity, displays</span>
+            </button>
+            
+            <button class="ai-btn" data-type="safety">
+              <span class="ai-btn-icon">🛡️</span>
+              <span class="ai-btn-label">Safety Features</span>
+              <span class="ai-btn-desc">Driver assists, airbags, ratings</span>
+            </button>
+            
+            <button class="ai-btn" data-type="comfort">
+              <span class="ai-btn-icon">🪑</span>
+              <span class="ai-btn-label">Comfort Features</span>
+              <span class="ai-btn-desc">Seats, climate, convenience</span>
+            </button>
+            
+            <button class="ai-btn" data-type="history">
+              <span class="ai-btn-icon">📋</span>
+              <span class="ai-btn-label">Car History</span>
+              <span class="ai-btn-desc">Carfax, ownership, service</span>
+            </button>
+            
+            <button class="ai-btn" data-type="value">
+              <span class="ai-btn-icon">💰</span>
+              <span class="ai-btn-label">Value Proposition</span>
+              <span class="ai-btn-desc">Why this car is a great deal</span>
+            </button>
+          </div>
+          
+          <div class="custom-ai-section">
+            <h4>Custom AI Prompt</h4>
+            <div class="form-group">
+              <textarea id="custom-ai-prompt" rows="2" placeholder="Enter a custom prompt, e.g., 'Write 3 bullet points about winter driving capability'"></textarea>
+            </div>
+            <button id="custom-ai-btn" class="btn btn-secondary">Generate Custom Content</button>
+          </div>
+          
+          <div id="ai-result" class="ai-result" style="display: none;">
+            <h4>Generated Content</h4>
+            <textarea id="ai-result-text" rows="6" readonly></textarea>
+            <div class="ai-result-actions">
+              <button id="copy-ai-result" class="btn btn-secondary">Copy to Clipboard</button>
+              <button id="append-to-desc" class="btn btn-primary">Add to Description</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="not-on-marketplace" class="view" style="display: none;">
+      <div class="info-box">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <h3>Navigate to Facebook Marketplace</h3>
+        <p>Open Facebook Marketplace and click "Create new listing" to start posting.</p>
+        <a href="https://www.facebook.com/marketplace/create/vehicle" target="_blank" class="btn btn-primary">
+          Open Marketplace
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

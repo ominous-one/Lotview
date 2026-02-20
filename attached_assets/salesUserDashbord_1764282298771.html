@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DealerOS | Sales Command</title>
+    
+    <!-- TECH STACK -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+
+    <!-- CONFIG -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            dark: '#022d60', 
+                            light: '#00aad2',
+                            surface: '#F8FAFC',
+                            facebook: '#1877F2'
+                        }
+                    },
+                    fontFamily: { sans: ['Inter', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        .dark ::-webkit-scrollbar-thumb { background: #334155; }
+        
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+        }
+        .dark .glass-panel {
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid rgba(30, 41, 59, 0.8);
+        }
+        
+        .active-page { ring: 2px solid #00aad2; transform: translateY(-2px); }
+        
+        /* Facebook Preview Styles */
+        .fb-preview-card { border: 1px solid #ddd; border-radius: 8px; overflow: hidden; max-width: 320px; margin: 0 auto; background: white; }
+        .fb-header { padding: 12px; display: flex; align-items: center; gap: 8px; }
+        .fb-avatar { width: 32px; height: 32px; background: #ddd; border-radius: 50%; }
+        .fb-name { font-weight: bold; font-size: 13px; color: #050505; }
+        .fb-meta { font-size: 11px; color: #65676b; }
+        .fb-content { padding: 0 12px 12px; font-size: 13px; color: #050505; }
+        .fb-image { width: 100%; height: 200px; background: #f0f2f5; object-fit: cover; }
+        .fb-footer { padding: 8px 12px; background: #f0f2f5; font-size: 12px; color: #65676b; font-weight: bold; display: flex; justify-content: space-between; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 dark:bg-slate-900 dark:text-slate-200 font-sans transition-colors duration-300 min-h-screen flex flex-col">
+
+    <!-- --- HEADER --- -->
+    <header class="bg-white/80 dark:bg-slate-800/80 backdrop-blur-md sticky top-0 z-50 border-b border-slate-200 dark:border-slate-700 px-6 py-4 flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-brand-dark rounded-lg flex items-center justify-center text-white font-bold text-xl">O</div>
+            <div>
+                <h1 class="font-bold text-lg leading-none dark:text-white">Sales<span class="text-brand-light">Command</span></h1>
+                <p class="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">Social Automation</p>
+            </div>
+        </div>
+        
+        <div class="flex items-center gap-4">
+            <div class="hidden md:flex items-center gap-2 bg-green-50 dark:bg-green-900/20 px-3 py-1.5 rounded-full border border-green-100 dark:border-green-900/30">
+                <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span class="text-xs font-bold text-green-700 dark:text-green-400">AI Agent Active</span>
+            </div>
+            <button onclick="document.documentElement.classList.toggle('dark')" class="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center transition-colors">
+                <i class="fa-solid fa-sun dark:hidden text-slate-500"></i>
+                <i class="fa-solid fa-moon hidden dark:block text-yellow-400"></i>
+            </button>
+            <div class="flex items-center gap-3 pl-4 border-l border-slate-200 dark:border-slate-700">
+                <img src="https://ui-avatars.com/api/?name=Alex+Sales&background=00aad2&color=fff" class="w-9 h-9 rounded-full">
+                <div class="hidden md:block">
+                    <p class="text-sm font-bold dark:text-white">Alex Sales</p>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">5 Pages Active</p>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- --- MAIN CONTENT --- -->
+    <main class="flex-1 p-4 md:p-8 max-w-7xl mx-auto w-full space-y-8">
+        
+        <!-- 1. ACCOUNT SELECTOR -->
+        <section>
+            <h2 class="text-xl font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                <i class="fa-brands fa-facebook text-brand-facebook"></i> Connected Accounts
+            </h2>
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <!-- Connected Page 1 -->
+                <div onclick="selectPage(1)" id="page-card-1" class="glass-panel p-4 rounded-2xl cursor-pointer transition-all active-page relative group page-selector">
+                    <div class="absolute top-3 right-3 text-green-500 text-xs"><i class="fa-solid fa-circle-check"></i></div>
+                    <div class="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-3 mx-auto text-xl">
+                        <i class="fa-solid fa-car"></i>
+                    </div>
+                    <p class="font-bold text-sm text-center truncate dark:text-white">Alex's Deals</p>
+                    <p class="text-[10px] text-center text-slate-500 dark:text-slate-400">3 posts today</p>
+                </div>
+                
+                <!-- Connected Page 2 -->
+                <div onclick="selectPage(2)" id="page-card-2" class="glass-panel p-4 rounded-2xl cursor-pointer transition-all hover:border-brand-light/50 relative group page-selector">
+                    <div class="absolute top-3 right-3 text-green-500 text-xs"><i class="fa-solid fa-circle-check"></i></div>
+                    <div class="w-12 h-12 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center mb-3 mx-auto text-xl">
+                        <i class="fa-solid fa-truck-pickup"></i>
+                    </div>
+                    <p class="font-bold text-sm text-center truncate dark:text-white">Vancouver Trucks</p>
+                    <p class="text-[10px] text-center text-slate-500 dark:text-slate-400">0 posts today</p>
+                </div>
+
+                <!-- Add New Slot -->
+                <div class="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl flex flex-col items-center justify-center p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition text-slate-400 hover:text-brand-light">
+                    <i class="fa-solid fa-plus text-2xl mb-2"></i>
+                    <span class="text-xs font-bold uppercase">Connect Page</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- 2. CONFIGURATION & QUEUE (Dynamic based on selected page) -->
+        <div id="page-config" class="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in">
+            
+            <!-- LEFT: SETTINGS & TEMPLATE -->
+            <div class="space-y-6">
+                <!-- Scheduler -->
+                <div class="glass-panel p-6 rounded-2xl">
+                    <h3 class="font-bold text-lg dark:text-white mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-clock text-slate-400"></i> Automation Schedule
+                    </h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-400 mb-1 uppercase">Start Posting At</label>
+                            <input type="time" value="09:00" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm dark:text-white focus:outline-none focus:border-brand-light">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-400 mb-1 uppercase">Time Buffer</label>
+                            <select class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm dark:text-white focus:outline-none focus:border-brand-light">
+                                <option value="1">1 Hour Between Posts</option>
+                                <option value="2">2 Hours Between Posts</option>
+                                <option value="3" selected>3 Hours Between Posts</option>
+                                <option value="4">4 Hours Between Posts</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Template Editor -->
+                <div class="glass-panel p-6 rounded-2xl flex flex-col h-[500px]">
+                    <div class="flex justify-between items-center mb-4">
+                        <div>
+                            <h3 class="font-bold text-lg dark:text-white flex items-center gap-2">
+                                <i class="fa-solid fa-pen-nib text-slate-400"></i> Ad Template
+                            </h3>
+                            <p class="text-[10px] text-slate-500" id="template-context-label">Editing for: Alex's Deals</p>
+                        </div>
+                        <button class="text-xs bg-brand-dark text-white px-3 py-1.5 rounded-lg hover:bg-brand-light transition" onclick="saveTemplate()">Save Changes</button>
+                    </div>
+                    
+                    <textarea id="template-editor" class="flex-1 w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-4 text-sm font-mono focus:outline-none focus:border-brand-light dark:text-white leading-relaxed resize-none" oninput="updatePreviews()"></textarea>
+                    
+                    <div class="mt-3 flex flex-wrap gap-2">
+                        <span onclick="insertVar('{Year}')" class="cursor-pointer px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-[10px] font-mono text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-brand-light transition">{Year}</span>
+                        <span onclick="insertVar('{Make}')" class="cursor-pointer px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-[10px] font-mono text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-brand-light transition">{Make}</span>
+                        <span onclick="insertVar('{Model}')" class="cursor-pointer px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-[10px] font-mono text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-brand-light transition">{Model}</span>
+                        <span onclick="insertVar('{Price}')" class="cursor-pointer px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-[10px] font-mono text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-brand-light transition">{Price}</span>
+                        <span onclick="insertVar('{Payment}')" class="cursor-pointer px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-[10px] font-mono text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-brand-light transition">{Payment}</span>
+                         <span onclick="insertVar('{Link}')" class="cursor-pointer px-2 py-1 bg-blue-50 dark:bg-blue-900/30 rounded text-[10px] font-mono text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:border-brand-light transition">{Link}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT: INVENTORY QUEUE -->
+            <div class="lg:col-span-2 glass-panel p-6 rounded-2xl flex flex-col">
+                <div class="flex justify-between items-end mb-6">
+                    <div>
+                        <h3 class="font-bold text-lg dark:text-white">Posting Queue</h3>
+                        <p class="text-sm text-slate-500 dark:text-slate-400">Set post order (1, 2, 3...) to prioritize.</p>
+                    </div>
+                    <div class="flex gap-3">
+                        <select class="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-xs font-bold dark:text-white">
+                            <option>Filter: All Dealers</option>
+                            <option>Olympic Hyundai</option>
+                            <option>Kia Vancouver</option>
+                        </select>
+                        <button class="bg-brand-light text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-[#008bb0] transition shadow-lg">
+                            <i class="fa-solid fa-play mr-1"></i> Start Queue
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Queue List -->
+                <div class="flex-1 overflow-y-auto space-y-3 pr-2" id="inventory-list">
+                    <!-- JS Injects Items Here -->
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- PREVIEW DROPDOWN (Hidden logic) -->
+    <template id="queue-item-template">
+        <div class="group bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 transition-all hover:shadow-lg hover:border-brand-light/50">
+            <div class="flex items-center gap-4">
+                <!-- Order Handle -->
+                <div class="flex flex-col items-center justify-center w-8 text-slate-300 cursor-move">
+                    <i class="fa-solid fa-grip-vertical"></i>
+                </div>
+                
+                <!-- Order Input -->
+                <input type="number" class="w-12 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-center font-bold text-sm dark:text-white focus:outline-none focus:border-brand-light" value="{Order}">
+                
+                <!-- Image -->
+                <img src="{Image}" class="w-16 h-12 object-cover rounded-lg bg-slate-200">
+                
+                <!-- Details -->
+                <div class="flex-1 min-w-0">
+                    <h4 class="font-bold text-sm dark:text-white truncate">{Year} {Make} {Model}</h4>
+                    <div class="flex gap-3 text-xs text-slate-500 dark:text-slate-400">
+                        <span>{Trim}</span>
+                        <span>•</span>
+                        <span>{Dealer}</span>
+                        <span>•</span>
+                        <span class="text-green-600 font-bold">${Price}</span>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex items-center gap-2">
+                    <button onclick="togglePreview(this)" class="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-400 hover:text-brand-light transition" title="Preview Ad">
+                        <i class="fa-regular fa-eye"></i>
+                    </button>
+                    <label class="flex items-center gap-2 cursor-pointer bg-slate-50 dark:bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-brand-light transition">
+                        <input type="checkbox" class="accent-brand-light w-4 h-4">
+                        <span class="text-xs font-bold text-slate-600 dark:text-slate-300">Post</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- PREVIEW PANEL (SOCIAL CARD MOCKUP) -->
+            <div class="hidden mt-4 pt-4 border-t border-slate-100 dark:border-slate-700 preview-box animate-fade-in">
+                <p class="text-[10px] font-bold text-slate-400 uppercase mb-3 text-center">Facebook Marketplace Preview</p>
+                
+                <!-- THE MOCKUP -->
+                <div class="fb-preview-card dark:bg-slate-900 dark:border-slate-700">
+                    <div class="fb-header dark:bg-slate-900">
+                        <div class="fb-avatar"></div>
+                        <div>
+                            <div class="fb-name dark:text-white page-name-display">Page Name</div>
+                            <div class="fb-meta">Just now · <i class="fa-solid fa-earth-americas"></i></div>
+                        </div>
+                    </div>
+                    <div class="fb-content dark:text-slate-300 whitespace-pre-wrap generated-text">
+                        <!-- Dynamic Text Here -->
+                    </div>
+                    <img src="{Image}" class="fb-image">
+                    <div class="fb-footer dark:bg-slate-800 dark:text-slate-400">
+                        <span>{Year} {Make} {Model}</span>
+                        <button class="bg-slate-200 text-black px-3 py-1 rounded text-xs">Message</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- JAVASCRIPT ENGINE -->
+    <script>
+        // --- 1. STATE MANAGEMENT ---
+        let activePageId = 1;
+        
+        // Templates for each page (Simulating DB)
+        const pageTemplates = {
+            1: "🔥 JUST ARRIVED! 🔥\n\n{Year} {Make} {Model} {Trim}\n📍 Located at {Dealer}\n💰 Only ${Price} or ${Payment}/mo\n\n✅ {Badge1}\n✅ {Badge2}\n✅ {Odometer} km\n\nMessage me for a test drive! 🚗💨\nLink: {Link}",
+            2: "TRUCK ALERT 🚚\n\nWork ready {Year} {Make} {Model}!\nLow KMs: {Odometer}\nCash Price: ${Price}\n\nClean Title. One Owner. {Dealer} Certified.\n\ncall me at 555-0192 for info!"
+        };
+
+        const pageNames = {
+            1: "Alex's Deals",
+            2: "Vancouver Trucks"
+        };
+
+        const inventory = [
+            { id: 1, order: 1, year: 2023, make: "Hyundai", model: "Tucson", trim: "Preferred", dealer: "Olympic", price: "34,999", payment: "548", odo: "12,500", badge1: "One Owner", badge2: "No Accidents", img: "https://images.unsplash.com/photo-1609521263047-f8f205293f24?q=80&w=400" },
+            { id: 2, order: 2, year: 2021, make: "Ford", model: "F-150", trim: "Lariat", dealer: "Boundary", price: "52,000", payment: "820", odo: "45,000", badge1: "Clean CarFax", badge2: "4WD", img: "https://images.unsplash.com/photo-1589640031222-48c675f961db?q=80&w=400" },
+            { id: 3, order: 3, year: 2025, make: "Genesis", model: "GV70", trim: "Prestige", dealer: "Olympic", price: "68,000", payment: "950", odo: "500", badge1: "Manager Special", badge2: "Luxury", img: "https://images.unsplash.com/photo-1619767886558-efdc259cde1a?q=80&w=400" }
+        ];
+
+        // --- 2. RENDERER ---
+        function renderQueue() {
+            const container = document.getElementById('inventory-list');
+            const template = document.getElementById('queue-item-template').innerHTML;
+            
+            container.innerHTML = inventory.map(car => {
+                let html = template
+                    .replace(/{Order}/g, car.order)
+                    .replace(/{Image}/g, car.img)
+                    .replace(/{Year}/g, car.year)
+                    .replace(/{Make}/g, car.make)
+                    .replace(/{Model}/g, car.model)
+                    .replace(/{Trim}/g, car.trim)
+                    .replace(/{Dealer}/g, car.dealer)
+                    .replace(/{Price}/g, car.price);
+                
+                // Store data for preview generation
+                return html.replace('<div class="group', `<div data-car='${JSON.stringify(car)}' class="group`);
+            }).join('');
+        }
+
+        // --- 3. LOGIC ---
+        function selectPage(id) {
+            // UI Update
+            document.querySelectorAll('.page-selector').forEach(el => el.classList.remove('active-page', 'ring-2', 'ring-brand-light'));
+            document.getElementById(`page-card-${id}`).classList.add('active-page', 'ring-2', 'ring-brand-light');
+            
+            // State Update
+            activePageId = id;
+            document.getElementById('template-context-label').innerText = `Editing for: ${pageNames[id]}`;
+            
+            // Load Template
+            document.getElementById('template-editor').value = pageTemplates[id] || "";
+            
+            // Refresh Previews if open
+            document.querySelectorAll('.preview-box:not(.hidden)').forEach(box => {
+                const btn = box.closest('.group').querySelector('button');
+                togglePreview(btn, true); // Force refresh
+            });
+        }
+
+        function togglePreview(btn, forceRefresh = false) {
+            const card = btn.closest('.group');
+            const preview = card.querySelector('.preview-box');
+            const data = JSON.parse(card.getAttribute('data-car'));
+            const template = document.getElementById('template-editor').value;
+            const pageName = pageNames[activePageId];
+
+            // Generate Text
+            const text = template
+                .replace(/{Year}/g, data.year)
+                .replace(/{Make}/g, data.make)
+                .replace(/{Model}/g, data.model)
+                .replace(/{Trim}/g, data.trim)
+                .replace(/{Dealer}/g, data.dealer)
+                .replace(/{Price}/g, data.price)
+                .replace(/{Payment}/g, data.payment)
+                .replace(/{Odometer}/g, data.odo)
+                .replace(/{Badge1}/g, data.badge1)
+                .replace(/{Badge2}/g, data.badge2)
+                .replace(/{Link}/g, `https://olympic.auto/vdp/${data.id}`);
+
+            card.querySelector('.generated-text').innerText = text;
+            card.querySelector('.page-name-display').innerText = pageName;
+            
+            if (preview.classList.contains('hidden') && !forceRefresh) {
+                preview.classList.remove('hidden');
+                btn.classList.add('text-brand-light', 'bg-slate-100');
+                btn.innerHTML = '<i class="fa-solid fa-eye-slash"></i>';
+            } else if (!forceRefresh) {
+                preview.classList.add('hidden');
+                btn.classList.remove('text-brand-light', 'bg-slate-100');
+                btn.innerHTML = '<i class="fa-regular fa-eye"></i>';
+            }
+        }
+
+        function updatePreviews() {
+            // Updates any currently open previews live as you type
+            document.querySelectorAll('.preview-box:not(.hidden)').forEach(box => {
+                const btn = box.closest('.group').querySelector('button');
+                togglePreview(btn, true);
+            });
+        }
+
+        function insertVar(variable) {
+            const textarea = document.getElementById('template-editor');
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            const text = textarea.value;
+            const before = text.substring(0, start);
+            const after = text.substring(end, text.length);
+            textarea.value = before + variable + after;
+            textarea.selectionStart = textarea.selectionEnd = start + variable.length;
+            textarea.focus();
+            updatePreviews();
+        }
+
+        function saveTemplate() {
+            const btn = event.target;
+            const originalText = btn.innerText;
+            
+            // Save to State
+            pageTemplates[activePageId] = document.getElementById('template-editor').value;
+            
+            btn.innerText = "Saved!";
+            btn.classList.add('bg-green-500');
+            setTimeout(() => {
+                btn.innerText = originalText;
+                btn.classList.remove('bg-green-500');
+            }, 2000);
+        }
+
+        // INIT
+        renderQueue();
+        selectPage(1); // Load default page
+
+    </script>
+</body>
+</html>

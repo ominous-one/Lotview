@@ -1,0 +1,20 @@
+  World-Class Build Prompt (for an AI assistant)
+  “Act as a senior Chrome Extension engineer and security reviewer. Build a Manifest V3 extension named ‘Lotview Auto Poster’ that:
+
+  - Uses React for the popup and a TypeScript service worker.
+  - Whitelists message types and validates sender.id.
+  - Stores auth tokens in session/memory with expiry; no sync storage for secrets.
+  - Enforces HTTPS and production allowlisted domains for the API base URL (no localhost in prod).
+  - Validates all API responses and popup→background payloads with runtime guards; reject malformed data with user-visible errors.
+  - Fetches inventory/templates/limits via a backend API; applies 30s timeouts and backoff on transient failures.
+  - Downloads vehicle images only from allowlisted HTTPS hosts, with strict count/size/content-type limits; fail fast on violations.
+  - Content script auto-fills Facebook Marketplace create forms: fills title/price/description/location and uploads bounded images; reports an error if any required field is missing.
+  - Driver model supports multiple platforms; only Facebook is implemented, others return a clear ‘coming soon’ error.
+  - Popup UX: login with server URL/email/password; inventory search/picker; template picker/editor; platform selector; posting limits/duplicate warning; toasts for all outcomes; posting history persisted
+    locally with race-safe writes.
+  - Manifest permissions are minimized (storage, activeTab, scripting, tabs) and host_permissions are narrowly scoped to FB marketplace create pages and Lotview prod domains; provide a separate dev manifest
+    for localhost/Replit.
+  - Add CSS for a polished, compact popup; include icons.
+  - Include validators, error handling, and tests for URL policy, validators, and required-field detection.
+    Return the full source: manifest.json, background.ts, content script, drivers, validators, types, popup.tsx/css/html, icons, and any build config. Ensure code is production-grade, secure by default, and
+    ready for Chrome Web Store review.”

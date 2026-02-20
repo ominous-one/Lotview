@@ -1,0 +1,407 @@
+Field Name
+Object
+Folder
+Unique Key
+Created On
+Company Name
+Company
+Company Info
+{{ business.name }}
+11/21/2025
+at 9:13 AM
+Phone
+Company
+Company Info
+{{ business.phone }}
+11/21/2025
+at 9:13 AM
+Email
+Company
+Company Info
+{{ business.email }}
+11/21/2025
+at 9:13 AM
+Website
+Company
+Company Info
+{{ business.website }}
+11/21/2025
+at 9:13 AM
+Address
+Company
+Company Info
+{{ business.address }}
+11/21/2025
+at 9:13 AM
+State
+Company
+Company Info
+{{ business.state }}
+11/21/2025
+at 9:13 AM
+City
+Company
+Company Info
+{{ business.city }}
+11/21/2025
+at 9:13 AM
+Description
+Company
+Company Info
+{{ business.description }}
+11/21/2025
+at 9:13 AM
+Postal Code
+Company
+Company Info
+{{ business.postalcode }}
+11/21/2025
+at 9:13 AM
+Country
+Company
+Company Info
+{{ business.country }}
+11/21/2025
+at 9:13 AM
+Opportunity Name
+Opportunity
+Opportunity Details
+{{ opportunity.name }}
+6/22/2023
+at 1:11 AM
+Pipeline
+Opportunity
+Opportunity Details
+{{ opportunity.pipeline_id }}
+6/22/2023
+at 1:11 AM
+Stage
+Opportunity
+Opportunity Details
+{{ opportunity.pipeline_stage_id }}
+6/22/2023
+at 1:11 AM
+Status
+Opportunity
+Opportunity Details
+{{ opportunity.status }}
+6/22/2023
+at 1:11 AM
+Lead Value
+Opportunity
+Opportunity Details
+{{ opportunity.monetary_value }}
+6/22/2023
+at 1:11 AM
+Opportunity Owner
+Opportunity
+Opportunity Details
+{{ opportunity.assigned_to }}
+6/22/2023
+at 1:11 AM
+Opportunity Source
+Opportunity
+Opportunity Details
+{{ opportunity.source }}
+6/22/2023
+at 1:11 AM
+Lost Reason
+Opportunity
+Opportunity Details
+{{ opportunity.lost_reason }}
+12/22/2023
+at 1:32 AM
+First Name
+Contact
+Contact
+{{ contact.first_name }}
+9/8/2022
+at 6:48 AM
+Last Name
+Contact
+Contact
+{{ contact.last_name }}
+9/8/2022
+at 6:48 AM
+Email
+Contact
+Contact
+{{ contact.email }}
+9/8/2022
+at 6:48 AM
+Phone
+Contact
+Contact
+{{ contact.phone }}
+9/8/2022
+at 6:48 AM
+Date Of Birth
+Contact
+Contact
+{{ contact.date_of_birth }}
+9/8/2022
+at 6:48 AM
+Contact Source
+Contact
+Contact
+{{ contact.source }}
+9/8/2022
+at 6:48 AM
+Contact Type
+Contact
+Contact
+{{ contact.type }}
+9/8/2022
+at 6:48 AM
+Year, Make, Model
+Contact
+Contact
+{{ contact.year_make_model }}
+11/21/2025
+at 11:51 AM
+Business Name
+Contact
+General Info
+{{ contact.company_name }}
+9/8/2022
+at 6:48 AM
+Street Address
+Contact
+General Info
+{{ contact.address1 }}
+9/8/2022
+at 6:48 AM
+City
+Contact
+General Info
+{{ contact.city }}
+9/8/2022
+at 6:48 AM
+Country
+Contact
+General Info
+{{ contact.country }}
+9/8/2022
+at 6:48 AM
+State
+Contact
+General Info
+{{ contact.state }}
+9/8/2022
+at 6:48 AM
+Postal Code
+Contact
+General Info
+{{ contact.postal_code }}
+9/8/2022
+at 6:48 AM
+Website
+Contact
+General Info
+{{ contact.website }}
+9/8/2022
+at 6:48 AM
+Time Zone
+Contact
+General Info
+{{ contact.timezone }}
+9/8/2022
+at 6:48 AM
+Make of vehicle
+Contact
+General Info
+{{ contact.make_of_vehicle }}
+12/15/2022
+at 1:34 PM
+Car Model
+Contact
+General Info
+{{ contact.car_model }}
+12/15/2022
+at 1:36 PM
+Accident Declaration
+Contact
+General Info
+{{ contact.accident_declaration }}
+12/15/2022
+at 1:40 PM
+Have you replaced your tires in the past 3 years?
+Contact
+General Info
+{{ contact.have_you_replaced_your_tires_in_the_past_3_years }}
+12/15/2022
+at 1:42 PM
+Year of your vehicle
+Contact
+General Info
+{{ contact.year_of_your_vehicle }}
+12/15/2022
+at 1:44 PM
+Rate your car exterior out of 10
+Contact
+General Info
+{{ contact.rate_your_car_exterior_out_of_10 }}
+12/15/2022
+at 1:46 PM
+Rate your car interior out of 10
+Contact
+General Info
+{{ contact.rate_your_car_interior_out_of_10 }}
+12/15/2022
+at 1:48 PM
+How much do owe on this vehicle?
+Contact
+General Info
+{{ contact.how_much_do_owe_on_this_vehicle }}
+12/15/2022
+at 1:50 PM
+What are you looking to do with your vehicle?
+Contact
+General Info
+{{ contact.what_are_you_looking_to_do_with_your_vehicle }}
+12/15/2022
+at 1:52 PM
+Anything we should know about your vehicle?
+Contact
+General Info
+{{ contact.anything_we_should_know_about_your_vehicle }}
+12/15/2022
+at 1:53 PM
+VIN of your vehicle
+Contact
+General Info
+{{ contact.vin_of_your_vehicle }}
+12/15/2022
+at 1:54 PM
+What is your desired vehicle?
+Contact
+General Info
+{{ contact.what_is_your_desired_vehicle }}
+1/27/2023
+at 12:13 PM
+Would you be open to used?
+Contact
+General Info
+{{ contact.would_you_be_open_to_used }}
+1/27/2023
+at 12:14 PM
+Would you be open to a different trim level?
+Contact
+General Info
+{{ contact.would_you_be_open_to_a_different_trim_level }}
+1/27/2023
+at 12:15 PM
+Do you want a refund?
+Contact
+General Info
+{{ contact.do_you_want_a_refund }}
+1/27/2023
+at 12:16 PM
+Do you want to be taken off our waitlist?
+Contact
+General Info
+{{ contact.do_you_want_to_be_taken_off_our_waitlist }}
+1/27/2023
+at 12:16 PM
+Would you be interested in a different Hyundai Vehicle?
+Contact
+General Info
+{{ contact.would_you_be_interested_in_a_different_hyundai_vehicle }}
+1/27/2023
+at 12:18 PM
+Any comments or concerns?
+Contact
+General Info
+{{ contact.any_comments_or_concerns }}
+1/27/2023
+at 12:18 PM
+Type of Service Needed - Check all that apply
+Contact
+Additional Info
+{{ contact.type_of_service_needed__check_all_that_apply }}
+11/18/2025
+at 11:47 AM
+Optin Agreement
+Contact
+Additional Info
+{{ contact.optin_agreement }}
+11/14/2021
+at 10:53 AM
+Vehicle Make:
+Contact
+Additional Info
+{{ contact.vehicle_make }}
+11/18/2025
+at 11:47 AM
+Vehicle Year:
+Contact
+Additional Info
+{{ contact.vehicle_year }}
+11/18/2025
+at 11:47 AM
+Preferred time slots
+Contact
+Additional Info
+{{ contact.preferred_time_slots }}
+11/18/2025
+at 11:47 AM
+Optin Type
+Contact
+Additional Info
+{{ contact.optin_type }}
+11/14/2021
+at 10:53 AM
+Preferred Contact Method:
+Contact
+Additional Info
+{{ contact.preferred_contact_method }}
+11/18/2025
+at 11:47 AM
+Feedback
+Contact
+Additional Info
+{{ contact.feedback }}
+11/14/2021
+at 10:53 AM
+Preferred Date:
+Contact
+Additional Info
+{{ contact.preferred_date }}
+11/18/2025
+at 11:47 AM
+Any Additional Comments, Questions Or Special Requests?
+Contact
+Additional Info
+{{ contact.any_additional_comments_questions_or_special_requests }}
+11/18/2025
+at 11:47 AM
+Vehicle Model:
+Contact
+Additional Info
+{{ contact.vehicle_model }}
+11/18/2025
+at 11:47 AM
+Description of the Issue:
+Contact
+Additional Info
+{{ contact.description_of_the_issue }}
+11/18/2025
+at 11:47 AM
+How many KM's on your car?
+Contact
+Additional Info
+{{ contact.how_many_kms_on_your_car }}
+12/15/2022
+at 1:37 PM
+Invoice Number
+Contact
+Additional Info
+{{ contact.invoice_number }}
+11/11/2023
+at 12:17 PM
+Invoice Paid Amount
+Contact
+Additional Info
+{{ contact.invoice_paid_amount }}
+11/11/2023
+at 12:18 PM

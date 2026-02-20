@@ -1,0 +1,170 @@
+1. INTERIOR COLOR IN MARKET ANALYSIS & VIN DECODER
+🎯 Goal
+Match or exceed vAuto functionality by including Interior Color through the entire valuation workflow:
+
+VIN decoding → market comparables → appraisal → storage → pricing decisions.
+________________________________________
+✅ 1.1 VIN Decoder Enhancement – Add Interior Color
+Requirements:
+Modify VIN decoding pipeline to return:
+interior_color
+Normalize naming (e.g., “Black Leather”, “Dark Grey”, “Beige Two-Tone”)
+Add fallback rules when VIN API does not include interior color:
+Use scraped listing’s interior color
+AI inference from photos (optional future upgrade)
+UI Updates:
+Display interior color inside VIN Decoder result panel:
+Under trim/engine section
+Use consistent styling with “Exterior Color”
+________________________________________
+✅ 1.2 Market Analysis Enhancement – Add Interior Color Filters & Ranking
+Requirements:
+Include dealer-selected interior color when showing comparables
+Show how each comparable differs:
+Highlight matches in green (“Matching Interior”)
+Highlight mismatches in yellow (“Different Interior”)
+Analytics:
+Add interior color as a comparable weighting factor:
+Weighted scoring for identical interiors
+Negative adjustment for mismatched interiors
+Add interior color column to comparables table
+Support sorting by interior color match percentage
+How long the car has been in stock at the other dealerships
+________________________________________
+✅ 1.3 Store Interior Color in Database
+DB Schema Additions:
+Add interior_color column to vehicles table
+Add interior_color to appraisal records
+Add interior_color to decoded VIN cache table (avoids re-decoding)
+________________________________________
+________________________________________
+2. AUTOMATIC SAVING OF ALL APPRAISALS (FROM VIN DECODER / MARKET ANALYSIS)
+🎯 Goal
+Every valuation generated should be automatically stored and available for later review by management.
+________________________________________
+✅ 2.1 Auto-Create Appraisal Record When Market Analysis is Run
+Trigger:
+When user clicks:
+“VIN Decoder”
+“Market Analysis”
+“Get Appraisal Value”
+Stored Data:
+VIN
+Year, Make, Model, Trim
+Mileage
+Exterior + Interior Color
+All comparable vehicles (snapshot JSON)
+Appraisal value (min, max, recommended)
+User who generated it
+Dealership ID
+Customer name/phone (if provided)
+Appraisal naming:
+Auto-generate appraisal name:
+
+"{YEAR} {MAKE} {MODEL} - {CUSTOMER_NAME or LEAD ID}"
+________________________________________
+✅ 2.2 Add Saved Appraisals Dashboard Section
+Location:
+
+🔹 Sales Manager menu
+
+🔹 “Saved Appraisals” page
+Features:
+Table view with filters:
+VIN
+Stock #
+Date
+User
+Customer name
+Click any record to:
+See the entire market analysis snapshot
+What we offered
+Notes
+Margin opportunities
+Add "Deal Save Tracker":
+Dropdown:
+“Deal Saved”
+“Lost Deal”
+“Pending”
+Notes field for reason
+Manager-only editing permissions
+________________________________________
+________________________________________
+3. FACEBOOK MESSENGER → GOHIGHLEVEL TWO-WAY SYNC
+🎯 Goal
+All Messenger conversations flow into GHL as real conversations, not just leads.
+
+This is critical to unify communication history and enable automated follow-up sequences.
+________________________________________
+⚙️ 3.1 Convert Messenger Conversations into GHL Conversations
+Requirements:
+
+For every inbound FB message:
+Identify customer by FB ID
+If not in GHL → create new contact with:
+Name
+Phone (if provided later)
+FB ID (custom field)
+Lead source = Facebook Messenger
+Create a GHL conversation with:
+Message text
+Proper timestamp
+Read/unread status
+________________________________________
+⚙️ 3.2 Support Two-Way Sync (Reply from GHL or LotView)
+Requirements:
+When staff reply inside LotView → push message into GHL thread
+When staff reply inside GHL → push message back into LotView
+Maintain thread consistency
+Technical requirements:
+Webhook in LotView to receive GHL conversation updates
+Message de-duplication ID system
+Respect FB rate limits & GHL API limits
+________________________________________
+⚙️ 3.3 Sync Conversation metadata
+Store:
+Assigned sales rep
+Tags
+Status (new lead, hot, pending, sold)
+Pipeline stage
+Custom fields like “Vehicle of Interest”
+Business logic:
+A FB Messenger convo should behave exactly like an SMS/email convo inside GHL.
+________________________________________
+________________________________________
+4. VALIDATION, TESTING & QA REQUIREMENTS (MANDATORY)
+✅ Add automated tests for:
+VIN decode → appraisal auto-save
+Interior color extraction scoring
+GHL sync end-to-end
+Facebook → LotView → GHL message flow
+🔐 Add cross-tenant isolation tests:
+No conversation/appraisal leaks between dealerships
+________________________________________
+5. DEPLOYMENT REQUIREMENTS
+All features must run on Replit
+All DB schema updates must run via migration script
+No breaking changes for existing dealerships
+Create feature flags (ENABLE_APPRAISAL_AUTOSAVE, ENABLE_GHL_MESSENGER_SYNC) so rollout is controlled
+________________________________________
+6. DOCUMENTATION REQUIREMENTS
+Deliver:
+Updated API documentation
+Updated DB schema diagram
+User guide screenshots showing new workflow
+Admin guide for enabling GHL Messenger sync
+________________________________________
+✔️ Send this directly to your Replit developer as the full implementation scope.
+If you want, I can now generate:
+
+✅ Full UI mockups
+
+✅ DB migration scripts
+
+✅ Backend API route designs
+
+✅ Data flow diagrams
+
+Or even
+
+🚀 Complete production-ready code for each module.

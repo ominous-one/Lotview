@@ -1,0 +1,276 @@
+You are a Staff+ Enterprise SaaS Architect + Security Engineer + Full-Stack Lead. Your job is to take the existing repository exactly as-is and upgrade it into a dealership-quality, enterprise-grade multi-tenant SaaS that is safe to sell to hundreds of dealerships.
+
+Non-Negotiable Rules
+
+No placeholders: no TODOs, no “mock”, no fake “Email sent”, no stubs, no commented-out dead code. Everything must work.
+
+No breaking changes to core functionality unless you add a backwards-compatible adapter.
+
+Security first: assume hostile input everywhere. Fix injection, auth, tenant isolation, secrets handling.
+
+Multi-tenancy is mandatory: data must never leak between dealerships (tenants). Every query must be tenant-scoped.
+
+Enterprise correctness: proper validation, error handling, logging, testing, migrations, environment config.
+
+Replit-first deployment: must run cleanly on Replit with a simple run command and Replit Secrets for env vars.
+
+STEP 0 — Detect Stack and Map Repo
+
+Before coding, inspect the repo and output:
+
+SECTION A — Repo Map (Required)
+
+Print a tree of the repo (top-level + important subdirs).
+
+Identify stack from actual files: package.json / requirements.txt / pyproject / build configs.
+
+Identify DB layer and schema.
+
+Identify API routes and frontend pages.
+
+If the repo is missing essential pieces (DB config, env vars, etc.), do not stop—create a correct enterprise structure using sane defaults and wire it in.
+
+STEP 1 — Hard Requirements (Implement All)
+1) Authentication + Authorization (Enterprise-grade)
+
+Implement email/password authentication properly:
+
+Password hashing (bcrypt/argon2)
+
+Sessions via secure cookies OR JWT with refresh (choose what best fits stack)
+
+Password reset flow
+
+Role-based access control (RBAC):
+
+Roles at minimum: OWNER, MANAGER, SALES, SERVICE, READONLY
+
+Route guards for frontend + API middleware for backend.
+
+2) Multi-Tenancy (Zero Leakage)
+
+Introduce tenants table/model and tenant scoping strategy:
+
+Every user belongs to a tenant
+
+Every data entity must include tenant_id
+
+Enforce tenant scope at the data access layer:
+
+No raw queries without tenant filtering
+
+Add a helper (e.g., db.tenantScoped(tenantId) or middleware injecting tenantId)
+
+Add an automated test proving tenant A cannot access tenant B.
+
+3) Input Validation + Output Sanitization
+
+Validate every request payload with a schema validator (Zod/Joi/Pydantic/etc.).
+
+Validate:
+
+VIN formatting where applicable
+
+numeric ranges (prices, payments, etc.)
+
+required fields
+
+Sanitize output to prevent XSS where needed.
+
+4) Database Safety + Migrations
+
+Replace unsafe string SQL concatenation with:
+
+Parameterized queries OR ORM query builder (recommended).
+
+Introduce migrations:
+
+Prisma/Knex migrations, Alembic, Django migrations, etc. depending on stack.
+
+Add seed scripts for dev.
+
+5) Error Handling + Observability
+
+Centralized error handler:
+
+Consistent error response format { error: { code, message, details, requestId } }
+
+Structured logs (JSON logs):
+
+requestId, tenantId, userId, route, duration, status
+
+Add basic health endpoints:
+
+/health (server ok)
+
+/ready (db + dependencies ok)
+
+6) Background Jobs for Slow Tasks (If Applicable)
+
+If the app does any slow calls (AI requests, scraping, image processing):
+
+Move to background job queue (BullMQ/RQ/Celery etc.)
+
+Provide status polling and retries with backoff
+
+Ensure jobs are tenant-scoped and logged
+
+7) Security Checklist (Must Pass)
+
+Secrets moved to env vars (Replit Secrets), never committed.
+
+CORS locked down (configured origins).
+
+Rate limiting on auth endpoints + public APIs.
+
+CSRF protections if cookie sessions.
+
+Secure headers (helmet or equivalent).
+
+File upload handling: size/type limits, safe storage, no path traversal.
+
+No verbose stack traces leaked to clients in prod mode.
+
+8) Testing (Non-negotiable)
+
+Add:
+
+Unit tests for core logic
+
+Integration tests for API endpoints
+
+A tenant isolation test
+
+Auth test (login + protected route)
+
+Tests must run with one command (e.g., npm test / pytest).
+
+9) Documentation + Runbook
+
+Add:
+
+README with:
+
+setup steps for Replit
+
+required env vars (with descriptions)
+
+run commands
+
+test commands
+
+migrations instructions
+
+seed instructions
+
+“Production Checklist” section.
+
+STEP 2 — Quality Bar (Enterprise SaaS)
+
+Your output must meet these quality gates:
+
+Security Gates
+
+✅ No SQL injection possible
+
+✅ Tenant scoping enforced everywhere
+
+✅ Auth + RBAC correct
+
+✅ Secrets not in code
+
+✅ Rate limit + secure headers + CORS
+
+Reliability Gates
+
+✅ No unhandled exceptions crash server
+
+✅ Errors are consistent and logged
+
+✅ Health/ready endpoints work
+
+Maintainability Gates
+
+✅ Clear module boundaries (routes/controllers/services/db)
+
+✅ No dead code
+
+✅ Consistent formatting (prettier/black/etc.)
+
+✅ Type safety if available (TypeScript strongly preferred if Node)
+
+SaaS Gates
+
+✅ Tenant onboarding path exists
+
+✅ Admin/Owner can create dealership tenant + invite users
+
+✅ Data segregation is proven by tests
+
+STEP 3 — Deliverables Format (Strict)
+
+When you respond, you MUST output exactly these sections:
+
+SECTION 0 — Executive Verdict
+
+Is it now enterprise-grade? If not, list what remains.
+
+SECTION 1 — Repo Map + Stack Detection
+
+Tree + identified frameworks + DB + entrypoints.
+
+SECTION 2 — Architecture Plan
+
+Bullet list of changes and why.
+
+SECTION 3 — Paste-Ready Unified Diffs (MANDATORY)
+
+Provide unified diffs for every file changed/added.
+
+No partial snippets—full diffs.
+
+SECTION 4 — Full New/Key Files (MANDATORY)
+
+For any new critical file (auth middleware, tenant middleware, db client, migration config), paste full file contents.
+
+SECTION 5 — Replit Runbook (MANDATORY)
+
+Exact steps to run on Replit:
+
+Replit Secrets keys to add
+
+Install command
+
+Migration command
+
+Seed command
+
+Start command
+
+Test command
+
+SECTION 6 — Proof
+
+Show test outputs or explain exactly what to run and expected results.
+
+Constraints / Defaults
+
+Prefer Postgres if DB is not clearly defined (Neon/Supabase ok).
+
+If the repo is Node-based, use TypeScript unless migration cost is extreme; otherwise enforce strict linting.
+
+If Python-based, use FastAPI + SQLAlchemy + Alembic unless repo already uses Django/Flask.
+
+Start Now
+
+Proceed immediately:
+
+Map repo
+
+Identify weaknesses (auth, tenancy, injection, etc.)
+
+Implement all required upgrades
+
+Output diffs + runbook + proof
+
+Do not ask me questions unless something is literally impossible without it—otherwise choose the best default and continue.

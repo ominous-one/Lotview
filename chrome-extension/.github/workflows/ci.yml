@@ -1,0 +1,154 @@
+name: Chrome Extension CI
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'chrome-extension/**'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'chrome-extension/**'
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: chrome-extension
+
+jobs:
+  lint-and-typecheck:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: chrome-extension/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript check
+        run: npx tsc --noEmit --project tsconfig.json
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: chrome-extension/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests with coverage
+        run: npm run test:coverage
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: chrome-extension/coverage/
+          retention-days: 14
+
+  build:
+    name: Build Extension
+    runs-on: ubuntu-latest
+    needs: [test]
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: chrome-extension/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build production extension
+        run: npm run build:prod
+
+      - name: Create release package
+        run: npm run build:zip
+
+      - name: Upload extension artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-package
+          path: chrome-extension/lotview-auto-poster-*.zip
+          retention-days: 30
+
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: chrome-extension/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check for known vulnerabilities
+        run: |
+          echo "Checking dependencies for security issues..."
+          npm audit --json > audit-report.json || true
+          if [ -f audit-report.json ]; then
+            HIGH_VULNS=$(cat audit-report.json | jq '.metadata.vulnerabilities.high // 0')
+            CRITICAL_VULNS=$(cat audit-report.json | jq '.metadata.vulnerabilities.critical // 0')
+            echo "High vulnerabilities: $HIGH_VULNS"
+            echo "Critical vulnerabilities: $CRITICAL_VULNS"
+            if [ "$CRITICAL_VULNS" -gt 0 ] || [ "$HIGH_VULNS" -gt 0 ]; then
+              echo "::error::High or critical vulnerabilities found!"
+              exit 1
+            fi
+          fi
+
+  manifest-validation:
+    name: Validate Manifest
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: chrome-extension
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate manifest.json
+        run: |
+          echo "Validating manifest.json..."
+          if ! jq empty manifest.json 2>/dev/null; then
+            echo "::error::Invalid JSON in manifest.json"
+            exit 1
+          fi
+          
+          MANIFEST_VERSION=$(jq -r '.manifest_version' manifest.json)
+          if [ "$MANIFEST_VERSION" != "3" ]; then
+            echo "::error::Expected Manifest V3, got V$MANIFEST_VERSION"
+            exit 1
+          fi
+          
+          PERMISSIONS=$(jq -r '.permissions | length' manifest.json)
+          echo "Extension requests $PERMISSIONS permissions"
+          
+          CSP=$(jq -r '.content_security_policy.extension_pages // "not set"' manifest.json)
+          echo "CSP: $CSP"
+          
+          echo "Manifest validation passed!"

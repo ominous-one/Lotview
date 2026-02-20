@@ -1,0 +1,49 @@
+  Replit sync steps
+
+  1. Pull the branch: git checkout main2 then git pull origin main2
+  2. Install deps: npm install (adds archiver + @types/archiver)
+  3. Apply DB changes: npm run db:push (includes
+     migrations/0006_messenger_sla_tasks.sql)
+  4. Typecheck: npm run check
+  5. Start: npm run dev
+
+  What changed / how to use it
+
+  - Marketplace Blast upgrades
+      - Listing bundles with features + hashtags (server/listing-bundle-
+        service.ts, server/routes.ts, client/src/pages/MarketplaceBlast.tsx)
+      - Posting lock + VIN guardrails (/api/marketplace-blast/start-
+        posting/:vehicleId)
+      - Copilot replies (/api/marketplace-blast/suggest-reply)
+      - ZIP photo download (/api/marketplace-blast/photos/:vehicleId?
+        format=zip)
+      - Queue returns active listing lock info (used for lock badges)
+      - UI: “Build Bundle”, “Start Posting”, “Auto‑Prep 10”, “Auto‑Prep + Lock
+        10”, feature/hashtag panels, copilot panel.
+  - Messenger SLA + AI nurture
+      - SLA tasking + dashboard updates (server/messenger-sla-service.ts,
+        client/src/pages/SalesConversations.tsx)
+      - Nurture engine for Messenger (server/messenger-nurture-service.ts)
+  - Misc fixes
+      - GHL legacy fallback, call scoring field alignment, seed scripts + tests
+        fixed, template rendering supports {location}.
+
+  New/updated endpoints
+
+  - GET /api/listing-bundles/vehicle/:vehicleId
+  - POST /api/listing-bundles/vehicle/:vehicleId
+  - POST /api/listing-bundles/auto-prep
+  - POST /api/marketplace-blast/start-posting/:vehicleId
+  - POST /api/marketplace-blast/mark-posted/:vehicleId (now accepts bundleId)
+  - GET /api/marketplace-blast/photos/:vehicleId?format=zip
+  - POST /api/marketplace-blast/suggest-reply
+
+  Smoke test (automated)
+
+  - Start the app, then run:
+      - npx tsx scripts/marketplace-smoke-test.ts
+  - Optional env:
+      - SMOKE_BASE_URL=http://localhost:5000
+      - SMOKE_EMAIL=admin@olympichyundai.ca
+      - SMOKE_PASSWORD=master123
+      - SMOKE_MARK_POSTED=true (uses placeholder Marketplace URL)

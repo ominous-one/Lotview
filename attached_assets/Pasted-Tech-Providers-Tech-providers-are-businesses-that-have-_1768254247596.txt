@@ -1,0 +1,53 @@
+Tech Providers
+Tech providers are businesses that have a legitimate need to access business data owned by other businesses in order to provide services or functionality to those businesses.
+
+Apps that have been created or claimed by a business cannot be granted any of the permission below unless the business has been verified as a Tech Provider, or the person using the app has a role on the app itself. This essentially means that any apps claimed by a business cannot be used by other businesses until the business has been verified as a Tech Provider.
+
+Business admins can complete the access verification process to have their business considered as a Tech Provider. If verified, any apps claimed by the business can then be used by other businesses.
+
+Note that access verification is independent of App Review, so each of the permissions below must still be approved for Advanced Access before a non-role user can grant them to an app.
+
+Permissions
+The following permissions cannot be granted to apps that have been created or claimed by a business unless that business has been verified as a Tech Provider or the app user has a role on the app.
+
+ads_management
+ads_read
+attribution_read
+business_management
+catalog_management
+facebook_creator_marketplace_discovery
+instagram_basic
+instagram_business_basic
+instagram_business_content_publish
+instagram_content_publish
+instagram_creator_marketplace_discovery
+instagram_manage_insights
+leads_retrieval
+manage_app_solution
+page_events
+pages_manage_ads
+pages_manage_cta
+pages_manage_engagement
+pages_manage_instant_articles
+pages_manage_posts
+pages_read_engagement
+pages_read_user_content
+pages_show_list
+pages_utility_messaging
+publish_video
+read_insights
+threads_basic
+threads_content_publish
+threads_keyword_search
+threads_manage_insights
+threads_manage_mentions
+threads_manage_replies
+threads_read_replies
+whatsapp_business_management
+Losing Verified Status
+A business that has been verified as a Tech Provider will be considered unverified under these conditions:
+
+The business's verification status changes to unverified
+The app becomes disconnected from the business that created or claimed it
+The business account becomes restricted
+Once these conditions are reversed the business will automatically be considered to be a verified Tech Provider again.

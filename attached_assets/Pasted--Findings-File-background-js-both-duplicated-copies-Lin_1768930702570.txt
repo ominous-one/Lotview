@@ -1,0 +1,120 @@
+ Findings
+
+  File: background.js (both duplicated copies)
+  Line(s): 12-15, 34-110 (approx.)
+  Severity: MEDIUM
+  Category: Reliability / Code Quality
+  Issue: Entire background script appears twice in the bundle, doubling message listeners and logic. This can cause duplicated network calls, double storage writes, and unpredictable responses.
+  Risk: Race conditions and inconsistent state (e.g., two handleLogin executions, double markVehicleAsPosted calls) leading to user-facing errors or server throttling.
+  Fix: Remove the duplicate copy; ensure a single background entry point is built and referenced by manifest.json.
+
+  File: background.js
+  Line(s): 27-97 (all onMessage handlers)
+  Severity: MEDIUM
+  Category: Security / Best Practice
+  Issue: No validation of request shape or sender before acting on chrome.runtime.onMessage. The handler accepts arbitrary objects and can change the API base URL (serverUrl) and perform authenticated fetches.  Risk: If any compromised extension page/content script invokes these actions, it can redirect API traffic to an attacker-controlled host or leak the bearer token via SSRF-style requests.
+  Fix: Validate sender.id === chrome.runtime.id, whitelist allowed action values, and type-check payloads. Reject messages with unexpected types or missing parameters; ignore requests when sender is not from
+  this extension.
+
+  File: background.js
+  Line(s): 42-74
+  Severity: LOW
+  Category: Security / Data Handling
+  Issue: serverUrl is accepted and persisted without sanitization (could be javascript: or non-HTTPS).
+  Risk: Malformed or insecure endpoints could be stored; traffic could be sent over cleartext.
+  Fix: Enforce https?:// with a strict whitelist/regex and reject non-HTTPS in production builds.
+
+  File: background.js
+  Line(s): 64-85, 107-137
+  Severity: MEDIUM
+  Category: Reliability
+  Issue: Network calls lack timeouts and robust error parsing. response.json() on error paths can throw if the body is not JSON, leaving callers with generic failures.
+  Risk: Service worker can hang on slow networks; user sees ambiguous errors and cannot recover.
+  Fix: Add AbortController timeouts and parse errors defensively (try { await res.json() } catch { await res.text() }), then return structured errors.
+
+  File: background.js
+  Line(s): 57-61, 90-93, 125-129
+  Severity: LOW
+  Category: Security / Storage
+  Issue: Long-lived auth token stored in chrome.storage.local without expiry or rotation.
+  Risk: Token persists across sessions/profile copy; if profile is compromised, token can be reused.
+  Fix: Store a timestamp/expiry, auto-logout when expired, and optionally keep tokens in session-only memory (service worker) when feasible.
+
+  File: manifest.json
+  Line(s): 6-18
+  Severity: LOW
+  Category: Best Practice / Permission Scope
+  Issue: Broad host permissions (*.facebook.com/*, http://localhost/*, all replit subdomains).
+  Risk: Larger attack surface and review friction in the Chrome Web Store.
+  Fix: Narrow to exact needed paths (e.g., marketplace create URLs) and remove localhost from production build; split dev/prod manifests.
+
+  File: popup.tsx
+  Line(s): 24-33 (sendMessage), multiple callers
+  Severity: MEDIUM
+  Category: Reliability
+  Issue: sendMessage ignores chrome.runtime.lastError; callers treat undefined responses as success and do not handle rejection.
+  Risk: Silent failures (e.g., service worker unloaded) lead to UI state desync and user confusion.
+  Fix: In sendMessage, check chrome.runtime.lastError and reject/return { ok: false, error: lastError.message }; add error handling where used.
+
+  File: popup.tsx
+  Line(s): 91-109 (initial async IIFE), 180-204 (fetchInventory/templates/limits)
+  Severity: LOW
+  Category: Reliability
+  Issue: Async effects and fetchers lack try/catch; unhandled exceptions could surface in console and skip toasts.
+  Risk: Intermittent failures without user feedback.
+  Fix: Wrap async calls in try/catch and route errors through addToast.
+
+  File: content-facebook.ts
+  Line(s): 117-160 (showNotification)
+  Severity: LOW
+  Category: Best Practice
+  Issue: Injects a notification element but does not guard against repeated injections beyond a single removal, and leaves no cleanup on navigation.
+  Risk: Minor DOM clutter if multiple calls happen rapidly; styling collisions possible.
+  Fix: Keep a singleton element with reuse, and add a beforeunload cleanup listener.
+
+  File: facebookDriver.ts
+  Line(s): 16-37 (ensureContentScriptInjected)
+  Severity: LOW
+  Category: Reliability
+  Issue: No timeout/error handling around chrome.scripting.executeScript; rejection messages are generic.
+  Risk: Users see unclear failures if injection is blocked.
+  Fix: Add try/catch with user-friendly errors and a timeout before rejecting.
+
+  File: manifest.json / background.js
+  Line(s): manifest background points to background.js; background imports/types not shown
+  Severity: LOW
+  Category: Best Practice
+  Issue: Service worker uses console logging at install; no lifecycle handling (no idle cleanup).
+  Risk: Minimal; could extend lifetime unnecessarily if future listeners added.
+  Fix: Keep logs minimal and ensure no long-running tasks without need.
+
+  File: types.ts
+  Line(s): entire file
+  Severity: LOW
+  Category: Type Safety
+  Issue: No runtime validation for data from backend; assumes shapes of VehicleSummary, Template, PostingLimits.
+  Risk: Malformed responses can break UI or cause incorrect postings.
+  Fix: Add lightweight runtime guards (zod/io-ts or manual checks) before using network data.
+
+  File: popup.tsx
+  Line(s): 229-261 (fillTemplate)
+  Severity: LOW
+  Category: Reliability / Data Handling
+  Issue: Template interpolation does not escape braces or validate numeric fields; unexpected values could produce odd strings.
+  Risk: Poor UX if data malformed; no direct security impact.
+  Fix: Normalize values and escape braces or validate fields before replacement.
+
+  Final Summary
+
+  1. Overall security score: 6.5 / 10
+  2. Overall code quality score: 7 / 10
+  3. Top 3 critical-to-fix issues:
+      - Remove duplicate background script to avoid double-execution/race conditions.
+      - Add sender/payload validation in runtime.onMessage to prevent misuse of API base URL and authenticated fetches.
+      - Add robust error handling/timeouts in background fetch flows to prevent hangs and unclear failures.
+  4. Top 3 recommended improvements:
+      - Narrow host permissions and split dev/prod manifests (remove localhost in production).
+      - Add chrome.runtime.lastError handling in the popup’s sendMessage helper and wrap async effects in try/catch with user-facing toasts.
+      - Introduce runtime validation for backend responses (templates, vehicles, limits) before use.
+  5. Chrome Web Store readiness: Safe-ish but not yet ideal. No obvious CRITICAL security flaws, but messaging validation, permission tightening, and background duplication should be resolved before submission
+     to avoid review friction and reliability issues.

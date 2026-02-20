@@ -1,0 +1,32 @@
+  High-priority fixes (in order)
+
+  1. Fix compile-time errors in background
+      - SAVE_TEMPLATE call still appears malformed: wrap options in an object:
+
+        const template = await apiWithRetry<Template>(endpoint, auth.token, {
+          method: "POST",
+          body: JSON.stringify({ ... }),
+        });
+      - FILL_CONTENT error string: remove the stray “$skill-creator” token and template it correctly.
+  2. Auth storage
+      - Drop chrome.storage.local fallback for auth; keep tokens only in chrome.storage.session with expiry enforcement everywhere. If session set fails, return an error, don’t fall back to persistent local.
+  3. Validation and payload hygiene
+      - Enforce validators on all inbound payloads: FILL_CONTENT, SAVE_TEMPLATE, LOG_POSTING, REQUEST_POSTING_TOKEN. Reject with structured errors if invalid.
+      - Validate all API responses with guards (inventory/templates/limits/posting-token/refresh); fail fast if shape is wrong.
+  4. Required fields in form fill
+      - Treat price as required when provided by the backend; if price is absent in payload, explicitly skip; if present but not filled, return a hard error.
+      - Keep title/description as required; return an error to popup when any required field is missing (no “success” with missing required).
+  5. Image handling
+      - In fetchImages, apply isAllowedImageHost before fetch and fail fast; return structured warnings to the popup.
+      - In uploadImages, surface skipped/blocked reasons to the popup; if zero images succeed, fail the fill.
+      - After upload, clear references to blobs/files to help GC.
+  6. History race-proofing
+      - Use functional updates (read-modify-write) for posting history to avoid lost records during rapid posts.
+  7. User-visible errors everywhere
+      - Toast/inline errors for template/limits fetch failures (no console-only logging).
+      - Surface consent-required state with a clear action.
+  8. Protocol/versioning
+      - Add a simple protocolVersion to popup↔background messages; reject mismatches to avoid stale client/worker mixes.
+  9. Performance nits
+      - Shorten image fetch timeout to ~8–10s if acceptable; keep 30s for API calls.
+      - Ensure MutationObserver in waitForElement disconnects cleanly (it does) and doesn’t loop indefinitely (it doesn’t).

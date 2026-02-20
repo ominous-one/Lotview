@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Olympic Auto Group - Widget Embed Example</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: #f8fafc;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    h1 {
+      color: #1e293b;
+      margin-bottom: 10px;
+    }
+    .description {
+      color: #64748b;
+      margin-bottom: 30px;
+    }
+    .embed-container {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    #vehicle-widget {
+      width: 100%;
+      border: none;
+      min-height: 600px;
+      border-radius: 8px;
+    }
+    .controls {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .controls h2 {
+      margin-top: 0;
+      color: #1e293b;
+      font-size: 18px;
+    }
+    .control-group {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-bottom: 15px;
+    }
+    .control-group label {
+      display: block;
+      color: #475569;
+      font-size: 14px;
+      margin-bottom: 5px;
+      font-weight: 500;
+    }
+    .control-group select,
+    .control-group input {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    button {
+      background: #002856;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+    button:hover {
+      background: #001a3a;
+    }
+    .event-log {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      margin-top: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .event-log h2 {
+      margin-top: 0;
+      color: #1e293b;
+      font-size: 18px;
+    }
+    .event-item {
+      background: #f8fafc;
+      padding: 10px;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      font-size: 13px;
+      font-family: monospace;
+    }
+    .code-block {
+      background: #1e293b;
+      color: #e2e8f0;
+      padding: 15px;
+      border-radius: 8px;
+      margin-top: 20px;
+      overflow-x: auto;
+    }
+    .code-block pre {
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Olympic Auto Group Widget - Embed Example</h1>
+    <p class="description">
+      This example demonstrates how to embed the Olympic Auto Group vehicle inventory widget 
+      into your website or GHL funnel. Use the controls below to filter vehicles dynamically.
+    </p>
+
+    <div class="controls">
+      <h2>Widget Controls</h2>
+      <div class="control-group">
+        <div>
+          <label for="dealership">Dealership</label>
+          <select id="dealership">
+            <option value="">All Dealerships</option>
+            <option value="Olympic Hyundai Vancouver">Olympic Hyundai Vancouver</option>
+            <option value="Boundary Hyundai Vancouver">Boundary Hyundai Vancouver</option>
+            <option value="Kia Vancouver">Kia Vancouver</option>
+          </select>
+        </div>
+        <div>
+          <label for="make">Make</label>
+          <select id="make">
+            <option value="">All Makes</option>
+            <option value="Hyundai">Hyundai</option>
+            <option value="Kia">Kia</option>
+          </select>
+        </div>
+        <div>
+          <label for="type">Type</label>
+          <select id="type">
+            <option value="">All Types</option>
+            <option value="new">New</option>
+            <option value="used">Used</option>
+          </select>
+        </div>
+      </div>
+      <div class="control-group">
+        <div>
+          <label for="minPrice">Min Price</label>
+          <input type="number" id="minPrice" placeholder="e.g., 20000" step="1000">
+        </div>
+        <div>
+          <label for="maxPrice">Max Price</label>
+          <input type="number" id="maxPrice" placeholder="e.g., 50000" step="1000">
+        </div>
+      </div>
+      <button onclick="updateWidget()">Update Widget</button>
+    </div>
+
+    <div class="embed-container">
+      <iframe 
+        id="vehicle-widget"
+        src="/embed"
+        title="Olympic Auto Group Vehicle Inventory"
+      ></iframe>
+    </div>
+
+    <div class="event-log">
+      <h2>Event Log (postMessage API)</h2>
+      <div id="events"></div>
+    </div>
+
+    <div class="code-block">
+      <pre>&lt;!-- Basic Embed --&gt;
+&lt;iframe 
+  src="https://your-domain.com/embed"
+  width="100%"
+  height="600"
+  frameborder="0"
+  title="Vehicle Inventory"
+&gt;&lt;/iframe&gt;
+
+&lt;!-- With URL Parameters --&gt;
+&lt;iframe 
+  src="https://your-domain.com/embed?dealership=Olympic+Hyundai+Vancouver&type=new"
+  width="100%"
+  height="600"
+  frameborder="0"
+&gt;&lt;/iframe&gt;
+
+&lt;!-- Listen for Events --&gt;
+&lt;script&gt;
+window.addEventListener('message', function(event) {
+  if (event.data.type === 'vehicle_clicked') {
+    console.log('Vehicle clicked:', event.data.vehicle);
+    // Redirect to your custom landing page
+    window.location.href = '/landing?vehicle=' + event.data.vehicle.id;
+  }
+  
+  if (event.data.type === 'resize') {
+    // Auto-resize iframe
+    document.getElementById('vehicle-widget').style.height = event.data.height + 'px';
+  }
+});
+&lt;/script&gt;</pre>
+    </div>
+  </div>
+
+  <script>
+    const iframe = document.getElementById('vehicle-widget');
+    const eventsContainer = document.getElementById('events');
+
+    // Update widget with current filter values
+    function updateWidget() {
+      const dealership = document.getElementById('dealership').value;
+      const make = document.getElementById('make').value;
+      const type = document.getElementById('type').value;
+      const minPrice = document.getElementById('minPrice').value;
+      const maxPrice = document.getElementById('maxPrice').value;
+
+      const params = new URLSearchParams();
+      if (dealership) params.append('dealership', dealership);
+      if (make) params.append('make', make);
+      if (type) params.append('type', type);
+      if (minPrice) params.append('minPrice', minPrice);
+      if (maxPrice) params.append('maxPrice', maxPrice);
+
+      iframe.src = '/embed?' + params.toString();
+      
+      logEvent('Widget updated with filters', { dealership, make, type, minPrice, maxPrice });
+    }
+
+    // Listen for messages from the iframe
+    window.addEventListener('message', function(event) {
+      if (event.data.type === 'resize') {
+        iframe.style.height = event.data.height + 'px';
+        logEvent('Iframe resized', { height: event.data.height });
+      }
+      
+      if (event.data.type === 'vehicle_clicked') {
+        logEvent('Vehicle clicked', event.data.vehicle);
+        
+        // Example: You could redirect to a custom landing page
+        // window.location.href = '/landing?vehicle=' + event.data.vehicle.id;
+      }
+    });
+
+    // Log events to the page
+    function logEvent(eventName, data) {
+      const eventDiv = document.createElement('div');
+      eventDiv.className = 'event-item';
+      eventDiv.textContent = `${new Date().toLocaleTimeString()} - ${eventName}: ${JSON.stringify(data)}`;
+      eventsContainer.insertBefore(eventDiv, eventsContainer.firstChild);
+      
+      // Keep only last 10 events
+      while (eventsContainer.children.length > 10) {
+        eventsContainer.removeChild(eventsContainer.lastChild);
+      }
+    }
+
+    // Initial load
+    logEvent('Widget loaded', { src: iframe.src });
+  </script>
+</body>
+</html>

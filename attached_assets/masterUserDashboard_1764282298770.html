@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Olympic DealerOS | Enterprise Command v5.0</title>
+    
+    <!-- TECH STACK -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- CONFIG -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            dark: '#022d60', 
+                            light: '#00aad2',
+                            surface: '#F8FAFC',
+                            darkSurface: '#0f172a'
+                        }
+                    },
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    animation: { 'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite' }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        .dark ::-webkit-scrollbar-thumb { background: #334155; }
+        
+        /* Glass Effects */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+        }
+        .dark .glass-panel {
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid rgba(30, 41, 59, 0.8);
+        }
+        
+        /* Table Styles */
+        .table-head-cell { @apply px-6 py-3 text-left text-xs font-bold text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-700; }
+        .table-cell { @apply px-6 py-4 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300 border-b border-slate-100 dark:border-slate-800; }
+        .table-row:hover { @apply bg-slate-50 dark:bg-slate-800/50 transition-colors cursor-pointer; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 dark:bg-slate-900 dark:text-slate-200 font-sans transition-colors duration-300 h-screen flex overflow-hidden">
+
+    <!-- SIDEBAR NAVIGATION -->
+    <aside id="sidebar" class="w-64 bg-brand-dark text-white flex-shrink-0 flex flex-col transform -translate-x-full md:translate-x-0 transition-transform duration-300 fixed md:relative z-40 h-full border-r border-white/5">
+        <div class="p-6 border-b border-white/10 flex justify-between items-center">
+            <div>
+                <h1 class="font-bold text-xl tracking-tight">OLYMPIC<span class="text-brand-light">.OS</span></h1>
+                <p class="text-[10px] text-white/50 mt-1 uppercase tracking-wider font-bold">Command Center v5.0</p>
+            </div>
+            <button onclick="toggleSidebar()" class="md:hidden text-white/50"><i class="fa-solid fa-times"></i></button>
+        </div>
+        
+        <nav class="flex-1 p-4 space-y-1 overflow-y-auto">
+            <a href="#" onclick="switchTab('dashboard')" class="nav-item active bg-white/10 text-white px-4 py-3 rounded-xl flex items-center gap-3 font-medium hover:bg-white/20 transition-all">
+                <i class="fa-solid fa-gauge-high w-5"></i> Overview
+            </a>
+
+            <p class="px-4 py-2 text-xs font-bold text-white/40 uppercase tracking-wider mt-4">Inventory & Sales</p>
+            <a href="#" onclick="switchTab('market')" class="nav-item text-white/70 px-4 py-3 rounded-xl flex items-center gap-3 font-medium hover:bg-white/10 transition-all">
+                <i class="fa-solid fa-chart-line w-5"></i> Market Intel
+            </a>
+            <a href="#" onclick="switchTab('appraisal')" class="nav-item text-white/70 px-4 py-3 rounded-xl flex items-center gap-3 font-medium hover:bg-white/10 transition-all">
+                <i class="fa-solid fa-tag w-5"></i> Appraisal Tool
+            </a>
+
+            <p class="px-4 py-2 text-xs font-bold text-white/40 uppercase tracking-wider mt-4">AI & Comms</p>
+            <a href="#" onclick="switchTab('chat')" class="nav-item text-white/70 px-4 py-3 rounded-xl flex items-center gap-3 font-medium hover:bg-white/10 transition-all">
+                <i class="fa-regular fa-comments w-5"></i> Live Chat
+                <span class="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-auto">3</span>
+            </a>
+            <a href="#" onclick="switchTab('insights')" class="nav-item text-white/70 px-4 py-3 rounded-xl flex items-center gap-3 font-medium hover:bg-white/10 transition-all">
+                <i class="fa-solid fa-brain w-5"></i> AI Insights
+            </a>
+            <a href="#" onclick="switchTab('prompts')" class="nav-item text-white/70 px-4 py-3 rounded-xl flex items-center gap-3 font-medium hover:bg-white/10 transition-all">
+                <i class="fa-solid fa-robot w-5"></i> Chat Prompts
+            </a>
+
+            <p class="px-4 py-2 text-xs font-bold text-white/40 uppercase tracking-wider mt-4">Admin</p>
+            <a href="#" onclick="switchTab('users')" class="nav-item text-white/70 px-4 py-3 rounded-xl flex items-center gap-3 font-medium hover:bg-white/10 transition-all">
+                <i class="fa-solid fa-users w-5"></i> Users
+            </a>
+            <a href="#" onclick="switchTab('financing')" class="nav-item text-white/70 px-4 py-3 rounded-xl flex items-center gap-3 font-medium hover:bg-white/10 transition-all">
+                <i class="fa-solid fa-landmark w-5"></i> Financing
+            </a>
+        </nav>
+
+        <div class="p-4 border-t border-white/10 bg-black/20">
+            <div class="flex items-center gap-3">
+                <img src="https://ui-avatars.com/api/?name=Master+Admin&background=00aad2&color=fff" class="w-10 h-10 rounded-full border-2 border-brand-light">
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-bold truncate">Master Admin</p>
+                    <p class="text-xs text-white/50 truncate">Super User</p>
+                </div>
+                <i class="fa-solid fa-right-from-bracket text-white/50 hover:text-white cursor-pointer"></i>
+            </div>
+        </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="flex-1 flex flex-col relative overflow-hidden">
+        
+        <!-- TOP BAR -->
+        <header class="bg-white/80 dark:bg-slate-800/80 backdrop-blur-md z-30 border-b border-slate-200 dark:border-slate-700 px-8 py-4 flex justify-between items-center flex-shrink-0">
+            <div class="flex items-center gap-4">
+                <button onclick="toggleSidebar()" class="md:hidden text-slate-500 dark:text-slate-400"><i class="fa-solid fa-bars text-xl"></i></button>
+                <h2 class="text-xl font-bold text-slate-800 dark:text-white" id="page-title">Dashboard Overview</h2>
+            </div>
+            
+            <div class="flex items-center gap-4">
+                <button onclick="toggleDarkMode()" class="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-yellow-400 transition-colors">
+                    <i class="fa-solid fa-sun dark:hidden"></i>
+                    <i class="fa-solid fa-moon hidden dark:block"></i>
+                </button>
+                <div class="relative">
+                    <button class="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-slate-600 transition-colors relative">
+                        <i class="fa-regular fa-bell"></i>
+                        <span class="absolute top-2 right-2 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-slate-800 animate-pulse"></span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- SCROLLABLE AREA -->
+        <div class="flex-1 overflow-y-auto p-4 md:p-8 max-w-[1600px] mx-auto w-full space-y-8 pb-20">
+
+            <!-- === TAB: DASHBOARD === -->
+            <div id="tab-dashboard" class="tab-content animate-fade-in">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                    <div class="glass-panel p-6 rounded-2xl border-l-4 border-brand-light">
+                        <p class="text-sm text-slate-500 dark:text-slate-400 font-medium mb-1">Total Leads (30d)</p>
+                        <p class="text-3xl font-bold dark:text-white">842</p>
+                    </div>
+                    <div class="glass-panel p-6 rounded-2xl border-l-4 border-green-500">
+                        <p class="text-sm text-slate-500 dark:text-slate-400 font-medium mb-1">Active Conversations</p>
+                        <p class="text-3xl font-bold dark:text-white">14</p>
+                    </div>
+                    <div class="glass-panel p-6 rounded-2xl border-l-4 border-purple-500">
+                        <p class="text-sm text-slate-500 dark:text-slate-400 font-medium mb-1">Appointments Booked</p>
+                        <p class="text-3xl font-bold dark:text-white">56</p>
+                    </div>
+                     <div class="glass-panel p-6 rounded-2xl border-l-4 border-orange-500">
+                        <p class="text-sm text-slate-500 dark:text-slate-400 font-medium mb-1">Scheduled Posts</p>
+                        <p class="text-3xl font-bold dark:text-white">8</p>
+                    </div>
+                </div>
+                <div class="glass-panel p-6 rounded-2xl">
+                    <h3 class="font-bold text-lg mb-4 dark:text-white">Lead Volume vs. Appointments</h3>
+                    <canvas id="dashboardChart" class="w-full h-64"></canvas>
+                </div>
+            </div>
+
+            <!-- === TAB: MARKET INTEL === -->
+            <div id="tab-market" class="tab-content hidden animate-fade-in h-full flex flex-col">
+                <!-- MASTER VIEW -->
+                <div id="market-master" class="flex-1 flex flex-col">
+                    <div class="flex justify-between items-end mb-6">
+                        <div>
+                            <h3 class="font-bold text-xl dark:text-white">Olympic Hyundai Inventory</h3>
+                            <p class="text-sm text-slate-500 dark:text-slate-400">Select a vehicle to view competitive analysis.</p>
+                        </div>
+                        <div class="flex gap-3">
+                            <input type="text" placeholder="Search Stock #..." class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-light dark:text-white">
+                        </div>
+                    </div>
+                    <div class="glass-panel rounded-2xl overflow-hidden flex-1">
+                        <div class="overflow-x-auto">
+                            <table class="w-full">
+                                <thead class="bg-slate-50 dark:bg-slate-800">
+                                    <tr>
+                                        <th class="table-head-cell">Stock #</th>
+                                        <th class="table-head-cell">Vehicle</th>
+                                        <th class="table-head-cell">Age</th>
+                                        <th class="table-head-cell">Price</th>
+                                        <th class="table-head-cell">Market Rank</th>
+                                        <th class="table-head-cell">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-200 dark:divide-slate-700">
+                                    <tr class="table-row" onclick="openMarketDetail('23TUC01')">
+                                        <td class="table-cell font-mono text-slate-500">23TUC01</td>
+                                        <td class="table-cell font-bold">2023 Hyundai Tucson Preferred</td>
+                                        <td class="table-cell text-orange-500 font-bold">42 Days</td>
+                                        <td class="table-cell font-bold text-green-600">$34,999</td>
+                                        <td class="table-cell"><span class="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full font-bold">#3 of 28</span></td>
+                                        <td class="table-cell"><button class="text-brand-light font-bold hover:underline">Analyze</button></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <!-- DETAIL VIEW -->
+                <div id="market-detail" class="hidden flex-col h-full">
+                    <button onclick="closeMarketDetail()" class="mb-6 text-sm font-bold text-slate-500 hover:text-brand-dark flex items-center gap-2">
+                        <i class="fa-solid fa-arrow-left"></i> Back to Inventory
+                    </button>
+                    <div class="bg-brand-dark text-white p-6 rounded-2xl mb-6 shadow-lg flex justify-between items-center">
+                        <div>
+                            <h2 class="text-2xl font-bold">2023 Hyundai Tucson Preferred</h2>
+                            <p class="text-brand-light font-mono text-sm opacity-80">STK: 23TUC01 • 12,500 KM • WHITE</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-xs opacity-60 uppercase tracking-wider">Our Price</p>
+                            <p class="text-3xl font-bold">$34,999</p>
+                        </div>
+                    </div>
+                    <h3 class="font-bold text-lg dark:text-white mb-4">Competitive Set (100km Radius)</h3>
+                    <div class="glass-panel rounded-2xl overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full">
+                                <thead class="bg-slate-50 dark:bg-slate-800">
+                                    <tr>
+                                        <th class="table-head-cell">Dealer</th>
+                                        <th class="table-head-cell">Dist (km)</th>
+                                        <th class="table-head-cell">Vehicle</th>
+                                        <th class="table-head-cell">KM</th>
+                                        <th class="table-head-cell">Color</th>
+                                        <th class="table-head-cell">Days On Lot</th>
+                                        <th class="table-head-cell">Price</th>
+                                        <th class="table-head-cell">vs. Us</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-200 dark:divide-slate-700">
+                                    <tr class="bg-blue-50/50 dark:bg-blue-900/10 border-l-4 border-brand-light">
+                                        <td class="table-cell font-bold text-brand-dark dark:text-brand-light">Olympic (Us)</td>
+                                        <td class="table-cell">0</td>
+                                        <td class="table-cell font-bold">2023 Tucson Preferred</td>
+                                        <td class="table-cell">12,500</td>
+                                        <td class="table-cell">White</td>
+                                        <td class="table-cell font-bold">42</td>
+                                        <td class="table-cell font-bold">$34,999</td>
+                                        <td class="table-cell">-</td>
+                                    </tr>
+                                    <tr class="table-row">
+                                        <td class="table-cell">OpenRoad</td>
+                                        <td class="table-cell">14</td>
+                                        <td class="table-cell">2023 Tucson Preferred</td>
+                                        <td class="table-cell">14,200</td>
+                                        <td class="table-cell">Black</td>
+                                        <td class="table-cell">45</td>
+                                        <td class="table-cell">$35,500</td>
+                                        <td class="table-cell text-red-500 font-bold">+$501</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- === TAB: APPRAISAL TOOL === -->
+            <div id="tab-appraisal" class="tab-content hidden animate-fade-in">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div class="glass-panel p-6 rounded-2xl h-fit">
+                        <h3 class="font-bold text-lg dark:text-white mb-4">Vehicle Decoder</h3>
+                        <div class="mb-4 relative">
+                            <label class="block text-xs font-bold text-slate-400 mb-1">VIN</label>
+                            <div class="flex">
+                                <input type="text" id="appraisal-vin" placeholder="Scan or Type VIN..." class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-l-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-light dark:text-white uppercase font-mono">
+                                <button onclick="decodeVin()" class="bg-slate-200 dark:bg-slate-700 px-3 rounded-r-lg text-sm font-bold hover:bg-brand-light hover:text-white transition"><i class="fa-solid fa-bolt"></i></button>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-400 mb-1">Year</label>
+                                <input type="text" id="app-year" class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm dark:text-white">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-400 mb-1">Make</label>
+                                <input type="text" id="app-make" class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm dark:text-white">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-400 mb-1">Model</label>
+                                <input type="text" id="app-model" class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm dark:text-white">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-400 mb-1">Trim</label>
+                                <input type="text" id="app-trim" class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm dark:text-white">
+                            </div>
+                        </div>
+                        <div class="mb-6">
+                            <label class="block text-xs font-bold text-slate-400 mb-1">Odometer (KM)</label>
+                            <input type="number" id="app-km" class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm dark:text-white" placeholder="e.g. 45000">
+                        </div>
+                        <button onclick="analyzeAppraisal()" class="w-full bg-brand-dark text-white py-3 rounded-xl font-bold hover:bg-brand-light transition shadow-lg">
+                            Analyze Market Value
+                        </button>
+                    </div>
+                    <div id="appraisal-results" class="lg:col-span-2 hidden">
+                        <div class="glass-panel p-6 rounded-2xl mb-6">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <h2 class="text-2xl font-bold dark:text-white" id="res-title">2020 Honda CR-V</h2>
+                                    <p class="text-slate-500 dark:text-slate-400 text-sm">Comparing against 14 similar units within 250km</p>
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-xs font-bold text-slate-400 uppercase">Rec. List Price</p>
+                                    <p class="text-3xl font-bold text-green-500">$28,400</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="glass-panel rounded-2xl overflow-hidden">
+                             <table class="w-full">
+                                <thead class="bg-slate-50 dark:bg-slate-800">
+                                    <tr>
+                                        <th class="table-head-cell">Dealer</th>
+                                        <th class="table-head-cell">KM</th>
+                                        <th class="table-head-cell">Price</th>
+                                        <th class="table-head-cell">Adjustment</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-200 dark:divide-slate-700">
+                                    <tr class="table-row">
+                                        <td class="table-cell">Competitor A</td>
+                                        <td class="table-cell">42,000</td>
+                                        <td class="table-cell">$29,000</td>
+                                        <td class="table-cell text-red-500">High</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- === TAB: LIVE CHAT === -->
+            <div id="tab-chat" class="tab-content hidden animate-fade-in h-full">
+                 <div class="flex h-[calc(100vh-120px)] glass-panel rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700">
+                    <!-- Sidebar -->
+                    <div class="w-80 border-r border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex flex-col">
+                        <div class="p-4 border-b border-slate-200 dark:border-slate-700 space-y-3">
+                            <h3 class="font-bold text-sm dark:text-white">Live Inbox</h3>
+                            <select id="chat-filter" onchange="filterChats()" class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-xs font-medium focus:outline-none">
+                                <option value="all">All Conversations</option>
+                                <option value="Test Drive">Test Drive Requests</option>
+                                <option value="Get Approved">Finance Apps</option>
+                                <option value="Reserve">Reservations</option>
+                            </select>
+                            <input type="text" placeholder="Search names..." class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-xs">
+                        </div>
+                        <div class="flex-1 overflow-y-auto" id="chat-list">
+                            <!-- Chat Items Injected via JS -->
+                        </div>
+                    </div>
+                    <!-- Chat Area -->
+                    <div class="flex-1 flex flex-col bg-white dark:bg-slate-900">
+                        <div class="p-4 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                            <div>
+                                <h3 class="font-bold dark:text-white">Dave Customer</h3>
+                                <span class="bg-blue-100 text-blue-600 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">Test Drive</span>
+                            </div>
+                            <button class="text-slate-400 hover:text-brand-light"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+                        </div>
+                        <div class="flex-1 p-4 overflow-y-auto space-y-4 bg-slate-50/50 dark:bg-slate-900">
+                            <div class="flex justify-start">
+                                <div class="bg-white dark:bg-slate-800 p-3 rounded-2xl rounded-tl-none max-w-md text-sm dark:text-slate-300 shadow-sm border border-slate-100 dark:border-slate-700">
+                                    Is the 2024 Tucson still available for a test drive tomorrow?
+                                </div>
+                            </div>
+                            <div class="flex justify-end">
+                                <div class="bg-brand-light text-white p-3 rounded-2xl rounded-tr-none max-w-md text-sm shadow-md">
+                                    Hi Dave! Yes, I have the keys right here. Does 2:00 PM work for you?
+                                </div>
+                            </div>
+                        </div>
+                        <div class="p-4 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+                            <div class="flex gap-2">
+                                <input type="text" placeholder="Type a message..." class="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 focus:outline-none focus:border-brand-light dark:text-white">
+                                <button class="bg-brand-dark text-white w-12 h-12 rounded-xl flex items-center justify-center hover:bg-brand-light transition"><i class="fa-solid fa-paper-plane"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                 </div>
+            </div>
+
+            <!-- === TAB: AI INSIGHTS === -->
+            <div id="tab-insights" class="tab-content hidden animate-fade-in">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div class="glass-panel p-6 rounded-2xl">
+                        <h3 class="font-bold text-lg mb-6 dark:text-white">CTA Conversion Breakdown</h3>
+                        <div class="space-y-6">
+                            <div>
+                                <div class="flex justify-between text-sm mb-1">
+                                    <span class="font-bold dark:text-white">Get Approved</span>
+                                    <span class="text-green-500 font-bold">18% Conv.</span>
+                                </div>
+                                <div class="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-2.5">
+                                    <div class="bg-green-500 h-2.5 rounded-full" style="width: 65%"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-sm mb-1">
+                                    <span class="font-bold dark:text-white">Book Test Drive</span>
+                                    <span class="text-blue-500 font-bold">12% Conv.</span>
+                                </div>
+                                <div class="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-2.5">
+                                    <div class="bg-blue-500 h-2.5 rounded-full" style="width: 45%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="glass-panel p-6 rounded-2xl">
+                         <div class="flex justify-between items-center mb-6">
+                            <h3 class="font-bold text-lg dark:text-white">Call Sentiment Analysis</h3>
+                            <button class="text-brand-light text-xs font-bold">View Logs</button>
+                        </div>
+                        <div class="space-y-4">
+                            <div class="p-4 border border-slate-200 dark:border-slate-700 rounded-xl flex items-center justify-between">
+                                <div>
+                                    <p class="font-bold dark:text-white">John Sales</p>
+                                    <p class="text-xs text-slate-500">Avg. Duration: 4m 12s</p>
+                                </div>
+                                <div class="text-right">
+                                    <span class="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full font-bold">Positive</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- === TAB: CHAT PROMPTS (AI COMMAND) === -->
+            <div id="tab-prompts" class="tab-content hidden animate-fade-in">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <!-- Scenario List -->
+                    <div class="glass-panel p-6 rounded-2xl space-y-3">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="font-bold text-lg dark:text-white">Scenarios</h3>
+                            <button class="text-xs text-brand-light font-bold">+ Add</button>
+                        </div>
+                        <div class="p-3 border border-brand-light bg-blue-50 dark:bg-blue-900/20 rounded-xl cursor-pointer relative">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <p class="font-bold text-brand-dark dark:text-brand-light text-sm">Test Drive</p>
+                                    <p class="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Keyword: "Test Drive"</p>
+                                </div>
+                                <span class="bg-green-100 text-green-700 text-[10px] px-1.5 py-0.5 rounded font-bold">Active</span>
+                            </div>
+                        </div>
+                        <div class="p-3 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl cursor-pointer transition relative">
+                             <div class="flex justify-between items-start">
+                                <div>
+                                    <p class="font-bold text-slate-700 dark:text-slate-300 text-sm">Get Approved</p>
+                                    <p class="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Keyword: "Finance"</p>
+                                </div>
+                                <span class="bg-green-100 text-green-700 text-[10px] px-1.5 py-0.5 rounded font-bold">Active</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Editor -->
+                    <div class="glass-panel p-6 rounded-2xl lg:col-span-2 flex flex-col h-full">
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="font-bold text-lg dark:text-white">Edit "Test Drive" Prompt</h3>
+                            <div class="flex gap-2">
+                                <button class="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold hover:bg-slate-50">Test</button>
+                                <button class="px-4 py-2 bg-brand-dark text-white rounded-lg text-xs font-bold hover:bg-brand-light">Save Changes</button>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-6 flex-1">
+                            <label class="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-wide">System Instruction (OpenAI)</label>
+                            <textarea class="w-full h-48 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-4 text-sm font-mono focus:outline-none focus:border-brand-light dark:text-white leading-relaxed resize-none" placeholder="You are a helpful assistant..."></textarea>
+                            <p class="text-[10px] text-slate-400 mt-2 flex items-center gap-1"><i class="fa-solid fa-circle-info"></i> Defines the AI's persona and constraints.</p>
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-wide">Greeting Message</label>
+                            <textarea class="w-full h-24 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-4 text-sm focus:outline-none focus:border-brand-light dark:text-white resize-none" placeholder="Hi! I'd love to help you schedule..."></textarea>
+                             <p class="text-[10px] text-slate-400 mt-2 flex items-center gap-1"><i class="fa-solid fa-circle-info"></i> The first message the user sees.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- === TAB: USERS (Improved) === -->
+            <div id="tab-users" class="tab-content hidden animate-fade-in">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+                    <div class="relative w-full md:w-96">
+                        <i class="fa-solid fa-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input type="text" placeholder="Search users..." class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl pl-11 pr-4 py-3 text-sm focus:outline-none focus:border-brand-light focus:ring-1 focus:ring-brand-light dark:text-white">
+                    </div>
+                    <button onclick="document.getElementById('user-modal').classList.remove('hidden')" class="bg-brand-dark text-white px-6 py-3 rounded-xl text-sm font-bold hover:bg-[#001e45] transition-all flex items-center gap-2 shadow-lg shadow-blue-900/20">
+                        <i class="fa-solid fa-plus"></i> Create User
+                    </button>
+                </div>
+
+                <div class="grid gap-4">
+                    <!-- User Card 1 -->
+                    <div class="glass-panel p-5 rounded-2xl flex flex-col md:flex-row items-center gap-6 hover:border-brand-light/30 transition-colors">
+                        <div class="relative">
+                            <img src="https://ui-avatars.com/api/?name=John+Sales&background=0D8ABC&color=fff" class="w-14 h-14 rounded-full">
+                            <div class="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-white dark:border-slate-800"></div>
+                        </div>
+                        <div class="flex-1 text-center md:text-left">
+                            <h3 class="font-bold text-lg dark:text-white">John Sales</h3>
+                            <p class="text-sm text-slate-500 dark:text-slate-400">sales@olympicauto.com</p>
+                            <div class="flex flex-wrap gap-2 mt-2 justify-center md:justify-start">
+                                <span class="px-2.5 py-0.5 rounded text-xs font-bold bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300">Salesperson</span>
+                                <span class="px-2.5 py-0.5 rounded text-xs font-bold bg-purple-50 text-purple-600 dark:bg-purple-900/30 dark:text-purple-300">Connected: 5 Pages</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3 w-full md:w-auto">
+                            <button class="flex-1 md:flex-none border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-50 dark:hover:bg-slate-700">Edit</button>
+                            <button class="flex-1 md:flex-none bg-red-50 text-red-600 border border-red-100 dark:bg-red-900/20 dark:border-red-900/30 dark:text-red-400 px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-100 dark:hover:bg-red-900/40">Deactivate</button>
+                        </div>
+                    </div>
+                    <!-- User Card 2 -->
+                    <div class="glass-panel p-5 rounded-2xl flex flex-col md:flex-row items-center gap-6 hover:border-brand-light/30 transition-colors">
+                        <div class="relative">
+                            <img src="https://ui-avatars.com/api/?name=Sarah+Manager&background=6366f1&color=fff" class="w-14 h-14 rounded-full">
+                            <div class="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-white dark:border-slate-800"></div>
+                        </div>
+                        <div class="flex-1 text-center md:text-left">
+                            <h3 class="font-bold text-lg dark:text-white">Sarah Manager</h3>
+                            <p class="text-sm text-slate-500 dark:text-slate-400">manager@olympicauto.com</p>
+                            <div class="flex flex-wrap gap-2 mt-2 justify-center md:justify-start">
+                                <span class="px-2.5 py-0.5 rounded text-xs font-bold bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300">Sales Manager</span>
+                                <span class="px-2.5 py-0.5 rounded text-xs font-bold bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300">Admin Access</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3 w-full md:w-auto">
+                            <button class="flex-1 md:flex-none border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-50 dark:hover:bg-slate-700">Edit</button>
+                            <button class="flex-1 md:flex-none bg-red-50 text-red-600 border border-red-100 dark:bg-red-900/20 dark:border-red-900/30 dark:text-red-400 px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-100 dark:hover:bg-red-900/40">Deactivate</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- === TAB: FINANCING CONFIG === -->
+            <div id="tab-financing" class="tab-content hidden animate-fade-in">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <!-- Credit Tiers -->
+                    <div class="glass-panel p-6 rounded-2xl">
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="font-bold text-lg dark:text-white">Credit Score Tiers</h3>
+                            <button class="bg-brand-dark text-white text-xs px-3 py-1.5 rounded-lg font-bold hover:bg-brand-light transition">+ Add Tier</button>
+                        </div>
+                        <div class="space-y-4">
+                            <div class="flex items-center gap-4 p-4 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800/50">
+                                <div class="flex-1">
+                                    <p class="font-bold dark:text-white">Excellent <span class="text-xs font-normal text-slate-500 block">750 - 850</span></p>
+                                </div>
+                                <div class="font-mono font-bold text-brand-dark dark:text-brand-light">5.99%</div>
+                                <div class="flex gap-2 text-slate-400"><button class="hover:text-brand-light"><i class="fa-solid fa-pen"></i></button></div>
+                            </div>
+                            <div class="flex items-center gap-4 p-4 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800/50">
+                                <div class="flex-1">
+                                    <p class="font-bold dark:text-white">Poor <span class="text-xs font-normal text-slate-500 block">300 - 599</span></p>
+                                </div>
+                                <div class="font-mono font-bold text-brand-dark dark:text-brand-light">14.99%</div>
+                                <div class="flex gap-2 text-slate-400"><button class="hover:text-brand-light"><i class="fa-solid fa-pen"></i></button></div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Model Year Terms -->
+                    <div class="glass-panel p-6 rounded-2xl">
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="font-bold text-lg dark:text-white">Model Year Terms</h3>
+                            <button class="bg-brand-dark text-white text-xs px-3 py-1.5 rounded-lg font-bold hover:bg-brand-light transition">+ Add Rule</button>
+                        </div>
+                         <div class="space-y-4">
+                            <div class="flex items-center gap-4 p-4 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800/50">
+                                <div class="flex-1">
+                                    <p class="font-bold dark:text-white">2010 - 2017</p>
+                                    <div class="flex gap-1 mt-1">
+                                        <span class="bg-slate-200 dark:bg-slate-700 text-xs px-2 py-0.5 rounded text-slate-600 dark:text-slate-300">Max 48m</span>
+                                    </div>
+                                </div>
+                                <div class="flex gap-2 text-slate-400"><button class="hover:text-brand-light"><i class="fa-solid fa-pen"></i></button></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- USER CREATION MODAL -->
+    <div id="user-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-black/50 backdrop-blur-sm">
+        <div class="bg-white dark:bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-6 animate-fade-in">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="font-bold text-lg dark:text-white">Create New User</h3>
+                <button onclick="document.getElementById('user-modal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-times"></i></button>
+            </div>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 mb-1">Full Name</label>
+                    <input type="text" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-light dark:text-white">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 mb-1">Email Address</label>
+                    <input type="email" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-light dark:text-white">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 mb-1">Role & Permissions</label>
+                    <select class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-light dark:text-white">
+                        <option value="sales">Salesperson (FB + Leads)</option>
+                        <option value="manager">Sales Manager (Market Intel + Teams)</option>
+                        <option value="master">Master Admin (Full Access)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 mb-1">Assigned Dealership</label>
+                    <select class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-light dark:text-white">
+                        <option value="olympic">Olympic Hyundai</option>
+                        <option value="boundary">Boundary Hyundai</option>
+                        <option value="kia">Kia Vancouver</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="mt-8 flex gap-3">
+                <button onclick="document.getElementById('user-modal').classList.add('hidden')" class="flex-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 py-2.5 rounded-xl font-bold hover:bg-slate-200">Cancel</button>
+                <button class="flex-1 bg-brand-dark text-white py-2.5 rounded-xl font-bold hover:bg-brand-light transition">Create Account</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT ENGINE -->
+    <script>
+        function toggleDarkMode() { document.documentElement.classList.toggle('dark'); }
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById('tab-' + tabId).classList.remove('hidden');
+            document.querySelectorAll('.nav-item').forEach(el => { el.classList.remove('active', 'bg-white/10', 'text-white'); el.classList.add('text-white/70'); });
+            event.currentTarget.classList.add('active', 'bg-white/10', 'text-white');
+            event.currentTarget.classList.remove('text-white/70');
+            document.getElementById('sidebar').classList.add('-translate-x-full');
+        }
+
+        function toggleSidebar() { document.getElementById('sidebar').classList.toggle('-translate-x-full'); }
+
+        function openMarketDetail(id) {
+            document.getElementById('market-master').classList.add('hidden');
+            document.getElementById('market-detail').classList.remove('hidden');
+            document.getElementById('market-detail').classList.add('flex');
+        }
+        function closeMarketDetail() {
+            document.getElementById('market-detail').classList.add('hidden');
+            document.getElementById('market-detail').classList.remove('flex');
+            document.getElementById('market-master').classList.remove('hidden');
+        }
+
+        function decodeVin() {
+            document.getElementById('app-year').value = "2020";
+            document.getElementById('app-make').value = "Honda";
+            document.getElementById('app-model').value = "CR-V";
+            document.getElementById('app-trim').value = "Sport";
+            document.getElementById('app-km').value = "48200";
+        }
+        function analyzeAppraisal() {
+            document.getElementById('appraisal-results').classList.remove('hidden');
+            document.getElementById('res-title').innerText = `${document.getElementById('app-year').value} ${document.getElementById('app-make').value} ${document.getElementById('app-model').value}`;
+        }
+
+        const chats = [
+            { name: "Dave", cta: "Test Drive", msg: "Is it available?" },
+            { name: "Sarah", cta: "Get Approved", msg: "Application sent." },
+            { name: "Mike", cta: "Reserve", msg: "Holding deposit?" }
+        ];
+        
+        function filterChats() {
+            const filter = document.getElementById('chat-filter').value;
+            const list = document.getElementById('chat-list');
+            list.innerHTML = '';
+            
+            chats.forEach(chat => {
+                if (filter === 'all' || chat.cta === filter) {
+                    const color = chat.cta === 'Test Drive' ? 'blue' : (chat.cta === 'Get Approved' ? 'green' : 'purple');
+                    list.innerHTML += `
+                    <div class="p-4 border-b border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition">
+                        <div class="flex justify-between mb-1">
+                            <span class="font-bold text-sm dark:text-white">${chat.name}</span>
+                            <span class="text-[10px] bg-${color}-100 text-${color}-600 px-1.5 py-0.5 rounded uppercase font-bold">${chat.cta}</span>
+                        </div>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 truncate">${chat.msg}</p>
+                    </div>`;
+                }
+            });
+        }
+        filterChats();
+
+        const ctx = document.getElementById('dashboardChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                datasets: [{
+                    label: 'Leads',
+                    data: [12, 19, 15, 25, 22, 30, 28],
+                    borderColor: '#00aad2',
+                    tension: 0.4
+                }, {
+                    label: 'Appointments',
+                    data: [4, 8, 6, 12, 9, 15, 10],
+                    borderColor: '#10b981',
+                    tension: 0.4
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, scales: { y: { grid: { color: '#334155' } }, x: { grid: { color: '#334155' } } } }
+        });
+    </script>
+</body>
+</html>

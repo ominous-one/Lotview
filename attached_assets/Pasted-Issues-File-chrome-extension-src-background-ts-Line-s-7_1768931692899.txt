@@ -1,0 +1,96 @@
+Issues
+
+  File: chrome-extension/src/background.ts
+  Line(s): ~75-100 (fetchImages)
+  Severity: MEDIUM
+  Category: Security / Reliability
+  Issue: Downloads arbitrary URLs from imageUrls with no host allowlist, count/size cap, or content-type check; errors are silently ignored.
+  Risk: Could be abused for SSRF-style fetches or resource exhaustion (large files/many URLs), and may attach non-image blobs to the form.
+  Fix: Enforce HTTPS + allowed host patterns (Lotview CDN only), cap max items/total bytes, validate content-type starts with image/, and surface errors if limits are exceeded.
+
+  File: chrome-extension/src/background.ts
+  Line(s): ~15-28 (isValidServerUrl)
+  Severity: LOW
+  Category: Security / Best Practice
+  Issue: Accepts localhost/127.0.0.1 in production builds.
+  Risk: Users could point the extension at a malicious local listener and leak credentials/tokens.
+  Fix: Disallow localhost except in development builds; restrict to HTTPS and optionally to trusted Lotview domains in production.
+
+  File: chrome-extension/src/background.ts
+  Line(s): ~30-60 (auth storage)
+  Severity: LOW
+  Category: Security / Best Practice
+  Issue: Auth tokens are stored long-term in chrome.storage.sync without expiry/rotation.
+  Risk: Tokens sync across profiles/devices and persist indefinitely; stolen profile grants API access.
+  Fix: Prefer chrome.storage.session or in-memory storage for tokens; store expiry and auto-logout/refresh when expired.
+
+  File: chrome-extension/src/background.ts
+  Line(s): ~140-190 (SAVE_TEMPLATE/FILL_CONTENT payloads)
+  Severity: LOW
+  Category: Reliability / Validation
+  Issue: Payloads from the popup are minimally validated (only presence checks); formData/imageUrls types are assumed.
+  Risk: Malformed payloads can cause runtime errors or unexpected requests; harder to debug failures.
+  Fix: Add runtime validation (e.g., use validators.ts) for templates, vehicle IDs, arrays, and string types before invoking drivers or APIs.
+
+  File: chrome-extension/src/popup.tsx
+  Line(s): ~230-275 (fillListing / history save)
+  Severity: LOW
+  Category: Reliability
+  Issue: saveHistory([record, ...history]) uses a potentially stale history closure; concurrent posts can drop entries.
+  Risk: Posting history may lose records, confusing users and analytics.
+  Fix: Use functional update with latest state (setHistory(prev => { const next=[record,...prev]; ... })) or refetch from storage before writing.
+
+  File: chrome-extension/src/popup.tsx
+  Line(s): ~150-210 (initial GET_AUTH/fetches)
+  Severity: LOW
+  Category: Reliability / Error Handling
+  Issue: Some async calls log errors to console only (e.g., fetchTemplates, fetchLimits) and do not notify users; failures can be silent.
+  Risk: Users may not realize data failed to load; UI may show empty state without context.
+  Fix: Surface errors via toasts and guard UI on failed loads.
+
+  File: chrome-extension/src/content-facebook.ts
+  Line(s): ~60-120 (fillFacebook)
+  Severity: LOW
+  Category: Reliability / UX
+  Issue: Required fields (title/price/description) fail silently with console warnings; success is reported even if nothing was filled.
+  Risk: Users may publish incomplete listings believing the autofill succeeded.
+  File: chrome-extension/src/content-facebook.ts
+  Line(s): ~85-110 (uploadImages)
+  Severity: LOW
+  Category: Performance / Reliability
+  Issue: No cap on number/size of files added to the DataTransfer.
+  Risk: Large or many images can stall the page or exceed Facebook’s limits, leading to failed posts.
+  Fix: Enforce a max count/size before upload (e.g., first 10 images, <10MB each) and fail fast with a user-visible error.
+
+  File: chrome-extension/src/manifest.json
+  Line(s): host_permissions
+  Severity: LOW
+  Category: Best Practice
+  Issue: Host permissions include broad *.replit.app and multiple Facebook marketplace wildcards.
+  Risk: Larger review surface and potential overreach beyond needed scopes.
+  Fix: Narrow to exact required domains/paths; consider separate dev/prod manifests without replit in production.
+
+  File: chrome-extension/src/validators.ts
+  Line(s): entire file
+  Severity: INFO
+  Category: Best Practice
+  Issue: Validators are defined but not used in network response handling.
+  Risk: Malformed backend data could propagate to UI/driver logic unchecked.
+  Fix: Use these validators in background API responses before forwarding to the popup/driver.
+
+  ———
+
+  Final Summary
+
+  1. Overall security score: 7.5 / 10
+  2. Overall code quality score: 8 / 10
+  3. Top 3 most critical issues to fix immediately:
+      - Add host/size/type limits to fetchImages to prevent SSRF-style fetches and resource exhaustion.
+      - Restrict server URL validation to HTTPS and trusted domains (no localhost in production).
+      - Handle required field failures in fillFacebook as errors, not silent warnings.
+  4. Top 3 recommended improvements for next version:
+      - Move tokens to session/memory with expiry/refresh; avoid long-lived sync storage.
+      - Apply runtime validation (validators.ts) to all API responses/payloads and surface errors to users.
+      - Narrow host_permissions and split dev/prod manifests to reduce review surface.
+  5. Chrome Web Store submission readiness: Generally close; address the above items—especially image download restrictions, server URL tightening, and form-fill validation—to reduce security and reliability
+     risks before submission.

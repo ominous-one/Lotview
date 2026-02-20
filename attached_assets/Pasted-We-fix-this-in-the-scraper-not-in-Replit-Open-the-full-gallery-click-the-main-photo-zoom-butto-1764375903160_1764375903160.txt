@@ -1,0 +1,210 @@
+We fix this in the scraper, not in Replit:
+
+Open the full gallery (click the main photo / zoom button).
+
+Scroll / click the right-arrow through every slide so the high-res images load.
+
+Extract only the big gallery images (not the strip of thumbs).
+
+You already have 90% of this in server/precision-image-extractor.ts. We’ll wire in a missing “open main image” step and teach it about overlay galleries.
+
+Step 1 – Add selectors for the hero + overlay gallery
+
+In Replit, open:
+
+server/precision-image-extractor.ts
+
+Near the top you’ll see EXCLUDED_CONTAINERS and then const PRIMARY_GALLERY_SELECTORS = [...].
+
+Right above PRIMARY_GALLERY_SELECTORS, add these two new constants:
+
+const GALLERY_TRIGGER_SELECTORS = [
+  // Main hero image / container on typical dealer sites
+  '.photo-gallery__main img',
+  '.photo-gallery__main',
+  '.vehicle-gallery__hero img',
+  '.vehicle-gallery__hero',
+  '.vdp-hero__image-container img',
+  '.vdp-hero__image-container',
+  '.vehicle-media__hero img',
+  '.vehicle-media__hero',
+  '.gallery-main img',
+  '.gallery-main',
+  '.vehicle-main-image',
+  '.vehicle-main-image img',
+  // Generic "open gallery" triggers
+  '[data-gallery-open]',
+  '[data-action="open-gallery"]',
+  '[data-open="gallery"]',
+  '[data-lightbox]',
+  '.lightbox-trigger',
+  '.gallery-trigger',
+  '.fancybox-trigger'
+];
+
+const OVERLAY_GALLERY_SELECTORS = [
+  // Fullscreen / lightbox style galleries
+  '.lightbox',
+  '.lightbox__content',
+  '.gallery-modal',
+  '.gallery-modal__content',
+  '.gallery--fullscreen',
+  '.vehicle-gallery--fullscreen',
+  '.fancybox-container',
+  '.fancybox-stage',
+  '.mfp-wrap',
+  '.mfp-content',
+  '.modal--gallery'
+];
+
+
+Now replace your existing PRIMARY_GALLERY_SELECTORS block with this version that includes the overlay selectors:
+
+const PRIMARY_GALLERY_SELECTORS = [
+  // Inline / regular galleries
+  '.photo-gallery',
+  '.photo-gallery__viewport',
+  '.photo-gallery__slides',
+  '.mobile-slider',
+  '.mobile-slider__viewport',
+  '.vehicle-gallery',
+  '.vehicle-media-gallery',
+  '.vdp-gallery',
+  '.vdp-media',
+  '.main-gallery',
+  '.primary-gallery',
+  '#vehicle-gallery',
+  '#main-gallery',
+  '.swiper-container:not([class*="similar"]):not([class*="recommend"])',
+  '.slick-slider:not([class*="similar"]):not([class*="recommend"])',
+  '[data-gallery="main"]',
+  '[data-gallery="primary"]',
+  '[data-gallery="vehicle"]',
+  '[x-data*="gallery"]',
+
+  // Fullscreen / overlay galleries (when hero click opens a lightbox)
+  ...OVERLAY_GALLERY_SELECTORS,
+];
+
+
+That tells the extractor “if there’s an overlay gallery, prefer that instead of the inline thumbs”.
+
+Step 2 – Add openPrimaryGallery(page) (click hero + wait)
+
+Scroll down until you see:
+
+async function navigateEntireGallery(page: Page, maxClicks = 60) {
+
+
+Right above navigateEntireGallery, paste this new helper:
+
+async function openPrimaryGallery(page: Page): Promise<{ opened: boolean; method: string }> {
+  try {
+    const result = await page.evaluate(
+      async (triggerSelectors: string[], overlaySelectors: string[]) => {
+        function hasOverlay(): boolean {
+          return overlaySelectors.some(sel => !!document.querySelector(sel));
+        }
+
+        // If a fullscreen gallery is already open, do nothing
+        if (hasOverlay()) {
+          return { opened: false, method: 'overlay-already-open' };
+        }
+
+        // Find something clickable (hero image / open-gallery button)
+        let trigger: HTMLElement | null = null;
+        for (const sel of triggerSelectors) {
+          const el = document.querySelector(sel) as HTMLElement | null;
+          if (el) {
+            trigger = el;
+            break;
+          }
+        }
+
+        if (!trigger) {
+          // No obvious trigger – we'll just work with the inline gallery
+          return { opened: false, method: 'no-trigger-found' };
+        }
+
+        // Click the hero / trigger
+        trigger.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+
+        const start = Date.now();
+        const timeout = 1500;
+
+        // Wait up to ~1.5s for an overlay gallery to appear
+        while (Date.now() - start < timeout) {
+          if (hasOverlay()) {
+            return { opened: true, method: 'trigger-clicked-overlay-opened' };
+          }
+          await new Promise(r => setTimeout(r, 50));
+        }
+
+        // Click didn't open a separate overlay – inline gallery only
+        return { opened: false, method: 'trigger-clicked-inline-only' };
+      },
+      GALLERY_TRIGGER_SELECTORS,
+      OVERLAY_GALLERY_SELECTORS
+    );
+
+    console.log('openPrimaryGallery:', result);
+    return result;
+  } catch (err) {
+    console.warn('openPrimaryGallery failed:', err);
+    return { opened: false, method: 'error' };
+  }
+}
+
+
+This does exactly what you want:
+
+Tries to click the main hero / gallery trigger.
+
+If a fullscreen gallery appears (lightbox / modal), it will then be picked up by the selectors we added.
+
+If nothing appears, it quietly falls back to the inline gallery (so it won’t break other dealers).
+
+Step 3 – Call it before navigation / extraction
+
+Still in precision-image-extractor.ts, find:
+
+export async function extractVehicleImages(page: Page, vin: string | null, stockNumber: string | null) {
+
+
+Inside that function, the first line right now is probably something like:
+
+  const navResult = await navigateEntireGallery(page);
+
+
+Change the top of the function to:
+
+export async function extractVehicleImages(page: Page, vin: string | null, stockNumber: string | null) {
+  // 1) Try to open the main hero gallery / fullscreen lightbox
+  await openPrimaryGallery(page);
+
+  // 2) Click through the slides (arrows, dots, keyboard) so all big images load
+  const navResult = await navigateEntireGallery(page);
+
+  // (rest of your function stays the same)
+
+
+Don’t change anything else in extractVehicleImages – all the URL filtering, VIN matching, quality scoring etc can remain as-is.
+
+Step 4 – Redeploy & re-scrape
+
+Save all files in Replit.
+
+Restart your dev server if needed (npm run dev in the shell).
+
+Hit your manual sync endpoint once so it refills the DB with the new logic:
+
+curl -X POST https://auto-dealer-ai-frameworkconsul.replit.app/api/scraper/sync
+
+
+(or call it from Postman / browser if you prefer).
+
+Refresh your inventory UI and open a vehicle:
+
+The main hero image should now be much sharper.
+
+Thumbnails at the bottom will still be small (that’s fine), but when you click through the gallery arrows in your UI, the big images should all be the high-res versions we scraped.

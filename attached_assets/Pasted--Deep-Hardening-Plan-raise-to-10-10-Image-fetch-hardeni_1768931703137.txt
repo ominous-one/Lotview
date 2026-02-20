@@ -1,0 +1,18 @@
+ Deep Hardening Plan (raise to 10/10)
+
+  - Image fetch hardening: In background.ts/fetchImages, enforce HTTPS + allowlisted hosts (Lotview CDN/domains), max count (e.g., 10), max per-file size (e.g., 10 MB), max total bytes, require Content-Type:
+    image/*, and reject on violation with a surfaced error.
+  - Server URL policy: In production builds, disallow localhost/127.0.0.1; restrict to https://*.lotview.ai (or a small allowlist). Expose a __DEV__ flag to toggle localhost support in dev only.
+  - Token handling: Keep auth in chrome.storage.session or in-memory; store expiry, auto-logout/refresh on expiry; never sync tokens. Add a short idle timeout for the service worker to drop auth from memory.
+  - Runtime validation everywhere: Use validators.ts on all API responses (inventory, templates, limits) and on popup→background payloads (FILL_CONTENT, SAVE_TEMPLATE). Reject malformed data with user-visible
+    toasts.
+  - Required-field enforcement: In content-facebook.ts, treat missing title/price/description as errors and propagate back to popup; show explicit notification (“Title field not found—page layout changed”).
+  - Image upload bounds: Before uploadImages, cap to first N images, enforce size limits, and fail fast with a clear error to the user.
+  - Manifest minimization: Narrow host_permissions to only the needed FB marketplace create paths and Lotview production domains; ship separate dev manifest that includes Replit/localhost. Remove unused
+    permissions if any.
+  - Message hygiene: Keep the whitelist; also type-check payload shapes per action. Add a versioned protocol field to detect stale popup/background mismatches.
+  - Error handling & UX: Toast on all fetch failures (fetchTemplates, fetchLimits), and disable actions when data is stale. Add retry/backoff for transient network errors.
+  - Race-proof history: Use functional state updates for posting history and re-read from storage before writing to avoid lost records under concurrency.
+  - Content-script resilience: Add a single shared notification element; clean up on visibilitychange/beforeunload. Add fallbacks if selectors fail (e.g., aria/placeholder-driven search) and a hard failure
+    path.
+  - Testing/QA: Add automated lint/tests for validators, URL policy, and message schema. Include an E2E script that simulates a fill with mocked DOM to ensure required-field detection trips correctly.

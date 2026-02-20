@@ -1,0 +1,116 @@
+The Hero Section (Above the Fold)
+The Problem: "Your Dealership's Digital Showroom" is fluff. It sounds nice but means nothing. Every website is a digital showroom. The Subhead: "Manage listings, engage customers..." is a laundry list of chores. You are reminding them of work they have to do.
+
+The Fix: Focus on the result (Money/Speed) or the pain (Wasted Time).
+
+Current Headline: Your Dealership's Digital Showroom
+
+Punchy Rewrite: Turn Your Inventory Into a 24/7 Sales Agent
+
+Alternative: Stop Manually Updating Inventory. Start Closing Deals.
+
+Current Subhead: The AI-powered inventory platform that turns browsers into buyers. Manage listings, engage customers, and close more deals—all from one place.
+
+Punchy Rewrite: LotView syncs your inventory, chats with leads, and books test drives automatically. We handle the busy work so your sales team can focus on closing.
+
+The Buttons:
+
+Current: "Request a Demo" / "Watch Demo"
+
+Critical Note: Nobody wants to "Watch" a demo. They want to see the product.
+
+Change to: "Get Your Free Demo" and "See How It Works"
+
+2. The Features Grid (Mid-Page)
+The Problem: The headers are descriptive, not persuasive. "Smart Inventory Management" sounds like a college course. "Facebook & Social Posting" sounds like a feature, not a benefit.
+
+The Fix: Speak to the value.
+
+Card 1:
+
+Old: Smart Inventory Management
+
+New: Zero-Touch Inventory Sync
+
+Why: "Zero-Touch" implies I don't have to do anything.
+
+Card 2:
+
+Old: AI-Powered Customer Chat
+
+New: The AI BDC That Never Sleeps
+
+Why: "BDC" (Business Development Center) is industry language. Dealers pay humans salaries to do this. You are replacing a salary with software.
+
+Card 3:
+
+Old: Automated Lead Nurturing
+
+New: Revive Dead Leads Automatically
+
+Why: "Nurturing" is marketing speak. "Reviving dead leads" is money speak.
+
+Card 5:
+
+Old: Facebook & Social Posting
+
+New: Dominate Facebook Marketplace
+
+Why: They don't just want to "post," they want to win.
+
+3. "How It Works" Section
+The Problem: "Connect -> Customize -> Launch -> Grow" is the same 4 steps on every SaaS website in existence. It washes over the brain.
+
+The Fix: Make the steps concrete and fast.
+
+Step 1:
+
+Old: Connect (Link your inventory sources...)
+
+New: We Plug In (We connect to your DMS and AutoTrader in minutes, not weeks.)
+
+Step 2:
+
+Old: Customize
+
+New: We Brand It (Your logo, your colors, your financing rules.)
+
+Step 3:
+
+Old: Launch
+
+New: Go Live (Your new AI showroom is active instantly.)
+
+Step 4:
+
+Old: Grow
+
+New: Auto-Pilot (Our AI starts handling inquiries immediately.)
+
+4. Pricing Section
+The Problem: "Plans That Scale With You" is filler text. It occupies valuable screen real estate without selling anything. Also, "Starter" and "Professional" are boring.
+
+The Fix: Name the plans based on the dealer's stage.
+
+Headline:
+
+Old: Plans That Scale With You
+
+New: Costs Less Than One Sold Car (Anchor the price against their profit margin).
+
+Plan Names:
+
+Starter -> The Independent (For small lots)
+
+Professional -> The Volume Dealer (For moving metal)
+
+Enterprise -> Dealer Group (For empires)
+
+5. Visual/Design Nits (The "Trust" Factors)
+The Hero Image: The screenshot is too dark. It looks like a generic admin panel.
+
+Change: Zoom in on a specific high-value moment. Show a "New Appointment Booked" notification popping up on a phone screen over the dashboard. Show action, not data.
+
+The "Live in 24 Hours" Badge: This is small and grey.
+
+Change: Make this badge Gold or Green. This is your biggest differentiator against massive slow competitors like Dealer.com. It needs to scream.
