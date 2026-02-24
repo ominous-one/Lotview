@@ -22,6 +22,7 @@ export const MAX_TOTAL_IMAGE_BYTES = 50 * 1024 * 1024;
 
 export const ALLOWED_PROD_DOMAINS = [
   "lotview.ai",
+  "lotview.onrender.com",
   "olympicautogroup.ca",
 ];
 
