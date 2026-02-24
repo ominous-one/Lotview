@@ -76,6 +76,16 @@ function isDevOrPreviewHost(hostname: string): boolean {
     return true;
   }
   
+  // Render hosting (lotview.onrender.com)
+  if (host.endsWith('.onrender.com')) {
+    return true;
+  }
+  
+  // Railway hosting
+  if (host.endsWith('.railway.app')) {
+    return true;
+  }
+  
   return false;
 }
 
