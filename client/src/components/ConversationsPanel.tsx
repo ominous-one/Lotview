@@ -1520,7 +1520,7 @@ export function ConversationsPanel({ dealershipId, onSwitchToTraining }: Convers
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    <Select value={fwcMessageType} onValueChange={(v: any) => setFwcMessageType(v)}>
+                    <Select value={fwcMessageType ?? undefined} onValueChange={(v: any) => setFwcMessageType(v)}>
                       <SelectTrigger className="h-9">
                         <SelectValue />
                       </SelectTrigger>
@@ -1540,14 +1540,14 @@ export function ConversationsPanel({ dealershipId, onSwitchToTraining }: Convers
                       </SelectContent>
                     </Select>
                     <Textarea
-                      placeholder={`Type your ${fwcMessageType.toUpperCase()} message...`}
+                      placeholder={`Type your ${fwcMessageType?.toUpperCase() ?? ''} message...`}
                       className="min-h-[80px] text-sm"
                       value={fwcMessageText}
                       onChange={(e) => setFwcMessageText(e.target.value)}
                     />
                     <Button size="sm" className="w-full" disabled={!fwcMessageText.trim()}>
                       <Send className="w-3 h-3 mr-2" />
-                      Send {fwcMessageType.toUpperCase()}
+                      Send {fwcMessageType?.toUpperCase() ?? ''}
                     </Button>
                   </CardContent>
                 </Card>

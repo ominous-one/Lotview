@@ -316,11 +316,11 @@ Respond ONLY with valid JSON, no additional text.`;
 
     const criteriaList = criteria.map(c => ({
       id: c.id,
-      name: c.name,
+      name: c.label,
       description: c.description,
       ratingType: c.ratingType,
       maxScore: c.maxScore,
-      aiPrompt: c.aiPrompt
+      aiPrompt: c.aiInstruction
     }));
 
     const prompt = `Analyze this phone call and score each criterion. 

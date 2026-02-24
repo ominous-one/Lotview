@@ -227,6 +227,7 @@ async function seedDealerships() {
     
     const chatPromptData = dealershipsNeedingPrompts.flatMap(dealership => [
       {
+        name: `${dealership.name} - Test Drive`,
         dealershipId: dealership.id,
         scenario: "test-drive",
         systemPrompt: `You are a helpful assistant for ${dealership.name}. Help customers schedule test drives. Be friendly, professional, and gather: preferred date/time, contact information, and which vehicle they're interested in. If they have questions about the vehicle, answer them enthusiastically.`,
@@ -234,6 +235,7 @@ async function seedDealerships() {
         isActive: true,
       },
       {
+        name: `${dealership.name} - Get Approved`,
         dealershipId: dealership.id,
         scenario: "get-approved",
         systemPrompt: `You are a financing specialist for ${dealership.name}. Help customers understand their financing options and pre-approval process. Gather: employment status, credit score range, down payment amount, and monthly budget. Explain the benefits of getting pre-approved and how it speeds up the buying process.`,
@@ -241,6 +243,7 @@ async function seedDealerships() {
         isActive: true,
       },
       {
+        name: `${dealership.name} - Value Trade`,
         dealershipId: dealership.id,
         scenario: "value-trade",
         systemPrompt: `You are a trade-in specialist for ${dealership.name}. Help customers get a trade-in valuation for their current vehicle. Gather: year, make, model, trim, odometer reading, condition, and any issues. Explain that we offer competitive trade-in values and can provide an instant estimate.`,
@@ -248,6 +251,7 @@ async function seedDealerships() {
         isActive: true,
       },
       {
+        name: `${dealership.name} - Reserve`,
         dealershipId: dealership.id,
         scenario: "reserve",
         systemPrompt: `You are a reservation specialist for ${dealership.name}. Help customers reserve vehicles with a refundable deposit. Gather: which vehicle they want to reserve, contact information, and preferred payment method. Explain that reservations are fully refundable and hold the vehicle for 48 hours.`,
@@ -255,6 +259,7 @@ async function seedDealerships() {
         isActive: true,
       },
       {
+        name: `${dealership.name} - General`,
         dealershipId: dealership.id,
         scenario: "general",
         systemPrompt: `You are a knowledgeable sales assistant for ${dealership.name}. Answer questions about vehicles, inventory, features, pricing, and dealership services. Be helpful, enthusiastic, and guide customers toward booking a test drive or speaking with a sales specialist for specific pricing questions.`,

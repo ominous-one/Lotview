@@ -158,40 +158,29 @@ function Popup() {
     (async () => {
       try {
         const stored = await chrome.storage.local.get([
-          "privacyConsent", 
-          "rememberedEmail", 
+          "privacyConsent",
+          "rememberedEmail",
           "rememberedServerUrl",
-          "rememberedPassword",
           "rememberMe"
-        ]) as { 
-          privacyConsent?: boolean; 
+        ]) as {
+          privacyConsent?: boolean;
           rememberedEmail?: string;
           rememberedServerUrl?: string;
-          rememberedPassword?: string;
           rememberMe?: boolean;
         };
-        
-        // Load remembered credentials
+
+        // Load remembered credentials (never store passwords)
         if (stored.rememberMe) {
           setRememberMe(true);
-          if (stored.rememberedEmail) {
-            setEmail(stored.rememberedEmail);
-          }
-          if (stored.rememberedServerUrl) {
-            setServerUrl(stored.rememberedServerUrl);
-          }
-          if (stored.rememberedPassword) {
-            setPassword(stored.rememberedPassword);
-          }
-        } else {
-          // Only load email and server URL if Remember Me was not checked
-          if (stored.rememberedEmail) {
-            setEmail(stored.rememberedEmail);
-          }
-          if (stored.rememberedServerUrl) {
-            setServerUrl(stored.rememberedServerUrl);
-          }
         }
+        if (stored.rememberedEmail) {
+          setEmail(stored.rememberedEmail);
+        }
+        if (stored.rememberedServerUrl) {
+          setServerUrl(stored.rememberedServerUrl);
+        }
+        // Clear any legacy password storage from older versions
+        await chrome.storage.local.remove(["rememberedPassword"]);
         
         if (typeof stored.privacyConsent === "boolean") {
           setPrivacyConsent(stored.privacyConsent);
@@ -247,24 +236,12 @@ function Popup() {
         addToast("error", res?.error || "Login failed");
       } else if (res.auth) {
         setAuth(res.auth);
-        // Save credentials based on Remember Me preference
-        if (rememberMe) {
-          await chrome.storage.local.set({ 
-            rememberedEmail: email,
-            rememberedServerUrl: serverUrl.replace(/\/$/, ""),
-            rememberedPassword: password,
-            rememberMe: true
-          });
-        } else {
-          // Still save email and server URL for convenience, but not password
-          await chrome.storage.local.set({ 
-            rememberedEmail: email,
-            rememberedServerUrl: serverUrl.replace(/\/$/, ""),
-            rememberMe: false
-          });
-          // Clear any previously saved password
-          await chrome.storage.local.remove(["rememberedPassword"]);
-        }
+        // Save email and server URL (never store passwords)
+        await chrome.storage.local.set({
+          rememberedEmail: email,
+          rememberedServerUrl: serverUrl.replace(/\/$/, ""),
+          rememberMe
+        });
         addToast("success", "Logged in successfully");
       }
     } catch (err) {

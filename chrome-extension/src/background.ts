@@ -745,7 +745,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           }
           
           const arrayBuffer = await response.arrayBuffer();
-          const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+          const bytes = new Uint8Array(arrayBuffer);
+          let binary = "";
+          const chunkSize = 8192;
+          for (let i = 0; i < bytes.length; i += chunkSize) {
+            binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+          }
+          const base64 = btoa(binary);
           
           console.log(`[LV-BG] Image fetched: ${arrayBuffer.byteLength} bytes, ${contentType}`);
           sendResponse({ 
@@ -824,13 +830,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
           if (essentialCookies.length === 0) {
             sendResponse({ ok: false, error: "Not logged into Facebook. Please log in first." });
-            return;
-          }
-
-          // Get auth for API call
-          const auth = await getStoredAuth();
-          if (!auth?.token) {
-            sendResponse({ ok: false, error: "Not logged in to Lotview" });
             return;
           }
 

@@ -6,6 +6,33 @@ vite.config.ts.*
 *.tar.gz
 .config/
 .local/
+
+# Environment files
 .env
 .env.*
 !.env.example
+!.env.production.example
+
+# Database
+.postgres/
+*.sql.bak
+
+# Build artifacts
+coverage/
+*.tsbuildinfo
+
+# Chrome extension build output
+chrome-extension/dist/
+chrome-extension/*.zip
+
+# Docker
+.docker/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+Thumbs.db

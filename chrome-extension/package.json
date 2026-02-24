@@ -1,6 +1,6 @@
 {
   "name": "lotview-auto-poster",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Auto-fill Facebook Marketplace listings from Lotview inventory",
   "scripts": {
     "build": "node build.cjs",
@@ -23,6 +23,8 @@
     "typescript": "^5.3.0"
   },
   "dependencies": {
+    "@types/dompurify": "^3.0.5",
+    "dompurify": "^3.3.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   }

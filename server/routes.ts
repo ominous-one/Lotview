@@ -22,6 +22,7 @@ import {
   ghlAppointmentSync,
   dealershipContacts,
   callScoringResponses,
+  callScoringSheets,
   dealershipApiKeys,
   passwordResetTokens,
   users,
@@ -111,14 +112,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // ===== HEALTH CHECK ENDPOINTS (Enterprise Monitoring) =====
   
-  // Basic health check - server is running
-  app.get("/health", (_req, res) => {
+  // Basic health check - server is running (supports both /health and /api/health)
+  const healthHandler = (_req: any, res: any) => {
     res.status(200).json({
       status: "healthy",
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
+      version: process.env.npm_package_version || "1.0.0",
     });
-  });
+  };
+  app.get("/health", healthHandler);
+  app.get("/api/health", healthHandler);
   
   // Ready check - server and all dependencies are ready to accept traffic
   app.get("/ready", async (_req, res) => {
@@ -151,6 +155,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Serve public objects from object storage (logos, etc.)
   app.get("/public-objects/:filePath(*)", async (req, res) => {
     const filePath = req.params.filePath;
+    // SECURITY: Prevent path traversal attacks
+    if (filePath.includes('..') || filePath.includes('\0')) {
+      return res.status(400).json({ error: "Invalid file path" });
+    }
     const objectStorageService = new ObjectStorageService();
     try {
       const file = await objectStorageService.searchPublicObject(filePath);
@@ -308,7 +316,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Generate secure token (32 bytes = 256 bits)
       const token = crypto.randomBytes(32).toString('hex');
-      const tokenHash = await bcrypt.hash(token, 10);
+      const tokenHash = await bcrypt.hash(token, 12);
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour expiry
       
       await storage.createPasswordResetToken(user.id, tokenHash, expiresAt);
@@ -336,7 +344,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Validate password reset token (check if token is valid before showing form)
-  app.get("/api/auth/reset-password/:token", async (req, res) => {
+  app.get("/api/auth/reset-password/:token", sensitiveLimiter, async (req, res) => {
     try {
       const { token } = req.params;
       
@@ -371,8 +379,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid reset token" });
       }
       
-      if (!newPassword || newPassword.length < 8) {
-        return res.status(400).json({ error: "Password must be at least 8 characters" });
+      if (!newPassword || newPassword.length < 12) {
+        return res.status(400).json({ error: "Password must be at least 12 characters" });
       }
       
       // Find matching valid token
@@ -460,10 +468,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { token } = req.params;
       const { password } = req.body;
       
-      if (!password || password.length < 8) {
-        return res.status(400).json({ error: "Password must be at least 8 characters" });
+      if (!password || password.length < 12) {
+        return res.status(400).json({ error: "Password must be at least 12 characters" });
       }
-      
+
       const invite = await storage.getStaffInviteByToken(token);
       
       if (!invite) {
@@ -583,10 +591,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/super-admin/secrets/set-password", authMiddleware, superAdminOnly, async (req: AuthRequest, res) => {
     try {
       const { password, currentPassword } = req.body;
-      if (!password || password.length < 6) {
-        return res.status(400).json({ error: "Password must be at least 6 characters" });
+      if (!password || password.length < 12) {
+        return res.status(400).json({ error: "Password must be at least 12 characters" });
       }
-      
+
       const existingConfig = await storage.getSuperAdminConfig('secrets_password_hash');
       
       // If password already exists, verify current password first
@@ -601,9 +609,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      const bcrypt = await import('bcryptjs');
-      const passwordHash = await bcrypt.hash(password, 10);
-      
+      const passwordHash = await hashPassword(password);
+
       await storage.setSuperAdminConfig('secrets_password_hash', passwordHash, req.user?.id || null);
       
       // Log the action
@@ -1117,8 +1124,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Validate password length
-      if (password.length < 6) {
-        return res.status(400).json({ error: "Password must be at least 6 characters" });
+      if (password.length < 12) {
+        return res.status(400).json({ error: "Password must be at least 12 characters" });
       }
       
       // Validate role
@@ -1142,7 +1149,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Hash password and create user
-      const passwordHash = await bcrypt.hash(password, 10);
+      const passwordHash = await hashPassword(password);
       const newUser = await storage.createUser({
         email,
         name,
@@ -1269,17 +1276,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { newPassword } = req.body;
       const authReq = req as AuthRequest;
       
-      if (!newPassword || newPassword.length < 6) {
-        return res.status(400).json({ error: "Password must be at least 6 characters" });
+      if (!newPassword || newPassword.length < 12) {
+        return res.status(400).json({ error: "Password must be at least 12 characters" });
       }
-      
+
       const user = await storage.getUserById(userId);
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
       
       // Hash new password and update
-      const passwordHash = await bcrypt.hash(newPassword, 10);
+      const passwordHash = await hashPassword(newPassword);
       await storage.updateUserPassword(userId, passwordHash);
       
       // Log audit action
@@ -2413,8 +2420,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const { vehicles: vehicleList } = await storage.getVehicles(dealershipId, 500, 0);
         vehiclesToProcess = vehicleList.filter(v => v.images && v.images.length > 0 && (!v.localImages || v.localImages.length === 0));
       } else if (vehicleId) {
-        // Upload images for a single vehicle
-        const [vehicle] = await db.select().from(vehicles).where(eq(vehicles.id, vehicleId)).limit(1);
+        // Upload images for a single vehicle - SECURITY: filter by dealershipId to prevent cross-tenant access
+        const targetDealershipId = dealershipId || req.dealershipId;
+        if (!targetDealershipId) {
+          return res.status(400).json({ error: "Dealership context required" });
+        }
+        const [vehicle] = await db.select().from(vehicles).where(and(eq(vehicles.id, vehicleId), eq(vehicles.dealershipId, targetDealershipId))).limit(1);
         if (vehicle && vehicle.images && vehicle.images.length > 0) {
           vehiclesToProcess = [vehicle];
         }
@@ -2773,25 +2784,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // ===== ADMIN AUTH ROUTES (LEGACY - for backward compatibility) =====
-  
-  // Admin login endpoint - rate limited to prevent brute force
-  app.post("/api/admin/login", authLimiter, async (req, res) => {
-    try {
-      const { password } = req.body;
-      
-      // Simple password check - in production, use bcrypt and proper session management
-      if (password === "admin123") {
-        // Return token - in production, use JWT or session tokens
-        res.json({ token: "admin123", success: true });
-      } else {
-        res.status(401).json({ error: "Invalid password", success: false });
-      }
-    } catch (error) {
-      logError('Error during admin login:', error instanceof Error ? error : new Error(String(error)), { route: 'api-admin-login' });
-      res.status(500).json({ error: "Login failed" });
-    }
-  });
+  // ===== ADMIN AUTH ROUTES =====
+  // SECURITY: Legacy hardcoded admin login removed. Use /api/auth/login with proper credentials.
   
   // ===== VEHICLE ROUTES =====
   
@@ -11177,7 +11171,7 @@ Format your response in clear sections with actionable recommendations.`;
           synced++;
         } catch (err) {
           errors++;
-          logError('Error syncing contact ${contact.id}:', err instanceof Error ? err : new Error(String(err)), { route: 'api-ghl-sync-run' });
+          logError(`Error syncing contact ${contact.id}:`, err instanceof Error ? err : new Error(String(err)), { route: 'api-ghl-sync-run' });
         }
       }
       
@@ -11434,7 +11428,7 @@ Format your response in clear sections with actionable recommendations.`;
         const analysisService = getCallAnalysisService(dealershipId);
         // Process asynchronously
         analysisService.processCallRecording(callRecording.id).catch(err => {
-          logError('[GHL Call] Error analyzing call ${callRecording.id}:', err instanceof Error ? err : new Error(String(err)), { route: 'api-ghl-test-connection' });
+          logError(`[GHL Call] Error analyzing call ${callRecording.id}:`, err instanceof Error ? err : new Error(String(err)), { route: 'api-ghl-test-connection' });
         });
       } catch (importError) {
         logError('[GHL Call] Error importing analysis service:', importError instanceof Error ? importError : new Error(String(importError)), { route: 'api-ghl-test-connection' });
@@ -11495,7 +11489,7 @@ Format your response in clear sections with actionable recommendations.`;
         const { getCallAnalysisService } = await import('./call-analysis-service');
         const service = getCallAnalysisService(dealershipId);
         service.processCallRecording(callRecording.id).catch(err => {
-          logError('Error processing call ${callRecording.id}:', err instanceof Error ? err : new Error(String(err)), { route: 'api-ghl-call-webhook' });
+          logError(`Error processing call ${callRecording.id}:`, err instanceof Error ? err : new Error(String(err)), { route: 'api-ghl-call-webhook' });
         });
       }
       
@@ -12083,16 +12077,30 @@ Format your response in clear sections with actionable recommendations.`;
       
       const { reviewerScore, comment, timestamp } = req.body;
       
-      const responses = await db.select().from(callScoringResponses).where(eq(callScoringResponses.id, id)).limit(1);
-      if (responses.length === 0) {
+      // SECURITY: Verify response belongs to caller's dealership via sheet join
+      const responseWithSheet = await db.select({
+        response: callScoringResponses,
+        sheetDealershipId: callScoringSheets.dealershipId,
+      })
+        .from(callScoringResponses)
+        .innerJoin(callScoringSheets, eq(callScoringResponses.sheetId, callScoringSheets.id))
+        .where(eq(callScoringResponses.id, id))
+        .limit(1);
+
+      if (responseWithSheet.length === 0) {
         return res.status(404).json({ error: "Response not found" });
       }
-      
+
+      const authReq = req as AuthRequest;
+      if (req.dealershipId && responseWithSheet[0].sheetDealershipId !== req.dealershipId) {
+        return res.status(403).json({ error: "Access denied: response belongs to another dealership" });
+      }
+
       const updated = await db.update(callScoringResponses)
         .set({ reviewerScore, comment, timestamp, updatedAt: new Date() })
         .where(eq(callScoringResponses.id, id))
         .returning();
-      
+
       res.json(updated[0]);
     } catch (error) {
       logError('Error updating response:', error instanceof Error ? error : new Error(String(error)), { route: 'api-call-scoring-responses-id' });
@@ -14424,8 +14432,8 @@ Return ONLY the enhanced description, nothing else.`;
       
       res.json(settings || { dealershipId, isEnabled: false });
     } catch (error: any) {
-      logError('Error fetching FB Marketplace settings:', error, { route: 'api-super-admin-fb-marketplace-settings' });
-      res.status(500).json({ error: error.message });
+      logError('Error fetching FB Marketplace settings:', error instanceof Error ? error : new Error(String(error)), { route: 'api-super-admin-fb-marketplace-settings' });
+      res.status(500).json({ error: error.message || 'Internal server error' });
     }
   });
 
@@ -14475,8 +14483,8 @@ Return ONLY the enhanced description, nothing else.`;
       
       res.json(accounts);
     } catch (error: any) {
-      logError('Error fetching FB Marketplace accounts:', error, { route: 'api-super-admin-fb-marketplace-accounts' });
-      res.status(500).json({ error: error.message });
+      logError('Error fetching FB Marketplace accounts:', error instanceof Error ? error : new Error(String(error)), { route: 'api-super-admin-fb-marketplace-accounts' });
+      res.status(500).json({ error: error.message || 'Internal server error' });
     }
   });
 
@@ -14497,8 +14505,8 @@ Return ONLY the enhanced description, nothing else.`;
 
       res.json(account);
     } catch (error: any) {
-      logError('Error creating FB Marketplace account:', error, { route: 'api-super-admin-fb-marketplace-accounts' });
-      res.status(500).json({ error: error.message });
+      logError('Error creating FB Marketplace account:', error instanceof Error ? error : new Error(String(error)), { route: 'api-super-admin-fb-marketplace-accounts' });
+      res.status(500).json({ error: error.message || 'Internal server error' });
     }
   });
 
@@ -15034,6 +15042,40 @@ Return ONLY the enhanced description, nothing else.`;
     } catch (error: any) {
       logError("Extension login failed", error, { route: "api-extension-login" });
       res.status(500).json({ error: "Login failed" });
+    }
+  });
+
+  // Extension: Refresh auth token (silent refresh before expiry)
+  app.post("/api/extension/refresh", extensionHmacMiddleware, authMiddleware, async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const user = await storage.getUserById(userId);
+      if (!user || !user.isActive) {
+        return res.status(401).json({ error: "User not found or inactive" });
+      }
+
+      const token = generateToken(user);
+
+      let dealershipName: string | undefined;
+      if (user.dealershipId) {
+        const dealership = await storage.getDealership(user.dealershipId);
+        dealershipName = dealership?.name;
+      }
+
+      res.json({
+        token,
+        userId: user.id,
+        dealershipId: user.dealershipId,
+        dealershipName,
+        email: user.email,
+      });
+    } catch (error: any) {
+      logError("Extension token refresh failed", error instanceof Error ? error : new Error(String(error)), { route: "api-extension-refresh" });
+      res.status(500).json({ error: "Token refresh failed" });
     }
   });
 

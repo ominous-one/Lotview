@@ -495,7 +495,15 @@ function setInputValue(el: HTMLInputElement | HTMLTextAreaElement | HTMLElement,
     document.execCommand('insertText', false, value);
     
     if (el.textContent !== value) {
-      el.innerHTML = value.replace(/\n/g, '<br>');
+      // SECURITY: Use DOM methods instead of innerHTML to prevent XSS
+      el.textContent = '';
+      const lines = value.split('\n');
+      lines.forEach((line, i) => {
+        el.appendChild(document.createTextNode(line));
+        if (i < lines.length - 1) {
+          el.appendChild(document.createElement('br'));
+        }
+      });
       el.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: value }));
     }
     
@@ -2291,7 +2299,11 @@ async function fillLocationField(locationValue: string): Promise<boolean> {
     return false;
   }
   
-  // Clear and type just "Vancouver" first (shorter query = faster autocomplete)
+  // Extract the city name from locationValue (take first part before comma)
+  // e.g. "Vancouver, BC" -> "Vancouver", "Los Angeles, CA" -> "Los Angeles"
+  const searchText = locationValue.split(",")[0].trim();
+  const searchTextLower = searchText.toLowerCase();
+
   locationInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
   await sleep(DELAY_MEDIUM);
   locationInput.focus();
@@ -2301,8 +2313,7 @@ async function fillLocationField(locationValue: string): Promise<boolean> {
   setNativeValue(locationInput, '');
   await sleep(100);
   
-  // Type "Vancouver" character by character
-  const searchText = "Vancouver";
+  // Type the city name character by character
   for (const char of searchText) {
     locationInput.value += char;
     locationInput.dispatchEvent(new Event('input', { bubbles: true }));
@@ -2313,11 +2324,10 @@ async function fillLocationField(locationValue: string): Promise<boolean> {
   console.log(`[LV] Typed "${searchText}", waiting for autocomplete suggestions...`);
   await sleep(2500); // Wait 2.5 seconds for autocomplete
   
-  // Now find the first Vancouver suggestion and click it
-  // Look for ANY element containing "Vancouver, British Columbia" that appeared after our typing
+  // Now find the first matching suggestion and click it
   let optionClicked = false;
   
-  // Method 1: Find by exact text match in suggestions area
+  // Method 1: Find by text match in suggestions area
   const allElements = document.querySelectorAll('*');
   const inputRect = locationInput.getBoundingClientRect();
   
@@ -2329,19 +2339,25 @@ async function fillLocationField(locationValue: string): Promise<boolean> {
     const rect = el.getBoundingClientRect();
     const text = el.textContent?.trim() || '';
     
-    // Must be below or near the input field, visible, and contain Vancouver
+    // Must be below or near the input field, visible, and contain the search text
     if (rect.width < 100 || rect.height < 15 || rect.height > 100) continue;
     if (rect.top < inputRect.top - 50) continue; // Not above input
     if (rect.top > inputRect.bottom + 400) continue; // Not too far below
-    if (!text.toLowerCase().includes('vancouver')) continue;
+    if (!text.toLowerCase().includes(searchTextLower)) continue;
     if (el.tagName === 'INPUT') continue; // Skip the input itself
     
     // Score by how good a match this is
     let score = 0;
-    if (text === 'Vancouver, British Columbia') score += 100;
-    else if (text.startsWith('Vancouver, British')) score += 80;
-    else if (text.includes('British Columbia')) score += 50;
-    else if (text.includes('BC') || text.includes('Canada')) score += 30;
+    // Best: exact match with the full locationValue (e.g. "Vancouver, British Columbia")
+    if (text.toLowerCase() === locationValue.toLowerCase()) score += 100;
+    // Good: starts with the full locationValue
+    else if (text.toLowerCase().startsWith(locationValue.toLowerCase())) score += 80;
+    // Decent: contains the full locationValue
+    else if (text.toLowerCase().includes(locationValue.toLowerCase())) score += 60;
+    // OK: starts with the city name
+    else if (text.toLowerCase().startsWith(searchTextLower)) score += 40;
+    // Fallback: contains the city name (already filtered above)
+    else score += 20;
     
     // Prefer elements that are direct text (not nested)
     if (el.children.length === 0) score += 20;
@@ -2371,7 +2387,7 @@ async function fillLocationField(locationValue: string): Promise<boolean> {
     await sleep(DELAY_SHORT);
     
     // Check if input value changed (indicating selection worked)
-    if (locationInput.value !== searchText && locationInput.value.includes('Vancouver')) {
+    if (locationInput.value !== searchText && locationInput.value.toLowerCase().includes(searchTextLower)) {
       console.log(`[LV] Location selected via click: "${locationInput.value}"`);
       optionClicked = true;
       break;
@@ -2381,7 +2397,7 @@ async function fillLocationField(locationValue: string): Promise<boolean> {
     simulateRealClick(suggestion.el);
     await sleep(DELAY_SHORT);
     
-    if (locationInput.value !== searchText && locationInput.value.includes('Vancouver')) {
+    if (locationInput.value !== searchText && locationInput.value.toLowerCase().includes(searchTextLower)) {
       console.log(`[LV] Location selected via simulated click: "${locationInput.value}"`);
       optionClicked = true;
       break;
@@ -2393,7 +2409,7 @@ async function fillLocationField(locationValue: string): Promise<boolean> {
       simulateRealClick(parent);
       await sleep(DELAY_SHORT);
       
-      if (locationInput.value !== searchText && locationInput.value.includes('Vancouver')) {
+      if (locationInput.value !== searchText && locationInput.value.toLowerCase().includes(searchTextLower)) {
         console.log(`[LV] Location selected via parent click: "${locationInput.value}"`);
         optionClicked = true;
         break;
@@ -2415,7 +2431,7 @@ async function fillLocationField(locationValue: string): Promise<boolean> {
     locationInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, keyCode: 13 }));
     await sleep(DELAY_SHORT);
     
-    if (locationInput.value.includes('Vancouver')) {
+    if (locationInput.value.toLowerCase().includes(searchTextLower)) {
       console.log(`[LV] Location selected via keyboard: "${locationInput.value}"`);
       optionClicked = true;
     }
@@ -3418,43 +3434,84 @@ function showPhotoUploadInstructions(photoCount: number, folderName: string): vo
     text-align: center;
   `;
   
-  overlay.innerHTML = `
-    <div style="font-size: 48px; margin-bottom: 12px;">📸</div>
-    <h3 style="margin: 0 0 12px 0; color: #1a1a1a; font-size: 18px;">Photos Downloaded!</h3>
-    <p style="margin: 0 0 16px 0; color: #666; font-size: 14px; line-height: 1.5;">
-      <strong>${photoCount} photos</strong> have been saved to your<br>
-      <strong>Downloads/${folderName}</strong> folder
-    </p>
-    <div style="background: #f0f7ff; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
-      <p style="margin: 0; color: #1a73e8; font-size: 14px; font-weight: 500;">
-        To add photos:
-      </p>
-      <ol style="margin: 8px 0 0 0; padding-left: 20px; text-align: left; color: #333; font-size: 13px;">
-        <li style="margin-bottom: 4px;">Open your Downloads folder</li>
-        <li style="margin-bottom: 4px;">Find the <strong>${folderName}</strong> folder</li>
-        <li style="margin-bottom: 4px;">Select all photos (Ctrl+A or Cmd+A)</li>
-        <li>Drag them to the photo area above</li>
-      </ol>
-    </div>
-    <button id="lv-photo-instructions-close" style="
-      background: #1a73e8;
-      color: white;
-      border: none;
-      padding: 10px 24px;
-      border-radius: 6px;
-      font-size: 14px;
-      font-weight: 500;
-      cursor: pointer;
-    ">Got it</button>
-  `;
-  
-  document.body.appendChild(overlay);
-  
-  // Add click handler to close
-  document.getElementById("lv-photo-instructions-close")?.addEventListener("click", () => {
-    overlay.remove();
+  // SECURITY: Use DOM creation methods instead of innerHTML to prevent XSS
+  // Even though data is sanitized, innerHTML in content scripts on facebook.com is risky
+  const safeCount = Number(photoCount) || 0;
+
+  // Camera emoji
+  const emojiDiv = document.createElement('div');
+  emojiDiv.style.cssText = 'font-size: 48px; margin-bottom: 12px;';
+  emojiDiv.textContent = '📸';
+  overlay.appendChild(emojiDiv);
+
+  // Title
+  const title = document.createElement('h3');
+  title.style.cssText = 'margin: 0 0 12px 0; color: #1a1a1a; font-size: 18px;';
+  title.textContent = 'Photos Downloaded!';
+  overlay.appendChild(title);
+
+  // Description paragraph
+  const desc = document.createElement('p');
+  desc.style.cssText = 'margin: 0 0 16px 0; color: #666; font-size: 14px; line-height: 1.5;';
+  const countStrong = document.createElement('strong');
+  countStrong.textContent = safeCount + ' photos';
+  desc.appendChild(countStrong);
+  desc.appendChild(document.createTextNode(' have been saved to your'));
+  desc.appendChild(document.createElement('br'));
+  const folderStrong = document.createElement('strong');
+  folderStrong.textContent = 'Downloads/' + folderName;
+  desc.appendChild(folderStrong);
+  desc.appendChild(document.createTextNode(' folder'));
+  overlay.appendChild(desc);
+
+  // Instructions box
+  const instructionsBox = document.createElement('div');
+  instructionsBox.style.cssText = 'background: #f0f7ff; border-radius: 8px; padding: 16px; margin-bottom: 16px;';
+
+  const instructionsTitle = document.createElement('p');
+  instructionsTitle.style.cssText = 'margin: 0; color: #1a73e8; font-size: 14px; font-weight: 500;';
+  instructionsTitle.textContent = 'To add photos:';
+  instructionsBox.appendChild(instructionsTitle);
+
+  const ol = document.createElement('ol');
+  ol.style.cssText = 'margin: 8px 0 0 0; padding-left: 20px; text-align: left; color: #333; font-size: 13px;';
+
+  const steps = [
+    'Open your Downloads folder',
+    null, // placeholder for step 2 which has a <strong> element
+    'Select all photos (Ctrl+A or Cmd+A)',
+    'Drag them to the photo area above',
+  ];
+
+  steps.forEach((stepText, idx) => {
+    const li = document.createElement('li');
+    if (idx < 3) li.style.marginBottom = '4px';
+    if (stepText !== null) {
+      li.textContent = stepText;
+    } else {
+      // Step 2: "Find the <folderName> folder"
+      li.appendChild(document.createTextNode('Find the '));
+      const folderBold = document.createElement('strong');
+      folderBold.textContent = folderName;
+      li.appendChild(folderBold);
+      li.appendChild(document.createTextNode(' folder'));
+    }
+    ol.appendChild(li);
   });
-  
+
+  instructionsBox.appendChild(ol);
+  overlay.appendChild(instructionsBox);
+
+  // Close button
+  const closeBtn = document.createElement('button');
+  closeBtn.id = 'lv-photo-instructions-close';
+  closeBtn.style.cssText = 'background: #1a73e8; color: white; border: none; padding: 10px 24px; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer;';
+  closeBtn.textContent = 'Got it';
+  closeBtn.addEventListener('click', () => overlay.remove());
+  overlay.appendChild(closeBtn);
+
+  document.body.appendChild(overlay);
+
   // Auto-close after 30 seconds
   setTimeout(() => overlay.remove(), 30000);
 }

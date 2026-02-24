@@ -8,7 +8,20 @@ import { registerRoutes } from "./routes";
 import { tenantMiddleware } from "./tenant-middleware";
 import { storage } from "./storage";
 
+const isProduction = process.env.NODE_ENV === "production";
+const useJsonLogs = isProduction || process.env.LOG_FORMAT === "json";
+
 export function log(message: string, source = "express") {
+  if (useJsonLogs) {
+    console.log(JSON.stringify({
+      timestamp: new Date().toISOString(),
+      level: "info",
+      source,
+      message,
+    }));
+    return;
+  }
+
   const formattedTime = new Date().toLocaleTimeString("en-US", {
     hour: "numeric",
     minute: "2-digit",
@@ -21,6 +34,11 @@ export function log(message: string, source = "express") {
 
 export const app = express();
 
+// Trust proxy when behind reverse proxy / load balancer
+if (isProduction) {
+  app.set("trust proxy", 1);
+}
+
 // Security headers with helmet
 app.use(helmet({
   contentSecurityPolicy: {
@@ -29,7 +47,7 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com"],
       imgSrc: ["'self'", "data:", "blob:", "https:", "http:"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
       connectSrc: ["'self'", "https:", "wss:"],
       frameSrc: ["'self'", "https://www.facebook.com"],
       workerSrc: ["'self'", "blob:"],
@@ -91,9 +109,10 @@ app.use(express.static(path.join(process.cwd(), 'public')));
 // MUST run before routes to ensure req.dealershipId is available
 app.use(tenantMiddleware(storage));
 
+// Request logging middleware
 app.use((req, res, next) => {
   const start = Date.now();
-  const path = req.path;
+  const reqPath = req.path;
   let capturedJsonResponse: Record<string, any> | undefined = undefined;
 
   const originalResJson = res.json;
@@ -104,17 +123,29 @@ app.use((req, res, next) => {
 
   res.on("finish", () => {
     const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+    if (reqPath.startsWith("/api")) {
+      if (useJsonLogs) {
+        console.log(JSON.stringify({
+          timestamp: new Date().toISOString(),
+          level: res.statusCode >= 500 ? "error" : res.statusCode >= 400 ? "warn" : "info",
+          source: "http",
+          method: req.method,
+          path: reqPath,
+          status: res.statusCode,
+          duration_ms: duration,
+          ip: req.ip,
+          user_agent: req.get("user-agent"),
+        }));
+      } else {
+        let logLine = `${req.method} ${reqPath} ${res.statusCode} in ${duration}ms`;
+        if (capturedJsonResponse) {
+          logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+        }
+        if (logLine.length > 80) {
+          logLine = logLine.slice(0, 79) + "\u2026";
+        }
+        log(logLine);
       }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      log(logLine);
     }
   });
 
@@ -126,12 +157,24 @@ export default async function runApp(
 ) {
   const server = await registerRoutes(app);
 
+  // Global error handler
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
-    res.status(status).json({ message });
-    throw err;
+    if (status >= 500) {
+      console.error(JSON.stringify({
+        timestamp: new Date().toISOString(),
+        level: "error",
+        source: "unhandled",
+        message,
+        stack: err.stack,
+      }));
+    }
+
+    if (!res.headersSent) {
+      res.status(status).json({ message });
+    }
   });
 
   // importantly run the final setup after setting up all the other routes so
@@ -146,8 +189,24 @@ export default async function runApp(
   server.listen({
     port,
     host: "0.0.0.0",
-    reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
   });
+
+  // Graceful shutdown
+  const shutdown = (signal: string) => {
+    log(`${signal} received, shutting down gracefully...`);
+    server.close(() => {
+      log("HTTP server closed");
+      process.exit(0);
+    });
+    // Force exit after 10s if graceful shutdown fails
+    setTimeout(() => {
+      console.error("Forceful shutdown after timeout");
+      process.exit(1);
+    }, 10_000);
+  };
+
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
 }

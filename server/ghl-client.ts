@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { ghlConfig } from "@shared/schema";
+import { ghlConfig, ghlAccounts } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { storage } from "./storage";
 
@@ -72,19 +72,19 @@ export class GHLClient {
     }
   }
 
-  // Legacy method for backwards compatibility (uses old ghlConfig table)
+  // Legacy method for backwards compatibility (uses ghlAccounts table)
   static async getInstance(): Promise<GHLClient | null> {
     try {
-      const config = await db.query.ghlConfig.findFirst({
-        where: eq(ghlConfig.isActive, true),
+      const account = await db.query.ghlAccounts.findFirst({
+        where: eq(ghlAccounts.isActive, true),
       });
 
-      if (!config) {
-        console.warn("No active GHL configuration found - use getInstanceForDealership() instead");
+      if (!account) {
+        console.warn("No active GHL account found - use getInstanceForDealership() instead");
         return null;
       }
 
-      return new GHLClient(config.apiKey, config.locationId);
+      return new GHLClient(account.accessToken, account.locationId);
     } catch (error) {
       console.error("Error loading GHL configuration:", error);
       return null;

@@ -64,7 +64,7 @@ describe('background-helpers', () => {
     });
 
     it('should define image limits', () => {
-      expect(MAX_IMAGE_COUNT).toBe(10);
+      expect(MAX_IMAGE_COUNT).toBe(20);
       expect(MAX_IMAGE_SIZE_BYTES).toBe(10 * 1024 * 1024);
       expect(MAX_TOTAL_IMAGE_BYTES).toBe(50 * 1024 * 1024);
     });

@@ -57,21 +57,28 @@ export const CONSENT_EXEMPT_ACTIONS = new Set([
 export function isValidServerUrl(url: string, isDev: boolean = false): boolean {
   try {
     const parsed = new URL(url);
-    
+
     if (isDev) {
       if (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1") {
         return true;
       }
+      // Allow Replit domains in dev mode (HTTPS only)
+      if (parsed.protocol === "https:" && (
+        parsed.hostname.endsWith(".replit.app") ||
+        parsed.hostname.endsWith(".replit.dev")
+      )) {
+        return true;
+      }
     }
-    
+
     if (parsed.protocol !== "https:") {
       return false;
     }
-    
+
     const isAllowedDomain = ALLOWED_PROD_DOMAINS.some(
       (domain) => parsed.hostname === domain || parsed.hostname.endsWith(`.${domain}`)
     );
-    
+
     return isAllowedDomain;
   } catch {
     return false;

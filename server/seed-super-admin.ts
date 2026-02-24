@@ -14,9 +14,15 @@
 import { storage } from "./storage";
 import { hashPassword } from "./auth";
 
-const SUPER_ADMIN_EMAIL = "superadmin@olympicauto.com";
-const SUPER_ADMIN_PASSWORD = "SuperAdmin2024!"; // Change this in production
+const SUPER_ADMIN_EMAIL = process.env.SUPER_ADMIN_EMAIL || "superadmin@olympicauto.com";
 const SUPER_ADMIN_NAME = "System Administrator";
+
+// SECURITY: Generate a random password instead of using a hardcoded one
+function generateSecurePassword(): string {
+  const crypto = require("crypto");
+  return crypto.randomBytes(24).toString("base64url");
+}
+const SUPER_ADMIN_PASSWORD = process.env.SUPER_ADMIN_PASSWORD || generateSecurePassword();
 
 async function seedSuperAdmin() {
   try {

@@ -12,10 +12,10 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
-// JWT_SECRET must be set in production for security
-const JWT_SECRET_ENV = process.env.JWT_SECRET;
+// JWT_SECRET must be set in production for security (SESSION_SECRET accepted as alias)
+const JWT_SECRET_ENV = process.env.JWT_SECRET || process.env.SESSION_SECRET;
 if (!JWT_SECRET_ENV && process.env.NODE_ENV === "production") {
-  throw new Error("JWT_SECRET environment variable is required in production");
+  throw new Error("JWT_SECRET (or SESSION_SECRET) environment variable is required in production");
 }
 // Development fallback (same as auth.ts)
 const JWT_SECRET = JWT_SECRET_ENV || "olympic-auto-jwt-dev-secret-DO-NOT-USE-IN-PRODUCTION";

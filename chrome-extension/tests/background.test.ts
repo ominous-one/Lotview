@@ -370,12 +370,11 @@ describe('background', () => {
     });
 
     it('should validate SAVE_TEMPLATE payload - missing templateName', async () => {
-      (chrome.storage.local.get as jest.Mock).mockResolvedValue({ privacyConsent: true });
-      const encryptedToken = 'encrypted-test';
-      (chrome.storage.session.get as jest.Mock).mockResolvedValue({
+      (chrome.storage.local.get as jest.Mock).mockResolvedValue({
+        privacyConsent: true,
         authData: {
           auth: { userId: 1, dealershipId: 1 },
-          encryptedToken,
+          encryptedToken: 'encrypted-test',
           expiresAt: Date.now() + 3600000,
           createdAt: Date.now(),
         }
@@ -416,12 +415,11 @@ describe('background', () => {
     });
 
     it('should validate LOG_POSTING payload - invalid status', async () => {
-      (chrome.storage.local.get as jest.Mock).mockResolvedValue({ privacyConsent: true });
-      const encryptedToken = 'encrypted-test';
-      (chrome.storage.session.get as jest.Mock).mockResolvedValue({
+      (chrome.storage.local.get as jest.Mock).mockResolvedValue({
+        privacyConsent: true,
         authData: {
           auth: { userId: 1, dealershipId: 1 },
-          encryptedToken,
+          encryptedToken: 'encrypted-test',
           expiresAt: Date.now() + 3600000,
           createdAt: Date.now(),
         }
@@ -437,12 +435,11 @@ describe('background', () => {
     });
 
     it('should require postingToken for successful LOG_POSTING', async () => {
-      (chrome.storage.local.get as jest.Mock).mockResolvedValue({ privacyConsent: true });
-      const encryptedToken = 'encrypted-test';
-      (chrome.storage.session.get as jest.Mock).mockResolvedValue({
+      (chrome.storage.local.get as jest.Mock).mockResolvedValue({
+        privacyConsent: true,
         authData: {
           auth: { userId: 1, dealershipId: 1 },
-          encryptedToken,
+          encryptedToken: 'encrypted-test',
           expiresAt: Date.now() + 3600000,
           createdAt: Date.now(),
         }
@@ -502,12 +499,11 @@ describe('background', () => {
     });
 
     it('should validate REQUEST_POSTING_TOKEN payload', async () => {
-      (chrome.storage.local.get as jest.Mock).mockResolvedValue({ privacyConsent: true });
-      const encryptedToken = 'encrypted-test';
-      (chrome.storage.session.get as jest.Mock).mockResolvedValue({
+      (chrome.storage.local.get as jest.Mock).mockResolvedValue({
+        privacyConsent: true,
         authData: {
           auth: { userId: 1, dealershipId: 1 },
-          encryptedToken,
+          encryptedToken: 'encrypted-test',
           expiresAt: Date.now() + 3600000,
           createdAt: Date.now(),
         }
@@ -548,12 +544,11 @@ describe('background', () => {
     });
 
     it('should validate FILL_CONTENT payload - invalid platform type', async () => {
-      (chrome.storage.local.get as jest.Mock).mockResolvedValue({ privacyConsent: true });
-      const encryptedToken = 'encrypted-test';
-      (chrome.storage.session.get as jest.Mock).mockResolvedValue({
+      (chrome.storage.local.get as jest.Mock).mockResolvedValue({
+        privacyConsent: true,
         authData: {
           auth: { userId: 1, dealershipId: 1 },
-          encryptedToken,
+          encryptedToken: 'encrypted-test',
           expiresAt: Date.now() + 3600000,
           createdAt: Date.now(),
         }
@@ -569,12 +564,11 @@ describe('background', () => {
     });
 
     it('should reject unsupported platform in FILL_CONTENT', async () => {
-      (chrome.storage.local.get as jest.Mock).mockResolvedValue({ privacyConsent: true });
-      const encryptedToken = 'encrypted-test';
-      (chrome.storage.session.get as jest.Mock).mockResolvedValue({
+      (chrome.storage.local.get as jest.Mock).mockResolvedValue({
+        privacyConsent: true,
         authData: {
           auth: { userId: 1, dealershipId: 1 },
-          encryptedToken,
+          encryptedToken: 'encrypted-test',
           expiresAt: Date.now() + 3600000,
           createdAt: Date.now(),
         }

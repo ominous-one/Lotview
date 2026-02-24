@@ -17,7 +17,7 @@ interface RobustScrapeResult {
   vehiclesInserted: number;
   vehiclesUpdated: number;
   vehiclesSkipped: number;
-  method: 'browserless' | 'local_puppeteer';
+  method: 'browserless' | 'local_puppeteer' | 'zenrows' | 'zyte';
   error?: string;
   duration?: number;
   sources?: string[];
@@ -121,7 +121,7 @@ export async function runBrowserlessInventoryScrape(
     let totalUpdated = 0;
     let totalSkipped = 0;
     const scrapedSources: string[] = [];
-    let usedMethod: 'browserless' | 'local_puppeteer' = 'browserless';
+    let usedMethod: 'browserless' | 'local_puppeteer' | 'zenrows' | 'zyte' = 'browserless';
 
     for (const source of sources) {
       logInfo('[Browserless Robust] Scraping source', {

@@ -104,7 +104,7 @@ Be helpful and action-oriented. If you don't have specific information, offer to
     const { client: openai, source } = await getOpenAIClient(dealershipId);
     
     // Use gpt-4o-mini for dealership keys (better compatibility), gpt-5 for Replit AI Integrations
-    const model = source === 'dealership' ? 'gpt-4o-mini' : 'gpt-5';
+    const model = source === 'dealership' ? 'gpt-4o-mini' : 'gpt-4o';
 
     const response = await openai.chat.completions.create({
       model: model,
@@ -219,7 +219,7 @@ export async function generateVehicleDescription(vehicle: VehicleData, dealershi
     const { client: openaiClient, source } = await getOpenAIClient(dealershipId);
     
     // Use gpt-4o-mini for dealership keys, gpt-5 for Replit AI Integrations
-    const model = source === 'dealership' ? 'gpt-4o-mini' : 'gpt-5';
+    const model = source === 'dealership' ? 'gpt-4o-mini' : 'gpt-4o';
 
     const response = await openaiClient.chat.completions.create({
       model: model,
@@ -334,7 +334,7 @@ Return ONLY valid JSON in this exact format, no other text:
 }`;
 
     const { client: openaiClient, source } = await getOpenAIClient(dealershipId);
-    const model = source === 'dealership' ? 'gpt-4o-mini' : 'gpt-5';
+    const model = source === 'dealership' ? 'gpt-4o-mini' : 'gpt-4o';
 
     const response = await openaiClient.chat.completions.create({
       model: model,

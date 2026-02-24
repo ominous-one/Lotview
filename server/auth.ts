@@ -3,14 +3,14 @@ import jwt from "jsonwebtoken";
 import type { Request, Response, NextFunction } from "express";
 import type { User } from "@shared/schema";
 
-// JWT_SECRET must be set in production for security
-const JWT_SECRET = process.env.JWT_SECRET;
+// JWT_SECRET must be set in production for security (SESSION_SECRET accepted as alias)
+const JWT_SECRET = process.env.JWT_SECRET || process.env.SESSION_SECRET;
 if (!JWT_SECRET && process.env.NODE_ENV === "production") {
-  throw new Error("JWT_SECRET environment variable is required in production");
+  throw new Error("JWT_SECRET (or SESSION_SECRET) environment variable is required in production");
 }
 // Development fallback
 const SECRET = JWT_SECRET || "olympic-auto-jwt-dev-secret-DO-NOT-USE-IN-PRODUCTION";
-const JWT_EXPIRES_IN = "7d";
+const JWT_EXPIRES_IN = "1h";
 
 // JWT claims for security best practices
 const JWT_ISSUER = "lotview.ai";
@@ -27,7 +27,7 @@ export interface AuthRequest extends Request {
 }
 
 export async function hashPassword(password: string): Promise<string> {
-  return await bcrypt.hash(password, 10);
+  return await bcrypt.hash(password, 12);
 }
 
 export async function comparePassword(password: string, hash: string): Promise<boolean> {
@@ -125,7 +125,11 @@ export function requireRole(...roles: string[]) {
 // ===== HMAC SIGNATURE VALIDATION FOR CHROME EXTENSION =====
 // The extension signs requests with HMAC-SHA256 to prevent tampering
 
-const EXTENSION_HMAC_SECRET = process.env.EXTENSION_HMAC_SECRET || "extension-hmac-dev-secret";
+const EXTENSION_HMAC_SECRET_ENV = process.env.EXTENSION_HMAC_SECRET;
+if (!EXTENSION_HMAC_SECRET_ENV && process.env.NODE_ENV === "production") {
+  throw new Error("EXTENSION_HMAC_SECRET environment variable is required in production");
+}
+const EXTENSION_HMAC_SECRET = EXTENSION_HMAC_SECRET_ENV || "extension-hmac-dev-secret";
 const NONCE_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
 const nonceCache = new Map<string, number>();
 
@@ -212,15 +216,17 @@ export async function extensionHmacMiddleware(req: AuthRequest, res: Response, n
 // This prevents client-side limit bypass
 
 const POSTING_TOKEN_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
-const usedPostingTokens = new Set<string>();
+const usedPostingTokens = new Map<string, number>(); // token -> timestamp
 
-// Clean expired tokens periodically
+// Clean expired tokens periodically (time-based, not size-based)
 setInterval(() => {
-  // Simple cleanup - in production use Redis with TTL
-  if (usedPostingTokens.size > 10000) {
-    usedPostingTokens.clear();
+  const now = Date.now();
+  for (const [token, timestamp] of usedPostingTokens.entries()) {
+    if (now - timestamp > POSTING_TOKEN_EXPIRY_MS * 2) {
+      usedPostingTokens.delete(token);
+    }
   }
-}, 60 * 60 * 1000); // Clean every hour
+}, 60 * 1000); // Clean every minute
 
 export async function generatePostingToken(userId: number, vehicleId: number, platform: string): Promise<string> {
   const crypto = await import("crypto");
@@ -288,8 +294,8 @@ export async function validatePostingToken(
       return { valid: false, error: "Platform mismatch" };
     }
 
-    // Mark as used
-    usedPostingTokens.add(token);
+    // Mark as used with timestamp for time-based cleanup
+    usedPostingTokens.set(token, Date.now());
 
     return { valid: true };
   } catch {
