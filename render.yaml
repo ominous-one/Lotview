@@ -1,0 +1,28 @@
+databases:
+  - name: lotview-db
+    plan: free
+    databaseName: lotview
+    user: lotview
+
+services:
+  - type: web
+    name: lotview
+    plan: free
+    runtime: node
+    buildCommand: npm install && npm run build && npx drizzle-kit push
+    startCommand: npm run start
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: lotview-db
+          property: connectionString
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "5000"
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: JWT_SECRET
+        generateValue: true
+      - key: EXTENSION_HMAC_SECRET
+        generateValue: true
