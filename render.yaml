@@ -9,7 +9,7 @@ services:
     name: lotview
     plan: free
     runtime: node
-    buildCommand: npm install && npm run build && npx drizzle-kit push
+    buildCommand: npm install --include=dev && npm run build && npx drizzle-kit push
     startCommand: npm run start
     envVars:
       - key: DATABASE_URL
