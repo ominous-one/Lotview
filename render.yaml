@@ -18,6 +18,8 @@ services:
           property: connectionString
       - key: NODE_ENV
         value: production
+      - key: NPM_CONFIG_PRODUCTION
+        value: "false"
       - key: PORT
         value: "5000"
       - key: SESSION_SECRET
