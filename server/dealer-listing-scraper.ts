@@ -428,6 +428,13 @@ async function scrapeVehicleDetailPage(page: any, vdpUrl: string, retries = 2): 
           return false;
         }
         
+        function decodeEntities(text) {
+          if (!text) return text;
+          var el = document.createElement('textarea');
+          el.innerHTML = text;
+          return el.value;
+        }
+
         var pageTitle = document.title || 'No title';
         var bodyLength = pageText.length;
         var priceElExists = document.querySelector('.vehicle-price') ? 'yes' : 'no';
@@ -1393,6 +1400,7 @@ async function scrapeVehicleDetailPage(page: any, vdpUrl: string, retries = 2): 
             highlights = h1Text.substring(pipeIndex + 1).trim();
             // Clean up multiple pipes into a readable format
             highlights = highlights.replace(/\\s*\\|\\s*/g, ' | ');
+            highlights = decodeEntities(highlights);
             if (highlights.length < 3) highlights = null;
           }
         }
@@ -1412,7 +1420,7 @@ async function scrapeVehicleDetailPage(page: any, vdpUrl: string, retries = 2): 
         for (var vdi = 0; vdi < vdpDescSelectors.length; vdi++) {
           var vdpDescEl = document.querySelector(vdpDescSelectors[vdi]);
           if (vdpDescEl && vdpDescEl.textContent && vdpDescEl.textContent.trim().length > 50) {
-            vdpDescription = vdpDescEl.textContent.trim();
+            vdpDescription = decodeEntities(vdpDescEl.textContent.trim());
             break;
           }
         }

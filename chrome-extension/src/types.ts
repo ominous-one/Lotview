@@ -25,6 +25,7 @@ export interface VehicleSummary {
   drivetrain?: string | null;
   fuelType?: string | null;
   description?: string | null;
+  highlights?: string | null;
   location?: string | null;
   images: string[];
   postedPlatforms?: Record<Platform, string | null>;

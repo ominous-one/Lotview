@@ -1569,43 +1569,155 @@ async function uploadImagesFromUrls(imageUrls: string[], proxyBaseUrl?: string):
       }
     }
     
-    // All programmatic methods failed - download images for user to drag in
-    console.log(`[LV] ⚠️ Automatic photo upload blocked by Facebook security`);
-    console.log(`[LV] Downloading images to user's Downloads folder for manual upload...`);
-    
-    // Request background script to download images
+    // === METHOD 5: chrome.debugger API (nuclear option) ===
+    console.log(`[LV] Method 5: Trying chrome.debugger API for file upload...`);
+    try {
+      // Get the current tab ID
+      const tabInfo = await new Promise<{ tabId?: number }>((resolve) => {
+        chrome.runtime.sendMessage(
+          { type: "GET_CURRENT_TAB_ID" },
+          (response) => resolve(response || {})
+        );
+      });
+
+      // If GET_CURRENT_TAB_ID is not implemented, get tabId from background context
+      const currentTabId = tabInfo?.tabId;
+
+      if (currentTabId) {
+        const debuggerResponse = await new Promise<{ ok: boolean; uploaded?: number; error?: string }>((resolve) => {
+          chrome.runtime.sendMessage(
+            { type: "DEBUGGER_UPLOAD_IMAGES", payload: { tabId: currentTabId, imageUrls } },
+            (response) => resolve(response || { ok: false, error: "No response" })
+          );
+        });
+
+        if (debuggerResponse.ok && debuggerResponse.uploaded && debuggerResponse.uploaded > 0) {
+          console.log(`[LV] Debugger upload success, waiting for previews...`);
+          await sleep(5000);
+
+          const previewsAfterDebugger = countImagePreviews();
+          const newPreviews = previewsAfterDebugger - previewsBeforeUpload;
+          console.log(`[LV] After debugger: ${previewsAfterDebugger} previews (added ${newPreviews})`);
+
+          if (newPreviews > 0) {
+            console.log(`[LV] Uploaded ${newPreviews} images via chrome.debugger`);
+            return { success: true, uploaded: newPreviews, skipped: skippedCount + (urlsToFetch.length - files.length), method: "debugger" };
+          }
+
+          // Debugger set files but no previews appeared - dispatch change event
+          if (input) {
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+            await sleep(3000);
+
+            const previewsAfterRetrigger = countImagePreviews();
+            const newPreviewsRetrigger = previewsAfterRetrigger - previewsBeforeUpload;
+            if (newPreviewsRetrigger > 0) {
+              console.log(`[LV] Uploaded ${newPreviewsRetrigger} images via debugger + re-trigger`);
+              return { success: true, uploaded: newPreviewsRetrigger, skipped: skippedCount + (urlsToFetch.length - files.length), method: "debugger_retrigger" };
+            }
+          }
+        }
+
+        console.log(`[LV] Debugger method failed: ${debuggerResponse.error || "no previews appeared"}`);
+      } else {
+        console.log(`[LV] Could not get current tab ID for debugger approach`);
+      }
+    } catch (err) {
+      console.warn(`[LV] chrome.debugger method failed:`, err);
+    }
+
+    // === METHOD 6: Batch fetch via background + retry all methods with fresh files ===
+    console.log(`[LV] Method 6: Batch fetch via background and retry...`);
+    try {
+      const batchResponse = await new Promise<{ ok: boolean; images?: Array<{ dataUrl: string; filename: string; mimeType: string } | null> }>((resolve) => {
+        chrome.runtime.sendMessage(
+          { type: "FETCH_IMAGES_AS_BLOBS", payload: { urls: imageUrls.slice(0, MAX_UPLOAD_IMAGES) } },
+          (response) => resolve(response || { ok: false })
+        );
+      });
+
+      if (batchResponse.ok && batchResponse.images) {
+        const bgFiles: File[] = [];
+        for (const img of batchResponse.images) {
+          if (!img) continue;
+          try {
+            // Convert data URL to File
+            const response = await fetch(img.dataUrl);
+            const blob = await response.blob();
+            bgFiles.push(new File([blob], img.filename, { type: img.mimeType }));
+          } catch { continue; }
+        }
+
+        if (bgFiles.length > 0 && input) {
+          console.log(`[LV] Batch fetched ${bgFiles.length} files, retrying file input...`);
+
+          const dt = new DataTransfer();
+          bgFiles.forEach(f => dt.items.add(f));
+
+          const nativeSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'files')?.set;
+          if (nativeSetter) {
+            nativeSetter.call(input, dt.files);
+          } else {
+            input.files = dt.files;
+          }
+
+          // Fire React-compatible events
+          input.dispatchEvent(new Event("change", { bubbles: true, composed: true }));
+          input.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
+
+          // Also try: create a native change event with target set
+          const nativeEvent = new Event("change", { bubbles: true, cancelable: false });
+          Object.defineProperty(nativeEvent, "target", { writable: false, value: input });
+          input.dispatchEvent(nativeEvent);
+
+          await sleep(5000);
+
+          const previewsAfterBatch = countImagePreviews();
+          const newPreviews = previewsAfterBatch - previewsBeforeUpload;
+          if (newPreviews > 0) {
+            console.log(`[LV] Uploaded ${newPreviews} images via batch fetch + file input`);
+            return { success: true, uploaded: newPreviews, skipped: skippedCount + (imageUrls.length - bgFiles.length), method: "batch_file_input" };
+          }
+        }
+      }
+    } catch (err) {
+      console.warn(`[LV] Batch fetch retry failed:`, err);
+    }
+
+    // All automated methods exhausted - download images for user as last resort
+    console.log(`[LV] All automated upload methods exhausted`);
+    console.log(`[LV] Downloading images to user's Downloads folder as fallback...`);
+
     try {
       const vehicleInfo = document.querySelector('input[placeholder*="title" i], input[placeholder*="year" i]')?.getAttribute('value') || "vehicle";
-      
+
       const downloadResponse = await new Promise<{ok: boolean; downloadedCount?: number; folderName?: string; error?: string}>((resolve) => {
         chrome.runtime.sendMessage(
           { type: "DOWNLOAD_IMAGES", payload: { imageUrls, vehicleInfo } },
           (response) => resolve(response || { ok: false, error: "No response" })
         );
       });
-      
+
       if (downloadResponse.ok && downloadResponse.downloadedCount) {
-        console.log(`[LV] ✓ Downloaded ${downloadResponse.downloadedCount} images to ${downloadResponse.folderName}`);
-        
-        // Show user-friendly overlay with instructions
+        console.log(`[LV] Downloaded ${downloadResponse.downloadedCount} images to ${downloadResponse.folderName}`);
         showPhotoUploadInstructions(downloadResponse.downloadedCount, downloadResponse.folderName || "Lotview-Photos");
-        
-        return { 
-          success: false, 
-          uploaded: 0, 
-          skipped: imageUrls.length, 
+
+        return {
+          success: false,
+          uploaded: 0,
+          skipped: imageUrls.length,
           method: "downloaded_for_manual"
         };
       }
     } catch (err) {
       console.error(`[LV] Download failed:`, err);
     }
-    
-    // Return failure - user needs to add photos manually
-    return { 
-      success: false, 
-      uploaded: 0, 
-      skipped: imageUrls.length, 
+
+    return {
+      success: false,
+      uploaded: 0,
+      skipped: imageUrls.length,
       method: "manual_required"
     };
   } finally {

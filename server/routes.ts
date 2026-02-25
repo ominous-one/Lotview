@@ -15204,6 +15204,20 @@ Return ONLY the enhanced description, nothing else.`;
     }
   });
 
+  // Decode HTML entities for extension text fields (e.g., &#x2F; → /, &#x27; → ')
+  function decodeHtmlEntities(text: string | null | undefined): string | null {
+    if (!text) return text as null;
+    return text
+      .replace(/&#x2F;/g, '/')
+      .replace(/&#x27;/g, "'")
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#(\d+);/g, (_, c) => String.fromCharCode(+c))
+      .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
+  }
+
   // Extension: Get inventory with signed image URLs
   app.get("/api/extension/inventory", extensionHmacMiddleware, authMiddleware, requireDealership, async (req: AuthRequest, res) => {
     try {
@@ -15277,7 +15291,8 @@ Return ONLY the enhanced description, nothing else.`;
           transmission: v.transmission,
           drivetrain: v.drivetrain,
           fuelType: v.fuelType,
-          description: v.fbMarketplaceDescription || v.description,
+          description: decodeHtmlEntities(v.fbMarketplaceDescription || v.description),
+          highlights: decodeHtmlEntities(v.highlights),
           location: v.location,
           images,
           hasLocalImages: localImages.length > 0,

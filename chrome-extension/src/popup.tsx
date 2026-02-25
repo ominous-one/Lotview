@@ -482,6 +482,7 @@ function Popup() {
       fuelType: selectedVehicle.fuelType || "",
       drivetrain: selectedVehicle.drivetrain || "",
       trim: selectedVehicle.trim || "",
+      highlights: selectedVehicle.highlights || "",
     };
     
     console.log("[LV-Popup] Form data being sent:", formData);

@@ -768,6 +768,260 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return;
       }
 
+      // Return the tab ID of the sender (content script)
+      if (message.type === "GET_CURRENT_TAB_ID") {
+        const tabId = sender.tab?.id;
+        sendResponse({ ok: true, tabId: tabId || null });
+        return;
+      }
+
+      // Batch fetch all images as base64 data URLs (bypasses CORS)
+      if (message.type === "FETCH_IMAGES_AS_BLOBS") {
+        const { urls } = message.payload || {};
+
+        if (!Array.isArray(urls) || urls.length === 0) {
+          sendResponse({ ok: false, error: "URLs array required" });
+          return;
+        }
+
+        try {
+          console.log(`[LV-BG] FETCH_IMAGES_AS_BLOBS: ${urls.length} images`);
+
+          const results: Array<{ dataUrl: string; filename: string; mimeType: string } | null> = [];
+
+          for (const url of urls) {
+            try {
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+              const response = await fetch(url, {
+                signal: controller.signal,
+                headers: {
+                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                  'Accept': 'image/*,*/*',
+                }
+              });
+
+              clearTimeout(timeoutId);
+
+              if (!response.ok) {
+                console.warn(`[LV-BG] Batch fetch failed for ${url.slice(0, 60)}: ${response.status}`);
+                results.push(null);
+                continue;
+              }
+
+              const contentType = response.headers.get("content-type") || "image/jpeg";
+              if (!contentType.startsWith("image/")) {
+                results.push(null);
+                continue;
+              }
+
+              const arrayBuffer = await response.arrayBuffer();
+              const bytes = new Uint8Array(arrayBuffer);
+              let binary = "";
+              const chunkSize = 8192;
+              for (let i = 0; i < bytes.length; i += chunkSize) {
+                binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+              }
+              const base64 = btoa(binary);
+
+              // Extract filename from URL
+              let filename = "image.jpg";
+              try {
+                const pathname = new URL(url).pathname;
+                filename = pathname.split("/").pop() || "image.jpg";
+                if (!filename.includes(".")) filename = `${filename}.jpg`;
+              } catch { /* use default */ }
+
+              results.push({
+                dataUrl: `data:${contentType};base64,${base64}`,
+                filename,
+                mimeType: contentType,
+              });
+
+              console.log(`[LV-BG] Fetched image: ${filename} (${arrayBuffer.byteLength} bytes)`);
+            } catch (err) {
+              console.warn(`[LV-BG] Failed to fetch ${url.slice(0, 60)}:`, err);
+              results.push(null);
+            }
+          }
+
+          const successCount = results.filter(r => r !== null).length;
+          console.log(`[LV-BG] Batch fetch complete: ${successCount}/${urls.length} succeeded`);
+          sendResponse({ ok: true, images: results });
+        } catch (err: unknown) {
+          const error = err instanceof Error ? err.message : "Batch image fetch failed";
+          console.error(`[LV-BG] FETCH_IMAGES_AS_BLOBS error:`, error);
+          sendResponse({ ok: false, error });
+        }
+        return;
+      }
+
+      // Use chrome.debugger API to set files on a file input element
+      if (message.type === "DEBUGGER_UPLOAD_IMAGES") {
+        const { tabId, imageUrls } = message.payload || {};
+
+        if (!tabId || !Array.isArray(imageUrls) || imageUrls.length === 0) {
+          sendResponse({ ok: false, error: "tabId and imageUrls required" });
+          return;
+        }
+
+        try {
+          console.log(`[LV-BG] DEBUGGER_UPLOAD_IMAGES: ${imageUrls.length} images for tab ${tabId}`);
+
+          // Step 1: Download images to local filesystem
+          const downloadPaths: string[] = [];
+          const downloadIds: number[] = [];
+
+          for (let i = 0; i < imageUrls.length; i++) {
+            const url = imageUrls[i];
+            try {
+              const downloadId = await new Promise<number>((resolve, reject) => {
+                chrome.downloads.download(
+                  {
+                    url,
+                    filename: `lotview-temp/vehicle-${Date.now()}-${i}.jpg`,
+                    conflictAction: "uniquify",
+                    saveAs: false,
+                  },
+                  (id) => {
+                    if (chrome.runtime.lastError) {
+                      reject(new Error(chrome.runtime.lastError.message));
+                    } else if (id === undefined) {
+                      reject(new Error("Download returned undefined ID"));
+                    } else {
+                      resolve(id);
+                    }
+                  }
+                );
+              });
+
+              // Wait for download to complete
+              const path = await new Promise<string>((resolve, reject) => {
+                const checkInterval = setInterval(async () => {
+                  const [item] = await chrome.downloads.search({ id: downloadId });
+                  if (!item) {
+                    clearInterval(checkInterval);
+                    reject(new Error("Download item not found"));
+                    return;
+                  }
+                  if (item.state === "complete" && item.filename) {
+                    clearInterval(checkInterval);
+                    resolve(item.filename);
+                  } else if (item.state === "interrupted") {
+                    clearInterval(checkInterval);
+                    reject(new Error(`Download interrupted: ${item.error}`));
+                  }
+                }, 200);
+
+                // Timeout after 30s
+                setTimeout(() => {
+                  clearInterval(checkInterval);
+                  reject(new Error("Download timeout"));
+                }, 30000);
+              });
+
+              downloadPaths.push(path);
+              downloadIds.push(downloadId);
+              console.log(`[LV-BG] Downloaded: ${path}`);
+            } catch (err) {
+              console.warn(`[LV-BG] Download failed for ${url.slice(0, 60)}:`, err);
+            }
+          }
+
+          if (downloadPaths.length === 0) {
+            sendResponse({ ok: false, error: "No images downloaded successfully" });
+            return;
+          }
+
+          // Step 2: Attach debugger to the tab
+          await new Promise<void>((resolve, reject) => {
+            chrome.debugger.attach({ tabId }, "1.3", () => {
+              if (chrome.runtime.lastError) {
+                reject(new Error(chrome.runtime.lastError.message));
+              } else {
+                resolve();
+              }
+            });
+          });
+
+          console.log(`[LV-BG] Debugger attached to tab ${tabId}`);
+
+          try {
+            // Step 3: Get the document root
+            const docResult = await new Promise<any>((resolve, reject) => {
+              chrome.debugger.sendCommand({ tabId }, "DOM.getDocument", {}, (result) => {
+                if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+                else resolve(result);
+              });
+            });
+
+            // Step 4: Find the file input element
+            const queryResult = await new Promise<any>((resolve, reject) => {
+              chrome.debugger.sendCommand(
+                { tabId },
+                "DOM.querySelector",
+                {
+                  nodeId: docResult.root.nodeId,
+                  selector: 'input[type="file"][accept*="image"], input[type="file"]',
+                },
+                (result) => {
+                  if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+                  else resolve(result);
+                }
+              );
+            });
+
+            if (!queryResult || !queryResult.nodeId) {
+              throw new Error("File input element not found via debugger");
+            }
+
+            console.log(`[LV-BG] Found file input node: ${queryResult.nodeId}`);
+
+            // Step 5: Set files on the input using CDP
+            await new Promise<void>((resolve, reject) => {
+              chrome.debugger.sendCommand(
+                { tabId },
+                "DOM.setFileInputFiles",
+                {
+                  files: downloadPaths,
+                  nodeId: queryResult.nodeId,
+                },
+                () => {
+                  if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+                  else resolve();
+                }
+              );
+            });
+
+            console.log(`[LV-BG] Set ${downloadPaths.length} files on input via debugger`);
+            sendResponse({ ok: true, uploaded: downloadPaths.length });
+          } finally {
+            // Step 6: Always detach debugger
+            try {
+              await new Promise<void>((resolve) => {
+                chrome.debugger.detach({ tabId }, () => resolve());
+              });
+              console.log(`[LV-BG] Debugger detached`);
+            } catch { /* ignore detach errors */ }
+
+            // Step 7: Clean up downloaded files
+            for (const id of downloadIds) {
+              try {
+                await chrome.downloads.removeFile(id);
+                await chrome.downloads.erase({ id });
+              } catch { /* ignore cleanup errors */ }
+            }
+            console.log(`[LV-BG] Cleaned up ${downloadIds.length} temp downloads`);
+          }
+        } catch (err: unknown) {
+          const error = err instanceof Error ? err.message : "Debugger upload failed";
+          console.error(`[LV-BG] DEBUGGER_UPLOAD_IMAGES error:`, error);
+          sendResponse({ ok: false, error });
+        }
+        return;
+      }
+
       if (message.type === "GET_FB_COOKIES") {
         // Get Facebook cookies for server-side automation
         try {
