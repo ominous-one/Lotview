@@ -42,16 +42,16 @@ function buildPrompt(vehicle: Vehicle, carfaxBadges: string[], highlights: strin
   let personalityHint = "";
   switch (personality) {
     case "sporty":
-      personalityHint = "Use energetic, exciting language. Emphasize performance and driving dynamics. Include sporty emojis like 🏁 🔥 💨.";
+      personalityHint = "Use energetic, exciting language. Emphasize performance and driving dynamics.";
       break;
     case "luxury":
-      personalityHint = "Use sophisticated, premium language. Emphasize comfort, refinement, and exclusivity. Include luxury emojis like ✨ 💎 🌟.";
+      personalityHint = "Use sophisticated, premium language. Emphasize comfort, refinement, and exclusivity.";
       break;
     case "eco":
-      personalityHint = "Emphasize efficiency, sustainability, and innovative technology. Include eco emojis like 🌿 ⚡ 🔋.";
+      personalityHint = "Emphasize efficiency, sustainability, and innovative technology.";
       break;
     default:
-      personalityHint = "Use friendly, approachable language. Highlight value and versatility. Include tasteful emojis like ✅ 🚗 ⭐.";
+      personalityHint = "Use friendly, approachable language. Highlight value and versatility.";
       break;
   }
 
@@ -110,13 +110,13 @@ EXACT FORMAT TO FOLLOW (output ONLY the description text, no markdown):
 
 99% Approval Rate | We Accept All Trade-Ins | Best Prices Guaranteed
 
-[If Carfax badges exist, list them with checkmark emojis, e.g. ✅ No Reported Accidents ✅ One Owner]
+[If Carfax badges exist, list them plainly, e.g. No Reported Accidents | One Owner]
 [If vehicle could be CPO, mention it]
 
 [Engine/drivetrain summary line - mention transmission, drivetrain, fuel type if available]
 [Odometer callout - use "${odometerCallout}"]
 
-[Key features as bullet points using emojis - pull from highlights and tech specs. 6-10 bullet points.]
+[Key features as bullet points using bullet character • - pull from highlights and tech specs. 6-10 bullet points.]
 
 [One engaging paragraph about the vehicle - 2-3 sentences max. Match the ${personality} personality.]
 
@@ -127,7 +127,8 @@ Stock number: ${vehicle.stockNumber || "N/A"}
 
 RULES:
 - Canadian market: use km (not miles), CAD, provinces
-- Use emojis tastefully throughout - match the ${personality} personality
+- Do NOT use any emojis whatsoever. No emoji characters at all. Use plain text only.
+- Use bullet character • for feature lists
 - Do NOT use markdown formatting (no **, no ##, no backticks)
 - Do NOT include the price in the description (it's set separately in FB Marketplace)
 - Keep the description under 1500 characters
@@ -195,7 +196,7 @@ export function generateDescriptionTemplate(vehicle: Vehicle, badges?: string[])
   lines.push("");
 
   if (carfaxBadges.length > 0) {
-    lines.push(carfaxBadges.map((b) => `✅ ${b}`).join(" "));
+    lines.push(carfaxBadges.join(" | "));
     lines.push("");
   }
 
@@ -204,11 +205,11 @@ export function generateDescriptionTemplate(vehicle: Vehicle, badges?: string[])
   if (vehicle.drivetrain) drivetrainParts.push(vehicle.drivetrain);
   if (vehicle.fuelType) drivetrainParts.push(vehicle.fuelType);
   if (drivetrainParts.length > 0) {
-    lines.push(`🔧 ${drivetrainParts.join(" | ")}`);
+    lines.push(drivetrainParts.join(" | "));
   }
-  lines.push(`📏 ${odometerCallout}`);
+  lines.push(odometerCallout);
   if (vehicle.exteriorColor) {
-    lines.push(`🎨 ${vehicle.exteriorColor}`);
+    lines.push(vehicle.exteriorColor);
   }
   lines.push("");
 
@@ -216,7 +217,7 @@ export function generateDescriptionTemplate(vehicle: Vehicle, badges?: string[])
   if (vehicle.highlights) {
     const features = vehicle.highlights.split("|").map((f) => f.trim()).filter(Boolean);
     for (const feature of features.slice(0, 8)) {
-      lines.push(`⭐ ${feature}`);
+      lines.push(`• ${feature}`);
     }
     lines.push("");
   }
