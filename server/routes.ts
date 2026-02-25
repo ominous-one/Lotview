@@ -3707,53 +3707,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Generate AI description for vehicle using Gemini (master only)
+  // Generate AI description for vehicle using Claude (master only)
   app.post("/api/vehicles/:id/generate-description", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const dealershipId = req.dealershipId!;
-      const vehicle = await storage.getVehicleById(id, dealershipId);
-      
-      if (!vehicle) {
-        return res.status(404).json({ error: "Vehicle not found" });
-      }
 
-      // Get Gemini service for this dealership (uses API key from database)
-      const { GeminiService } = await import("./gemini-service");
-      const geminiService = await GeminiService.getInstanceForDealership(dealershipId);
-      
-      if (!geminiService) {
-        return res.status(503).json({ 
-          error: "Gemini API key not configured. Please configure in admin panel under API Keys."
-        });
-      }
+      const { generateDescription } = await import("./ai-description-generator");
+      const result = await generateDescription(id, dealershipId);
 
-      const result = await geminiService.generateVehicleDescription({
-        year: vehicle.year,
-        make: vehicle.make,
-        model: vehicle.model,
-        trim: vehicle.trim || undefined,
-        type: vehicle.type,
-        mileage: vehicle.odometer,
-        price: vehicle.price,
-        badges: vehicle.badges || undefined,
-        description: vehicle.description || undefined,
-      });
-
-      if (result.success && result.description) {
-        res.json({ 
-          success: true,
-          description: result.description
-        });
+      if (result.success) {
+        res.json({ success: true, description: result.description });
       } else {
-        res.status(500).json({ 
-          success: false,
-          error: result.error || "Failed to generate description"
-        });
+        res.status(500).json({ success: false, error: result.error || "Failed to generate description" });
       }
     } catch (error) {
       logError('Error generating description:', error instanceof Error ? error : new Error(String(error)), { route: 'api-vehicles-id-generate-description' });
       res.status(500).json({ error: "Failed to generate description" });
+    }
+  });
+
+  // Batch generate AI descriptions for all vehicles in a dealership (master only)
+  app.post("/api/vehicles/generate-descriptions", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const { generateBatchDescriptions } = await import("./ai-description-generator");
+      const result = await generateBatchDescriptions(dealershipId);
+      res.json(result);
+    } catch (error) {
+      logError('Error generating batch descriptions:', error instanceof Error ? error : new Error(String(error)), { route: 'api-vehicles-generate-descriptions' });
+      res.status(500).json({ error: "Failed to generate batch descriptions" });
     }
   });
 

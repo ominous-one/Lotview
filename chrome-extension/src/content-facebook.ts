@@ -1,6 +1,13 @@
 import { PostJob } from "./types";
 import { sanitizeFormData, sanitizeNotificationText } from "./sanitize";
 
+function decodeHtmlEntities(text: string): string {
+  if (!text) return text;
+  const textarea = document.createElement('textarea');
+  textarea.innerHTML = text;
+  return textarea.value;
+}
+
 const FILL_CHANNEL = "LV_FILL_FACEBOOK";
 const MAX_WAIT_FOR_ELEMENT_MS = 15000; // Increased for Facebook's slow loading
 const MUTATION_CHECK_INTERVAL_MS = 300; // Slightly longer between checks
@@ -2518,6 +2525,14 @@ async function checkCleanTitleCheckbox(): Promise<boolean> {
 async function fillFacebook(job: PostJob): Promise<FillResult> {
   const { formData: rawFormData, imageUrls, proxyBaseUrl } = job;
   const formData = sanitizeFormData(rawFormData);
+
+  // Decode HTML entities (e.g., SUN&#x2F;MOON ROOF → SUN/MOON ROOF)
+  const fd = formData as Record<string, unknown>;
+  if (typeof fd.title === "string") fd.title = decodeHtmlEntities(fd.title);
+  if (typeof fd.description === "string") fd.description = decodeHtmlEntities(fd.description);
+  if (typeof fd.model === "string") fd.model = decodeHtmlEntities(fd.model);
+  if (typeof fd.highlights === "string") fd.highlights = decodeHtmlEntities(fd.highlights);
+
   const filledFields: string[] = [];
   const missingFields: string[] = [];
   const warnings: string[] = [];
