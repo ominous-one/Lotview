@@ -255,7 +255,10 @@ import {
   type InsertScrapeRun,
   scrapeQueue,
   type ScrapeQueue,
-  type InsertScrapeQueue
+  type InsertScrapeQueue,
+  carfaxReports,
+  type CarfaxReport,
+  type InsertCarfaxReport
 } from "@shared/schema";
 import { eq, desc, asc, sql, and, gte, lte, lt, gt, inArray, or, ilike, isNotNull, isNull, type SQL } from "drizzle-orm";
 
@@ -948,6 +951,11 @@ export interface IStorage {
   markScrapeQueueCompleted(id: number, vehicleId: number): Promise<void>;
   markScrapeQueueFailed(id: number, errorMessage: string): Promise<void>;
   clearScrapeQueue(scrapeRunId: number): Promise<void>;
+
+  // ====== CARFAX REPORTS ======
+  getCarfaxReport(vehicleId: number): Promise<CarfaxReport | undefined>;
+  getCarfaxReportByVin(vin: string): Promise<CarfaxReport | undefined>;
+  upsertCarfaxReport(data: InsertCarfaxReport): Promise<CarfaxReport>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -6398,6 +6406,40 @@ export class DatabaseStorage implements IStorage {
   async clearScrapeQueue(scrapeRunId: number): Promise<void> {
     await db.delete(scrapeQueue)
       .where(eq(scrapeQueue.scrapeRunId, scrapeRunId));
+  }
+
+  // ====== CARFAX REPORTS ======
+  async getCarfaxReport(vehicleId: number): Promise<CarfaxReport | undefined> {
+    const result = await db.select().from(carfaxReports)
+      .where(eq(carfaxReports.vehicleId, vehicleId))
+      .limit(1);
+    return result[0];
+  }
+
+  async getCarfaxReportByVin(vin: string): Promise<CarfaxReport | undefined> {
+    const result = await db.select().from(carfaxReports)
+      .where(eq(carfaxReports.vin, vin))
+      .orderBy(desc(carfaxReports.scrapedAt))
+      .limit(1);
+    return result[0];
+  }
+
+  async upsertCarfaxReport(data: InsertCarfaxReport): Promise<CarfaxReport> {
+    // Check if report exists for this VIN
+    const existing = data.vin ? await this.getCarfaxReportByVin(data.vin) : undefined;
+
+    if (existing) {
+      const result = await db.update(carfaxReports)
+        .set({ ...data, updatedAt: new Date(), scrapedAt: new Date() })
+        .where(eq(carfaxReports.id, existing.id))
+        .returning();
+      return result[0];
+    } else {
+      const result = await db.insert(carfaxReports)
+        .values(data)
+        .returning();
+      return result[0];
+    }
   }
 }
 

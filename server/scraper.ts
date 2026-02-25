@@ -9,6 +9,8 @@ import { generateVehicleDescription } from './openai';
 import { scrapeAllDealerListings, scrapeDealerListingsWithCallback, scrapeDealerListingsCheckpointed, type DealerVehicleListing } from './dealer-listing-scraper';
 import { matchCarGurusToDealer } from './vehicle-matcher';
 import { ObjectStorageService } from './objectStorage';
+import { scrapeCarfaxReport as scrapeCarfaxReportPage } from './carfax-scraper';
+import { carfaxReports } from '@shared/schema';
 
 // Singleton for image uploads during scraping
 const objectStorageService = new ObjectStorageService();
@@ -232,7 +234,14 @@ export async function upsertVehicleByVin(vehicleData: ScrapedVehicle): Promise<{
     
     // Upload images to Object Storage if not already done
     await uploadVehicleImagesToStorage(existingId, vehicleData.dealershipId, imagesToSave);
-    
+
+    // Queue Carfax report scrape if URL available (fire-and-forget to not block VDP loop)
+    const vinForCarfax = vehicleRecord.vin || vehicleData.vin;
+    if (vehicleRecord.carfaxUrl && vinForCarfax && vinForCarfax !== 'PENDING') {
+      scrapeAndStoreCarfaxReport(existingId, vehicleData.dealershipId, vehicleRecord.carfaxUrl as string, vinForCarfax as string)
+        .catch(err => console.error(`  ✗ Carfax async scrape failed:`, err instanceof Error ? err.message : err));
+    }
+
     return { action: 'updated', id: existingId };
   } else {
     // Build the vehicle record
@@ -281,8 +290,74 @@ export async function upsertVehicleByVin(vehicleData: ScrapedVehicle): Promise<{
     
     // Upload images to Object Storage
     await uploadVehicleImagesToStorage(vehicleId, vehicleData.dealershipId, vehicleData.images);
-    
+
+    // Queue Carfax report scrape if URL available (fire-and-forget to not block VDP loop)
+    if (vehicleData.carfaxUrl && vehicleData.vin && vehicleData.vin !== 'PENDING') {
+      scrapeAndStoreCarfaxReport(vehicleId, vehicleData.dealershipId, vehicleData.carfaxUrl, vehicleData.vin)
+        .catch(err => console.error(`  ✗ Carfax async scrape failed:`, err instanceof Error ? err.message : err));
+    }
+
     return { action: 'inserted', id: vehicleId };
+  }
+}
+
+/**
+ * Scrape a Carfax report and store it in the database.
+ * Can be called independently for any vehicle with a carfaxUrl.
+ */
+export async function scrapeAndStoreCarfaxReport(
+  vehicleId: number,
+  dealershipId: number,
+  carfaxUrl: string,
+  vin: string
+): Promise<void> {
+  if (!carfaxUrl || !carfaxUrl.includes('carfax')) return;
+
+  try {
+    // Check if we already have a recent report for this VIN
+    const existing = await storage.getCarfaxReportByVin(vin);
+    if (existing && existing.scrapedAt) {
+      const hoursSince = (Date.now() - existing.scrapedAt.getTime()) / (1000 * 60 * 60);
+      if (hoursSince < 24) {
+        // Link to vehicle if not already linked
+        if (existing.vehicleId !== vehicleId) {
+          await db.update(carfaxReports)
+            .set({ vehicleId })
+            .where(eq(carfaxReports.id, existing.id));
+        }
+        console.log(`  ⏭ Carfax report for VIN ${vin} already scraped ${hoursSince.toFixed(1)}h ago`);
+        return;
+      }
+    }
+
+    const reportData = await scrapeCarfaxReportPage(carfaxUrl);
+    if (!reportData) return;
+
+    await storage.upsertCarfaxReport({
+      vehicleId,
+      dealershipId,
+      vin: reportData.vin || vin,
+      reportUrl: carfaxUrl,
+      accidentCount: reportData.accidentCount,
+      ownerCount: reportData.ownerCount,
+      serviceRecordCount: reportData.serviceRecordCount,
+      lastReportedOdometer: reportData.lastReportedOdometer,
+      lastReportedDate: reportData.lastReportedDate,
+      damageReported: reportData.damageReported,
+      lienReported: reportData.lienReported,
+      registrationHistory: reportData.registrationHistory,
+      serviceHistory: reportData.serviceHistory,
+      accidentHistory: reportData.accidentHistory,
+      ownershipHistory: reportData.ownershipHistory,
+      odometerHistory: reportData.odometerHistory,
+      fullReportData: reportData.fullReportData,
+      badges: reportData.badges,
+      scrapedAt: new Date(),
+    });
+
+    console.log(`  ✓ Carfax report stored for VIN ${vin}`);
+  } catch (error) {
+    console.error(`  ✗ Failed to scrape/store Carfax report for VIN ${vin}:`, error instanceof Error ? error.message : error);
   }
 }
 

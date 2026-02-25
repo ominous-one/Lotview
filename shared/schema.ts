@@ -1,4 +1,4 @@
-import { pgTable, text, integer, serial, timestamp, boolean, uuid, real } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, serial, timestamp, boolean, uuid, real, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { sql } from "drizzle-orm";
@@ -175,6 +175,41 @@ export const insertVehicleSchema = createInsertSchema(vehicles).omit({
 
 export type InsertVehicle = z.infer<typeof insertVehicleSchema>;
 export type Vehicle = typeof vehicles.$inferSelect;
+
+// Carfax report data scraped from vhr.carfax.ca
+export const carfaxReports = pgTable("carfax_reports", {
+  id: serial("id").primaryKey(),
+  vehicleId: integer("vehicle_id").references(() => vehicles.id, { onDelete: 'cascade' }),
+  dealershipId: integer("dealership_id").notNull().references(() => dealerships.id, { onDelete: 'cascade' }),
+  vin: text("vin").notNull(),
+  reportUrl: text("report_url"),
+  accidentCount: integer("accident_count").default(0),
+  ownerCount: integer("owner_count").default(0),
+  serviceRecordCount: integer("service_record_count").default(0),
+  lastReportedOdometer: integer("last_reported_odometer"),
+  lastReportedDate: text("last_reported_date"),
+  damageReported: boolean("damage_reported").default(false),
+  lienReported: boolean("lien_reported").default(false),
+  registrationHistory: jsonb("registration_history"), // [{date, location, event}]
+  serviceHistory: jsonb("service_history"), // [{date, location, description, odometer}]
+  accidentHistory: jsonb("accident_history"), // [{date, description, severity}]
+  ownershipHistory: jsonb("ownership_history"), // [{startDate, endDate, location, type}]
+  odometerHistory: jsonb("odometer_history"), // [{date, reading, source}]
+  fullReportData: jsonb("full_report_data"), // raw structured data
+  badges: text("badges").array(),
+  scrapedAt: timestamp("scraped_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertCarfaxReportSchema = createInsertSchema(carfaxReports).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertCarfaxReport = z.infer<typeof insertCarfaxReportSchema>;
+export type CarfaxReport = typeof carfaxReports.$inferSelect;
 
 // View tracking table
 export const vehicleViews = pgTable("vehicle_views", {

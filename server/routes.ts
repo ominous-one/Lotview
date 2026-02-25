@@ -2868,6 +2868,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get full Carfax report for a vehicle
+  app.get("/api/vehicles/:id/carfax", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const dealershipId = req.dealershipId!;
+
+      // Verify vehicle belongs to this dealership
+      const vehicle = await storage.getVehicleById(id, dealershipId);
+      if (!vehicle) {
+        return res.status(404).json({ error: "Vehicle not found" });
+      }
+
+      const report = await storage.getCarfaxReport(id);
+      if (!report) {
+        return res.status(404).json({ error: "No Carfax report found for this vehicle" });
+      }
+
+      res.json(report);
+    } catch (error) {
+      logError('Error fetching Carfax report:', error instanceof Error ? error : new Error(String(error)), { route: 'api-vehicles-carfax' });
+      res.status(500).json({ error: "Failed to fetch Carfax report" });
+    }
+  });
+
+  // Get Carfax summary for a vehicle (badges, accident count, owner count)
+  app.get("/api/vehicles/:id/carfax/summary", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const dealershipId = req.dealershipId!;
+
+      const vehicle = await storage.getVehicleById(id, dealershipId);
+      if (!vehicle) {
+        return res.status(404).json({ error: "Vehicle not found" });
+      }
+
+      const report = await storage.getCarfaxReport(id);
+      if (!report) {
+        return res.status(404).json({ error: "No Carfax report found for this vehicle" });
+      }
+
+      res.json({
+        vehicleId: id,
+        vin: report.vin,
+        accidentCount: report.accidentCount,
+        ownerCount: report.ownerCount,
+        serviceRecordCount: report.serviceRecordCount,
+        damageReported: report.damageReported,
+        lienReported: report.lienReported,
+        badges: report.badges,
+        lastReportedOdometer: report.lastReportedOdometer,
+        lastReportedDate: report.lastReportedDate,
+        reportUrl: report.reportUrl,
+        scrapedAt: report.scrapedAt,
+      });
+    } catch (error) {
+      logError('Error fetching Carfax summary:', error instanceof Error ? error : new Error(String(error)), { route: 'api-vehicles-carfax-summary' });
+      res.status(500).json({ error: "Failed to fetch Carfax summary" });
+    }
+  });
+
   // ===== PUBLIC FINANCING RULES (Customer-facing, no auth required) =====
   
   // Get financing rules for payment calculator (public endpoint)

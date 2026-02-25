@@ -387,6 +387,27 @@ async function scrapeVehicleDetailPage(page: any, vdpUrl: string, retries = 2): 
         // Accordion expansion is optional, continue with extraction
       }
 
+      // Scroll down to where Carfax badges typically appear (they may be lazy-loaded)
+      try {
+        await page.evaluate(() => {
+          // Scroll to the bottom third of the page where badges usually live
+          window.scrollTo(0, document.body.scrollHeight * 0.6);
+        });
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Scroll to full bottom to trigger any remaining lazy-loads
+        await page.evaluate(() => {
+          window.scrollTo(0, document.body.scrollHeight);
+        });
+        await new Promise(resolve => setTimeout(resolve, 800));
+        // Scroll back to top for extraction
+        await page.evaluate(() => {
+          window.scrollTo(0, 0);
+        });
+        await new Promise(resolve => setTimeout(resolve, 300));
+      } catch (scrollErr) {
+        // Scroll is optional, continue with extraction
+      }
+
       // Use page.evaluate with a string to prevent ESBuild transformation
       const data = await page.evaluate(`(function() {
         var pageText = document.body.textContent || '';
@@ -1278,17 +1299,28 @@ async function scrapeVehicleDetailPage(page: any, vdpUrl: string, retries = 2): 
             }
           }
         }
-        // Strategy 4: Find anchor that wraps any img with cdn.carfax.ca/badging in src
+        // Strategy 4: Find anchor that wraps any img with cdn.carfax.ca/badging in src or data-src
         if (!carfaxUrl) {
-          var badgeImgs = document.querySelectorAll('img[src*="cdn.carfax.ca/badging"]');
+          var badgeImgs = document.querySelectorAll('img[src*="cdn.carfax.ca/badging"], img[data-src*="cdn.carfax.ca/badging"], img[src*="carfax.ca/badging"], img[data-src*="carfax.ca/badging"]');
           for (var bii = 0; bii < badgeImgs.length; bii++) {
             var parentA = badgeImgs[bii].closest('a');
             if (parentA) {
               var paHref = parentA.getAttribute('href') || '';
-              if (paHref.length > 10 && paHref.indexOf('carfax') !== -1) {
+              if (paHref.length > 10) {
                 carfaxUrl = paHref;
                 break;
               }
+            }
+          }
+        }
+        // Strategy 6: Look for any anchor whose child contains carfax text or images
+        if (!carfaxUrl) {
+          var allAnchors = document.querySelectorAll('a');
+          for (var aai = 0; aai < allAnchors.length; aai++) {
+            var aHref = allAnchors[aai].getAttribute('href') || '';
+            if (aHref.indexOf('vhr.carfax.ca') !== -1 && aHref.length > 20) {
+              carfaxUrl = aHref;
+              break;
             }
           }
         }
@@ -1321,9 +1353,9 @@ async function scrapeVehicleDetailPage(page: any, vdpUrl: string, retries = 2): 
             if (name.indexOf('lowkilometer') !== -1 || name.indexOf('lowmileage') !== -1 || name.indexOf('low-km') !== -1) addCarfaxBadge('Low Kilometers');
           }
         }
-        var carfaxBadgeImgs = document.querySelectorAll('img[src*="cdn.carfax.ca"], img[src*="carfax.ca/badging"], img[src*="carfax"]');
+        var carfaxBadgeImgs = document.querySelectorAll('img[src*="cdn.carfax.ca"], img[src*="carfax.ca/badging"], img[src*="carfax"], img[data-src*="carfax"], img[data-lazy-src*="carfax"]');
         for (var cbi = 0; cbi < carfaxBadgeImgs.length; cbi++) {
-          var badgeSrc = (carfaxBadgeImgs[cbi].getAttribute('src') || '');
+          var badgeSrc = (carfaxBadgeImgs[cbi].getAttribute('src') || carfaxBadgeImgs[cbi].getAttribute('data-src') || carfaxBadgeImgs[cbi].getAttribute('data-lazy-src') || '');
           var badgeSrcLower = badgeSrc.toLowerCase();
           var badgeAlt = (carfaxBadgeImgs[cbi].getAttribute('alt') || '').toLowerCase();
           var badgeData = (carfaxBadgeImgs[cbi].getAttribute('data-badge') || '').toLowerCase();
