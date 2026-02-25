@@ -38,6 +38,8 @@ import { fromZodError } from "zod-validation-error";
 import { triggerManualSync } from "./scheduler";
 import { testBadgeDetection } from "./scraper";
 import { generateChatResponse, type ChatMessage } from "./openai";
+import { generateSalesResponse, generateFollowUp } from "./ai-sales-agent";
+import { calculatePayments, formatPaymentForChat } from "./ai-payment-calculator";
 
 import { authMiddleware, requireRole, generateToken, comparePassword, hashPassword, verifyToken, extensionHmacMiddleware, generatePostingToken, validatePostingToken, type AuthRequest } from "./auth";
 import { requireDealership, superAdminOnly } from "./tenant-middleware";
@@ -4191,6 +4193,86 @@ Provide a single, concise, friendly message that continues the conversation natu
     } catch (error) {
       logError('Error generating AI suggestion:', error instanceof Error ? error : new Error(String(error)), { route: 'api-ai-suggest-reply' });
       res.status(500).json({ error: "Failed to generate suggestion", suggestion: null });
+    }
+  });
+
+  // AI Sales Agent - Generate sales-optimized response for customer messages
+  app.post("/api/ai/respond", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const { vehicleId, conversationId, customerMessage, customerName, messageHistory } = req.body;
+
+      if (!customerMessage || typeof customerMessage !== 'string' || customerMessage.trim().length === 0) {
+        return res.status(400).json({ error: "customerMessage is required" });
+      }
+
+      const result = await generateSalesResponse({
+        dealershipId,
+        vehicleId: vehicleId ? parseInt(vehicleId) : undefined,
+        conversationId: conversationId ? parseInt(conversationId) : undefined,
+        customerMessage: customerMessage.trim(),
+        customerName,
+        messageHistory,
+      });
+
+      res.json(result);
+    } catch (error) {
+      logError('Error generating AI sales response:', error instanceof Error ? error : new Error(String(error)), { route: 'api-ai-respond' });
+      res.status(500).json({ error: "Failed to generate AI response" });
+    }
+  });
+
+  // AI Sales Agent - Generate follow-up message for cold conversations
+  app.post("/api/ai/follow-up", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const { conversationId, customerName, vehicleName, lastMessagePreview, hoursSinceLastMessage } = req.body;
+
+      if (!conversationId || !vehicleName) {
+        return res.status(400).json({ error: "conversationId and vehicleName are required" });
+      }
+
+      const reply = await generateFollowUp({
+        dealershipId,
+        conversationId: parseInt(conversationId),
+        customerName: customerName || 'there',
+        vehicleName,
+        lastMessagePreview: lastMessagePreview || '',
+        hoursSinceLastMessage: hoursSinceLastMessage || 24,
+      });
+
+      res.json({ reply });
+    } catch (error) {
+      logError('Error generating follow-up:', error instanceof Error ? error : new Error(String(error)), { route: 'api-ai-follow-up' });
+      res.status(500).json({ error: "Failed to generate follow-up" });
+    }
+  });
+
+  // AI Payment Calculator - Calculate payment options for a vehicle
+  app.get("/api/ai/payments/:vehicleId", authMiddleware, requireDealership, async (req, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const vehicleId = parseInt(req.params.vehicleId);
+      const creditScore = req.query.creditScore ? parseInt(req.query.creditScore as string) : undefined;
+
+      const vehicle = await storage.getVehicleById(vehicleId, dealershipId);
+      if (!vehicle) {
+        return res.status(404).json({ error: "Vehicle not found" });
+      }
+
+      const payments = await calculatePayments(dealershipId, vehicle.price, vehicle.year, creditScore);
+      if (!payments) {
+        return res.status(404).json({ error: "Financing rules not configured for this dealership" });
+      }
+
+      res.json({
+        vehicleId: vehicle.id,
+        vehicleName: `${vehicle.year} ${vehicle.make} ${vehicle.model}${vehicle.trim ? ` ${vehicle.trim}` : ''}`,
+        ...payments,
+      });
+    } catch (error) {
+      logError('Error calculating payments:', error instanceof Error ? error : new Error(String(error)), { route: 'api-ai-payments' });
+      res.status(500).json({ error: "Failed to calculate payments" });
     }
   });
 
