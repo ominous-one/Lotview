@@ -2636,6 +2636,13 @@ async function checkCleanTitleCheckbox(): Promise<boolean> {
 
 async function fillFacebook(job: PostJob): Promise<FillResult> {
   const { formData: rawFormData, imageUrls, proxyBaseUrl } = job;
+  
+  // Decode HTML entities on rawFormData BEFORE sanitize (fixes &#x2F; in title/trim/highlights)
+  const rfd = rawFormData as Record<string, unknown>;
+  for (const key of ['title', 'description', 'model', 'trim', 'highlights'] as const) {
+    if (typeof rfd[key] === 'string') rfd[key] = decodeHtmlEntities(rfd[key] as string);
+  }
+  
   const formData = sanitizeFormData(rawFormData);
 
   // Decode HTML entities (e.g., SUN&#x2F;MOON ROOF → SUN/MOON ROOF)
