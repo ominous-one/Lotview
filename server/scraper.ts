@@ -1591,6 +1591,17 @@ async function scrapeDealershipIncrementally(targetDealershipId: number): Promis
         vin: listing.vin || undefined,
         stockNumber: listing.stockNumber || undefined,
         dealerVdpUrl: listing.vdpUrl,
+        // Extended VDP fields
+        exteriorColour: listing.exteriorColor || undefined,
+        interiorColour: listing.interiorColor || undefined,
+        transmission: listing.transmission || undefined,
+        drivetrain: listing.drivetrain || undefined,
+        fuelType: listing.fuelType || undefined,
+        carfaxUrl: listing.carfaxUrl || undefined,
+        carfaxBadges: listing.carfaxBadges && listing.carfaxBadges.length > 0 ? listing.carfaxBadges : undefined,
+        techSpecs: listing.techSpecs || undefined,
+        highlights: listing.highlights || undefined,
+        vdpDescription: listing.vdpDescription || undefined,
       };
       
       return await upsertVehicleByVin(vehicleData);

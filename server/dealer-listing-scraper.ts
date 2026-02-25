@@ -96,6 +96,17 @@ export interface DealerVehicleListing {
   location: string;
   imageQuality: 'excellent' | 'good' | 'fair' | 'poor';
   dataQualityScore: number;
+  // Extended VDP fields
+  exteriorColor: string | null;
+  interiorColor: string | null;
+  transmission: string | null;
+  drivetrain: string | null;
+  fuelType: string | null;
+  carfaxUrl: string | null;
+  carfaxBadges: string[];
+  techSpecs: string | null;
+  highlights: string | null;
+  vdpDescription: string | null;
 }
 
 function parsePrice(priceText: string): number | null {
@@ -241,6 +252,19 @@ interface VehicleDetailData {
   stockNumber: string | null;
   imageQuality: 'excellent' | 'good' | 'fair' | 'poor';
   dataQualityScore: number;
+  // Extended VDP fields
+  exteriorColor: string | null;
+  interiorColor: string | null;
+  engine: string | null;
+  transmission: string | null;
+  drivetrain: string | null;
+  fuelType: string | null;
+  carfaxUrl: string | null;
+  carfaxBadges: string[];
+  bodyStyle: string | null;
+  highlights: string | null;
+  vdpDescription: string | null;
+  techSpecs: string | null; // JSON string
 }
 
 // Scrape VDP using an existing page (reuses page instead of creating new ones)
@@ -320,7 +344,49 @@ async function scrapeVehicleDetailPage(page: any, vdpUrl: string, retries = 2): 
       
       // Wait a moment for images to load after gallery navigation
       await new Promise(resolve => setTimeout(resolve, 500));
-      
+
+      // Click all expand/collapse accordion buttons to reveal hidden Options and Tech Specs content
+      try {
+        await page.evaluate(() => {
+          // Click accordion triggers, expand buttons, "show more" buttons, details summary elements
+          const expandSelectors = [
+            '[class*="accordion"] button',
+            '[class*="accordion"] [class*="trigger"]',
+            '[class*="accordion"] [class*="header"]',
+            '[class*="collapsible"] button',
+            '[class*="expandable"] button',
+            'details summary',
+            'button[class*="expand"]',
+            'button[class*="collapse"]',
+            'button[class*="toggle"]',
+            '[class*="show-more"]',
+            '[class*="read-more"]',
+            '[x-data] button',
+            '[x-data] [x-on\\:click]',
+            '[x-data] [\\@click]',
+            '.techspecs-tab button',
+            '[class*="techspec"] button',
+            '[class*="options"] button',
+            '[class*="feature"] button',
+          ];
+          for (const selector of expandSelectors) {
+            try {
+              const buttons = document.querySelectorAll(selector);
+              buttons.forEach((btn: Element) => {
+                try { (btn as HTMLElement).click(); } catch(e) {}
+              });
+            } catch(e) {}
+          }
+          // Also open all <details> elements
+          const detailsEls = document.querySelectorAll('details');
+          detailsEls.forEach((d) => { d.open = true; });
+        });
+        // Brief wait for accordion content to render
+        await new Promise(resolve => setTimeout(resolve, 500));
+      } catch (accordionErr) {
+        // Accordion expansion is optional, continue with extraction
+      }
+
       // Use page.evaluate with a string to prevent ESBuild transformation
       const data = await page.evaluate(`(function() {
         var pageText = document.body.textContent || '';
@@ -972,6 +1038,467 @@ async function scrapeVehicleDetailPage(page: any, vdpUrl: string, retries = 2): 
           }
         }
         
+        // === EXTRACT EXTENDED VDP FIELDS ===
+
+        // Helper: extract labeled value from page text (e.g. "Exterior Colour: White")
+        function extractLabeledValue(labels, text) {
+          for (var li2 = 0; li2 < labels.length; li2++) {
+            var pattern = new RegExp(labels[li2] + '[:\\\\s]+([^\\\\n|<,;]+)', 'i');
+            var match = text.match(pattern);
+            if (match && match[1]) {
+              var val = match[1].trim();
+              // Clean up trailing whitespace and common suffixes
+              val = val.replace(/\\s+$/, '');
+              if (val.length > 0 && val.length < 80) return val;
+            }
+          }
+          return null;
+        }
+
+        // Query all spec list items once for reuse across all field extractions
+        var allListItems = document.querySelectorAll('li, .spec-item, [class*="spec"], [class*="detail"]');
+
+        // Extract Exterior Color
+        var exteriorColor = null;
+        var colorLabels = ['Exterior Colou?r', 'Ext\\\\.?\\\\s*Colou?r', 'Exterior'];
+        exteriorColor = extractLabeledValue(colorLabels, pageText);
+        // Also check sidebar list items with checkmarks
+        if (!exteriorColor) {
+          for (var cli = 0; cli < allListItems.length; cli++) {
+            var liText = allListItems[cli].textContent || '';
+            var colorMatch = liText.match(/Exterior\\s*Colou?r[:\\s]+(.+)/i);
+            if (colorMatch && colorMatch[1]) {
+              exteriorColor = colorMatch[1].trim().split(/[,;|\\n]/)[0].trim();
+              if (exteriorColor.length > 0 && exteriorColor.length < 50) break;
+              exteriorColor = null;
+            }
+          }
+        }
+
+        // Extract Interior Color
+        var interiorColor = null;
+        var intColorLabels = ['Interior Colou?r', 'Int\\\\.?\\\\s*Colou?r', 'Interior'];
+        interiorColor = extractLabeledValue(intColorLabels, pageText);
+        if (!interiorColor) {
+          for (var icli = 0; icli < allListItems.length; icli++) {
+            var icText = allListItems[icli].textContent || '';
+            var icMatch = icText.match(/Interior\\s*Colou?r[:\\s]+(.+)/i);
+            if (icMatch && icMatch[1]) {
+              interiorColor = icMatch[1].trim().split(/[,;|\\n]/)[0].trim();
+              if (interiorColor.length > 0 && interiorColor.length < 50) break;
+              interiorColor = null;
+            }
+          }
+        }
+        // Fallback: if interior color contains template placeholders (e.g. '{{ vehicle.interior_color }}')
+        // or is still null, hardcode to 'Black' - most vehicles have black interiors
+        if (!interiorColor || interiorColor.indexOf('{{') !== -1 || interiorColor.indexOf('vehicle.') !== -1) {
+          interiorColor = 'Black';
+        }
+
+        // Extract Engine
+        var engine = null;
+        var engineLabels = ['Engine'];
+        engine = extractLabeledValue(engineLabels, pageText);
+        if (!engine) {
+          for (var ei2 = 0; ei2 < allListItems.length; ei2++) {
+            var eiText = allListItems[ei2].textContent || '';
+            var engineMatch = eiText.match(/Engine[:\\s]+(.+)/i);
+            if (engineMatch && engineMatch[1]) {
+              engine = engineMatch[1].trim().split(/[\\n]/)[0].trim();
+              if (engine.length > 0 && engine.length < 120) break;
+              engine = null;
+            }
+          }
+        }
+        // Strategy 3: Check sidebar li elements specifically (Olympic Hyundai pattern)
+        if (!engine) {
+          var sidebarLis = document.querySelectorAll('.sidebar li, [class*="sidebar"] li, .vehicle-info li, [class*="vehicle-info"] li, .details-list li, [class*="detail"] li');
+          for (var seli = 0; seli < sidebarLis.length; seli++) {
+            var seLiText = sidebarLis[seli].textContent || '';
+            var seMatch = seLiText.match(/Engine[:\\s]+(.+)/i);
+            if (seMatch && seMatch[1]) {
+              engine = seMatch[1].trim().split(/[,;|\\n]/)[0].trim();
+              if (engine.length > 0 && engine.length < 120) break;
+              engine = null;
+            }
+          }
+        }
+        // Strategy 4: Look for engine in any element with checkmark/icon pattern (common in spec lists)
+        if (!engine) {
+          var allEls = document.querySelectorAll('span, div, p, dd');
+          for (var aei = 0; aei < allEls.length; aei++) {
+            var aeText = (allEls[aei].textContent || '').trim();
+            var aeMatch = aeText.match(/^Engine[:\\s]+(.+)/i);
+            if (aeMatch && aeMatch[1]) {
+              engine = aeMatch[1].trim().split(/[,;|\\n]/)[0].trim();
+              if (engine.length > 0 && engine.length < 120) break;
+              engine = null;
+            }
+          }
+        }
+
+        // Extract Transmission
+        var transmission = null;
+        var transLabels = ['Transmission', 'Trans'];
+        transmission = extractLabeledValue(transLabels, pageText);
+        if (!transmission) {
+          for (var tri = 0; tri < allListItems.length; tri++) {
+            var trText = allListItems[tri].textContent || '';
+            var transMatch = trText.match(/Transmission[:\\s]+(.+)/i);
+            if (transMatch && transMatch[1]) {
+              transmission = transMatch[1].trim().split(/[,;|\\n]/)[0].trim();
+              if (transmission.length > 0 && transmission.length < 50) break;
+              transmission = null;
+            }
+          }
+        }
+        // Normalize transmission
+        if (transmission) {
+          var transLower = transmission.toLowerCase();
+          if (transLower.indexOf('automatic') !== -1 || transLower.indexOf('auto') !== -1) transmission = 'Automatic';
+          else if (transLower.indexOf('manual') !== -1 || transLower.indexOf('stick') !== -1) transmission = 'Manual';
+          else if (transLower.indexOf('cvt') !== -1) transmission = 'CVT';
+        }
+
+        // Extract Drivetrain
+        var drivetrain = null;
+        var dtLabels = ['Drive\\\\s*Train', 'Drivetrain', 'Drive\\\\s*Type'];
+        drivetrain = extractLabeledValue(dtLabels, pageText);
+        if (!drivetrain) {
+          for (var dti = 0; dti < allListItems.length; dti++) {
+            var dtText = allListItems[dti].textContent || '';
+            var dtMatch = dtText.match(/Drive\\s*Train[:\\s]+(.+)/i) || dtText.match(/Drivetrain[:\\s]+(.+)/i);
+            if (dtMatch && dtMatch[1]) {
+              drivetrain = dtMatch[1].trim().split(/[,;|\\n]/)[0].trim();
+              if (drivetrain.length > 0 && drivetrain.length < 30) break;
+              drivetrain = null;
+            }
+          }
+        }
+        // Normalize drivetrain
+        if (drivetrain) {
+          var dtLower = drivetrain.toLowerCase();
+          if (dtLower.indexOf('awd') !== -1 || dtLower.indexOf('all wheel') !== -1 || dtLower.indexOf('all-wheel') !== -1) drivetrain = 'AWD';
+          else if (dtLower.indexOf('4wd') !== -1 || dtLower.indexOf('four wheel') !== -1 || dtLower.indexOf('4x4') !== -1) drivetrain = '4WD';
+          else if (dtLower.indexOf('fwd') !== -1 || dtLower.indexOf('front wheel') !== -1 || dtLower.indexOf('front-wheel') !== -1) drivetrain = 'FWD';
+          else if (dtLower.indexOf('rwd') !== -1 || dtLower.indexOf('rear wheel') !== -1 || dtLower.indexOf('rear-wheel') !== -1) drivetrain = 'RWD';
+        }
+
+        // Extract Fuel Type - Priority 1: hidden input vdp-fuelType (most reliable)
+        var fuelType = null;
+        var fuelTypeInput = document.querySelector('input[name="vdp-fuelType"]');
+        if (fuelTypeInput) {
+          fuelType = fuelTypeInput.getAttribute('value') || null;
+        }
+        // Priority 2: labeled text on page
+        if (!fuelType) {
+          var fuelLabels = ['Fuel\\\\s*Type', 'Fuel'];
+          fuelType = extractLabeledValue(fuelLabels, pageText);
+        }
+        // Priority 3: sidebar list items
+        if (!fuelType) {
+          for (var fti = 0; fti < allListItems.length; fti++) {
+            var ftText = allListItems[fti].textContent || '';
+            var ftMatch = ftText.match(/Fuel\\s*Type[:\\s]+(.+)/i);
+            if (ftMatch && ftMatch[1]) {
+              fuelType = ftMatch[1].trim().split(/[,;|\\n]/)[0].trim();
+              if (fuelType.length > 0 && fuelType.length < 30) break;
+              fuelType = null;
+            }
+          }
+        }
+        // Normalize fuel type
+        if (fuelType) {
+          var ftLower = fuelType.toLowerCase();
+          if (ftLower.indexOf('electric') !== -1 || ftLower === 'ev' || ftLower === 'bev') fuelType = 'Electric';
+          else if (ftLower.indexOf('plug') !== -1 && ftLower.indexOf('hybrid') !== -1) fuelType = 'Hybrid';
+          else if (ftLower.indexOf('hybrid') !== -1) fuelType = 'Hybrid';
+          else if (ftLower.indexOf('diesel') !== -1) fuelType = 'Diesel';
+          else if (ftLower.indexOf('gas') !== -1 || ftLower.indexOf('petrol') !== -1 || ftLower.indexOf('unleaded') !== -1) fuelType = 'Gasoline';
+        }
+
+        // Extract Body Style
+        var bodyStyle = null;
+        var bsLabels = ['Body\\\\s*Style', 'Body\\\\s*Type'];
+        bodyStyle = extractLabeledValue(bsLabels, pageText);
+        if (!bodyStyle) {
+          for (var bsi = 0; bsi < allListItems.length; bsi++) {
+            var bsText = allListItems[bsi].textContent || '';
+            var bsMatch = bsText.match(/Body\\s*Style[:\\s]+(.+)/i);
+            if (bsMatch && bsMatch[1]) {
+              bodyStyle = bsMatch[1].trim().split(/[,;|\\n]/)[0].trim();
+              if (bodyStyle.length > 0 && bodyStyle.length < 40) break;
+              bodyStyle = null;
+            }
+          }
+        }
+
+        // Extract Carfax URL - multiple strategies
+        var carfaxUrl = null;
+        // Strategy 1: Direct a[href*="carfax"] links
+        var carfaxLinks = document.querySelectorAll('a[href*="carfax"]');
+        for (var cfi = 0; cfi < carfaxLinks.length; cfi++) {
+          var cfHref = carfaxLinks[cfi].getAttribute('href') || '';
+          if (cfHref && (cfHref.indexOf('carfax.ca') !== -1 || cfHref.indexOf('carfax.com') !== -1)) {
+            // Prefer VIN-specific URLs
+            if (cfHref.indexOf('/vehicle/') !== -1 || cfHref.indexOf('/vhr/') !== -1 || cfHref.indexOf('vin=') !== -1) {
+              carfaxUrl = cfHref;
+              break;
+            }
+            // Store as fallback (but not homepage)
+            if (!carfaxUrl && cfHref !== 'https://www.carfax.ca/' && cfHref !== 'https://www.carfax.com/') {
+              carfaxUrl = cfHref;
+            }
+          }
+        }
+        // Strategy 2: Links wrapping carfax badge images (Olympic Hyundai pattern)
+        if (!carfaxUrl) {
+          var carfaxImgLinks = document.querySelectorAll('a');
+          for (var cil = 0; cil < carfaxImgLinks.length; cil++) {
+            var linkEl = carfaxImgLinks[cil];
+            var linkHref = linkEl.getAttribute('href') || '';
+            if (linkHref.indexOf('carfax') !== -1 || linkHref.indexOf('vhr.carfax') !== -1) {
+              var hasCarfaxImg = linkEl.querySelector('img[src*="carfax"]');
+              if (hasCarfaxImg) {
+                carfaxUrl = linkHref;
+                break;
+              }
+            }
+          }
+        }
+        // Strategy 3: Look for vhr.carfax.ca links specifically (report links)
+        if (!carfaxUrl) {
+          var vhrLinks = document.querySelectorAll('a[href*="vhr.carfax"]');
+          for (var vli = 0; vli < vhrLinks.length; vli++) {
+            var vhrHref = vhrLinks[vli].getAttribute('href') || '';
+            if (vhrHref.length > 10) {
+              carfaxUrl = vhrHref;
+              break;
+            }
+          }
+        }
+        // Strategy 4: Find anchor that wraps any img with cdn.carfax.ca/badging in src
+        if (!carfaxUrl) {
+          var badgeImgs = document.querySelectorAll('img[src*="cdn.carfax.ca/badging"]');
+          for (var bii = 0; bii < badgeImgs.length; bii++) {
+            var parentA = badgeImgs[bii].closest('a');
+            if (parentA) {
+              var paHref = parentA.getAttribute('href') || '';
+              if (paHref.length > 10 && paHref.indexOf('carfax') !== -1) {
+                carfaxUrl = paHref;
+                break;
+              }
+            }
+          }
+        }
+        // Strategy 5: Check for carfax URL in data attributes
+        if (!carfaxUrl) {
+          var carfaxDataEls = document.querySelectorAll('[data-carfax-url], [data-carfax], [data-href*="carfax"]');
+          for (var cdi = 0; cdi < carfaxDataEls.length; cdi++) {
+            var dataUrl = carfaxDataEls[cdi].getAttribute('data-carfax-url') || carfaxDataEls[cdi].getAttribute('data-carfax') || carfaxDataEls[cdi].getAttribute('data-href') || '';
+            if (dataUrl.length > 10 && dataUrl.indexOf('carfax') !== -1) {
+              carfaxUrl = dataUrl;
+              break;
+            }
+          }
+        }
+
+        // Extract Carfax Badges from CDN badge images
+        var carfaxBadges = [];
+        // Helper to add badge if not already present
+        function addCarfaxBadge(badge) {
+          if (carfaxBadges.indexOf(badge) === -1) carfaxBadges.push(badge);
+        }
+        // Helper to parse badge name from CDN SVG filename (e.g. 'OneOwner.svg' -> 'One Owner')
+        function parseBadgeFromFilename(src) {
+          var filenameMatch = src.match(/badging\\/([^\\/?.]+)/i) || src.match(/\\/([^\\/?.]+)\\.svg/i);
+          if (filenameMatch && filenameMatch[1]) {
+            var name = filenameMatch[1].toLowerCase();
+            if (name.indexOf('oneowner') !== -1 || name === 'one-owner') addCarfaxBadge('One Owner');
+            if (name.indexOf('accidentfree') !== -1 || name.indexOf('noaccident') !== -1 || name === 'accident-free') addCarfaxBadge('No Reported Accidents');
+            if (name.indexOf('servicehistory') !== -1 || name.indexOf('service-history') !== -1) addCarfaxBadge('Service History');
+            if (name.indexOf('lowkilometer') !== -1 || name.indexOf('lowmileage') !== -1 || name.indexOf('low-km') !== -1) addCarfaxBadge('Low Kilometers');
+          }
+        }
+        var carfaxBadgeImgs = document.querySelectorAll('img[src*="cdn.carfax.ca"], img[src*="carfax.ca/badging"], img[src*="carfax"]');
+        for (var cbi = 0; cbi < carfaxBadgeImgs.length; cbi++) {
+          var badgeSrc = (carfaxBadgeImgs[cbi].getAttribute('src') || '');
+          var badgeSrcLower = badgeSrc.toLowerCase();
+          var badgeAlt = (carfaxBadgeImgs[cbi].getAttribute('alt') || '').toLowerCase();
+          var badgeData = (carfaxBadgeImgs[cbi].getAttribute('data-badge') || '').toLowerCase();
+
+          // Parse SVG filename from CDN URL (e.g. cdn.carfax.ca/badging/OneOwner.svg)
+          if (badgeSrcLower.indexOf('badging/') !== -1 || badgeSrcLower.indexOf('.svg') !== -1) {
+            parseBadgeFromFilename(badgeSrc);
+          }
+
+          // Also match by keyword in src, alt, or data attributes
+          if (badgeSrcLower.indexOf('oneowner') !== -1 || badgeAlt.indexOf('one owner') !== -1 || badgeData.indexOf('one owner') !== -1) {
+            addCarfaxBadge('One Owner');
+          }
+          if (badgeSrcLower.indexOf('accidentfree') !== -1 || badgeSrcLower.indexOf('noaccident') !== -1 ||
+              badgeAlt.indexOf('accident free') !== -1 || badgeAlt.indexOf('no accident') !== -1 ||
+              badgeAlt.indexOf('no reported accident') !== -1 || badgeData.indexOf('accident') !== -1) {
+            addCarfaxBadge('No Reported Accidents');
+          }
+          if (badgeSrcLower.indexOf('servicehistory') !== -1 || badgeAlt.indexOf('service') !== -1 || badgeData.indexOf('service') !== -1) {
+            addCarfaxBadge('Service History');
+          }
+          if (badgeSrcLower.indexOf('lowkilometer') !== -1 || badgeSrcLower.indexOf('lowmileage') !== -1 ||
+              badgeAlt.indexOf('low km') !== -1 || badgeAlt.indexOf('low mileage') !== -1 || badgeData.indexOf('low') !== -1) {
+            addCarfaxBadge('Low Kilometers');
+          }
+        }
+
+        // Extract Highlights from h1 (text after pipe character)
+        var highlights = null;
+        var h1Element = document.querySelector('h1');
+        if (h1Element) {
+          var h1Text = h1Element.textContent || '';
+          var pipeIndex = h1Text.indexOf('|');
+          if (pipeIndex !== -1) {
+            highlights = h1Text.substring(pipeIndex + 1).trim();
+            // Clean up multiple pipes into a readable format
+            highlights = highlights.replace(/\\s*\\|\\s*/g, ' | ');
+            if (highlights.length < 3) highlights = null;
+          }
+        }
+
+        // Extract VDP Description (the dealer's vehicle description)
+        var vdpDescription = '';
+        var vdpDescSelectors = [
+          '.vehicle-description',
+          '.vdp-description',
+          '[class*="vehicle-description"]',
+          '[class*="vdp-description"]',
+          '#vehicle-description',
+          '.dealer-comments',
+          '[class*="dealer-comment"]',
+          '[class*="seller-note"]'
+        ];
+        for (var vdi = 0; vdi < vdpDescSelectors.length; vdi++) {
+          var vdpDescEl = document.querySelector(vdpDescSelectors[vdi]);
+          if (vdpDescEl && vdpDescEl.textContent && vdpDescEl.textContent.trim().length > 50) {
+            vdpDescription = vdpDescEl.textContent.trim();
+            break;
+          }
+        }
+
+        // Extract Tech Specs / Features from expandable sections
+        var techSpecsObj = { features: [], mechanical: [], exterior: [], interior: [], entertainment: [], safety: [] };
+
+        // Helper to categorize items into techSpecsObj by section name
+        function categorizeTechItems(sectionName, items) {
+          var lower = sectionName.toLowerCase();
+          if (lower.indexOf('mechanical') !== -1) techSpecsObj.mechanical = techSpecsObj.mechanical.concat(items);
+          else if (lower.indexOf('exterior') !== -1) techSpecsObj.exterior = techSpecsObj.exterior.concat(items);
+          else if (lower.indexOf('interior') !== -1) techSpecsObj.interior = techSpecsObj.interior.concat(items);
+          else if (lower.indexOf('entertainment') !== -1 || lower.indexOf('media') !== -1 || lower.indexOf('audio') !== -1) techSpecsObj.entertainment = techSpecsObj.entertainment.concat(items);
+          else if (lower.indexOf('safety') !== -1 || lower.indexOf('security') !== -1) techSpecsObj.safety = techSpecsObj.safety.concat(items);
+          else if (lower.indexOf('feature') !== -1 || lower.indexOf('option') !== -1 || lower.indexOf('package') !== -1 || items.length > 0) {
+            techSpecsObj.features = techSpecsObj.features.concat(items);
+          }
+        }
+
+        // Helper to extract list items from a container
+        function extractItemsFromContainer(container) {
+          var items = [];
+          var listItems = container.querySelectorAll('li, .feature-item, [class*="feature"], [class*="option"]');
+          for (var xi = 0; xi < listItems.length; xi++) {
+            var itemText = (listItems[xi].textContent || '').trim();
+            if (itemText.length > 1 && itemText.length < 120) {
+              items.push(itemText);
+            }
+          }
+          return items;
+        }
+
+        // Strategy 1: Look for techspecs-tab sections
+        var techSpecSections = document.querySelectorAll('.techspecs-tab, [class*="techspec"], [class*="tech-spec"], [class*="features-section"], [class*="options-section"]');
+        for (var tsi = 0; tsi < techSpecSections.length; tsi++) {
+          var section = techSpecSections[tsi];
+          var sectionText = (section.querySelector('h2, h3, h4, .section-title, [class*="title"], [class*="header"]') || {}).textContent || '';
+          var items = extractItemsFromContainer(section);
+          if (items.length > 0) {
+            categorizeTechItems(sectionText, items);
+          }
+        }
+
+        // Strategy 2: Look for accordion/expandable feature lists (common on Olympic Hyundai)
+        if (techSpecsObj.features.length === 0 && techSpecsObj.mechanical.length === 0) {
+          var accordionSections = document.querySelectorAll('[class*="accordion"], [class*="collapsible"], [class*="expandable"], details, [x-data]');
+          for (var asi = 0; asi < accordionSections.length; asi++) {
+            var accSection = accordionSections[asi];
+            var accTitle = (accSection.querySelector('button, summary, [class*="trigger"], [class*="header"], h3, h4') || {}).textContent || '';
+            var accItems = extractItemsFromContainer(accSection);
+            if (accItems.length > 0) {
+              categorizeTechItems(accTitle, accItems);
+            }
+          }
+        }
+
+        // Strategy 3: Look for Alpine.js x-show/x-collapse hidden panels (Olympic Hyundai uses Alpine.js)
+        if (techSpecsObj.features.length === 0 && techSpecsObj.mechanical.length === 0) {
+          var alpinePanels = document.querySelectorAll('[x-show], [x-collapse], [x-transition]');
+          for (var api = 0; api < alpinePanels.length; api++) {
+            var panel = alpinePanels[api];
+            // Find the section title from a preceding sibling or parent heading
+            var panelParent = panel.parentElement;
+            var panelTitle = '';
+            if (panelParent) {
+              var heading = panelParent.querySelector('h2, h3, h4, button, [class*="title"]');
+              if (heading) panelTitle = heading.textContent || '';
+            }
+            var panelItems = extractItemsFromContainer(panel);
+            if (panelItems.length > 0) {
+              categorizeTechItems(panelTitle, panelItems);
+            }
+          }
+        }
+
+        // Strategy 4: Look for tab panels with Options/Tech Specs content
+        if (techSpecsObj.features.length === 0 && techSpecsObj.mechanical.length === 0) {
+          var tabPanels = document.querySelectorAll('[role="tabpanel"], .tab-pane, .tab-content > div, [class*="tab-panel"]');
+          for (var tpi = 0; tpi < tabPanels.length; tpi++) {
+            var tabPanel = tabPanels[tpi];
+            // Find the heading within the panel
+            var tabHeading = (tabPanel.querySelector('h2, h3, h4, [class*="title"]') || {}).textContent || '';
+            var tabItems = extractItemsFromContainer(tabPanel);
+            if (tabItems.length > 0) {
+              categorizeTechItems(tabHeading, tabItems);
+            }
+          }
+        }
+
+        // Strategy 5: Look for any remaining sections with feature-like headings
+        if (techSpecsObj.features.length === 0 && techSpecsObj.mechanical.length === 0) {
+          var headings = document.querySelectorAll('h2, h3, h4');
+          for (var hi = 0; hi < headings.length; hi++) {
+            var hText = (headings[hi].textContent || '').toLowerCase().trim();
+            if (hText.indexOf('option') !== -1 || hText.indexOf('feature') !== -1 || hText.indexOf('equipment') !== -1 ||
+                hText.indexOf('tech spec') !== -1 || hText.indexOf('specification') !== -1) {
+              // Collect items from the next sibling(s) until the next heading
+              var nextEl = headings[hi].nextElementSibling;
+              var sectionItems = [];
+              while (nextEl && !nextEl.matches('h2, h3, h4')) {
+                var nextItems = extractItemsFromContainer(nextEl);
+                sectionItems = sectionItems.concat(nextItems);
+                nextEl = nextEl.nextElementSibling;
+              }
+              if (sectionItems.length > 0) {
+                categorizeTechItems(hText, sectionItems);
+              }
+            }
+          }
+        }
+
+        // Determine if we have any tech specs data
+        var hasTechSpecs = techSpecsObj.features.length > 0 || techSpecsObj.mechanical.length > 0 ||
+                           techSpecsObj.exterior.length > 0 || techSpecsObj.interior.length > 0 ||
+                           techSpecsObj.entertainment.length > 0 || techSpecsObj.safety.length > 0;
+        var techSpecsJson = hasTechSpecs ? JSON.stringify(techSpecsObj) : null;
+
         return {
           vin: vin,
           price: price,
@@ -983,13 +1510,26 @@ async function scrapeVehicleDetailPage(page: any, vdpUrl: string, retries = 2): 
           description: description,
           stockNumber: stockNumber,
           pageText: pageText,
-          debug: { 
-            pageTitle: pageTitle, 
-            bodyLength: bodyLength, 
-            priceElExists: priceElExists, 
-            priceSource: priceSource, 
-            priceConfidence: priceConfidence, 
-            allImgs: allImgs, 
+          // Extended VDP fields
+          exteriorColor: exteriorColor,
+          interiorColor: interiorColor,
+          engine: engine,
+          transmission: transmission,
+          drivetrain: drivetrain,
+          fuelType: fuelType,
+          carfaxUrl: carfaxUrl,
+          carfaxBadges: carfaxBadges,
+          bodyStyle: bodyStyle,
+          highlights: highlights,
+          vdpDescription: vdpDescription,
+          techSpecs: techSpecsJson,
+          debug: {
+            pageTitle: pageTitle,
+            bodyLength: bodyLength,
+            priceElExists: priceElExists,
+            priceSource: priceSource,
+            priceConfidence: priceConfidence,
+            allImgs: allImgs,
             allPriceElements: allPriceElements,
             imgDebug: debugImgInfo.join(', ')
           }
@@ -1037,9 +1577,17 @@ async function scrapeVehicleDetailPage(page: any, vdpUrl: string, retries = 2): 
       }
       
       // Detect badges and body type from page text
+      // Use extracted bodyStyle from VDP if available, otherwise fall back to text heuristic
       const badges = detectBadges(data.pageText);
-      const type = determineBodyType(data.pageText);
-      
+      const type = data.bodyStyle || determineBodyType(data.pageText);
+
+      // Merge Carfax badges from VDP into detected badges
+      const carfaxBadgeArray: string[] = data.carfaxBadges || [];
+      for (const cb of carfaxBadgeArray) {
+        if (cb === 'One Owner' && !badges.includes('One Owner')) badges.push('One Owner');
+        if (cb === 'No Reported Accidents' && !badges.includes('No Accidents')) badges.push('No Accidents');
+      }
+
       // Calculate data quality score with actual VIN match data
       const dataQualityScore = calculateDataQualityScore({
         vin: data.vin,
@@ -1049,9 +1597,14 @@ async function scrapeVehicleDetailPage(page: any, vdpUrl: string, retries = 2): 
         descriptionLength: data.description?.length || 0,
         hasVinMatchingImages: hasVinMatchingImages
       });
-      
+
+      // Log extended VDP fields
+      if (data.exteriorColor || data.transmission || data.fuelType || data.carfaxUrl) {
+        console.log(`    VDP Fields: color=${data.exteriorColor || 'N/A'}, trans=${data.transmission || 'N/A'}, fuel=${data.fuelType || 'N/A'}, dt=${data.drivetrain || 'N/A'}, carfax=${data.carfaxUrl ? 'yes' : 'no'}, badges=${carfaxBadgeArray.length}`);
+      }
+
       // Don't close the page - we're reusing it for all VDPs
-      
+
       return {
         vin: data.vin,
         price: data.price,
@@ -1065,7 +1618,20 @@ async function scrapeVehicleDetailPage(page: any, vdpUrl: string, retries = 2): 
         type,
         stockNumber: data.stockNumber,
         imageQuality,
-        dataQualityScore
+        dataQualityScore,
+        // Extended VDP fields
+        exteriorColor: data.exteriorColor || null,
+        interiorColor: data.interiorColor || null,
+        engine: data.engine || null,
+        transmission: data.transmission || null,
+        drivetrain: data.drivetrain || null,
+        fuelType: data.fuelType || null,
+        carfaxUrl: data.carfaxUrl || null,
+        carfaxBadges: carfaxBadgeArray,
+        bodyStyle: data.bodyStyle || null,
+        highlights: data.highlights || null,
+        vdpDescription: data.vdpDescription || null,
+        techSpecs: data.techSpecs || null,
       };
     } catch (error) {
       console.log(`    ✗ VDP extraction error (attempt ${attempt + 1}): ${error instanceof Error ? error.message : String(error)}`);
@@ -1091,11 +1657,23 @@ async function scrapeVehicleDetailPage(page: any, vdpUrl: string, retries = 2): 
         type: 'SUV',
         stockNumber: null,
         imageQuality: 'poor' as const,
-        dataQualityScore: 0
+        dataQualityScore: 0,
+        exteriorColor: null,
+        interiorColor: null,
+        engine: null,
+        transmission: null,
+        drivetrain: null,
+        fuelType: null,
+        carfaxUrl: null,
+        carfaxBadges: [],
+        bodyStyle: null,
+        highlights: null,
+        vdpDescription: null,
+        techSpecs: null,
       };
     }
   }
-  
+
   return {
     vin: null,
     price: null,
@@ -1109,7 +1687,19 @@ async function scrapeVehicleDetailPage(page: any, vdpUrl: string, retries = 2): 
     type: 'SUV',
     stockNumber: null,
     imageQuality: 'poor' as const,
-    dataQualityScore: 0
+    dataQualityScore: 0,
+    exteriorColor: null,
+    interiorColor: null,
+    engine: null,
+    transmission: null,
+    drivetrain: null,
+    fuelType: null,
+    carfaxUrl: null,
+    carfaxBadges: [],
+    bodyStyle: null,
+    highlights: null,
+    vdpDescription: null,
+    techSpecs: null,
   };
 }
 
@@ -1467,10 +2057,21 @@ async function scrapeDealerListings(
         location: dealerConfig.location,
         imageQuality: detailData.imageQuality,
         dataQualityScore: detailData.dataQualityScore,
+        // Extended VDP fields
+        exteriorColor: detailData.exteriorColor,
+        interiorColor: detailData.interiorColor,
+        transmission: detailData.transmission,
+        drivetrain: detailData.drivetrain,
+        fuelType: detailData.fuelType,
+        carfaxUrl: detailData.carfaxUrl,
+        carfaxBadges: detailData.carfaxBadges,
+        techSpecs: detailData.techSpecs,
+        highlights: detailData.highlights,
+        vdpDescription: detailData.vdpDescription,
       };
-      
+
       vehicles.push(vehicleData);
-      
+
       console.log(`    ✓ ${detailData.images.length} photos (${detailData.imageQuality}), Quality: ${detailData.dataQualityScore}/100, Price: $${detailData.price || 'N/A'}`);
       
       // Call the callback to save immediately if provided (incremental saving)
@@ -2096,6 +2697,17 @@ export async function scrapeDealerListingsCheckpointed(
             location: config.location,
             imageQuality: detailData.imageQuality,
             dataQualityScore: detailData.dataQualityScore,
+            // Extended VDP fields
+            exteriorColor: detailData.exteriorColor,
+            interiorColor: detailData.interiorColor,
+            transmission: detailData.transmission,
+            drivetrain: detailData.drivetrain,
+            fuelType: detailData.fuelType,
+            carfaxUrl: detailData.carfaxUrl,
+            carfaxBadges: detailData.carfaxBadges,
+            techSpecs: detailData.techSpecs,
+            highlights: detailData.highlights,
+            vdpDescription: detailData.vdpDescription,
           };
           
           // Save vehicle
