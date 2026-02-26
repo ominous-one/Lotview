@@ -30,6 +30,15 @@
     },
     {
       "matches": [
+        "https://www.facebook.com/marketplace/inbox/*",
+        "https://www.facebook.com/marketplace/t/*",
+        "https://www.facebook.com/messages/t/*"
+      ],
+      "js": ["content-facebook-messenger.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
         "https://lotview.ai/vehicle/*",
         "https://*.lotview.ai/vehicle/*"
       ],

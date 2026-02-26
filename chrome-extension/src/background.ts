@@ -1127,6 +1127,62 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return;
       }
 
+      if (message.type === "AI_AUTO_REPLY") {
+        const { vehicleId, customerMessage, customerName, messageHistory } = message.payload || {};
+        
+        if (!customerMessage || typeof customerMessage !== "string") {
+          sendResponse({ ok: false, error: "customerMessage required" });
+          return;
+        }
+
+        try {
+          const result = await apiWithRetry<{ reply: string; vehicleId?: number; vehicleName?: string }>(
+            "/api/ai/respond",
+            auth.token,
+            {
+              method: "POST",
+              body: JSON.stringify({
+                vehicleId: vehicleId || undefined,
+                customerMessage,
+                customerName,
+                messageHistory,
+              }),
+            }
+          );
+          sendResponse({ ok: true, reply: result.reply, vehicleId: result.vehicleId, vehicleName: result.vehicleName });
+        } catch (err: unknown) {
+          const error = err instanceof Error ? err.message : "AI response failed";
+          sendResponse({ ok: false, error });
+        }
+        return;
+      }
+
+      if (message.type === "AI_AUTO_REPLY_TOGGLE") {
+        const { enabled } = message.payload || {};
+        await chrome.storage.local.set({ aiAutoReplyEnabled: !!enabled });
+        
+        // Notify all FB Messenger content scripts
+        const tabs = await chrome.tabs.query({ url: ["https://www.facebook.com/*"] });
+        for (const tab of tabs) {
+          if (tab.id) {
+            try {
+              await chrome.tabs.sendMessage(tab.id, {
+                type: "AI_AUTO_REPLY_TOGGLE",
+                payload: { enabled: !!enabled },
+              });
+            } catch { /* tab may not have content script */ }
+          }
+        }
+        sendResponse({ ok: true });
+        return;
+      }
+
+      if (message.type === "AI_AUTO_REPLY_STATUS") {
+        const stored = await chrome.storage.local.get(["aiAutoReplyEnabled"]) as { aiAutoReplyEnabled?: boolean };
+        sendResponse({ ok: true, enabled: stored.aiAutoReplyEnabled === true });
+        return;
+      }
+
       sendResponse({ ok: false, error: "Unknown message type" });
     } catch (err: unknown) {
       const error = err instanceof Error ? err.message : "Unexpected error";

@@ -2910,8 +2910,12 @@ async function fillFacebook(job: PostJob): Promise<FillResult> {
         warnings.push("Model skipped - Make selection failed");
       }
       
-      // Fill Mileage/Odometer field
-      const odometerValue = (formData as Record<string, unknown>).odometer as string || "";
+      // Fill Mileage/Odometer field (FB rejects values below 300 km)
+      let odometerValue = (formData as Record<string, unknown>).odometer as string || "";
+      if (odometerValue && parseInt(odometerValue, 10) < 300) {
+        console.log(`[LV] Odometer ${odometerValue} below minimum, using 300`);
+        odometerValue = "300";
+      }
       if (odometerValue) {
         console.log(`[LV] === FILLING MILEAGE with "${odometerValue}" ===`);
         const mileageFilled = await fillTextInput("Mileage", odometerValue);
@@ -3600,9 +3604,34 @@ async function fillFacebook(job: PostJob): Promise<FillResult> {
 
   const requiredFields = ["title", "price"];
   const missingRequired = requiredFields.filter((f) => missingFields.includes(f));
-  
+
   console.log(`[LV] Fill complete. Filled: ${filledFields.join(', ')}. Missing: ${missingFields.join(', ')}`);
-  
+
+  // Auto-click Next button, then Publish
+  await sleep(1000);
+  const nextBtn = Array.from(document.querySelectorAll('div[role="button"], button'))
+    .find(el => el.textContent?.trim().toLowerCase() === 'next');
+  if (nextBtn) {
+    (nextBtn as HTMLElement).click();
+    console.log('[LV] Clicked Next button');
+
+    // Wait for Publish screen to load
+    await sleep(3000);
+
+    const publishBtn = Array.from(document.querySelectorAll('div[role="button"], button'))
+      .find(el => el.textContent?.trim().toLowerCase() === 'publish');
+    if (publishBtn) {
+      (publishBtn as HTMLElement).click();
+      console.log('[LV] Clicked Publish button');
+    } else {
+      warnings.push("Publish button not found");
+      console.log('[LV] Publish button not found');
+    }
+  } else {
+    warnings.push("Next button not found");
+    console.log('[LV] Next button not found');
+  }
+
   return {
     success: missingRequired.length === 0,
     filledFields,

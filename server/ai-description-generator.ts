@@ -113,9 +113,6 @@ EXACT FORMAT TO FOLLOW (output ONLY the description text, no markdown):
 [If Carfax badges exist, list them plainly, e.g. No Reported Accidents | One Owner]
 [If vehicle could be CPO, mention it]
 
-[Engine/drivetrain summary line - mention transmission, drivetrain, fuel type if available]
-[Odometer callout - use "${odometerCallout}"]
-
 [Key features as bullet points using bullet character • - pull from highlights and tech specs. 6-10 bullet points.]
 
 [One engaging paragraph about the vehicle - 2-3 sentences max. Match the ${personality} personality.]
@@ -127,6 +124,7 @@ Stock number: ${vehicle.stockNumber || "N/A"}
 
 RULES:
 - Canadian market: use km (not miles), CAD, provinces
+- Do NOT repeat vehicle specs (transmission, drivetrain, fuel type, odometer) as standalone lines — they are already shown in separate Facebook Marketplace fields. Only mention them naturally within bullet points or paragraph if relevant.
 - Do NOT use any emojis whatsoever. No emoji characters at all. Use plain text only.
 - Use bullet character • for feature lists
 - Do NOT use markdown formatting (no **, no ##, no backticks)

@@ -51,6 +51,14 @@ async function buildExtension() {
 
   await build({
     ...commonOptions,
+    entryPoints: [path.join(srcDir, 'content-facebook-messenger.ts')],
+    outfile: path.join(distDir, 'content-facebook-messenger.js'),
+    format: 'iife',
+  });
+  console.log('  ✓ content-facebook-messenger.js');
+
+  await build({
+    ...commonOptions,
     entryPoints: [path.join(srcDir, 'content-lotview.ts')],
     outfile: path.join(distDir, 'content-lotview.js'),
     format: 'iife',

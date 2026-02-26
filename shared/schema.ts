@@ -140,6 +140,7 @@ export const vehicles = pgTable("vehicles", {
   transmission: text("transmission"), // Transmission type (Automatic, Manual, CVT, etc.)
   fuelType: text("fuel_type"), // Fuel type (Gasoline, Diesel, Electric, Hybrid, etc.)
   drivetrain: text("drivetrain"), // Drivetrain (AWD, FWD, RWD, 4WD, etc.)
+  engine: text("engine"), // Engine info (e.g., "2.0L 4-Cylinder", "PLUG IN HYBRID")
   stockNumber: text("stock_number"), // Stock # from dealership
   cargurusPrice: integer("cargurus_price"), // Price on CarGurus (for comparison)
   cargurusUrl: text("cargurus_url"), // Link to CarGurus listing

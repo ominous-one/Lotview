@@ -109,6 +109,7 @@ function Popup() {
   const [tplShared, setTplShared] = useState(false);
   const [dataLoadFailed, setDataLoadFailed] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [aiAutoReplyEnabled, setAiAutoReplyEnabled] = useState(false);
   const [privacyConsent, setPrivacyConsent] = useState<boolean | null>(null);
   const [consentLoading, setConsentLoading] = useState(true);
 
@@ -387,11 +388,21 @@ function Popup() {
     }
   };
 
+  const toggleAiAutoReply = async (newEnabled: boolean) => {
+    setAiAutoReplyEnabled(newEnabled);
+    await sendMessage({ type: "AI_AUTO_REPLY_TOGGLE", payload: { enabled: newEnabled } });
+    addToast("info", newEnabled ? "AI Auto-Reply enabled" : "AI Auto-Reply disabled");
+  };
+
   useEffect(() => {
     if (auth) {
       fetchInventory();
       fetchTemplates();
       fetchLimits();
+      // Load auto-reply status
+      sendMessage<{ ok: boolean; enabled?: boolean }>({ type: "AI_AUTO_REPLY_STATUS" }).then(res => {
+        if (res?.ok) setAiAutoReplyEnabled(res.enabled || false);
+      });
     }
   }, [auth]);
 
@@ -475,7 +486,7 @@ function Popup() {
       year: selectedVehicle.year ? String(selectedVehicle.year) : "",
       make: selectedVehicle.make || "",
       model: selectedVehicle.model || "",
-      odometer: selectedVehicle.odometer ? String(selectedVehicle.odometer) : "",
+      odometer: selectedVehicle.odometer ? String(Math.max(selectedVehicle.odometer, 300)) : "",
       exteriorColor: selectedVehicle.exteriorColour || "",
       interiorColor: selectedVehicle.interiorColour || "",
       transmission: selectedVehicle.transmission || "",
@@ -822,6 +833,25 @@ function Popup() {
                 </button>
               );
             })}
+          </div>
+
+          <div className="section" style={{ background: aiAutoReplyEnabled ? "#dcfce7" : "#f3f4f6", padding: "12px", borderRadius: "8px", marginBottom: "8px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <label style={{ fontWeight: 600, fontSize: "13px" }}>🤖 AI Auto-Reply</label>
+                <p style={{ fontSize: "11px", color: "#6b7280", margin: "2px 0 0" }}>
+                  {aiAutoReplyEnabled ? "Responding to buyer messages" : "Off — buyers won't get auto-replies"}
+                </p>
+              </div>
+              <label className="toggle-switch" data-testid="toggle-ai-auto-reply">
+                <input
+                  type="checkbox"
+                  checked={aiAutoReplyEnabled}
+                  onChange={(e) => toggleAiAutoReply(e.target.checked)}
+                />
+                <span className="toggle-slider" />
+              </label>
+            </div>
           </div>
 
           <div className="section">

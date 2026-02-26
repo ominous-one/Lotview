@@ -222,6 +222,7 @@ export async function upsertVehicleByVin(vehicleData: ScrapedVehicle): Promise<{
       transmission: preserveField(vehicleData.transmission, existingVehicle?.transmission),
       fuelType: preserveField(vehicleData.fuelType, existingVehicle?.fuelType),
       drivetrain: preserveField(vehicleData.drivetrain, existingVehicle?.drivetrain),
+      engine: preserveField(vehicleData.engine, existingVehicle?.engine),
       vdpDescription: preserveField(vehicleData.vdpDescription, existingVehicle?.vdpDescription),
       techSpecs: preserveField(vehicleData.techSpecs, existingVehicle?.techSpecs),
       highlights: preserveField(vehicleData.highlights, existingVehicle?.highlights),
@@ -275,6 +276,7 @@ export async function upsertVehicleByVin(vehicleData: ScrapedVehicle): Promise<{
       transmission: vehicleData.transmission || null,
       fuelType: vehicleData.fuelType || null,
       drivetrain: vehicleData.drivetrain || null,
+      engine: vehicleData.engine || null,
       // VDP content for rich listings
       vdpDescription: vehicleData.vdpDescription || null,
       techSpecs: vehicleData.techSpecs || null,
@@ -486,6 +488,7 @@ export interface ScrapedVehicle {
   transmission?: string | null;
   drivetrain?: string | null;
   fuelType?: string | null;
+  engine?: string | null;
   // VDP content for rich listings
   vdpDescription?: string | null;  // Full vehicle overview/description from VDP
   techSpecs?: string | null;       // JSON: { features: [], mechanical: [], exterior: [], interior: [], entertainment: [] }
@@ -1731,6 +1734,7 @@ async function scrapeDealershipIncrementally(targetDealershipId: number): Promis
         transmission: listing.transmission || undefined,
         drivetrain: listing.drivetrain || undefined,
         fuelType: listing.fuelType || undefined,
+        engine: listing.engine || undefined,
         carfaxUrl: listing.carfaxUrl || undefined,
         carfaxBadges: listing.carfaxBadges && listing.carfaxBadges.length > 0 ? listing.carfaxBadges : undefined,
         techSpecs: listing.techSpecs || undefined,
