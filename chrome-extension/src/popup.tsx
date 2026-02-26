@@ -492,9 +492,16 @@ function Popup() {
     // selectedVehicle.images should already have local images first from API response
     let imageUrls = [...new Set(selectedVehicle.images || [])].slice(0, 20);
     
-    // Check if we have local images (start with /public-objects/)
-    const localImages = imageUrls.filter(url => url.startsWith('/public-objects/'));
+    // Check if we have local images (start with /public-objects/ or /api/public/vehicle-image/)
+    const localImages = imageUrls.filter(url => url.startsWith('/public-objects/') || url.startsWith('/api/public/vehicle-image/'));
     const hasLocalImages = localImages.length > 0;
+    
+    // Convert relative local URLs to absolute using server URL
+    if (hasLocalImages) {
+      imageUrls = imageUrls.map(url => 
+        url.startsWith('/') ? `${serverUrl}${url}` : url
+      );
+    }
     
     console.log("[LV-Popup] Image sources:", { 
       totalImages: imageUrls.length,
