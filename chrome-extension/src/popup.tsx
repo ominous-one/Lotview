@@ -481,6 +481,7 @@ function Popup() {
       transmission: selectedVehicle.transmission || "",
       fuelType: selectedVehicle.fuelType || "",
       drivetrain: selectedVehicle.drivetrain || "",
+      bodyType: selectedVehicle.bodyType || "",
       trim: selectedVehicle.trim || "",
       highlights: selectedVehicle.highlights || "",
     };

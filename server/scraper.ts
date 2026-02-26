@@ -3,7 +3,7 @@ import { execSync } from 'child_process';
 import { sql, eq, and, inArray, lt, isNull, or } from 'drizzle-orm';
 import { db } from './db';
 import { storage } from './storage';
-import { vehicles, vehicleViews, chatConversations } from '@shared/schema';
+import { vehicles, vehicleViews, chatConversations, vehicleImages } from '@shared/schema';
 import { scrapeAllCarGurusDealers } from './cargurus-scraper';
 import { generateVehicleDescription } from './openai';
 import { scrapeAllDealerListings, scrapeDealerListingsWithCallback, scrapeDealerListingsCheckpointed, type DealerVehicleListing } from './dealer-listing-scraper';
@@ -366,34 +366,93 @@ async function uploadVehicleImagesToStorage(vehicleId: number, dealershipId: num
   if (!cdnUrls || cdnUrls.length === 0) {
     return;
   }
-  
+
+  // Skip URLs that are already our own cached URLs
+  const externalUrls = cdnUrls.filter(u => !u.startsWith('/api/public/vehicle-image/'));
+  if (externalUrls.length === 0) {
+    console.log(`[ImageCache] Vehicle ${vehicleId}: Images already cached, skipping`);
+    return;
+  }
+
   try {
-    // Check if local images already exist
-    const [existing] = await db
-      .select({ localImages: vehicles.localImages })
-      .from(vehicles)
-      .where(eq(vehicles.id, vehicleId))
-      .limit(1);
-    
-    // Skip if local images already uploaded (same count as CDN images)
-    if (existing?.localImages && existing.localImages.length >= cdnUrls.length) {
-      console.log(`[Scraper] Vehicle ${vehicleId}: Local images already exist (${existing.localImages.length}), skipping upload`);
+    // Check if images already cached in vehicle_images table
+    const existingCount = await db.select({ count: sql<number>`count(*)` })
+      .from(vehicleImages)
+      .where(eq(vehicleImages.vehicleId, vehicleId));
+
+    if (existingCount[0]?.count >= externalUrls.length) {
+      console.log(`[ImageCache] Vehicle ${vehicleId}: ${existingCount[0].count} images already cached, skipping`);
       return;
     }
-    
-    console.log(`[Scraper] Vehicle ${vehicleId}: Uploading ${cdnUrls.length} images to Object Storage...`);
-    
-    const localUrls = await objectStorageService.uploadVehicleImages(cdnUrls, dealershipId, vehicleId);
-    
+
+    console.log(`[ImageCache] Vehicle ${vehicleId}: Downloading ${externalUrls.length} images to DB cache...`);
+
+    // Delete existing cached images for this vehicle (re-cache)
+    await db.delete(vehicleImages).where(eq(vehicleImages.vehicleId, vehicleId));
+
+    const localUrls: string[] = [];
+    let successCount = 0;
+
+    for (let i = 0; i < externalUrls.length; i++) {
+      try {
+        const url = externalUrls[i];
+        const response = await fetch(url, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+            'Referer': 'https://www.autotrader.ca/',
+          },
+          signal: AbortSignal.timeout(15000),
+        });
+
+        if (!response.ok) {
+          console.log(`[ImageCache] Vehicle ${vehicleId} image ${i}: HTTP ${response.status}, skipping`);
+          continue;
+        }
+
+        const contentType = response.headers.get('content-type') || 'image/jpeg';
+        if (!contentType.startsWith('image/')) {
+          console.log(`[ImageCache] Vehicle ${vehicleId} image ${i}: Not an image (${contentType}), skipping`);
+          continue;
+        }
+
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+
+        // Skip tiny images (likely broken/placeholders)
+        if (buffer.length < 1024) {
+          console.log(`[ImageCache] Vehicle ${vehicleId} image ${i}: Too small (${buffer.length}B), skipping`);
+          continue;
+        }
+
+        await db.insert(vehicleImages).values({
+          vehicleId,
+          dealershipId,
+          imageIndex: successCount,
+          data: buffer,
+          contentType,
+          originalUrl: url,
+        });
+
+        localUrls.push(`/api/public/vehicle-image/${vehicleId}/${successCount}`);
+        successCount++;
+      } catch (imgError: any) {
+        console.log(`[ImageCache] Vehicle ${vehicleId} image ${i}: Download failed (${imgError.message}), skipping`);
+      }
+    }
+
     if (localUrls.length > 0) {
+      // Update vehicles.images with local URLs
       await db.update(vehicles)
-        .set({ localImages: localUrls })
+        .set({ images: localUrls })
         .where(eq(vehicles.id, vehicleId));
-      console.log(`[Scraper] Vehicle ${vehicleId}: Uploaded ${localUrls.length} images to Object Storage`);
+      console.log(`[ImageCache] Vehicle ${vehicleId}: Cached ${successCount}/${externalUrls.length} images`);
+    } else {
+      console.log(`[ImageCache] Vehicle ${vehicleId}: No images downloaded successfully`);
     }
   } catch (error) {
-    console.error(`[Scraper] Vehicle ${vehicleId}: Failed to upload images to Object Storage:`, error);
-    // Don't fail the scrape if image upload fails
+    console.error(`[ImageCache] Vehicle ${vehicleId}: Failed to cache images:`, error);
+    // Don't fail the scrape if image caching fails
   }
 }
 

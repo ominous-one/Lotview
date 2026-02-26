@@ -1,4 +1,4 @@
-import { pgTable, text, integer, serial, timestamp, boolean, uuid, real, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, serial, timestamp, boolean, uuid, real, jsonb, customType } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { sql } from "drizzle-orm";
@@ -175,6 +175,28 @@ export const insertVehicleSchema = createInsertSchema(vehicles).omit({
 
 export type InsertVehicle = z.infer<typeof insertVehicleSchema>;
 export type Vehicle = typeof vehicles.$inferSelect;
+
+// Custom type for PostgreSQL bytea columns (binary data)
+const bytea = customType<{ data: Buffer; driverParam: Buffer }>({
+  dataType() {
+    return "bytea";
+  },
+});
+
+// Cached vehicle images stored as binary data in PostgreSQL
+// Solves the problem of AutoTrader CDN URLs expiring and returning 404
+export const vehicleImages = pgTable("vehicle_images", {
+  id: serial("id").primaryKey(),
+  vehicleId: integer("vehicle_id").notNull().references(() => vehicles.id, { onDelete: 'cascade' }),
+  dealershipId: integer("dealership_id").notNull().references(() => dealerships.id, { onDelete: 'cascade' }),
+  imageIndex: integer("image_index").notNull(),
+  data: bytea("data").notNull(),
+  contentType: text("content_type").default("image/jpeg"),
+  originalUrl: text("original_url"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type VehicleImage = typeof vehicleImages.$inferSelect;
 
 // Carfax report data scraped from vhr.carfax.ca
 export const carfaxReports = pgTable("carfax_reports", {

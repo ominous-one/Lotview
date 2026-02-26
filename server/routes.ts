@@ -31,7 +31,8 @@ import {
   fbMarketplaceListings,
   fbMarketplaceQueue,
   fbMarketplaceActivityLog,
-  fbMarketplaceSettings
+  fbMarketplaceSettings,
+  vehicleImages
 } from "@shared/schema";
 import { eq, desc, sql, and, gt, gte, isNull, asc, or } from "drizzle-orm";
 import { fromZodError } from "zod-validation-error";
@@ -3013,6 +3014,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       logError('Error fetching tracking config:', error instanceof Error ? error : new Error(String(error)), { route: 'api-public-tracking-config' });
       res.status(500).json({ error: "Failed to fetch tracking config" });
+    }
+  });
+
+  // Serve cached vehicle images from PostgreSQL (permanent, no CDN expiry)
+  app.get("/api/public/vehicle-image/:vehicleId/:index", async (req, res) => {
+    try {
+      const vehicleId = parseInt(req.params.vehicleId);
+      const imageIndex = parseInt(req.params.index);
+
+      if (isNaN(vehicleId) || isNaN(imageIndex)) {
+        return res.status(400).json({ error: "Invalid vehicleId or index" });
+      }
+
+      const [image] = await db.select()
+        .from(vehicleImages)
+        .where(and(
+          eq(vehicleImages.vehicleId, vehicleId),
+          eq(vehicleImages.imageIndex, imageIndex)
+        ))
+        .limit(1);
+
+      if (!image) {
+        return res.status(404).json({ error: "Image not found" });
+      }
+
+      res.setHeader("Content-Type", image.contentType || "image/jpeg");
+      res.setHeader("Cache-Control", "public, max-age=604800"); // 1 week
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+      res.send(image.data);
+    } catch (error) {
+      console.error("Error serving cached vehicle image:", error);
+      res.status(500).json({ error: "Failed to serve image" });
     }
   });
 
@@ -15291,6 +15326,7 @@ Return ONLY the enhanced description, nothing else.`;
           transmission: v.transmission,
           drivetrain: v.drivetrain,
           fuelType: v.fuelType,
+          bodyType: v.bodyType,
           description: decodeHtmlEntities(v.fbMarketplaceDescription || v.description),
           highlights: decodeHtmlEntities(v.highlights),
           location: v.location,

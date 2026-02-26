@@ -24,6 +24,7 @@ export interface VehicleSummary {
   transmission?: string | null;
   drivetrain?: string | null;
   fuelType?: string | null;
+  bodyType?: string | null;
   description?: string | null;
   highlights?: string | null;
   location?: string | null;

@@ -341,38 +341,38 @@ const FACEBOOK_FUEL_TYPES = ['Gasoline', 'Diesel', 'Electric', 'Hybrid', 'Flex f
  */
 function normalizeFuelType(rawFuel: string): string {
   if (!rawFuel) return 'Gasoline';
-  
+
   const fuelLower = rawFuel.toLowerCase().trim();
-  
-  // Gasoline variations
-  if (fuelLower.includes('gas') || fuelLower.includes('petrol') || fuelLower.includes('unleaded') || 
-      fuelLower.includes('regular') || fuelLower.includes('premium') || fuelLower.includes('super')) {
-    return 'Gasoline';
-  }
-  
-  // Diesel variations
-  if (fuelLower.includes('diesel') || fuelLower.includes('biodiesel') || fuelLower.includes('dsl')) {
-    return 'Diesel';
-  }
-  
-  // Electric variations
-  if (fuelLower.includes('electric') || fuelLower.includes('ev') || fuelLower.includes('bev') ||
-      fuelLower.includes('battery') || fuelLower === 'e') {
-    return 'Electric';
-  }
-  
-  // Hybrid variations
+
+  // Hybrid FIRST (most specific - catches "Hybrid Electric", "Plug-in Hybrid", "Gasoline/Electric Hybrid")
   if (fuelLower.includes('hybrid') || fuelLower.includes('phev') || fuelLower.includes('hev') ||
       fuelLower.includes('plug-in') || fuelLower.includes('plugin')) {
     return 'Hybrid';
   }
-  
+
+  // Electric (before Gas - catches "Electric" without matching "Gasoline/Electric" which is Hybrid above)
+  if (fuelLower.includes('electric') || fuelLower.includes('ev') || fuelLower.includes('bev') ||
+      fuelLower.includes('battery') || fuelLower === 'e') {
+    return 'Electric';
+  }
+
+  // Diesel variations
+  if (fuelLower.includes('diesel') || fuelLower.includes('biodiesel') || fuelLower.includes('dsl')) {
+    return 'Diesel';
+  }
+
   // Flex fuel variations
   if (fuelLower.includes('flex') || fuelLower.includes('e85') || fuelLower.includes('ffv') ||
       fuelLower.includes('ethanol')) {
     return 'Flex fuel';
   }
-  
+
+  // Gasoline variations (last - default catch-all for gas/petrol)
+  if (fuelLower.includes('gas') || fuelLower.includes('petrol') || fuelLower.includes('unleaded') ||
+      fuelLower.includes('regular') || fuelLower.includes('premium') || fuelLower.includes('super')) {
+    return 'Gasoline';
+  }
+
   // Default
   return 'Gasoline';
 }
@@ -472,13 +472,17 @@ function verifyInputValue(input: HTMLInputElement | HTMLTextAreaElement | HTMLEl
 }
 
 function setNativeValue(el: HTMLInputElement | HTMLTextAreaElement, value: string): void {
-  const valueSetter = Object.getOwnPropertyDescriptor(el.constructor.prototype, 'value')?.set;
-  if (valueSetter) {
-    valueSetter.call(el, value);
+  // Use window.HTMLInputElement.prototype (not el.constructor.prototype) for React controlled inputs
+  const proto = el instanceof HTMLTextAreaElement
+    ? window.HTMLTextAreaElement.prototype
+    : window.HTMLInputElement.prototype;
+  const nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+  if (nativeSetter) {
+    nativeSetter.call(el, value);
   } else {
     el.value = value;
   }
-  
+
   el.dispatchEvent(new Event('input', { bubbles: true }));
   el.dispatchEvent(new Event('change', { bubbles: true }));
 }
@@ -2111,12 +2115,16 @@ async function fillVehicleDropdown(fieldName: string, value: string): Promise<bo
       }
     }
     
-    // Try partial matches (case insensitive)
+    // Try partial matches (case insensitive, bidirectional)
     for (const opt of options) {
       const optText = opt.textContent?.trim() || '';
-      if (optText.toLowerCase() === value.toLowerCase() || 
-          optText.toLowerCase().startsWith(value.toLowerCase()) ||
-          optText.toLowerCase().includes(value.toLowerCase())) {
+      const optLower = optText.toLowerCase();
+      const valLower = value.toLowerCase();
+      if (optLower === valLower ||
+          optLower.startsWith(valLower) ||
+          optLower.includes(valLower) ||
+          valLower.startsWith(optLower) ||
+          valLower.includes(optLower)) {
         if (await clickOption(opt, 'partial match')) return true;
       }
     }
@@ -2286,13 +2294,26 @@ async function fillTextInput(fieldName: string, value: string): Promise<boolean>
         for (const input of inputs) {
           if (input.type === 'hidden' || input.type === 'file' || input.type === 'checkbox') continue;
           if (!input.offsetParent) continue;
-          
+
+          // Skip Location input when filling non-Location fields (e.g. Model)
+          if (fieldName.toLowerCase() !== 'location') {
+            const ariaLabel = input.getAttribute('aria-label')?.toLowerCase() || '';
+            const role = input.getAttribute('role') || '';
+            const closestCombobox = input.closest('[role="combobox"]');
+            const comboboxAria = closestCombobox?.getAttribute('aria-label')?.toLowerCase() || '';
+            if (ariaLabel.includes('location') || comboboxAria.includes('location') ||
+                (role === 'combobox' && ariaLabel.includes('location'))) {
+              console.log(`[LV] Skipping Location input when filling ${fieldName}`);
+              continue;
+            }
+          }
+
           const inputRect = input.getBoundingClientRect();
           if (inputRect.width < 50 || inputRect.height < 20) continue;
-          
+
           // Calculate distance between label and input
           const distance = Math.abs(labelRect.top - inputRect.top) + Math.abs(labelRect.left - inputRect.left);
-          
+
           // Avoid duplicates
           if (!candidateInputs.some(c => c.input === input)) {
             candidateInputs.push({ input, label: span, distance });
@@ -2332,14 +2353,20 @@ async function fillTextInput(fieldName: string, value: string): Promise<boolean>
   // Fallback: Try aria-label
   const ariaInput = document.querySelector<HTMLInputElement>(`input[aria-label*="${fieldName}" i]`);
   if (ariaInput && ariaInput.offsetParent !== null && ariaInput.type !== 'hidden') {
-    console.log(`[LV] Found ${fieldName} via aria-label, current value: "${ariaInput.value}"`);
-    ariaInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    await sleep(DELAY_SHORT);
-    
-    const success = await typeWithKeyboard(ariaInput, value);
-    if (success) {
+    // Skip Location input when filling non-Location fields
+    const ariaLabelVal = ariaInput.getAttribute('aria-label')?.toLowerCase() || '';
+    if (fieldName.toLowerCase() !== 'location' && ariaLabelVal.includes('location')) {
+      console.log(`[LV] Skipping Location input in aria-label fallback for ${fieldName}`);
+    } else {
+      console.log(`[LV] Found ${fieldName} via aria-label, current value: "${ariaInput.value}"`);
+      ariaInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
       await sleep(DELAY_SHORT);
-      return true;
+
+      const success = await typeWithKeyboard(ariaInput, value);
+      if (success) {
+        await sleep(DELAY_SHORT);
+        return true;
+      }
     }
   }
   
@@ -2782,8 +2809,9 @@ async function fillFacebook(job: PostJob): Promise<FillResult> {
     
     if (fieldsAppeared) {
       const titleStr = typeof rawFormData.title === 'string' ? rawFormData.title : String(rawFormData.title || '');
-      const yearValue = (formData as Record<string, unknown>).year as string || 
-                        titleStr.match(/^(\d{4})/)?.[1] || "";
+      const rawYear = (formData as Record<string, unknown>).year;
+      const yearValue = rawYear ? String(rawYear) : titleStr.match(/^(\d{4})/)?.[1] || "";
+      console.log(`[LV] Year: raw=${rawYear} (${typeof rawYear}), resolved="${yearValue}"`);
       const makeValue = (formData as Record<string, unknown>).make as string ||
                         titleStr.split(' ')[1] || "";
       const baseModel = (formData as Record<string, unknown>).model as string ||
@@ -2898,10 +2926,35 @@ async function fillFacebook(job: PostJob): Promise<FillResult> {
       await sleep(DELAY_LONG);
       
       // Fill Body style dropdown (SUV, Sedan, Coupe, etc.)
+      // Use DB bodyType as primary source, model name matching as fallback
+      const dbBodyType = String((formData as Record<string, unknown>).bodyType || "").toLowerCase().trim();
       const drivetrainValue = (formData as Record<string, unknown>).drivetrain as string || "";
       const modelForBodyStyle = modelValue.toLowerCase();
       const makeForBodyStyle = (normalizedMake || (formData as Record<string, unknown>).make as string || "").toLowerCase();
       let bodyStyle = "Sedan"; // Default
+
+      // Primary: use DB bodyType if available
+      if (dbBodyType) {
+        if (dbBodyType.includes('suv') || dbBodyType.includes('sport utility') || dbBodyType.includes('crossover')) {
+          bodyStyle = "SUV";
+        } else if (dbBodyType.includes('truck') || dbBodyType.includes('pickup')) {
+          bodyStyle = "Truck";
+        } else if (dbBodyType.includes('coupe')) {
+          bodyStyle = "Coupe";
+        } else if (dbBodyType.includes('convertible') || dbBodyType.includes('roadster') || dbBodyType.includes('cabriolet')) {
+          bodyStyle = "Convertible";
+        } else if (dbBodyType.includes('wagon') || dbBodyType.includes('estate')) {
+          bodyStyle = "Wagon";
+        } else if (dbBodyType.includes('van') || dbBodyType.includes('minivan')) {
+          bodyStyle = "Van";
+        } else if (dbBodyType.includes('hatchback') || dbBodyType.includes('5-door')) {
+          bodyStyle = "Hatchback";
+        } else if (dbBodyType.includes('sedan')) {
+          bodyStyle = "Sedan";
+        }
+        console.log(`[LV] Body style from DB bodyType "${dbBodyType}" → "${bodyStyle}"`);
+      } else {
+        console.log(`[LV] No DB bodyType, falling back to model name matching`);
       
       // Truck models (check first since some could match SUV patterns)
       if (modelForBodyStyle.includes("gladiator") || modelForBodyStyle.includes("pickup") ||
@@ -2988,6 +3041,7 @@ async function fillFacebook(job: PostJob): Promise<FillResult> {
           modelForBodyStyle.includes("golf") || modelForBodyStyle.includes("civic hatch")) {
         bodyStyle = "Hatchback";
       }
+      } // end else (no DB bodyType)
       console.log(`[LV] === FILLING BODY STYLE with "${bodyStyle}" ===`);
       const bodyStyleFilled = await fillVehicleDropdown("Body style", bodyStyle);
       if (bodyStyleFilled) filledFields.push("bodyStyle");
@@ -3339,40 +3393,45 @@ async function fillFacebook(job: PostJob): Promise<FillResult> {
       priceInput.focus();
       await sleep(100);
       
-      // Clear existing value
-      priceInput.value = '';
-      priceInput.dispatchEvent(new Event('input', { bubbles: true }));
+      // Clear existing value using native setter (React compatible)
+      setNativeValue(priceInput, '');
       await sleep(50);
-      
-      // Use setNativeValue for React compatibility
+
+      // Set full value via React-compatible native setter
       setNativeValue(priceInput, priceValue);
-      priceInput.dispatchEvent(new Event('input', { bubbles: true }));
-      priceInput.dispatchEvent(new Event('change', { bubbles: true }));
-      await sleep(DELAY_SHORT);
-      
+      await sleep(500);
+
       // Verify the value stuck
       if (priceInput.value === priceValue || priceInput.value.includes(priceValue)) {
         console.log(`[LV] ✓ Price filled successfully: "${priceInput.value}"`);
         priceFilled = true;
       } else {
-        // Retry with character-by-character typing
-        console.log(`[LV] setNativeValue didn't stick, trying character-by-character...`);
-        priceInput.value = '';
-        priceInput.dispatchEvent(new Event('input', { bubbles: true }));
+        // Retry: focus, select all (Ctrl+A), then type value using keyboard events
+        console.log(`[LV] setNativeValue didn't stick (got "${priceInput.value}"), trying select-all + keyboard...`);
+        priceInput.focus();
+        await sleep(100);
+
+        // Select all existing content
+        priceInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', code: 'KeyA', ctrlKey: true, bubbles: true }));
+        priceInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'a', code: 'KeyA', ctrlKey: true, bubbles: true }));
+        document.execCommand('selectAll', false);
         await sleep(50);
-        
-        for (const char of priceValue) {
-          priceInput.value += char;
-          priceInput.dispatchEvent(new Event('input', { bubbles: true }));
-          priceInput.dispatchEvent(new InputEvent('input', { bubbles: true, data: char, inputType: 'insertText' }));
-          await sleep(30);
-        }
+
+        // Delete selected content
+        priceInput.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward' }));
+        await sleep(50);
+
+        // Type the full value using insertText (works with React)
+        document.execCommand('insertText', false, priceValue);
+        priceInput.dispatchEvent(new Event('input', { bubbles: true }));
         priceInput.dispatchEvent(new Event('change', { bubbles: true }));
         await sleep(DELAY_SHORT);
-        
+
         if (priceInput.value === priceValue || priceInput.value.includes(priceValue)) {
-          console.log(`[LV] ✓ Price filled via character typing: "${priceInput.value}"`);
+          console.log(`[LV] ✓ Price filled via select-all + keyboard: "${priceInput.value}"`);
           priceFilled = true;
+        } else {
+          console.log(`[LV] Price still wrong: expected "${priceValue}", got "${priceInput.value}"`);
         }
       }
     }
@@ -3526,10 +3585,16 @@ async function fillFacebook(job: PostJob): Promise<FillResult> {
   }
   await sleep(randomDelay(300, 500));
 
-  // SKIP Location field - Facebook pre-populates it automatically based on user's profile
-  // Attempting to fill it causes issues and isn't necessary
-  console.log("[LV] SKIPPING Location field (pre-populated by Facebook)");
-  filledFields.push("location (pre-populated)");
+  // Fill Location field with hardcoded "Vancouver, BC"
+  console.log("[LV] Filling Location field with 'Vancouver, BC'");
+  const locationFilled = await fillLocationField("Vancouver, BC");
+  if (locationFilled) {
+    filledFields.push("location");
+    console.log("[LV] Location field filled successfully");
+  } else {
+    warnings.push("Location field not filled");
+    console.log("[LV] WARNING: Location field not filled");
+  }
 
   // Photos were already uploaded at the beginning - no need to do it again here
 
