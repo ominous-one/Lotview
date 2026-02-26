@@ -107,6 +107,7 @@ export interface DealerVehicleListing {
   techSpecs: string | null;
   highlights: string | null;
   vdpDescription: string | null;
+  engine: string | null;
 }
 
 function parsePrice(priceText: string): number | null {
@@ -2108,6 +2109,7 @@ async function scrapeDealerListings(
         techSpecs: detailData.techSpecs,
         highlights: detailData.highlights,
         vdpDescription: detailData.vdpDescription,
+        engine: detailData.engine || null,
       };
 
       vehicles.push(vehicleData);
@@ -2748,6 +2750,7 @@ export async function scrapeDealerListingsCheckpointed(
             techSpecs: detailData.techSpecs,
             highlights: detailData.highlights,
             vdpDescription: detailData.vdpDescription,
+            engine: detailData.engine || null,
           };
           
           // Save vehicle
