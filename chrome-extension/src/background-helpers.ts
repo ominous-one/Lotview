@@ -55,6 +55,9 @@ export const ALLOWED_ACTIONS = new Set([
   "AI_AUTO_REPLY",
   "AI_AUTO_REPLY_TOGGLE",
   "AI_AUTO_REPLY_STATUS",
+  "AI_SETTINGS_GET",
+  "AI_SETTINGS_SAVE",
+  "AI_SETTINGS_TEST",
 ]);
 
 export const CONSENT_EXEMPT_ACTIONS = new Set([

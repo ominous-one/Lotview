@@ -1,9 +1,9 @@
 import OpenAI from "openai";
 import { db } from "./db";
 import { storage } from "./storage";
-import { vehicles } from "@shared/schema";
+import { vehicles, aiSettings } from "@shared/schema";
 import { eq, and, gte, lte, ne, desc, sql } from "drizzle-orm";
-import type { Vehicle, Dealership, CarfaxReport, MessengerConversation, MessengerMessage } from "@shared/schema";
+import type { Vehicle, Dealership, CarfaxReport, MessengerConversation, MessengerMessage, AiSettings } from "@shared/schema";
 import { buildSalesAgentSystemPrompt, buildVehicleContext, buildCarfaxContext, buildInventoryContext, buildFollowUpPrompt } from "./ai-prompts";
 import { buildPaymentContext } from "./ai-payment-calculator";
 
@@ -225,6 +225,19 @@ export async function generateSalesResponse(req: AiSalesRequest): Promise<AiSale
     }));
   }
 
+  // 8b. Load AI settings for this dealership
+  let dealerAiSettings: AiSettings | null = null;
+  try {
+    const [settings] = await db
+      .select()
+      .from(aiSettings)
+      .where(eq(aiSettings.dealershipId, dealershipId))
+      .limit(1);
+    dealerAiSettings = settings || null;
+  } catch {
+    // Table might not exist yet, fall back to defaults
+  }
+
   // 9. Get current date/time in Pacific timezone
   const now = new Date();
   const currentDateTime = now.toLocaleString('en-US', {
@@ -251,6 +264,7 @@ export async function generateSalesResponse(req: AiSalesRequest): Promise<AiSale
       messageCount: history.length,
       isFirstMessage,
     },
+    aiSettings: dealerAiSettings,
   });
 
   // 11. Build the messages array for OpenAI

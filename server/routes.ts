@@ -16235,6 +16235,114 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
     }
   });
 
+  // ===== AI SETTINGS (Bot Training & Customization) =====
+
+  // GET /api/ai-settings — get current dealership's AI settings
+  app.get("/api/ai-settings", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const { aiSettings: aiSettingsTable } = await import("@shared/schema");
+      const [settings] = await db
+        .select()
+        .from(aiSettingsTable)
+        .where(eq(aiSettingsTable.dealershipId, dealershipId))
+        .limit(1);
+
+      res.json(settings || null);
+    } catch (error) {
+      logError('Error fetching AI settings:', error instanceof Error ? error : new Error(String(error)), { route: 'api-ai-settings-get' });
+      res.status(500).json({ error: "Failed to fetch AI settings" });
+    }
+  });
+
+  // PUT /api/ai-settings — update AI settings
+  app.put("/api/ai-settings", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const { aiSettings: aiSettingsTable } = await import("@shared/schema");
+      const {
+        salesPersonality, greetingTemplate, tone, responseLength,
+        alwaysInclude, neverSay, objectionHandling, businessHours,
+        escalationRules, customCtas, sampleConversations, enabled,
+      } = req.body;
+
+      // Validate tone and responseLength
+      const validTones = ['professional', 'friendly', 'casual', 'luxury'];
+      const validLengths = ['short', 'medium', 'long'];
+      if (tone && !validTones.includes(tone)) {
+        return res.status(400).json({ error: `Invalid tone. Must be one of: ${validTones.join(', ')}` });
+      }
+      if (responseLength && !validLengths.includes(responseLength)) {
+        return res.status(400).json({ error: `Invalid responseLength. Must be one of: ${validLengths.join(', ')}` });
+      }
+
+      const [existing] = await db
+        .select()
+        .from(aiSettingsTable)
+        .where(eq(aiSettingsTable.dealershipId, dealershipId))
+        .limit(1);
+
+      const values = {
+        dealershipId,
+        salesPersonality: salesPersonality ?? null,
+        greetingTemplate: greetingTemplate ?? null,
+        tone: tone ?? 'professional',
+        responseLength: responseLength ?? 'short',
+        alwaysInclude: alwaysInclude ?? null,
+        neverSay: neverSay ?? null,
+        objectionHandling: objectionHandling ?? null,
+        businessHours: businessHours ?? null,
+        escalationRules: escalationRules ?? null,
+        customCtas: customCtas ?? null,
+        sampleConversations: sampleConversations ?? null,
+        enabled: enabled ?? true,
+        updatedAt: new Date(),
+      };
+
+      let result;
+      if (existing) {
+        [result] = await db
+          .update(aiSettingsTable)
+          .set(values)
+          .where(eq(aiSettingsTable.id, existing.id))
+          .returning();
+      } else {
+        [result] = await db
+          .insert(aiSettingsTable)
+          .values(values)
+          .returning();
+      }
+
+      res.json(result);
+    } catch (error) {
+      logError('Error updating AI settings:', error instanceof Error ? error : new Error(String(error)), { route: 'api-ai-settings-put' });
+      res.status(500).json({ error: "Failed to update AI settings" });
+    }
+  });
+
+  // POST /api/ai-settings/test — test AI with current settings
+  app.post("/api/ai-settings/test", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const { customerMessage } = req.body;
+
+      if (!customerMessage || typeof customerMessage !== 'string' || customerMessage.trim().length === 0) {
+        return res.status(400).json({ error: "customerMessage is required" });
+      }
+
+      const result = await generateSalesResponse({
+        dealershipId,
+        customerMessage: customerMessage.trim(),
+        customerName: "Test Customer",
+      });
+
+      res.json({ reply: result.reply });
+    } catch (error) {
+      logError('Error testing AI settings:', error instanceof Error ? error : new Error(String(error)), { route: 'api-ai-settings-test' });
+      res.status(500).json({ error: "Failed to generate test response" });
+    }
+  });
+
   // Extension: Test Browserless connection
   app.get("/api/extension/test-browserless", extensionHmacMiddleware, authMiddleware, async (req: AuthRequest, res) => {
     try {

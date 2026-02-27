@@ -1183,6 +1183,49 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return;
       }
 
+      // AI Settings CRUD
+      if (message.type === "AI_SETTINGS_GET") {
+        const auth = await getStoredAuth();
+        if (!auth?.token) { sendResponse({ ok: false, error: "Not authenticated" }); return; }
+        try {
+          const data = await api<any>("/api/ai-settings", auth.token);
+          sendResponse({ ok: true, data });
+        } catch (err: unknown) {
+          sendResponse({ ok: false, error: err instanceof Error ? err.message : "Fetch failed" });
+        }
+        return;
+      }
+
+      if (message.type === "AI_SETTINGS_SAVE") {
+        const auth = await getStoredAuth();
+        if (!auth?.token) { sendResponse({ ok: false, error: "Not authenticated" }); return; }
+        try {
+          await api<any>("/api/ai-settings", auth.token, {
+            method: "PUT",
+            body: JSON.stringify(message.payload),
+          });
+          sendResponse({ ok: true });
+        } catch (err: unknown) {
+          sendResponse({ ok: false, error: err instanceof Error ? err.message : "Save failed" });
+        }
+        return;
+      }
+
+      if (message.type === "AI_SETTINGS_TEST") {
+        const auth = await getStoredAuth();
+        if (!auth?.token) { sendResponse({ ok: false, error: "Not authenticated" }); return; }
+        try {
+          const data = await api<{ reply: string }>("/api/ai-settings/test", auth.token, {
+            method: "POST",
+            body: JSON.stringify(message.payload),
+          });
+          sendResponse({ ok: true, reply: data.reply });
+        } catch (err: unknown) {
+          sendResponse({ ok: false, error: err instanceof Error ? err.message : "Test failed" });
+        }
+        return;
+      }
+
       sendResponse({ ok: false, error: "Unknown message type" });
     } catch (err: unknown) {
       const error = err instanceof Error ? err.message : "Unexpected error";

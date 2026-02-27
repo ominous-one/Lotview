@@ -722,3 +722,105 @@ textarea {
 .data-error-banner button:hover {
   background: #b91c1c;
 }
+
+/* AI Settings Panel */
+.ai-settings-panel {
+  padding: 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ai-settings-header {
+  padding: 4px 0;
+}
+
+.ai-section {
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.ai-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  background: #f9fafb;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+  user-select: none;
+}
+
+.ai-section-header:hover {
+  background: #f3f4f6;
+}
+
+.ai-section-body {
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ai-section-body label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.ai-section-body textarea,
+.ai-section-body input[type="text"] {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: inherit;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.ai-section-body select {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font-size: 12px;
+  background: white;
+  box-sizing: border-box;
+}
+
+.objection-pair {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  background: #f9fafb;
+  border-radius: 4px;
+  margin-bottom: 6px;
+}
+
+.ai-test-response {
+  margin-top: 8px;
+  padding: 10px;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ai-test-response strong {
+  color: #0369a1;
+  display: block;
+  margin-bottom: 4px;
+  font-size: 11px;
+}
+
+.ai-test-response p {
+  margin: 0;
+  color: #1e3a5f;
+}

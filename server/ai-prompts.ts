@@ -1,4 +1,4 @@
-import type { Dealership, Vehicle } from "@shared/schema";
+import type { Dealership, Vehicle, AiSettings } from "@shared/schema";
 
 /**
  * Build the system prompt for the AI sales agent.
@@ -16,14 +16,92 @@ export function buildSalesAgentSystemPrompt(opts: {
     messageCount?: number;
     isFirstMessage?: boolean;
   };
+  aiSettings?: AiSettings | null;
 }): string {
-  const { dealership, currentDateTime, vehicleContext, paymentContext, carfaxContext, inventoryContext, conversationMeta } = opts;
+  const { dealership, currentDateTime, vehicleContext, paymentContext, carfaxContext, inventoryContext, conversationMeta, aiSettings } = opts;
 
   const dealershipInfo = [
     dealership.name,
     dealership.address ? `${dealership.address}, ${dealership.city || ''}, ${dealership.province || 'BC'} ${dealership.postalCode || ''}`.trim() : null,
     dealership.phone ? `Phone: ${dealership.phone}` : null,
   ].filter(Boolean).join('\n');
+
+  // Build tone modifier based on AI settings
+  const toneMap: Record<string, string> = {
+    professional: 'Use a professional, polished tone. Be courteous and business-like.',
+    friendly: 'Use a warm, friendly tone. Be personable and approachable, like chatting with a friend.',
+    casual: 'Use a casual, laid-back tone. Keep it relaxed and natural, like texting a buddy.',
+    luxury: 'Use a refined, luxury tone. Be elegant, sophisticated, and exclusive-feeling.',
+  };
+
+  const responseLengthMap: Record<string, string> = {
+    short: 'Keep responses to 2-3 sentences MAX. This is Facebook Messenger, not email.',
+    medium: 'Keep responses to 3-5 sentences. Be thorough but concise.',
+    long: 'Provide detailed responses of 5-8 sentences when helpful. Be comprehensive.',
+  };
+
+  const s = aiSettings?.enabled ? aiSettings : null;
+  const toneInstruction = toneMap[s?.tone || 'professional'] || toneMap.professional;
+  const lengthInstruction = responseLengthMap[s?.responseLength || 'short'] || responseLengthMap.short;
+
+  // Custom personality section
+  const personalitySection = s?.salesPersonality
+    ? `=== CUSTOM SALES PERSONALITY ===\n${s.salesPersonality}\n`
+    : '';
+
+  // Always include section
+  const alwaysIncludeSection = s?.alwaysInclude
+    ? `=== ALWAYS MENTION THESE ===\nIn every conversation, naturally work in these points:\n${s.alwaysInclude}\n`
+    : '';
+
+  // Never say section
+  const neverSaySection = s?.neverSay
+    ? `=== NEVER SAY ===\nNEVER mention or reference any of the following:\n${s.neverSay}\n`
+    : '';
+
+  // Objection handling
+  let objectionSection = '';
+  if (s?.objectionHandling && typeof s.objectionHandling === 'object') {
+    const pairs = Object.entries(s.objectionHandling as Record<string, string>);
+    if (pairs.length > 0) {
+      objectionSection = '=== CUSTOM OBJECTION HANDLING ===\nWhen customers raise these objections, use these responses:\n' +
+        pairs.map(([obj, resp]) => `- "${obj}" → ${resp}`).join('\n') + '\n';
+    }
+  }
+
+  // Business hours
+  const businessHoursSection = s?.businessHours
+    ? `=== BUSINESS HOURS ===\n${s.businessHours}\nUse these hours when suggesting visits or scheduling.\n`
+    : '';
+
+  // Custom escalation rules
+  const escalationSection = s?.escalationRules
+    ? `=== ESCALATION RULES ===\n${s.escalationRules}\n`
+    : `=== ESCALATE TO HUMAN WHEN ===
+- Customer requests a specific trade-in valuation with numbers
+- Complex financing situations (bankruptcy, consumer proposal)
+- Customer complaints or disputes
+- Requests for specific legal/warranty documentation
+- Customer explicitly asks to speak to a person/manager
+When escalating, say: "Let me connect you with one of our team members who can help you with that right away."
+`;
+
+  // Custom CTAs
+  const ctaSection = s?.customCtas
+    ? `=== CALL-TO-ACTION PHRASES ===\nUse these CTAs when closing:\n${s.customCtas}\n`
+    : '';
+
+  // Sample conversations
+  const sampleSection = s?.sampleConversations
+    ? `=== EXAMPLE CONVERSATIONS (match this style) ===\n${s.sampleConversations}\n`
+    : '';
+
+  // Custom greeting instruction
+  const greetingInstruction = s?.greetingTemplate && conversationMeta?.isFirstMessage
+    ? `Use this greeting template for the first message (adapt naturally): "${s.greetingTemplate}"`
+    : conversationMeta?.isFirstMessage
+      ? 'This is the customer\'s FIRST message. Give a warm greeting and reference the specific vehicle they asked about.'
+      : 'This is an ongoing conversation. Do NOT re-greet or repeat information already discussed.';
 
   return `=== CURRENT DATE AND TIME ===
 TODAY IS: ${currentDateTime} (Pacific Time)
@@ -39,6 +117,9 @@ If asked directly, say "I'm part of the sales team here at ${dealership.name}."
 === DEALERSHIP INFO ===
 ${dealershipInfo}
 
+${personalitySection}=== TONE ===
+${toneInstruction}
+
 === SALES APPROACH ===
 You follow a consultative sales approach:
 1. GREET warmly — thank them for reaching out
@@ -49,7 +130,7 @@ You follow a consultative sales approach:
 6. CLOSE — always end with a clear call-to-action (book a test drive, visit us, call us)
 
 === RESPONSE RULES ===
-- Keep responses to 2-3 sentences MAX. This is Facebook Messenger, not email.
+- ${lengthInstruction}
 - Be conversational and natural. Match the customer's tone and energy.
 - Use ONE emoji max per message, and only when it feels natural.
 - Always include a call-to-action: schedule a viewing, ask a question, call us.
@@ -63,15 +144,7 @@ You follow a consultative sales approach:
 - If someone is rude or aggressive, stay professional and offer to connect them with a manager.
 - If asked about warranty, say "Great question — let me connect you with our team to go over the warranty options."
 
-=== ESCALATE TO HUMAN WHEN ===
-- Customer requests a specific trade-in valuation with numbers
-- Complex financing situations (bankruptcy, consumer proposal)
-- Customer complaints or disputes
-- Requests for specific legal/warranty documentation
-- Customer explicitly asks to speak to a person/manager
-When escalating, say: "Let me connect you with one of our team members who can help you with that right away."
-
-=== PAYMENT GUIDELINES ===
+${alwaysIncludeSection}${neverSaySection}${objectionSection}${businessHoursSection}${escalationSection}${ctaSection}${sampleSection}=== PAYMENT GUIDELINES ===
 When discussing payments:
 - Present monthly and bi-weekly options
 - Always mention "OAC" (On Approved Credit)
@@ -88,7 +161,7 @@ ${inventoryContext ? `=== ALTERNATIVE VEHICLES IN INVENTORY ===\n${inventoryCont
 ${conversationMeta?.customerName ? `=== CUSTOMER ===\nName: ${conversationMeta.customerName}` : ''}
 
 === CONVERSATION STAGE HINTS ===
-${conversationMeta?.isFirstMessage ? 'This is the customer\'s FIRST message. Give a warm greeting and reference the specific vehicle they asked about.' : 'This is an ongoing conversation. Do NOT re-greet or repeat information already discussed.'}`;
+${greetingInstruction}`;
 }
 
 /**

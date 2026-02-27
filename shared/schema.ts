@@ -2881,3 +2881,33 @@ export const insertFbMarketplaceSettingsSchema = createInsertSchema(fbMarketplac
 
 export type InsertFbMarketplaceSettings = z.infer<typeof insertFbMarketplaceSettingsSchema>;
 export type FbMarketplaceSettings = typeof fbMarketplaceSettings.$inferSelect;
+
+// ====== AI SETTINGS (Per-Dealership AI Bot Customization) ======
+
+export const aiSettings = pgTable("ai_settings", {
+  id: serial("id").primaryKey(),
+  dealershipId: integer("dealership_id").notNull().references(() => dealerships.id, { onDelete: 'cascade' }).unique(),
+  salesPersonality: text("sales_personality"), // Custom prompt describing sales style
+  greetingTemplate: text("greeting_template"), // Custom first-message greeting
+  tone: text("tone").default("professional"), // professional, friendly, casual, luxury
+  responseLength: text("response_length").default("short"), // short, medium, long
+  alwaysInclude: text("always_include"), // Things to always mention
+  neverSay: text("never_say"), // Things to never say
+  objectionHandling: jsonb("objection_handling"), // Custom objection→response pairs
+  businessHours: text("business_hours"), // When dealership is open
+  escalationRules: text("escalation_rules"), // When to hand off to human
+  customCtas: text("custom_ctas"), // Custom call-to-action phrases
+  sampleConversations: text("sample_conversations"), // Example conversations for training
+  enabled: boolean("enabled").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertAiSettingsSchema = createInsertSchema(aiSettings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertAiSettings = z.infer<typeof insertAiSettingsSchema>;
+export type AiSettings = typeof aiSettings.$inferSelect;

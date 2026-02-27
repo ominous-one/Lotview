@@ -97,7 +97,7 @@ function Popup() {
   const [rememberMe, setRememberMe] = useState(false);
   const [inventoryLoading, setInventoryLoading] = useState(false);
   const [fillLoading, setFillLoading] = useState(false);
-  const [tab, setTab] = useState<"post" | "history">("post");
+  const [tab, setTab] = useState<"post" | "history" | "ai-settings">("post");
   const [history, setHistory] = useState<PostingRecord[]>([]);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [limits, setLimits] = useState<PostingLimits | null>(null);
@@ -112,6 +112,26 @@ function Popup() {
   const [aiAutoReplyEnabled, setAiAutoReplyEnabled] = useState(false);
   const [privacyConsent, setPrivacyConsent] = useState<boolean | null>(null);
   const [consentLoading, setConsentLoading] = useState(true);
+
+  // AI Settings state
+  const [aiSalesPersonality, setAiSalesPersonality] = useState("");
+  const [aiTone, setAiTone] = useState("professional");
+  const [aiResponseLength, setAiResponseLength] = useState("short");
+  const [aiGreetingTemplate, setAiGreetingTemplate] = useState("");
+  const [aiAlwaysInclude, setAiAlwaysInclude] = useState("");
+  const [aiNeverSay, setAiNeverSay] = useState("");
+  const [aiObjectionHandling, setAiObjectionHandling] = useState<Array<{ key: string; value: string }>>([]);
+  const [aiBusinessHours, setAiBusinessHours] = useState("");
+  const [aiEscalationRules, setAiEscalationRules] = useState("");
+  const [aiCustomCtas, setAiCustomCtas] = useState("");
+  const [aiSampleConversations, setAiSampleConversations] = useState("");
+  const [aiEnabled, setAiEnabled] = useState(true);
+  const [aiSettingsLoading, setAiSettingsLoading] = useState(false);
+  const [aiSettingsSaving, setAiSettingsSaving] = useState(false);
+  const [aiTestMessage, setAiTestMessage] = useState("");
+  const [aiTestResponse, setAiTestResponse] = useState("");
+  const [aiTestLoading, setAiTestLoading] = useState(false);
+  const [aiCollapsed, setAiCollapsed] = useState<Record<string, boolean>>({});
 
   const addToast = useCallback((type: ToastType, message: string) => {
     const id = Date.now() + Math.random();
@@ -392,6 +412,101 @@ function Popup() {
     setAiAutoReplyEnabled(newEnabled);
     await sendMessage({ type: "AI_AUTO_REPLY_TOGGLE", payload: { enabled: newEnabled } });
     addToast("info", newEnabled ? "AI Auto-Reply enabled" : "AI Auto-Reply disabled");
+  };
+
+  const loadAiSettings = useCallback(async () => {
+    setAiSettingsLoading(true);
+    try {
+      const res = await sendMessage<{ ok: boolean; data?: any; error?: string }>({ type: "AI_SETTINGS_GET" });
+      if (res?.ok && res.data) {
+        const d = res.data;
+        setAiSalesPersonality(d.salesPersonality || "");
+        setAiTone(d.tone || "professional");
+        setAiResponseLength(d.responseLength || "short");
+        setAiGreetingTemplate(d.greetingTemplate || "");
+        setAiAlwaysInclude(d.alwaysInclude || "");
+        setAiNeverSay(d.neverSay || "");
+        setAiBusinessHours(d.businessHours || "");
+        setAiEscalationRules(d.escalationRules || "");
+        setAiCustomCtas(d.customCtas || "");
+        setAiSampleConversations(d.sampleConversations || "");
+        setAiEnabled(d.enabled ?? true);
+        // Parse objection handling
+        if (d.objectionHandling && typeof d.objectionHandling === 'object') {
+          setAiObjectionHandling(
+            Object.entries(d.objectionHandling).map(([key, value]) => ({ key, value: String(value) }))
+          );
+        } else {
+          setAiObjectionHandling([]);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load AI settings:", err);
+    } finally {
+      setAiSettingsLoading(false);
+    }
+  }, []);
+
+  const saveAiSettings = async () => {
+    setAiSettingsSaving(true);
+    try {
+      const objectionObj: Record<string, string> = {};
+      aiObjectionHandling.forEach(({ key, value }) => {
+        if (key.trim()) objectionObj[key.trim()] = value;
+      });
+
+      const res = await sendMessage<{ ok: boolean; error?: string }>({
+        type: "AI_SETTINGS_SAVE",
+        payload: {
+          salesPersonality: aiSalesPersonality || null,
+          greetingTemplate: aiGreetingTemplate || null,
+          tone: aiTone,
+          responseLength: aiResponseLength,
+          alwaysInclude: aiAlwaysInclude || null,
+          neverSay: aiNeverSay || null,
+          objectionHandling: Object.keys(objectionObj).length > 0 ? objectionObj : null,
+          businessHours: aiBusinessHours || null,
+          escalationRules: aiEscalationRules || null,
+          customCtas: aiCustomCtas || null,
+          sampleConversations: aiSampleConversations || null,
+          enabled: aiEnabled,
+        },
+      });
+      if (res?.ok) {
+        addToast("success", "AI settings saved!");
+      } else {
+        addToast("error", res?.error || "Failed to save AI settings");
+      }
+    } catch (err) {
+      addToast("error", "Failed to save AI settings");
+    } finally {
+      setAiSettingsSaving(false);
+    }
+  };
+
+  const testAiResponse = async () => {
+    if (!aiTestMessage.trim()) return;
+    setAiTestLoading(true);
+    setAiTestResponse("");
+    try {
+      const res = await sendMessage<{ ok: boolean; reply?: string; error?: string }>({
+        type: "AI_SETTINGS_TEST",
+        payload: { customerMessage: aiTestMessage.trim() },
+      });
+      if (res?.ok && res.reply) {
+        setAiTestResponse(res.reply);
+      } else {
+        setAiTestResponse(`Error: ${res?.error || "Failed to get response"}`);
+      }
+    } catch (err) {
+      setAiTestResponse("Error: Failed to test AI response");
+    } finally {
+      setAiTestLoading(false);
+    }
+  };
+
+  const toggleAiSection = (section: string) => {
+    setAiCollapsed(prev => ({ ...prev, [section]: !prev[section] }));
   };
 
   useEffect(() => {
@@ -774,6 +889,13 @@ function Popup() {
         >
           🤖 AI Bot {aiAutoReplyEnabled ? "ON" : "OFF"}
         </button>
+        <button
+          className={`tab ${tab === "ai-settings" ? "active" : ""}`}
+          onClick={() => { setTab("ai-settings"); loadAiSettings(); }}
+          data-testid="tab-ai-settings"
+        >
+          ⚙️ AI Train
+        </button>
       </div>
 
       {tab === "post" && (
@@ -999,6 +1121,289 @@ function Popup() {
             </div>
           </details>
         </>
+      )}
+
+      {tab === "ai-settings" && (
+        <div className="ai-settings-panel">
+          {aiSettingsLoading ? (
+            <div style={{ textAlign: "center", padding: "20px" }}><Spinner /></div>
+          ) : (
+            <>
+              <div className="ai-settings-header">
+                <label className="checkbox-label" style={{ marginBottom: "8px" }}>
+                  <input type="checkbox" checked={aiEnabled} onChange={(e) => setAiEnabled(e.target.checked)} />
+                  <span>AI Bot Enabled</span>
+                </label>
+              </div>
+
+              {/* Sales Personality */}
+              <div className="ai-section">
+                <div className="ai-section-header" onClick={() => toggleAiSection("personality")}>
+                  <span>🎭 Sales Personality</span>
+                  <span>{aiCollapsed.personality ? "▸" : "▾"}</span>
+                </div>
+                {!aiCollapsed.personality && (
+                  <div className="ai-section-body">
+                    <textarea
+                      placeholder="Describe your sales style... e.g. 'I'm friendly and casual, I always use the customer's name, I focus on value not price'"
+                      value={aiSalesPersonality}
+                      onChange={(e) => setAiSalesPersonality(e.target.value)}
+                      rows={3}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Tone & Length */}
+              <div className="ai-section">
+                <div className="ai-section-header" onClick={() => toggleAiSection("tone")}>
+                  <span>🎯 Tone & Response Length</span>
+                  <span>{aiCollapsed.tone ? "▸" : "▾"}</span>
+                </div>
+                {!aiCollapsed.tone && (
+                  <div className="ai-section-body">
+                    <label>Tone</label>
+                    <select value={aiTone} onChange={(e) => setAiTone(e.target.value)}>
+                      <option value="professional">Professional</option>
+                      <option value="friendly">Friendly</option>
+                      <option value="casual">Casual</option>
+                      <option value="luxury">Luxury</option>
+                    </select>
+                    <label style={{ marginTop: "8px" }}>Response Length</label>
+                    <select value={aiResponseLength} onChange={(e) => setAiResponseLength(e.target.value)}>
+                      <option value="short">Short (2-3 sentences)</option>
+                      <option value="medium">Medium (3-5 sentences)</option>
+                      <option value="long">Long (5-8 sentences)</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              {/* Custom Greeting */}
+              <div className="ai-section">
+                <div className="ai-section-header" onClick={() => toggleAiSection("greeting")}>
+                  <span>👋 Custom Greeting</span>
+                  <span>{aiCollapsed.greeting ? "▸" : "▾"}</span>
+                </div>
+                {!aiCollapsed.greeting && (
+                  <div className="ai-section-body">
+                    <textarea
+                      placeholder="Custom first-message greeting... e.g. 'Hey {name}! Thanks for checking out the {vehicle}. Great choice!'"
+                      value={aiGreetingTemplate}
+                      onChange={(e) => setAiGreetingTemplate(e.target.value)}
+                      rows={2}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Always Mention */}
+              <div className="ai-section">
+                <div className="ai-section-header" onClick={() => toggleAiSection("always")}>
+                  <span>✅ Always Mention</span>
+                  <span>{aiCollapsed.always ? "▸" : "▾"}</span>
+                </div>
+                {!aiCollapsed.always && (
+                  <div className="ai-section-body">
+                    <textarea
+                      placeholder="Things to always mention... e.g. 'free CarProof with every vehicle, we finance everyone, family owned since 1985'"
+                      value={aiAlwaysInclude}
+                      onChange={(e) => setAiAlwaysInclude(e.target.value)}
+                      rows={2}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Never Say */}
+              <div className="ai-section">
+                <div className="ai-section-header" onClick={() => toggleAiSection("never")}>
+                  <span>🚫 Never Say</span>
+                  <span>{aiCollapsed.never ? "▸" : "▾"}</span>
+                </div>
+                {!aiCollapsed.never && (
+                  <div className="ai-section-body">
+                    <textarea
+                      placeholder="Things to never say... e.g. 'don't mention competitors, never offer discounts, don't discuss recalls'"
+                      value={aiNeverSay}
+                      onChange={(e) => setAiNeverSay(e.target.value)}
+                      rows={2}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Objection Handling */}
+              <div className="ai-section">
+                <div className="ai-section-header" onClick={() => toggleAiSection("objections")}>
+                  <span>💬 Objection Handling ({aiObjectionHandling.length})</span>
+                  <span>{aiCollapsed.objections ? "▸" : "▾"}</span>
+                </div>
+                {!aiCollapsed.objections && (
+                  <div className="ai-section-body">
+                    {aiObjectionHandling.map((pair, i) => (
+                      <div key={i} className="objection-pair">
+                        <input
+                          type="text"
+                          placeholder="Objection (e.g. 'too expensive')"
+                          value={pair.key}
+                          onChange={(e) => {
+                            const updated = [...aiObjectionHandling];
+                            updated[i] = { ...updated[i], key: e.target.value };
+                            setAiObjectionHandling(updated);
+                          }}
+                        />
+                        <textarea
+                          placeholder="Response..."
+                          value={pair.value}
+                          onChange={(e) => {
+                            const updated = [...aiObjectionHandling];
+                            updated[i] = { ...updated[i], value: e.target.value };
+                            setAiObjectionHandling(updated);
+                          }}
+                          rows={2}
+                        />
+                        <button
+                          className="btn-link"
+                          style={{ color: "#dc2626", fontSize: "12px" }}
+                          onClick={() => setAiObjectionHandling(aiObjectionHandling.filter((_, j) => j !== i))}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      className="btn-secondary"
+                      style={{ fontSize: "12px", marginTop: "4px" }}
+                      onClick={() => setAiObjectionHandling([...aiObjectionHandling, { key: "", value: "" }])}
+                    >
+                      + Add Objection
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Business Hours */}
+              <div className="ai-section">
+                <div className="ai-section-header" onClick={() => toggleAiSection("hours")}>
+                  <span>🕐 Business Hours</span>
+                  <span>{aiCollapsed.hours ? "▸" : "▾"}</span>
+                </div>
+                {!aiCollapsed.hours && (
+                  <div className="ai-section-body">
+                    <input
+                      type="text"
+                      placeholder="e.g. Mon-Fri 9am-6pm, Sat 10am-4pm, Sun closed"
+                      value={aiBusinessHours}
+                      onChange={(e) => setAiBusinessHours(e.target.value)}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Escalation Rules */}
+              <div className="ai-section">
+                <div className="ai-section-header" onClick={() => toggleAiSection("escalation")}>
+                  <span>🔀 Escalation Rules</span>
+                  <span>{aiCollapsed.escalation ? "▸" : "▾"}</span>
+                </div>
+                {!aiCollapsed.escalation && (
+                  <div className="ai-section-body">
+                    <textarea
+                      placeholder="When should the AI hand off to a human? e.g. 'When customer mentions trade-in value, financing issues, or asks for manager'"
+                      value={aiEscalationRules}
+                      onChange={(e) => setAiEscalationRules(e.target.value)}
+                      rows={2}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Custom CTAs */}
+              <div className="ai-section">
+                <div className="ai-section-header" onClick={() => toggleAiSection("ctas")}>
+                  <span>📣 Call-to-Action Phrases</span>
+                  <span>{aiCollapsed.ctas ? "▸" : "▾"}</span>
+                </div>
+                {!aiCollapsed.ctas && (
+                  <div className="ai-section-body">
+                    <textarea
+                      placeholder="Custom CTAs... e.g. 'Book a VIP test drive, Come see it today — we're open until 8pm!, Text us anytime at 604-555-1234'"
+                      value={aiCustomCtas}
+                      onChange={(e) => setAiCustomCtas(e.target.value)}
+                      rows={2}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Sample Conversations */}
+              <div className="ai-section">
+                <div className="ai-section-header" onClick={() => toggleAiSection("samples")}>
+                  <span>📝 Sample Conversations</span>
+                  <span>{aiCollapsed.samples ? "▸" : "▾"}</span>
+                </div>
+                {!aiCollapsed.samples && (
+                  <div className="ai-section-body">
+                    <textarea
+                      placeholder="Paste example conversations showing your ideal sales style..."
+                      value={aiSampleConversations}
+                      onChange={(e) => setAiSampleConversations(e.target.value)}
+                      rows={4}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Save Button */}
+              <button
+                className="btn-primary"
+                onClick={saveAiSettings}
+                disabled={aiSettingsSaving}
+                style={{ marginTop: "8px" }}
+              >
+                {aiSettingsSaving ? <><Spinner /> Saving...</> : "💾 Save AI Settings"}
+              </button>
+
+              {/* Test Chat */}
+              <div className="ai-section" style={{ marginTop: "12px" }}>
+                <div className="ai-section-header" onClick={() => toggleAiSection("test")}>
+                  <span>🧪 Test Chat</span>
+                  <span>{aiCollapsed.test ? "▸" : "▾"}</span>
+                </div>
+                {!aiCollapsed.test && (
+                  <div className="ai-section-body">
+                    <p style={{ fontSize: "11px", color: "#6b7280", margin: "0 0 6px" }}>
+                      Save settings first, then test how the AI responds.
+                    </p>
+                    <div className="search-row">
+                      <input
+                        type="text"
+                        placeholder="Type a test buyer message..."
+                        value={aiTestMessage}
+                        onChange={(e) => setAiTestMessage(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && testAiResponse()}
+                      />
+                      <button
+                        className="btn-secondary"
+                        onClick={testAiResponse}
+                        disabled={aiTestLoading || !aiTestMessage.trim()}
+                      >
+                        {aiTestLoading ? <Spinner dark /> : "Test"}
+                      </button>
+                    </div>
+                    {aiTestResponse && (
+                      <div className="ai-test-response">
+                        <strong>AI Response:</strong>
+                        <p>{aiTestResponse}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
       )}
     </div>
   );
