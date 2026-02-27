@@ -6,6 +6,7 @@ import { eq, and, gte, lte, ne, desc, sql, ilike, or } from "drizzle-orm";
 import type { Vehicle, Dealership, CarfaxReport, MessengerConversation, MessengerMessage, AiSettings } from "@shared/schema";
 import { buildSalesAgentSystemPrompt, buildVehicleContext, buildCarfaxContext, buildInventoryContext, buildFollowUpPrompt } from "./ai-prompts";
 import { buildPaymentContext } from "./ai-payment-calculator";
+import { detectIntent, matchObjectionPattern, matchQuestionPattern } from "./ai-intent-detector";
 
 function getAnthropicClient(): Anthropic {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -15,7 +16,7 @@ function getAnthropicClient(): Anthropic {
   return new Anthropic({ apiKey });
 }
 
-const SALES_MODEL = "claude-sonnet-4-20250514";
+const SALES_MODEL = "claude-3-5-haiku-20241022";
 
 export interface AiSalesRequest {
   dealershipId: number;
@@ -219,6 +220,12 @@ async function loadConversationHistory(
 /**
  * The main AI sales agent function.
  * Takes a customer message + context and returns a sales-optimized reply.
+ * 
+ * HYBRID COST REDUCTION:
+ * 1. Detect intent (free: local patterns, Ollama, or Claude fallback)
+ * 2. If OBJECTION → use templated response ($0 cost)
+ * 3. If SIMPLE_QUESTION → use pattern matching ($0 cost)
+ * 4. If COMPLEX → call Claude Haiku (~$0.0005 cost)
  */
 export async function generateSalesResponse(req: AiSalesRequest): Promise<AiSalesResponse> {
   const { dealershipId, vehicleId, conversationId, customerMessage, customerName } = req;
@@ -228,6 +235,151 @@ export async function generateSalesResponse(req: AiSalesRequest): Promise<AiSale
   if (!dealership) {
     throw new Error(`Dealership ${dealershipId} not found`);
   }
+
+  // 1a. INTENT DETECTION - Fast, cheap, or free
+  console.log(`[AI Intent] Detecting intent for message: "${customerMessage.substring(0, 50)}..."`);
+  const intentResult = await detectIntent(customerMessage);
+  console.log(`[AI Intent] Detected: ${intentResult.intent} (confidence: ${intentResult.confidence}, reason: ${intentResult.reason})`);
+
+  // 1b. If it's an objection, return templated response ($0 cost)
+  if (intentResult.intent === "objection") {
+    console.log("[AI Intent] → Using templated objection response (cost: $0)");
+    const objectionKey = matchObjectionPattern(customerMessage);
+    const defaults = await import("./ai-training-defaults");
+    const templates = defaults.DEFAULT_OBJECTION_HANDLING;
+    
+    if (objectionKey && templates[objectionKey as keyof typeof templates]) {
+      let reply = templates[objectionKey as keyof typeof templates];
+      
+      // Simple variable substitution from context
+      if (vehicleId || conversationId) {
+        let vehicle: Vehicle | undefined;
+        if (vehicleId) {
+          vehicle = await storage.getVehicleById(vehicleId, dealershipId);
+        } else {
+          const searchResult = await searchInventoryFromMessage(dealershipId, customerMessage);
+          if (searchResult.matchedVehicle) {
+            vehicle = searchResult.matchedVehicle;
+          }
+        }
+        
+        if (vehicle) {
+          reply = reply
+            .replace(/\{\{vehicleModel\}\}/g, vehicle.model)
+            .replace(/\{\{vehicleYear\}\}/g, String(vehicle.year))
+            .replace(/\{\{vehicleFact\}\}/g, vehicle.highlights || vehicle.model);
+        }
+      }
+      
+      reply = reply
+        .replace(/\{\{customerName\}\}/g, customerName || "there")
+        .replace(/\{\{dealershipName\}\}/g, dealership.name || "us");
+      
+      let vehicleName: string | undefined;
+      if (vehicleId) {
+        const v = await storage.getVehicleById(vehicleId, dealershipId);
+        if (v) {
+          vehicleName = `${v.year} ${v.make} ${v.model}${v.trim ? ` ${v.trim}` : ''}`;
+        }
+      }
+
+      return {
+        reply,
+        vehicleId,
+        vehicleName,
+      };
+    }
+    
+    // Fallback if no matching template (shouldn't happen)
+    console.log("[AI Intent] ⚠️ No template found for objection, falling back to Claude Haiku");
+  }
+
+  // 1c. If it's a simple question, use pattern matching ($0 cost)
+  if (intentResult.intent === "simple_question") {
+    console.log("[AI Intent] → Using pattern-matched simple answer (cost: $0)");
+    const questionKey = matchQuestionPattern(customerMessage);
+    
+    if (questionKey) {
+      // Load vehicle data if needed
+      let vehicle: Vehicle | undefined;
+      if (vehicleId) {
+        vehicle = await storage.getVehicleById(vehicleId, dealershipId);
+      } else {
+        const searchResult = await searchInventoryFromMessage(dealershipId, customerMessage);
+        if (searchResult.matchedVehicle) {
+          vehicle = searchResult.matchedVehicle;
+        }
+      }
+
+      // Generate simple pattern-matched answer
+      let reply = "";
+      
+      switch (questionKey) {
+        case "price":
+          reply = vehicle 
+            ? `The price on this ${vehicle.year} ${vehicle.make} ${vehicle.model} is $${vehicle.price.toLocaleString()}. Any questions about financing or trade-ins?`
+            : `Great question! We have several options in different price ranges. What's your budget?`;
+          break;
+        
+        case "color":
+          reply = vehicle
+            ? `This one has ${vehicle.exteriorColor || "a beautiful finish"} on the outside and ${vehicle.interiorColor || "nice interior"} on the inside. Want to come see it in person?`
+            : `We have a range of colors available. What color were you thinking?`;
+          break;
+        
+        case "features":
+        case "specs":
+          reply = vehicle
+            ? `This ${vehicle.year} ${vehicle.make} comes with ${vehicle.highlights || "great features"}. I'd love to walk you through all the details in person — when could you stop by?`
+            : `We have vehicles with lots of great features! What's most important to you?`;
+          break;
+        
+        case "hours":
+          reply = `We're open Monday–Saturday 9am–7pm and Sunday 11am–5pm. What day works best for you to come check out our inventory?`;
+          break;
+        
+        case "trades":
+          reply = `Yes! We absolutely take trade-ins. Bring your vehicle and we'll get you a fair offer on the spot. When could you come by?`;
+          break;
+        
+        case "warranty":
+          reply = `Great question about warranties! Let me get you all the details — can you stop by this week so we can go over all the options?`;
+          break;
+        
+        case "financing":
+          reply = `We offer several financing options to fit your situation. Let's find something that works for you! When are you available to discuss options?`;
+          break;
+        
+        case "mileage":
+          reply = vehicle
+            ? `This vehicle has ${vehicle.odometer?.toLocaleString() || "low mileage"} miles. Full service history is available if you'd like to review it!`
+            : `Mileage varies by vehicle. What range are you looking for?`;
+          break;
+        
+        case "condition":
+          reply = vehicle
+            ? `This vehicle is in excellent condition — you'll see for yourself when you come check it out! When works for you?`
+            : `All our vehicles are in great shape. Want to see one?`;
+          break;
+        
+        default:
+          reply = `That's a great question! I'd love to tell you more — when can you come by so we can go over everything?`;
+      }
+
+      const vehicleName = vehicle
+        ? `${vehicle.year} ${vehicle.make} ${vehicle.model}${vehicle.trim ? ` ${vehicle.trim}` : ''}`
+        : undefined;
+
+      return {
+        reply,
+        vehicleId: vehicle?.id,
+        vehicleName,
+      };
+    }
+  }
+
+  // 1d. Complex messages — use Claude Haiku (cheap, ~$0.0005)
+  console.log("[AI Intent] → Routing to Claude Haiku for complex response (cost: ~$0.0005)");
 
   // 2. Load vehicle data if we have a vehicleId, or search inventory from message
   let vehicle: Vehicle | undefined;

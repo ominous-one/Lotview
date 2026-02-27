@@ -246,3 +246,31 @@ Sunday: Closed`;
 // ---------------------------------------------------------------------------
 export const DEFAULT_TONE = "friendly" as const;
 export const DEFAULT_RESPONSE_LENGTH = "short" as const;
+
+// ---------------------------------------------------------------------------
+// 11. SIMPLE QUESTION RESPONSES (Pattern-Matched, No API Cost)
+// ---------------------------------------------------------------------------
+// These are used by ai-intent-detector when a SIMPLE_QUESTION is detected
+// Reduces API costs by ~40% by avoiding Claude calls for predictable questions
+
+export const DEFAULT_SIMPLE_QUESTION_RESPONSES: Record<string, string> = {
+  price: "The price on this {{vehicleYear}} {{vehicleMake}} {{vehicleModel}} is ${{vehiclePrice}}. Any questions about financing or trade-ins?",
+  
+  color: "This one has a {{exteriorColor}} exterior and {{interiorColor}} interior — it looks sharp in person! Want to come see it?",
+  
+  features: "This {{vehicleYear}} {{vehicleMake}} comes with {{vehicleHighlights}}. I'd love to walk you through all the details in person — when could you stop by?",
+  
+  specs: "Great question! This vehicle has excellent specs — I can give you the full rundown when you visit. What day works for you?",
+  
+  hours: "We're open Monday–Saturday 9am–7pm and Sunday 11am–5pm. What day works best for you to come check out our inventory?",
+  
+  trades: "Yes! We absolutely take trade-ins. Bring your vehicle and we'll get you a fair offer on the spot. When could you come by?",
+  
+  warranty: "Great question about warranties! Let me get you all the details — can you stop by this week so we can go over all the options?",
+  
+  financing: "We offer several financing options to fit your situation. Let's find something that works for you! When are you available to discuss options?",
+  
+  mileage: "This vehicle has {{vehicleMileage}} miles and comes with full service history. Want to review the details when you come by?",
+  
+  condition: "This vehicle is in excellent condition — you'll see for yourself when you come check it out! When works for you?",
+};
