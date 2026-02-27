@@ -1226,6 +1226,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return;
       }
 
+      if (message.type === "CHAT_LOGS_GET") {
+        const auth = await getStoredAuth();
+        if (!auth?.token) { sendResponse({ ok: false, error: "Not authenticated" }); return; }
+        try {
+          const data = await api<any[]>("/api/ai/conversations", auth.token);
+          sendResponse({ ok: true, data });
+        } catch (err: unknown) {
+          sendResponse({ ok: false, error: err instanceof Error ? err.message : "Fetch failed" });
+        }
+        return;
+      }
+
       sendResponse({ ok: false, error: "Unknown message type" });
     } catch (err: unknown) {
       const error = err instanceof Error ? err.message : "Unexpected error";

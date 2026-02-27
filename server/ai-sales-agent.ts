@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { db } from "./db";
 import { storage } from "./storage";
 import { vehicles, aiSettings } from "@shared/schema";
-import { eq, and, gte, lte, ne, desc, sql } from "drizzle-orm";
+import { eq, and, gte, lte, ne, desc, sql, ilike, or } from "drizzle-orm";
 import type { Vehicle, Dealership, CarfaxReport, MessengerConversation, MessengerMessage, AiSettings } from "@shared/schema";
 import { buildSalesAgentSystemPrompt, buildVehicleContext, buildCarfaxContext, buildInventoryContext, buildFollowUpPrompt } from "./ai-prompts";
 import { buildPaymentContext } from "./ai-payment-calculator";
@@ -121,6 +121,87 @@ function extractBudget(message: string): number | undefined {
 }
 
 /**
+ * Common vehicle makes for matching against customer messages.
+ */
+const COMMON_MAKES = [
+  'toyota', 'honda', 'ford', 'chevrolet', 'chevy', 'nissan', 'hyundai', 'kia',
+  'bmw', 'mercedes', 'audi', 'lexus', 'mazda', 'subaru', 'volkswagen', 'vw',
+  'jeep', 'dodge', 'ram', 'gmc', 'buick', 'cadillac', 'chrysler', 'lincoln',
+  'acura', 'infiniti', 'volvo', 'porsche', 'land rover', 'jaguar', 'tesla',
+  'mitsubishi', 'genesis', 'alfa romeo', 'fiat', 'mini', 'polestar', 'rivian',
+];
+
+/**
+ * Try to match a customer message against dealership inventory.
+ * Extracts make, model, and year from the message and searches the vehicles table.
+ */
+export async function searchInventoryFromMessage(
+  dealershipId: number,
+  message: string
+): Promise<{ matchedVehicle: Vehicle | null; similarVehicles: Vehicle[]; searchedFor: string | null }> {
+  const lower = message.toLowerCase();
+
+  // Extract year (4-digit number that looks like a car year)
+  const yearMatch = lower.match(/\b(19|20)\d{2}\b/);
+  const year = yearMatch ? parseInt(yearMatch[0]) : undefined;
+
+  // Extract make
+  let detectedMake: string | undefined;
+  for (const make of COMMON_MAKES) {
+    if (lower.includes(make)) {
+      // Normalize aliases
+      detectedMake = make === 'chevy' ? 'chevrolet' : make === 'vw' ? 'volkswagen' : make;
+      break;
+    }
+  }
+
+  if (!detectedMake && !year) {
+    return { matchedVehicle: null, similarVehicles: [], searchedFor: null };
+  }
+
+  // Build search description for context
+  const searchParts: string[] = [];
+  if (year) searchParts.push(String(year));
+  if (detectedMake) searchParts.push(detectedMake);
+  const searchedFor = searchParts.join(' ');
+
+  // Build query conditions
+  const conditions = [eq(vehicles.dealershipId, dealershipId)];
+  if (year) conditions.push(eq(vehicles.year, year));
+  if (detectedMake) conditions.push(ilike(vehicles.make, `%${detectedMake}%`));
+
+  // Try to find exact matches
+  const matches = await db
+    .select()
+    .from(vehicles)
+    .where(and(...conditions))
+    .orderBy(desc(vehicles.createdAt))
+    .limit(6);
+
+  if (matches.length > 0) {
+    return { matchedVehicle: matches[0], similarVehicles: matches.slice(1), searchedFor };
+  }
+
+  // No exact match — find similar vehicles (same make or same year range)
+  const similarConditions = [eq(vehicles.dealershipId, dealershipId)];
+  if (detectedMake) {
+    similarConditions.push(ilike(vehicles.make, `%${detectedMake}%`));
+  } else if (year) {
+    similarConditions.push(gte(vehicles.year, year - 2));
+    similarConditions.push(lte(vehicles.year, year + 2));
+  }
+
+  const similar = await db
+    .select()
+    .from(vehicles)
+    .where(and(...similarConditions))
+    .orderBy(desc(vehicles.createdAt))
+    .limit(5);
+
+  return { matchedVehicle: null, similarVehicles: similar, searchedFor };
+}
+
+/**
  * Load conversation history from messenger messages.
  */
 async function loadConversationHistory(
@@ -148,10 +229,29 @@ export async function generateSalesResponse(req: AiSalesRequest): Promise<AiSale
     throw new Error(`Dealership ${dealershipId} not found`);
   }
 
-  // 2. Load vehicle data if we have a vehicleId
+  // 2. Load vehicle data if we have a vehicleId, or search inventory from message
   let vehicle: Vehicle | undefined;
+  let inventorySearchContext = '';
   if (vehicleId) {
     vehicle = await storage.getVehicleById(vehicleId, dealershipId);
+  } else {
+    // Try to match the customer message against inventory
+    const searchResult = await searchInventoryFromMessage(dealershipId, customerMessage);
+    if (searchResult.searchedFor) {
+      if (searchResult.matchedVehicle) {
+        vehicle = searchResult.matchedVehicle;
+      } else {
+        // Vehicle not in stock — build context telling the AI
+        inventorySearchContext = `\n\n⚠️ INVENTORY CHECK: The customer asked about a "${searchResult.searchedFor}" but we do NOT currently have that vehicle in stock. Acknowledge this honestly — say something like "We don't currently have that one in stock" — then suggest these similar vehicles we DO have:\n`;
+        if (searchResult.similarVehicles.length > 0) {
+          for (const v of searchResult.similarVehicles) {
+            inventorySearchContext += `- ${v.year} ${v.make} ${v.model}${v.trim ? ` ${v.trim}` : ''} — $${v.price.toLocaleString()}\n`;
+          }
+        } else {
+          inventorySearchContext += '(No similar vehicles found in current inventory)\n';
+        }
+      }
+    }
   }
 
   // 3. Load Carfax report if vehicle has a VIN
@@ -213,6 +313,11 @@ export async function generateSalesResponse(req: AiSalesRequest): Promise<AiSale
       name: `${v.year} ${v.make} ${v.model}${v.trim ? ` ${v.trim}` : ''}`,
       price: v.price,
     }));
+  }
+
+  // 8a. Append inventory search context if vehicle wasn't found
+  if (inventorySearchContext) {
+    inventoryContext = inventorySearchContext + (inventoryContext ? '\n' + inventoryContext : '');
   }
 
   // 8b. Load AI settings for this dealership (with defaults fallback)

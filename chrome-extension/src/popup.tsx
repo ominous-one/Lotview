@@ -97,7 +97,7 @@ function Popup() {
   const [rememberMe, setRememberMe] = useState(false);
   const [inventoryLoading, setInventoryLoading] = useState(false);
   const [fillLoading, setFillLoading] = useState(false);
-  const [tab, setTab] = useState<"post" | "history" | "ai-settings">("post");
+  const [tab, setTab] = useState<"post" | "history" | "chat-logs" | "ai-settings">("post");
   const [history, setHistory] = useState<PostingRecord[]>([]);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [limits, setLimits] = useState<PostingLimits | null>(null);
@@ -110,6 +110,9 @@ function Popup() {
   const [dataLoadFailed, setDataLoadFailed] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [aiAutoReplyEnabled, setAiAutoReplyEnabled] = useState(false);
+  const [chatLogs, setChatLogs] = useState<any[]>([]);
+  const [chatLogsLoading, setChatLogsLoading] = useState(false);
+  const [expandedConvId, setExpandedConvId] = useState<number | null>(null);
   const [privacyConsent, setPrivacyConsent] = useState<boolean | null>(null);
   const [consentLoading, setConsentLoading] = useState(true);
 
@@ -413,6 +416,22 @@ function Popup() {
     await sendMessage({ type: "AI_AUTO_REPLY_TOGGLE", payload: { enabled: newEnabled } });
     addToast("info", newEnabled ? "AI Auto-Reply enabled" : "AI Auto-Reply disabled");
   };
+
+  const loadChatLogs = useCallback(async () => {
+    setChatLogsLoading(true);
+    try {
+      const res = await sendMessage<{ ok: boolean; data?: any[]; error?: string }>({
+        type: "CHAT_LOGS_GET",
+      });
+      if (res?.ok && res.data) {
+        setChatLogs(res.data);
+      }
+    } catch (err) {
+      console.error("Failed to load chat logs:", err);
+    } finally {
+      setChatLogsLoading(false);
+    }
+  }, []);
 
   const loadAiSettings = useCallback(async () => {
     setAiSettingsLoading(true);
@@ -883,6 +902,13 @@ function Popup() {
           History ({history.length})
         </button>
         <button
+          className={`tab ${tab === "chat-logs" ? "active" : ""}`}
+          onClick={() => { setTab("chat-logs"); loadChatLogs(); }}
+          data-testid="tab-chat-logs"
+        >
+          💬 Chat Logs
+        </button>
+        <button
           className={`tab tab-ai ${aiAutoReplyEnabled ? "ai-active" : ""}`}
           onClick={() => toggleAiAutoReply(!aiAutoReplyEnabled)}
           data-testid="toggle-ai-auto-reply"
@@ -1121,6 +1147,71 @@ function Popup() {
             </div>
           </details>
         </>
+      )}
+
+      {tab === "chat-logs" && (
+        <div className="section" style={{ padding: "8px" }}>
+          {chatLogsLoading ? (
+            <div style={{ textAlign: "center", padding: "20px" }}><Spinner dark /></div>
+          ) : chatLogs.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "20px", color: "#888" }}>No AI conversations yet</div>
+          ) : (
+            <div style={{ maxHeight: "400px", overflowY: "auto" }}>
+              {chatLogs.map((conv: any) => (
+                <div key={conv.id} style={{ border: "1px solid #e0e0e0", borderRadius: "6px", marginBottom: "6px", fontSize: "12px" }}>
+                  <div
+                    onClick={() => setExpandedConvId(expandedConvId === conv.id ? null : conv.id)}
+                    style={{ padding: "8px", cursor: "pointer", background: expandedConvId === conv.id ? "#f0f7ff" : "#fff", borderRadius: "6px" }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <strong>{conv.participantName || "Unknown"}</strong>
+                      <span style={{ color: "#888", fontSize: "10px" }}>
+                        {conv.messageCount} msgs{conv.aiMessageCount > 0 ? ` (${conv.aiMessageCount} AI)` : ""}
+                      </span>
+                    </div>
+                    {conv.vehicleOfInterest && (
+                      <div style={{ color: "#0066cc", fontSize: "11px" }}>🚗 {conv.vehicleOfInterest}</div>
+                    )}
+                    <div style={{ color: "#666", fontSize: "11px", marginTop: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {conv.lastMessage || "No messages"}
+                    </div>
+                    {conv.lastMessageAt && (
+                      <div style={{ color: "#999", fontSize: "10px", marginTop: "2px" }}>
+                        {new Date(conv.lastMessageAt).toLocaleString()}
+                      </div>
+                    )}
+                  </div>
+                  {expandedConvId === conv.id && conv.messages && (
+                    <div style={{ borderTop: "1px solid #e0e0e0", maxHeight: "250px", overflowY: "auto", padding: "6px" }}>
+                      {conv.messages.map((msg: any) => (
+                        <div
+                          key={msg.id}
+                          style={{
+                            padding: "4px 8px",
+                            margin: "3px 0",
+                            borderRadius: "8px",
+                            background: msg.isFromCustomer ? "#f0f0f0" : (msg.aiGenerated ? "#e8f5e9" : "#e3f2fd"),
+                            marginLeft: msg.isFromCustomer ? "0" : "20px",
+                            marginRight: msg.isFromCustomer ? "20px" : "0",
+                            fontSize: "11px",
+                          }}
+                        >
+                          <div style={{ fontWeight: "bold", fontSize: "10px", color: "#555" }}>
+                            {msg.isFromCustomer ? "👤 Customer" : (msg.aiGenerated ? "🤖 AI" : "👨‍💼 Agent")}
+                            <span style={{ fontWeight: "normal", marginLeft: "6px", color: "#999" }}>
+                              {new Date(msg.sentAt).toLocaleTimeString()}
+                            </span>
+                          </div>
+                          <div>{msg.content}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {tab === "ai-settings" && (

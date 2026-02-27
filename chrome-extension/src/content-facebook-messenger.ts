@@ -364,8 +364,31 @@ async function processNewMessage(messageText: string, messageId: string) {
     return;
   }
 
-  // Add small random delay to feel more human (2-6 seconds)
-  const humanDelay = 2000 + Math.random() * 4000;
+  // Simulate typing indicator: click input and type/delete a character to trigger FB "typing..."
+  const typingInputSelectors = [
+    '[role="main"] [contenteditable="true"][role="textbox"]',
+    '[role="main"] [aria-label*="Message" i][contenteditable="true"]',
+    '[role="main"] p[contenteditable="true"]',
+  ];
+  let typingBox: HTMLElement | null = null;
+  for (const sel of typingInputSelectors) {
+    typingBox = document.querySelector<HTMLElement>(sel);
+    if (typingBox) break;
+  }
+  if (typingBox) {
+    typingBox.focus();
+    await sleep(500);
+    // Type a character then delete it to trigger FB's typing indicator
+    document.execCommand("insertText", false, ".");
+    typingBox.dispatchEvent(new Event("input", { bubbles: true }));
+    await sleep(1000);
+    document.execCommand("delete", false);
+    typingBox.dispatchEvent(new Event("input", { bubbles: true }));
+    log("Typing indicator triggered");
+  }
+
+  // Add realistic delay to feel more human (30-90 seconds)
+  const humanDelay = 30_000 + Math.random() * 60_000;
   log(`Waiting ${Math.round(humanDelay / 1000)}s before replying...`);
   await sleep(humanDelay);
 

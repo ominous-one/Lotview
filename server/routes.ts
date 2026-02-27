@@ -16370,6 +16370,56 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
     }
   });
 
+  // GET /api/ai/conversations — returns AI conversations with messages for chat log viewer
+  app.get("/api/ai/conversations", authMiddleware, requireRole("salesperson", "manager", "admin", "master", "super_admin"), async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const userId = req.user?.id;
+      const userRole = req.user?.role;
+
+      const conversations = await storage.getMessengerConversations(dealershipId, userId, userRole);
+
+      // For each conversation, include message count and last few messages
+      const enriched = await Promise.all(conversations.map(async (conv) => {
+        const messages = await storage.getMessengerMessages(dealershipId, conv.id);
+        const aiMessages = messages.filter(m => m.aiGenerated);
+        return {
+          id: conv.id,
+          participantName: conv.participantName,
+          participantId: conv.participantId,
+          pageName: conv.pageName,
+          vehicleOfInterest: conv.vehicleOfInterest,
+          status: conv.status,
+          lastMessage: conv.lastMessage,
+          lastMessageAt: conv.lastMessageAt,
+          messageCount: messages.length,
+          aiMessageCount: aiMessages.length,
+          createdAt: conv.createdAt,
+          messages: messages.map(m => ({
+            id: m.id,
+            senderName: m.senderName,
+            isFromCustomer: m.isFromCustomer,
+            content: m.content,
+            aiGenerated: m.aiGenerated,
+            sentAt: m.sentAt,
+          })),
+        };
+      }));
+
+      // Sort by most recent activity
+      enriched.sort((a, b) => {
+        const aTime = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+        const bTime = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+        return bTime - aTime;
+      });
+
+      res.json(enriched);
+    } catch (error) {
+      logError('Error fetching AI conversations:', error instanceof Error ? error : new Error(String(error)), { route: 'api-ai-conversations' });
+      res.status(500).json({ error: "Failed to fetch conversations" });
+    }
+  });
+
   // Extension: Test Browserless connection
   app.get("/api/extension/test-browserless", extensionHmacMiddleware, authMiddleware, async (req: AuthRequest, res) => {
     try {
