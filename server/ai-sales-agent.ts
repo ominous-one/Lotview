@@ -225,7 +225,7 @@ export async function generateSalesResponse(req: AiSalesRequest): Promise<AiSale
     }));
   }
 
-  // 8b. Load AI settings for this dealership
+  // 8b. Load AI settings for this dealership (with defaults fallback)
   let dealerAiSettings: AiSettings | null = null;
   try {
     const [settings] = await db
@@ -233,7 +233,30 @@ export async function generateSalesResponse(req: AiSalesRequest): Promise<AiSale
       .from(aiSettings)
       .where(eq(aiSettings.dealershipId, dealershipId))
       .limit(1);
-    dealerAiSettings = settings || null;
+    if (settings) {
+      dealerAiSettings = settings;
+    } else {
+      // Use training defaults when no custom settings saved
+      const defaults = await import("./ai-training-defaults");
+      dealerAiSettings = {
+        id: 0,
+        dealershipId,
+        salesPersonality: defaults.DEFAULT_SALES_PERSONALITY,
+        greetingTemplate: defaults.DEFAULT_GREETING_TEMPLATE,
+        tone: defaults.DEFAULT_TONE,
+        responseLength: defaults.DEFAULT_RESPONSE_LENGTH,
+        alwaysInclude: defaults.DEFAULT_ALWAYS_INCLUDE,
+        neverSay: defaults.DEFAULT_NEVER_SAY,
+        objectionHandling: defaults.DEFAULT_OBJECTION_HANDLING,
+        businessHours: defaults.DEFAULT_BUSINESS_HOURS,
+        escalationRules: defaults.DEFAULT_ESCALATION_RULES,
+        customCtas: defaults.DEFAULT_CUSTOM_CTAS,
+        sampleConversations: defaults.DEFAULT_SAMPLE_CONVERSATIONS,
+        enabled: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      } as AiSettings;
+    }
   } catch {
     // Table might not exist yet, fall back to defaults
   }

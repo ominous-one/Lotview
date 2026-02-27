@@ -16248,7 +16248,34 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
         .where(eq(aiSettingsTable.dealershipId, dealershipId))
         .limit(1);
 
-      res.json(settings || null);
+      if (settings) {
+        res.json(settings);
+      } else {
+        // Return defaults when no custom settings exist yet
+        const {
+          DEFAULT_SALES_PERSONALITY, DEFAULT_GREETING_TEMPLATE, DEFAULT_TONE,
+          DEFAULT_RESPONSE_LENGTH, DEFAULT_ALWAYS_INCLUDE, DEFAULT_NEVER_SAY,
+          DEFAULT_OBJECTION_HANDLING, DEFAULT_BUSINESS_HOURS, DEFAULT_ESCALATION_RULES,
+          DEFAULT_CUSTOM_CTAS, DEFAULT_SAMPLE_CONVERSATIONS,
+        } = await import("./ai-training-defaults");
+        res.json({
+          id: null,
+          dealershipId,
+          salesPersonality: DEFAULT_SALES_PERSONALITY,
+          greetingTemplate: DEFAULT_GREETING_TEMPLATE,
+          tone: DEFAULT_TONE,
+          responseLength: DEFAULT_RESPONSE_LENGTH,
+          alwaysInclude: DEFAULT_ALWAYS_INCLUDE,
+          neverSay: DEFAULT_NEVER_SAY,
+          objectionHandling: DEFAULT_OBJECTION_HANDLING,
+          businessHours: DEFAULT_BUSINESS_HOURS,
+          escalationRules: DEFAULT_ESCALATION_RULES,
+          customCtas: DEFAULT_CUSTOM_CTAS,
+          sampleConversations: DEFAULT_SAMPLE_CONVERSATIONS,
+          enabled: true,
+          isDefaults: true,
+        });
+      }
     } catch (error) {
       logError('Error fetching AI settings:', error instanceof Error ? error : new Error(String(error)), { route: 'api-ai-settings-get' });
       res.status(500).json({ error: "Failed to fetch AI settings" });
