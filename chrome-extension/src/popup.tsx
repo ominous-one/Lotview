@@ -819,14 +819,16 @@ function Popup() {
                   data-testid={`vehicle-item-${v.id}`}
                 >
                   <div className="vehicle-item-row">
-                    {v.images[0] && <img src={v.images[0]} alt="" className="vehicle-image" />}
+                    {v.images[0] && <img src={v.images[0].startsWith("/") ? `${serverUrl}${v.images[0]}` : v.images[0]} alt="" className="vehicle-image" />}
                     <div className="vehicle-item-content">
                       <div className="vehicle-title">
                         {v.year} {v.make} {v.model} {v.trim || ""}
                         {posted && <span className="posted-badge">Posted</span>}
                       </div>
                       <div className="vehicle-meta">
-                        {v.stockNumber || v.vin || "No ID"} · {v.price ? `$${v.price.toLocaleString()}` : "No price"}
+                        <span>{v.price ? `$${v.price.toLocaleString()}` : "No price"}</span>
+                        {v.odometer && <span>· {v.odometer.toLocaleString()} km</span>}
+                        {v.stockNumber && <span>· #{v.stockNumber}</span>}
                       </div>
                     </div>
                   </div>
