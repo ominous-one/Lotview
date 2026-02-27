@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 import { db } from "./db";
 import { storage } from "./storage";
 import { vehicles, aiSettings } from "@shared/schema";
@@ -7,25 +7,15 @@ import type { Vehicle, Dealership, CarfaxReport, MessengerConversation, Messenge
 import { buildSalesAgentSystemPrompt, buildVehicleContext, buildCarfaxContext, buildInventoryContext, buildFollowUpPrompt } from "./ai-prompts";
 import { buildPaymentContext } from "./ai-payment-calculator";
 
-// Re-use the existing OpenAI client factory pattern from openai.ts
-async function getOpenAIClient(dealershipId: number): Promise<{ client: OpenAI; model: string }> {
-  const apiKeys = await storage.getDealershipApiKeys(dealershipId);
-
-  if (apiKeys?.openaiApiKey && apiKeys.openaiApiKey.length > 20) {
-    return {
-      client: new OpenAI({ apiKey: apiKeys.openaiApiKey }),
-      model: "gpt-4o",
-    };
+function getAnthropicClient(): Anthropic {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    throw new Error("ANTHROPIC_API_KEY environment variable is not set");
   }
-
-  return {
-    client: new OpenAI({
-      baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-      apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-    }),
-    model: "gpt-4o",
-  };
+  return new Anthropic({ apiKey });
 }
+
+const SALES_MODEL = "claude-sonnet-4-20250514";
 
 export interface AiSalesRequest {
   dealershipId: number;
@@ -290,31 +280,30 @@ export async function generateSalesResponse(req: AiSalesRequest): Promise<AiSale
     aiSettings: dealerAiSettings,
   });
 
-  // 11. Build the messages array for OpenAI
-  const openaiMessages: { role: "system" | "user" | "assistant"; content: string }[] = [
-    { role: "system", content: systemPrompt },
-  ];
+  // 11. Build the messages array for Anthropic
+  const anthropicMessages: { role: "user" | "assistant"; content: string }[] = [];
 
   // Add conversation history (last 20 messages to stay within context)
   const recentHistory = history.slice(-20);
   for (const msg of recentHistory) {
-    openaiMessages.push({ role: msg.role, content: msg.content });
+    anthropicMessages.push({ role: msg.role, content: msg.content });
   }
 
   // Add the current customer message
-  openaiMessages.push({ role: "user", content: customerMessage });
+  anthropicMessages.push({ role: "user", content: customerMessage });
 
-  // 12. Call OpenAI
-  const { client, model } = await getOpenAIClient(dealershipId);
+  // 12. Call Anthropic Claude
+  const client = getAnthropicClient();
 
-  const response = await client.chat.completions.create({
-    model,
-    messages: openaiMessages,
-    max_completion_tokens: 300, // Keep responses short for Messenger
+  const response = await client.messages.create({
+    model: SALES_MODEL,
+    system: systemPrompt,
+    messages: anthropicMessages,
+    max_tokens: 300, // Keep responses short for Messenger
     temperature: 0.8,
   });
 
-  const reply = response.choices[0]?.message?.content?.trim() ||
+  const reply = (response.content[0]?.type === 'text' ? response.content[0].text : '').trim() ||
     "Thanks for reaching out! Let me check on that and get back to you shortly.";
 
   const vehicleName = vehicle
@@ -345,21 +334,18 @@ export async function generateFollowUp(opts: {
 
   const prompt = buildFollowUpPrompt(opts);
 
-  const { client, model } = await getOpenAIClient(dealershipId);
+  const client = getAnthropicClient();
 
-  const response = await client.chat.completions.create({
-    model,
+  const response = await client.messages.create({
+    model: SALES_MODEL,
+    system: "You are a friendly car sales consultant writing a follow-up message on Facebook Messenger. Keep it short, warm, and non-pushy. 1-2 sentences max.",
     messages: [
-      {
-        role: "system",
-        content: "You are a friendly car sales consultant writing a follow-up message on Facebook Messenger. Keep it short, warm, and non-pushy. 1-2 sentences max.",
-      },
       { role: "user", content: prompt },
     ],
-    max_completion_tokens: 150,
+    max_tokens: 150,
     temperature: 0.9,
   });
 
-  return response.choices[0]?.message?.content?.trim() ||
+  return (response.content[0]?.type === 'text' ? response.content[0].text : '').trim() ||
     `Hey${opts.customerName ? ` ${opts.customerName}` : ''}, just checking in — the ${opts.vehicleName} is still available if you're interested!`;
 }
