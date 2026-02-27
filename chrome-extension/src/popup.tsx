@@ -767,6 +767,13 @@ function Popup() {
         <button className={`tab ${tab === "history" ? "active" : ""}`} onClick={() => setTab("history")} data-testid="tab-history">
           History ({history.length})
         </button>
+        <button
+          className={`tab tab-ai ${aiAutoReplyEnabled ? "ai-active" : ""}`}
+          onClick={() => toggleAiAutoReply(!aiAutoReplyEnabled)}
+          data-testid="toggle-ai-auto-reply"
+        >
+          🤖 AI Bot {aiAutoReplyEnabled ? "ON" : "OFF"}
+        </button>
       </div>
 
       {tab === "post" && (
@@ -835,25 +842,6 @@ function Popup() {
                 </button>
               );
             })}
-          </div>
-
-          <div className="section" style={{ background: aiAutoReplyEnabled ? "#dcfce7" : "#f3f4f6", padding: "12px", borderRadius: "8px", marginBottom: "8px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <label style={{ fontWeight: 600, fontSize: "13px" }}>🤖 AI Auto-Reply</label>
-                <p style={{ fontSize: "11px", color: "#6b7280", margin: "2px 0 0" }}>
-                  {aiAutoReplyEnabled ? "Responding to buyer messages" : "Off — buyers won't get auto-replies"}
-                </p>
-              </div>
-              <label className="toggle-switch" data-testid="toggle-ai-auto-reply">
-                <input
-                  type="checkbox"
-                  checked={aiAutoReplyEnabled}
-                  onChange={(e) => toggleAiAutoReply(e.target.checked)}
-                />
-                <span className="toggle-slider" />
-              </label>
-            </div>
           </div>
 
           <div className="section">

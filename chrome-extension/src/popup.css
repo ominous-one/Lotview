@@ -464,6 +464,34 @@ textarea {
   border-bottom-color: #022d60;
 }
 
+.tab.tab-ai {
+  flex: none;
+  padding: 6px 12px;
+  margin-left: auto;
+  font-size: 11px;
+  border-radius: 14px;
+  border-bottom: none;
+  margin-bottom: 0;
+  align-self: center;
+  background: #f3f4f6;
+  color: #6b7280;
+  transition: all 0.2s ease;
+}
+
+.tab.tab-ai:hover {
+  background: #e5e7eb;
+}
+
+.tab.tab-ai.ai-active {
+  background: #16a34a;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.tab.tab-ai.ai-active:hover {
+  background: #15803d;
+}
+
 .history-list {
   max-height: 180px;
   overflow-y: auto;
