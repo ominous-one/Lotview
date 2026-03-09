@@ -32,10 +32,13 @@ import {
   fbMarketplaceQueue,
   fbMarketplaceActivityLog,
   fbMarketplaceSettings,
-  vehicleImages
+  vehicleImages,
+  requestAccessLeads,
+  insertRequestAccessLeadSchema
 } from "@shared/schema";
 import { eq, desc, sql, and, gt, gte, lte, isNull, asc, or } from "drizzle-orm";
 import { fromZodError } from "zod-validation-error";
+import { z } from "zod";
 import { triggerManualSync } from "./scheduler";
 import { testBadgeDetection } from "./scraper";
 import { decideSendFbMarketplaceReply } from "./fb-replies/decide-send";
@@ -2964,6 +2967,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       logError('Error fetching Carfax summary:', error instanceof Error ? error : new Error(String(error)), { route: 'api-vehicles-carfax-summary' });
       res.status(500).json({ error: "Failed to fetch Carfax summary" });
+    }
+  });
+
+  // ===== MARKETING: REQUEST ACCESS (Public, no auth required) =====
+
+  const requestAccessBodySchema = insertRequestAccessLeadSchema.extend({
+    // Honeypot field (must remain empty)
+    website: z.string().optional(),
+  });
+
+  // Capture a lead from /request-access
+  app.post("/api/public/request-access", sensitiveLimiter, async (req, res) => {
+    try {
+      const parsed = requestAccessBodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: fromZodError(parsed.error).message });
+      }
+
+      // Honeypot: quietly succeed but do not store
+      if (parsed.data.website && parsed.data.website.trim().length > 0) {
+        return res.json({ ok: true });
+      }
+
+      // Basic normalization
+      const name = parsed.data.name.trim();
+      const email = parsed.data.email.trim().toLowerCase();
+      const dealership = parsed.data.dealership.trim();
+      const phone = parsed.data.phone?.trim() || null;
+
+      await db.insert(requestAccessLeads).values({
+        name,
+        email,
+        dealership,
+        phone,
+        sourceHostname: req.hostname,
+        ipAddress: req.ip,
+        userAgent: req.get("user-agent") || null,
+      });
+
+      return res.json({ ok: true });
+    } catch (error) {
+      logError(
+        "Error saving request access lead:",
+        error instanceof Error ? error : new Error(String(error)),
+        { route: "api-public-request-access" }
+      );
+      return res.status(500).json({ error: "Failed to submit request" });
     }
   });
 

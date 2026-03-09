@@ -33,6 +33,29 @@ export const insertDealershipSchema = createInsertSchema(dealerships).omit({
 export type InsertDealership = z.infer<typeof insertDealershipSchema>;
 export type Dealership = typeof dealerships.$inferSelect;
 
+// ====== MARKETING LEADS ======
+
+// Request access leads - captured from the marketing site
+export const requestAccessLeads = pgTable("request_access_leads", {
+  id: uuid("id").default(sql`gen_random_uuid()`).primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  dealership: text("dealership").notNull(),
+  phone: text("phone"),
+  sourceHostname: text("source_hostname"),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertRequestAccessLeadSchema = createInsertSchema(requestAccessLeads).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertRequestAccessLead = z.infer<typeof insertRequestAccessLeadSchema>;
+export type RequestAccessLead = typeof requestAccessLeads.$inferSelect;
+
 // Dealership subscriptions - Billing and plan management
 export const dealershipSubscriptions = pgTable("dealership_subscriptions", {
   id: serial("id").primaryKey(),

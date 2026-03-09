@@ -71,11 +71,11 @@ export default function LandingPage() {
                   Sign In
                 </Button>
               </Link>
-              <a href="mailto:charlie@lotview.ai?subject=Demo%20Request">
-                <Button className="bg-[#022d60] hover:bg-[#022d60]/90 text-white" data-testid="button-demo">
-                  Get Free Demo
+              <Link href="/request-access">
+                <Button className="bg-[#022d60] hover:bg-[#022d60]/90 text-white" data-testid="button-request-access">
+                  Request access
                 </Button>
-              </a>
+              </Link>
             </div>
           </div>
         </div>
@@ -98,23 +98,23 @@ export default function LandingPage() {
               </Badge>
               
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-[#022d60] tracking-tight leading-[1.1] mb-6">
-                Your Inventory Is Burning Cash.
+                Used car dominance, automated.
                 <span className="block bg-gradient-to-r from-[#022d60] via-[#00aad2] to-[#022d60] bg-clip-text text-transparent">
-                  Let AI Turn It Into Profit 24/7.
+                  The AI platform that turns inventory into booked appointments.
                 </span>
               </h1>
               
               <p className="text-xl text-gray-600 max-w-2xl mx-auto mb-10 leading-relaxed">
-                Stop letting leads die in your CRM. LotView engages every lead, answers every question, and books firm appointments while your BDC is asleep.
+                LotView syncs your inventory, markets it across channels, and responds to every inquiry instantly—so leads don’t die, and your team stays focused on closing.
               </p>
               
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                <a href="mailto:charlie@lotview.ai?subject=Demo%20Request">
-                  <Button size="lg" className="bg-[#022d60] hover:bg-[#022d60]/90 text-white px-8 py-6 text-lg rounded-xl shadow-lg shadow-[#022d60]/25 hover:shadow-xl hover:shadow-[#022d60]/30 transition-all" data-testid="button-hero-demo">
-                    Get Your Free Demo
+                <Link href="/request-access">
+                  <Button size="lg" className="bg-[#022d60] hover:bg-[#022d60]/90 text-white px-8 py-6 text-lg rounded-xl shadow-lg shadow-[#022d60]/25 hover:shadow-xl hover:shadow-[#022d60]/30 transition-all" data-testid="button-hero-request-access">
+                    Request access
                     <ArrowRight className="ml-2 w-5 h-5" />
                   </Button>
-                </a>
+                </Link>
                 <a href="#how-it-works">
                   <Button size="lg" variant="outline" className="px-8 py-6 text-lg rounded-xl border-gray-200 hover:border-[#022d60]/30 hover:bg-gray-50" data-testid="button-hero-tour">
                     <Play className="mr-2 w-5 h-5" />
@@ -553,15 +553,15 @@ export default function LandingPage() {
             Join the dealerships already using Lotview to sell more cars. Get started in 24 hours with a platform designed for the modern automotive industry.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <a href="mailto:charlie@lotview.ai?subject=Demo%20Request">
-              <Button size="lg" className="bg-white text-[#022d60] hover:bg-gray-100 px-8 py-6 text-lg rounded-xl shadow-lg" data-testid="button-cta-demo">
-                Get Your Free Demo
+            <Link href="/request-access">
+              <Button size="lg" className="bg-white text-[#022d60] hover:bg-gray-100 px-8 py-6 text-lg rounded-xl shadow-lg" data-testid="button-cta-request-access">
+                Request access
                 <ArrowRight className="ml-2 w-5 h-5" />
               </Button>
-            </a>
-            <a href="mailto:charlie@lotview.ai?subject=Free%20Trial%20Request">
-              <Button size="lg" variant="outline" className="border-white/30 text-white hover:bg-white/10 px-8 py-6 text-lg rounded-xl" data-testid="button-cta-trial">
-                See How It Works
+            </Link>
+            <a href="#how-it-works">
+              <Button size="lg" variant="outline" className="border-white/30 text-white hover:bg-white/10 px-8 py-6 text-lg rounded-xl" data-testid="button-cta-how-it-works">
+                See how it works
               </Button>
             </a>
           </div>

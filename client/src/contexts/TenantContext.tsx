@@ -32,6 +32,7 @@ export function useTenant() {
 const MARKETING_DOMAINS = [
   "lotview.ai",
   "www.lotview.ai",
+  "lotview.onrender.com",
   "localhost",
   "127.0.0.1",
 ];

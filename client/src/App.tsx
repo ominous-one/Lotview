@@ -1,4 +1,5 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
+import { useEffect } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -9,6 +10,7 @@ import { ChatProvider } from "@/contexts/ChatContext";
 import { TenantProvider, useTenant } from "@/contexts/TenantContext";
 import NotFound from "@/pages/not-found";
 import LandingPage from "@/pages/LandingPage";
+import RequestAccessPage from "@/pages/RequestAccessPage";
 import Inventory from "@/pages/Inventory";
 import VehicleDetail from "@/pages/VehicleDetail";
 import EmbedWidget from "@/pages/EmbedWidget";
@@ -44,10 +46,24 @@ import AutopostQueueManager from "@/pages/AutopostQueueManager";
 import { ImpersonationBanner } from "@/components/ImpersonationBanner";
 import ErrorBoundary from "@/components/ErrorBoundary";
 
+function RedirectToRequestAccess() {
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    setLocation("/request-access");
+  }, [setLocation]);
+
+  return null;
+}
+
 function MarketingRouter() {
   return (
     <Switch>
       <Route path="/" component={LandingPage} />
+      <Route path="/request-access" component={RequestAccessPage} />
+      {/* Back-compat for older links */}
+      <Route path="/demo" component={RedirectToRequestAccess} />
+      <Route path="/get-demo" component={RedirectToRequestAccess} />
       <Route path="/login" component={Login} />
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/n8n-integration" component={N8nIntegration} />
@@ -88,6 +104,10 @@ function DealershipRouter() {
     <Switch>
       <Route path="/" component={Inventory} />
       <Route path="/vehicle/:id" component={VehicleDetail} />
+      <Route path="/request-access" component={RequestAccessPage} />
+      {/* Back-compat for older links */}
+      <Route path="/demo" component={RedirectToRequestAccess} />
+      <Route path="/get-demo" component={RedirectToRequestAccess} />
       <Route path="/login" component={Login} />
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/n8n-integration" component={N8nIntegration} />
