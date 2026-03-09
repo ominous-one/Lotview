@@ -142,6 +142,11 @@ export const vehicles = pgTable("vehicles", {
   drivetrain: text("drivetrain"), // Drivetrain (AWD, FWD, RWD, 4WD, etc.)
   engine: text("engine"), // Engine info (e.g., "2.0L 4-Cylinder", "PLUG IN HYBRID")
   stockNumber: text("stock_number"), // Stock # from dealership
+  normalizedStockNumber: text("normalized_stock_number"), // Normalized stock for dedupe identity (alnum uppercase)
+  photoStatus: text("photo_status").notNull().default('unknown'), // pending|complete|no_vdp|terminal
+  autopostEligible: boolean("autopost_eligible").notNull().default(false),
+  autopostBlockReason: text("autopost_block_reason"),
+  autopostReadyAt: timestamp("autopost_ready_at"),
   cargurusPrice: integer("cargurus_price"), // Price on CarGurus (for comparison)
   cargurusUrl: text("cargurus_url"), // Link to CarGurus listing
   dealRating: text("deal_rating"), // CarGurus deal rating (Great Deal, Good Deal, etc.)
@@ -167,6 +172,20 @@ export const vehicles = pgTable("vehicles", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   lastScrapedAt: timestamp("last_scraped_at").defaultNow(), // Track when vehicle was last scraped (for incremental sync)
   missedScrapeCount: integer("missed_scrape_count").default(0), // Tracks consecutive scrapes where vehicle wasn't found (for safe deletion)
+
+  // ===== Inventory Sync v1.1 fields =====
+  deletedAt: timestamp("deleted_at"),
+  deletedByUserId: integer("deleted_by_user_id"),
+  deletedReason: text("deleted_reason"),
+  lifecycleStatus: text("lifecycle_status").notNull().default('ACTIVE'),
+
+  // Enrichment observability
+  photoEnrichFailCount: integer("photo_enrich_fail_count").notNull().default(0),
+  photoEnrichLastAttemptAt: timestamp("photo_enrich_last_attempt_at"),
+  photoEnrichLastError: text("photo_enrich_last_error"),
+  photoFingerprint: text("photo_fingerprint"),
+
+  lastPriceRefreshAt: timestamp("last_price_refresh_at"),
 });
 
 export const insertVehicleSchema = createInsertSchema(vehicles).omit({
@@ -250,6 +269,95 @@ export const insertVehicleViewSchema = createInsertSchema(vehicleViews).omit({
 
 export type InsertVehicleView = z.infer<typeof insertVehicleViewSchema>;
 export type VehicleView = typeof vehicleViews.$inferSelect;
+
+// ===== Autopost Priority Queue (v1.1) =====
+
+export const autopostQueueItems = pgTable("autopost_queue_items", {
+  id: uuid("id").default(sql`gen_random_uuid()`).primaryKey(),
+  dealershipId: integer("dealership_id").notNull().references(() => dealerships.id, { onDelete: 'cascade' }),
+  vehicleId: integer("vehicle_id").notNull().references(() => vehicles.id, { onDelete: 'cascade' }),
+  isActive: boolean("is_active").notNull().default(true),
+  priorityRank: integer("priority_rank").notNull(),
+  queuedAt: timestamp("queued_at").defaultNow().notNull(),
+  dequeuedAt: timestamp("dequeued_at"),
+  blockedReason: text("blocked_reason"),
+  photoGateOverride: boolean("photo_gate_override").notNull().default(false),
+  photoGateOverrideByUserId: integer("photo_gate_override_by_user_id"),
+  photoGateOverrideAt: timestamp("photo_gate_override_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertAutopostQueueItemSchema = createInsertSchema(autopostQueueItems);
+export type InsertAutopostQueueItem = z.infer<typeof insertAutopostQueueItemSchema>;
+export type AutopostQueueItem = typeof autopostQueueItems.$inferSelect;
+
+export type AutopostPlatform = 'facebook_marketplace' | 'craigslist';
+export type AutopostPlatformStatus = 'not_queued' | 'queued' | 'blocked' | 'claimed' | 'posting' | 'posted' | 'failed' | 'skipped';
+
+export const autopostPlatformStatuses = pgTable("autopost_platform_statuses", {
+  id: uuid("id").default(sql`gen_random_uuid()`).primaryKey(),
+  dealershipId: integer("dealership_id").notNull().references(() => dealerships.id, { onDelete: 'cascade' }),
+  queueItemId: uuid("queue_item_id").notNull().references(() => autopostQueueItems.id, { onDelete: 'cascade' }),
+  platform: text("platform").$type<AutopostPlatform>().notNull(),
+  status: text("status").$type<AutopostPlatformStatus>().notNull().default('queued'),
+  attemptCount: integer("attempt_count").notNull().default(0),
+  lastAttemptAt: timestamp("last_attempt_at"),
+  lastError: text("last_error"),
+  postedUrl: text("posted_url"),
+  postedExternalId: text("posted_external_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertAutopostPlatformStatusSchema = createInsertSchema(autopostPlatformStatuses);
+export type InsertAutopostPlatformStatus = z.infer<typeof insertAutopostPlatformStatusSchema>;
+export type AutopostPlatformStatusRow = typeof autopostPlatformStatuses.$inferSelect;
+
+export type AutopostEventType =
+  | 'ENQUEUED'
+  | 'DEQUEUED'
+  | 'PRIORITY_REORDERED'
+  | 'PHOTO_GATE_BLOCKED'
+  | 'PHOTO_GATE_OVERRIDE_SET'
+  | 'ELIGIBILITY_CHANGED'
+  | 'CLAIMED'
+  | 'POSTING_STARTED'
+  | 'POSTED_SUCCESS'
+  | 'POSTED_FAILED'
+  | 'SKIPPED';
+
+export const autopostQueueEvents = pgTable("autopost_queue_events", {
+  id: uuid("id").default(sql`gen_random_uuid()`).primaryKey(),
+  dealershipId: integer("dealership_id").notNull().references(() => dealerships.id, { onDelete: 'cascade' }),
+  queueItemId: uuid("queue_item_id").notNull().references(() => autopostQueueItems.id, { onDelete: 'cascade' }),
+  platform: text("platform").$type<AutopostPlatform>(),
+  actorUserId: integer("actor_user_id"),
+  eventType: text("event_type").$type<AutopostEventType>().notNull(),
+  message: text("message"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertAutopostQueueEventSchema = createInsertSchema(autopostQueueEvents);
+export type InsertAutopostQueueEvent = z.infer<typeof insertAutopostQueueEventSchema>;
+export type AutopostQueueEvent = typeof autopostQueueEvents.$inferSelect;
+
+// Vehicle audit events (soft-delete + admin actions)
+export const vehicleAuditEvents = pgTable("vehicle_audit_events", {
+  id: uuid("id").default(sql`gen_random_uuid()`).primaryKey(),
+  dealershipId: integer("dealership_id").notNull().references(() => dealerships.id, { onDelete: 'cascade' }),
+  vehicleId: integer("vehicle_id").notNull().references(() => vehicles.id, { onDelete: 'cascade' }),
+  actorUserId: integer("actor_user_id"),
+  action: text("action").notNull(),
+  reason: text("reason"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertVehicleAuditEventSchema = createInsertSchema(vehicleAuditEvents);
+export type InsertVehicleAuditEvent = z.infer<typeof insertVehicleAuditEventSchema>;
+export type VehicleAuditEvent = typeof vehicleAuditEvents.$inferSelect;
 
 // Facebook pages connected by sales team (LEGACY - being replaced by facebookAccounts)
 export const facebookPages = pgTable("facebook_pages", {

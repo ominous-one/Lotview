@@ -42,6 +42,15 @@ import { decideSendFbMarketplaceReply } from "./fb-replies/decide-send";
 import { generateChatResponse, type ChatMessage } from "./openai";
 import { generateSalesResponse, generateFollowUp } from "./ai-sales-agent";
 import { calculatePayments, formatPaymentForChat } from "./ai-payment-calculator";
+import {
+  claimNextAutopostItem,
+  dequeueAutopostQueueItem,
+  evaluateAndEnqueueAutopostQueue,
+  listAutopostQueue,
+  recordAutopostResult,
+  reorderAutopostQueue,
+  setPhotoGateOverride,
+} from './autopost-queue-service';
 
 import { authMiddleware, requireRole, generateToken, comparePassword, hashPassword, verifyToken, extensionHmacMiddleware, generatePostingToken, validatePostingToken, type AuthRequest } from "./auth";
 import { requireDealership, superAdminOnly } from "./tenant-middleware";
@@ -3652,6 +3661,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Soft-delete vehicle (manager+). Scrapers will not resurrect user-deleted vehicles.
+  app.post("/api/vehicles/:id/soft-delete", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const dealershipId = req.dealershipId!;
+      const actorUserId = req.user?.id || null;
+      const { reason } = req.body as { reason?: string };
+
+      const deletedAt = new Date();
+
+      // Mark vehicle deleted
+      const result = await db.update(vehicles)
+        .set({
+          deletedAt,
+          deletedByUserId: actorUserId,
+          deletedReason: reason || 'MANUAL_DELETE',
+          lifecycleStatus: 'DELETED',
+        })
+        .where(and(eq(vehicles.id, id), eq(vehicles.dealershipId, dealershipId)))
+        .returning({ id: vehicles.id });
+
+      if (result.length === 0) {
+        return res.status(404).json({ error: 'Vehicle not found' });
+      }
+
+      // Audit event
+      try {
+        const { vehicleAuditEvents } = await import('@shared/schema');
+        await db.insert(vehicleAuditEvents).values({
+          dealershipId,
+          vehicleId: id,
+          actorUserId,
+          action: 'SOFT_DELETE',
+          reason: reason || 'MANUAL_DELETE',
+          metadata: { route: '/api/vehicles/:id/soft-delete' },
+        } as any);
+      } catch (auditErr) {
+        // Non-blocking
+        logWarn('[Vehicles] Audit insert failed', { err: auditErr instanceof Error ? auditErr.message : String(auditErr) });
+      }
+
+      res.json({ success: true, id, deletedAt: deletedAt.toISOString() });
+    } catch (error) {
+      logError('Error soft-deleting vehicle:', error instanceof Error ? error : new Error(String(error)), { route: 'api-vehicles-id-soft-delete' });
+      res.status(500).json({ error: 'Failed to soft-delete vehicle' });
+    }
+  });
+
   // VDP Content Editing - GM and Sales Manager can edit headline, subheadline, description
   // These manual edits are preserved across scraper updates
   app.patch("/api/vehicles/:id/vdp-content", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
@@ -3702,6 +3759,100 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       logError('Error deleting vehicle:', error instanceof Error ? error : new Error(String(error)), { route: 'api-vehicles-id' });
       res.status(500).json({ error: "Failed to delete vehicle" });
+    }
+  });
+
+  // ===== Autopost Priority Queue (v1.1) =====
+
+  // List autopost queue (manager/master)
+  app.get("/api/manager/autopost/queue", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: any, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const platform = (req.query.platform as any) || 'all';
+
+      const { listAutopostQueue } = await import('./autopost-queue-api');
+      const rows = await listAutopostQueue({ dealershipId, platform });
+      res.json({ items: rows });
+    } catch (error: any) {
+      logError('Error listing autopost queue:', error instanceof Error ? error : new Error(String(error)), { route: 'api-manager-autopost-queue' });
+      res.status(500).json({ error: 'Failed to list autopost queue' });
+    }
+  });
+
+  // Reorder autopost queue
+  app.post("/api/manager/autopost/queue/reorder", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: any, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const orderedQueueItemIds = req.body?.orderedQueueItemIds;
+      if (!Array.isArray(orderedQueueItemIds) || orderedQueueItemIds.length === 0) {
+        return res.status(400).json({ error: 'orderedQueueItemIds array required' });
+      }
+
+      const { reorderAutopostQueue } = await import('./autopost-queue-api');
+      await reorderAutopostQueue({ dealershipId, orderedQueueItemIds, actorUserId: req.user?.id ?? null });
+      res.json({ ok: true });
+    } catch (error: any) {
+      logError('Error reordering autopost queue:', error instanceof Error ? error : new Error(String(error)), { route: 'api-manager-autopost-queue-reorder' });
+      res.status(500).json({ error: 'Failed to reorder autopost queue', details: error.message });
+    }
+  });
+
+  // Set/clear photo gate override
+  app.post("/api/manager/autopost/queue/:queueItemId/photo-override", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: any, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const queueItemId = req.params.queueItemId;
+      const enabled = !!req.body?.enabled;
+      const reason = req.body?.reason;
+
+      const { setPhotoGateOverride } = await import('./autopost-queue-api');
+      await setPhotoGateOverride({ dealershipId, queueItemId, enabled, reason, actorUserId: req.user?.id ?? null });
+      res.json({ ok: true });
+    } catch (error: any) {
+      logError('Error setting photo override:', error instanceof Error ? error : new Error(String(error)), { route: 'api-manager-autopost-queue-photo-override' });
+      res.status(500).json({ error: 'Failed to set photo override' });
+    }
+  });
+
+  // Claim next item (worker/extension)
+  app.post("/api/autopost/claim-next", async (req: any, res) => {
+    try {
+      const { dealershipId, platform } = req.body || {};
+      if (!dealershipId || !platform) {
+        return res.status(400).json({ error: 'dealershipId and platform are required' });
+      }
+
+      // TODO: add service-token auth for extension/worker. For now, gate with env.
+      if (process.env.ENABLE_AUTOPOST_WORKER_API !== 'true') {
+        return res.status(403).json({ error: 'Autopost worker API disabled (set ENABLE_AUTOPOST_WORKER_API=true)' });
+      }
+
+      const { claimNextAutopostItem } = await import('./autopost-queue-api');
+      const claimed = await claimNextAutopostItem({ dealershipId: Number(dealershipId), platform });
+      res.json({ claimed });
+    } catch (error: any) {
+      logError('Error claiming autopost item:', error instanceof Error ? error : new Error(String(error)), { route: 'api-autopost-claim-next' });
+      res.status(500).json({ error: 'Failed to claim next' });
+    }
+  });
+
+  // Result callback
+  app.post("/api/autopost/result", async (req: any, res) => {
+    try {
+      const { dealershipId, queueItemId, platform, status, postedUrl, externalId, error } = req.body || {};
+      if (!dealershipId || !queueItemId || !platform || !status) {
+        return res.status(400).json({ error: 'dealershipId, queueItemId, platform, status are required' });
+      }
+      if (process.env.ENABLE_AUTOPOST_WORKER_API !== 'true') {
+        return res.status(403).json({ error: 'Autopost worker API disabled (set ENABLE_AUTOPOST_WORKER_API=true)' });
+      }
+
+      const { recordAutopostResult } = await import('./autopost-queue-api');
+      await recordAutopostResult({ dealershipId: Number(dealershipId), queueItemId, platform, status, postedUrl, externalId, error });
+      res.json({ ok: true });
+    } catch (error: any) {
+      logError('Error recording autopost result:', error instanceof Error ? error : new Error(String(error)), { route: 'api-autopost-result' });
+      res.status(500).json({ error: 'Failed to record result' });
     }
   });
 
@@ -17369,6 +17520,128 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
 
     // Redirect to manager email settings.
     return res.redirect('/manager/notifications/settings');
+  });
+
+  // ===== Autopost Priority Queue (Inventory Sync v1.1) =====
+
+  // Manager: list queue
+  app.get('/api/manager/autopost/queue', authMiddleware, requireDealership, requireRole('master', 'sales_manager'), async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const platform = String(req.query.platform || 'all') as any;
+      const items = await listAutopostQueue({ dealershipId, platform });
+      res.json({ items });
+    } catch (error: any) {
+      logError('List autopost queue failed', error, { route: 'api-manager-autopost-queue' });
+      res.status(500).json({ error: error.message || 'Failed' });
+    }
+  });
+
+  // Manager: force re-evaluate + enqueue (manual refresh)
+  app.post('/api/manager/autopost/queue/evaluate', authMiddleware, requireDealership, requireRole('master', 'sales_manager'), async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const result = await evaluateAndEnqueueAutopostQueue({ dealershipId, actorUserId: req.user?.id ?? null });
+      res.json({ success: true, ...result });
+    } catch (error: any) {
+      logError('Evaluate autopost queue failed', error, { route: 'api-manager-autopost-queue-evaluate' });
+      res.status(500).json({ error: error.message || 'Failed' });
+    }
+  });
+
+  // Manager: reorder
+  app.post('/api/manager/autopost/queue/reorder', authMiddleware, requireDealership, requireRole('master', 'sales_manager'), async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const orderedQueueItemIds = Array.isArray(req.body?.orderedQueueItemIds) ? req.body.orderedQueueItemIds : [];
+      if (!orderedQueueItemIds.length) return res.status(400).json({ error: 'orderedQueueItemIds required' });
+
+      await reorderAutopostQueue({ dealershipId, orderedQueueItemIds, actorUserId: req.user?.id ?? null });
+      res.json({ success: true });
+    } catch (error: any) {
+      logError('Reorder autopost queue failed', error, { route: 'api-manager-autopost-queue-reorder' });
+      res.status(500).json({ error: error.message || 'Failed' });
+    }
+  });
+
+  // Manager: photo gate override
+  app.post('/api/manager/autopost/queue/:queueItemId/photo-override', authMiddleware, requireDealership, requireRole('master', 'sales_manager'), async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const queueItemId = String(req.params.queueItemId);
+      const enabled = !!req.body?.enabled;
+      const reason = req.body?.reason ? String(req.body.reason) : null;
+
+      await setPhotoGateOverride({ dealershipId, queueItemId, enabled, actorUserId: req.user!.id, reason });
+      res.json({ success: true });
+    } catch (error: any) {
+      logError('Photo override failed', error, { route: 'api-manager-autopost-photo-override' });
+      res.status(500).json({ error: error.message || 'Failed' });
+    }
+  });
+
+  // Manager: dequeue/pause
+  app.post('/api/manager/autopost/queue/:queueItemId/dequeue', authMiddleware, requireDealership, requireRole('master', 'sales_manager'), async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const queueItemId = String(req.params.queueItemId);
+      const reason = req.body?.reason ? String(req.body.reason) : 'manager_dequeued';
+      await dequeueAutopostQueueItem({ dealershipId, queueItemId, actorUserId: req.user?.id ?? null, reason });
+      res.json({ success: true });
+    } catch (error: any) {
+      logError('Dequeue failed', error, { route: 'api-manager-autopost-dequeue' });
+      res.status(500).json({ error: error.message || 'Failed' });
+    }
+  });
+
+  // Worker/extension: claim next
+  app.post('/api/autopost/claim-next', authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const platform = String(req.body?.platform || '') as any;
+      if (platform !== 'facebook_marketplace' && platform !== 'craigslist') {
+        return res.status(400).json({ error: 'platform must be facebook_marketplace|craigslist' });
+      }
+
+      const item = await claimNextAutopostItem({ dealershipId, platform, actorUserId: req.user?.id ?? null });
+      res.json({ item });
+    } catch (error: any) {
+      logError('Claim next failed', error, { route: 'api-autopost-claim-next' });
+      res.status(500).json({ error: error.message || 'Failed' });
+    }
+  });
+
+  // Worker/extension: record result
+  app.post('/api/autopost/result', authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const queueItemId = String(req.body?.queueItemId || '');
+      const platform = String(req.body?.platform || '') as any;
+      const status = String(req.body?.status || '') as any;
+      if (!queueItemId) return res.status(400).json({ error: 'queueItemId required' });
+      if (platform !== 'facebook_marketplace' && platform !== 'craigslist') {
+        return res.status(400).json({ error: 'platform must be facebook_marketplace|craigslist' });
+      }
+      if (status !== 'posted' && status !== 'failed' && status !== 'skipped') {
+        return res.status(400).json({ error: 'status must be posted|failed|skipped' });
+      }
+
+      await recordAutopostResult({
+        dealershipId,
+        queueItemId,
+        platform,
+        status,
+        postedUrl: req.body?.postedUrl ? String(req.body.postedUrl) : null,
+        externalId: req.body?.externalId ? String(req.body.externalId) : null,
+        error: req.body?.error ? String(req.body.error) : null,
+        actorUserId: req.user?.id ?? null,
+      });
+
+      res.json({ success: true });
+    } catch (error: any) {
+      logError('Record result failed', error, { route: 'api-autopost-result' });
+      res.status(500).json({ error: error.message || 'Failed' });
+    }
   });
 
   return httpServer;

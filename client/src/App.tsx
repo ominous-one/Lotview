@@ -39,6 +39,8 @@ import NotificationsPage from "@/pages/NotificationsPage";
 import ManagerEmailSettingsPage from "@/pages/ManagerEmailSettingsPage";
 import AppointmentCalendarPage from "@/pages/AppointmentCalendarPage";
 import FollowUpTasksPage from "@/pages/FollowUpTasksPage";
+import AutopostQueue from "@/pages/AutopostQueue";
+import AutopostQueueManager from "@/pages/AutopostQueueManager";
 import { ImpersonationBanner } from "@/components/ImpersonationBanner";
 import ErrorBoundary from "@/components/ErrorBoundary";
 
@@ -54,6 +56,8 @@ function MarketingRouter() {
       <Route path="/manager/appointments" component={AppointmentsPage} />
       <Route path="/manager/calendar" component={AppointmentCalendarPage} />
       <Route path="/manager/follow-up-tasks" component={FollowUpTasksPage} />
+      <Route path="/manager/autopost-queue" component={AutopostQueueManager} />
+      <Route path="/manager/autopost/queue" component={AutopostQueue} />
       <Route path="/manager/appointments/:id" component={AppointmentDetailPage} />
       <Route path="/manager/notifications" component={NotificationsPage} />
       <Route path="/manager/notifications/settings" component={ManagerEmailSettingsPage} />
@@ -92,6 +96,8 @@ function DealershipRouter() {
       <Route path="/manager/appointments" component={AppointmentsPage} />
       <Route path="/manager/calendar" component={AppointmentCalendarPage} />
       <Route path="/manager/follow-up-tasks" component={FollowUpTasksPage} />
+      <Route path="/manager/autopost-queue" component={AutopostQueueManager} />
+      <Route path="/manager/autopost/queue" component={AutopostQueue} />
       <Route path="/manager/appointments/:id" component={AppointmentDetailPage} />
       <Route path="/manager/notifications" component={NotificationsPage} />
       <Route path="/manager/notifications/settings" component={ManagerEmailSettingsPage} />
@@ -156,3 +162,4 @@ function App() {
 }
 
 export default App;
+

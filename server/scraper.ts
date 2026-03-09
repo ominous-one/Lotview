@@ -3,7 +3,7 @@ import { execSync } from 'child_process';
 import { sql, eq, and, inArray, lt, isNull, or } from 'drizzle-orm';
 import { db } from './db';
 import { storage } from './storage';
-import { vehicles, vehicleViews, chatConversations, vehicleImages } from '@shared/schema';
+import { vehicles, vehicleImages } from '@shared/schema';
 import { scrapeAllCarGurusDealers } from './cargurus-scraper';
 import { generateVehicleDescription } from './openai';
 import { scrapeAllDealerListings, scrapeDealerListingsWithCallback, scrapeDealerListingsCheckpointed, type DealerVehicleListing } from './dealer-listing-scraper';
@@ -11,6 +11,8 @@ import { matchCarGurusToDealer } from './vehicle-matcher';
 import { ObjectStorageService } from './objectStorage';
 import { scrapeCarfaxReport as scrapeCarfaxReportPage } from './carfax-scraper';
 import { carfaxReports } from '@shared/schema';
+import { normalizeStockNumber, normalizeVin, isPlaceholderVin } from './inventory-identity';
+import { computePhotoStatus } from './vehicle-photo-utils';
 
 // Singleton for image uploads during scraping
 const objectStorageService = new ObjectStorageService();
@@ -101,45 +103,84 @@ function normalizeVdpUrl(url: string | null | undefined): string | null {
 export async function upsertVehicleByVin(vehicleData: ScrapedVehicle): Promise<{ action: 'inserted' | 'updated', id: number }> {
   const now = new Date();
   
-  // Find existing vehicle - dealer_vdp_url is the MOST UNIQUE identifier (one URL per vehicle)
-  // This prevents duplicates when a vehicle is first scraped with PENDING VIN and later with real VIN
+  // Find existing vehicle using canonical dedupe identity:
+  //   (dealershipId, VIN, stockNumber)
+  // Fallbacks: VIN-only, then normalized dealerVdpUrl, then Y/M/M only.
+  // NOTE: We intentionally do NOT resurrect vehicles soft-deleted by a user.
   let existingId: number | null = null;
-  
-  // Normalize URL for consistent matching
+
   const normalizedUrl = normalizeVdpUrl(vehicleData.dealerVdpUrl);
-  
-  // STRATEGY 1: Match by normalized dealer_vdp_url (most reliable - one URL per vehicle)
-  if (normalizedUrl) {
-    // Try exact match first
-    const existingByUrl = await db.select({ id: vehicles.id, dealerVdpUrl: vehicles.dealerVdpUrl })
+  const normalizedVin = normalizeVin(vehicleData.vin);
+  const normalizedStock = normalizeStockNumber(vehicleData.stockNumber);
+
+  // STRATEGY 1: dealershipId + VIN + normalizedStockNumber (canonical)
+  if (normalizedVin && normalizedStock && !isPlaceholderVin(normalizedVin)) {
+    const existingByVinStock = await db.select({ id: vehicles.id })
+      .from(vehicles)
+      .where(and(
+        eq(vehicles.dealershipId, vehicleData.dealershipId),
+        sql`UPPER(TRIM(${vehicles.vin})) = ${normalizedVin}`,
+        sql`UPPER(TRIM(${vehicles.normalizedStockNumber})) = ${normalizedStock}`
+      ))
+      .limit(1);
+
+    if (existingByVinStock.length > 0) {
+      existingId = existingByVinStock[0].id;
+    }
+  }
+
+  // STRATEGY 1.5: Merge-forward when VIN is missing initially.
+  // If we now have a real VIN + normalizedStock, prefer an existing row with same stock and a placeholder/NULL VIN.
+  if (!existingId && normalizedVin && normalizedStock && !isPlaceholderVin(normalizedVin)) {
+    const existingByStockPlaceholderVin = await db.select({ id: vehicles.id })
+      .from(vehicles)
+      .where(and(
+        eq(vehicles.dealershipId, vehicleData.dealershipId),
+        sql`UPPER(TRIM(${vehicles.normalizedStockNumber})) = ${normalizedStock}`,
+        or(
+          isNull(vehicles.vin),
+          sql`UPPER(TRIM(${vehicles.vin})) LIKE 'PENDING%'`,
+          sql`UPPER(TRIM(${vehicles.vin})) = 'UNKNOWN'`
+        )
+      ))
+      .limit(1);
+
+    if (existingByStockPlaceholderVin.length > 0) {
+      existingId = existingByStockPlaceholderVin[0].id;
+    }
+  }
+
+  // STRATEGY 2: VIN-only (fallback when stockNumber unknown)
+  if (!existingId && normalizedVin && !isPlaceholderVin(normalizedVin)) {
+    const existingByVin = await db.select({ id: vehicles.id })
+      .from(vehicles)
+      .where(and(
+        eq(vehicles.dealershipId, vehicleData.dealershipId),
+        sql`UPPER(TRIM(${vehicles.vin})) = ${normalizedVin}`
+      ))
+      .limit(1);
+
+    if (existingByVin.length > 0) {
+      existingId = existingByVin[0].id;
+    }
+  }
+
+  // STRATEGY 3: Match by normalized dealerVdpUrl (useful for placeholder VINs)
+  if (!existingId && normalizedUrl) {
+    const existingByUrl = await db.select({ id: vehicles.id })
       .from(vehicles)
       .where(and(
         eq(vehicles.dealershipId, vehicleData.dealershipId),
         sql`LOWER(${vehicles.dealerVdpUrl}) LIKE ${normalizedUrl + '%'}`
       ))
       .limit(1);
-    
+
     if (existingByUrl.length > 0) {
       existingId = existingByUrl[0].id;
     }
   }
-  
-  // STRATEGY 2: Match by VIN (if URL didn't match and VIN is a real VIN, not PENDING)
-  if (vehicleData.vin && !existingId && !vehicleData.vin.startsWith('PENDING-')) {
-    const existingByVin = await db.select({ id: vehicles.id })
-      .from(vehicles)
-      .where(and(
-        eq(vehicles.vin, vehicleData.vin),
-        eq(vehicles.dealershipId, vehicleData.dealershipId)
-      ))
-      .limit(1);
-    
-    if (existingByVin.length > 0) {
-      existingId = existingByVin[0].id;
-    }
-  }
-  
-  // STRATEGY 3: Fallback to year/make/model/dealershipId (only for vehicles without VIN or URL)
+
+  // STRATEGY 4: Fallback to year/make/model/dealershipId (only for vehicles without VIN or URL)
   if (!existingId && !vehicleData.vin && !vehicleData.dealerVdpUrl) {
     const existingByYMM = await db.select({ id: vehicles.id })
       .from(vehicles)
@@ -152,7 +193,7 @@ export async function upsertVehicleByVin(vehicleData: ScrapedVehicle): Promise<{
         sql`${vehicles.dealerVdpUrl} IS NULL`
       ))
       .limit(1);
-    
+
     if (existingByYMM.length > 0) {
       existingId = existingByYMM[0].id;
     }
@@ -165,6 +206,16 @@ export async function upsertVehicleByVin(vehicleData: ScrapedVehicle): Promise<{
       .from(vehicles)
       .where(eq(vehicles.id, existingId))
       .limit(1);
+
+    // Soft-delete rules:
+    // - If a user manually deleted the vehicle, do NOT resurrect/update it via scraper.
+    // - If it was removed by sync (system soft-delete), allow restore.
+    if (existingVehicle?.deletedAt && existingVehicle.deletedByUserId) {
+      console.log(`[Scraper] Skipping update for soft-deleted vehicle ${existingId} (deletedByUserId=${existingVehicle.deletedByUserId})`);
+      return { action: 'updated', id: existingId };
+    }
+
+    const shouldRestore = !!existingVehicle?.deletedAt && (existingVehicle.deletedReason === 'REMOVED_BY_SYNC');
 
     // Preserve images: only update if new scrape has images
     let imagesToSave = vehicleData.images;
@@ -193,6 +244,12 @@ export async function upsertVehicleByVin(vehicleData: ScrapedVehicle): Promise<{
     // Build the vehicle record with smart merge
     const vehicleRecord = {
       dealershipId: vehicleData.dealershipId,
+      ...(shouldRestore ? {
+        deletedAt: null,
+        deletedByUserId: null,
+        deletedReason: null,
+        lifecycleStatus: 'ACTIVE',
+      } : {}),
       year: vehicleData.year,
       make: vehicleData.make,
       model: vehicleData.model,
@@ -201,6 +258,7 @@ export async function upsertVehicleByVin(vehicleData: ScrapedVehicle): Promise<{
       price: priceToSave,
       odometer: odometerToSave,
       images: imagesToSave,
+      photoStatus: computePhotoStatus(imagesToSave, 10),
       badges: vehicleData.badges?.length ? vehicleData.badges : existingVehicle?.badges || [],
       location: preserveField(vehicleData.location, existingVehicle?.location),
       dealership: preserveField(vehicleData.dealership, existingVehicle?.dealership),
@@ -208,6 +266,7 @@ export async function upsertVehicleByVin(vehicleData: ScrapedVehicle): Promise<{
       fullPageContent: preserveField(vehicleData.fullPageContent, existingVehicle?.fullPageContent),
       vin: preserveField(vehicleData.vin, existingVehicle?.vin),
       stockNumber: preserveField(vehicleData.stockNumber, existingVehicle?.stockNumber),
+      normalizedStockNumber: preserveField(normalizeStockNumber(vehicleData.stockNumber), existingVehicle?.normalizedStockNumber),
       cargurusPrice: preserveField(vehicleData.cargurusPrice, existingVehicle?.cargurusPrice),
       cargurusUrl: preserveField(vehicleData.cargurusUrl, existingVehicle?.cargurusUrl),
       dealRating: preserveField(vehicleData.dealRating, existingVehicle?.dealRating),
@@ -256,6 +315,7 @@ export async function upsertVehicleByVin(vehicleData: ScrapedVehicle): Promise<{
       price: vehicleData.price || 0,
       odometer: vehicleData.odometer || 0,
       images: vehicleData.images,
+      photoStatus: computePhotoStatus(vehicleData.images, 10),
       badges: vehicleData.badges,
       location: vehicleData.location,
       dealership: vehicleData.dealership,
@@ -263,6 +323,7 @@ export async function upsertVehicleByVin(vehicleData: ScrapedVehicle): Promise<{
       fullPageContent: vehicleData.fullPageContent || null,
       vin: vehicleData.vin || null,
       stockNumber: vehicleData.stockNumber || null,
+      normalizedStockNumber: normalizeStockNumber(vehicleData.stockNumber),
       cargurusPrice: vehicleData.cargurusPrice || null,
       cargurusUrl: vehicleData.cargurusUrl || null,
       dealRating: vehicleData.dealRating || null,
@@ -1563,7 +1624,7 @@ export async function scrapeAllDealerships(): Promise<number> {
       
       // Minimum photo requirement: Set to 1 to allow vehicles with limited images
       // Production recommendation: Increase to 5-15 for better listing quality
-      const MIN_PHOTOS_REQUIRED = 1;
+      const MIN_PHOTOS_REQUIRED = 0;
       if (!v.images || v.images.length < MIN_PHOTOS_REQUIRED) {
         const skip = {
           reason: `insufficient_photos_${v.images?.length || 0}`,
@@ -1575,6 +1636,11 @@ export async function scrapeAllDealerships(): Promise<number> {
         skippedVehicles.push(skip);
         console.log(`  ✗ SKIP (< ${MIN_PHOTOS_REQUIRED} photos): ${vehicleId} [${v.images?.length || 0} photos, VIN: ${v.vin || 'N/A'}]`);
         return false;
+      }
+
+      // v1.1: Allow ingest even when there are 0 photos; enrichment will backfill.
+      if (!v.images || v.images.length === 0) {
+        console.log(`  ⚠ WARNING (0 photos): ${vehicleId} [VIN: ${v.vin || 'N/A'}] — ingested; pending enrichment`);
       }
       
       return true;
@@ -1631,6 +1697,12 @@ export async function scrapeAllDealerships(): Promise<number> {
     // STEP 5: Save to database
     console.log('\n=== STEP 5: SAVING TO DATABASE ===\n');
     
+    // Clear existing inventory (LEGACY DEMO PATH).
+    // PRODUCTION SAFETY: never allow TRUNCATE of vehicles in production.
+    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_LEGACY_VEHICLES_TRUNCATE !== 'true') {
+      throw new Error('Refusing to TRUNCATE vehicles in production (set ALLOW_LEGACY_VEHICLES_TRUNCATE=true to override explicitly)');
+    }
+
     // Clear existing inventory (delete views first to avoid foreign key constraint)
     await db.execute(sql`TRUNCATE TABLE vehicle_views, vehicles RESTART IDENTITY CASCADE`);
     
@@ -1825,19 +1897,20 @@ async function scrapeDealershipIncrementally(targetDealershipId: number): Promis
             console.log(`  - ${v.year} ${v.make} ${v.model} ${v.trim} (VIN: ${v.vin || 'N/A'}) [Dealership ${v.dealershipId}] Last scraped: ${lastScrape}`);
           }
           
-          // Delete stale vehicles (first delete related records to avoid foreign key constraints)
+          // Soft-delete stale vehicles (DO NOT hard-delete in production)
+          // We keep associated views/conversations for audit/history.
           const staleIds = vehiclesToDelete.map(v => v.id);
-          
-          // Delete related chat conversations first
-          await db.delete(chatConversations).where(inArray(chatConversations.vehicleId, staleIds));
-          
-          // Delete related vehicle views
-          await db.delete(vehicleViews).where(inArray(vehicleViews.vehicleId, staleIds));
-          
-          // Now delete the vehicles
-          await db.delete(vehicles).where(inArray(vehicles.id, staleIds));
-          
-          console.log(`✓ Removed ${vehiclesToDelete.length} sold/stale vehicles`);
+          const deletedAt = new Date();
+
+          await db.update(vehicles)
+            .set({
+              deletedAt,
+              deletedReason: 'REMOVED_BY_SYNC',
+              lifecycleStatus: 'REMOVED_BY_SYNC',
+            })
+            .where(inArray(vehicles.id, staleIds));
+
+          console.log(`✓ Soft-deleted ${vehiclesToDelete.length} sold/stale vehicles (reason=REMOVED_BY_SYNC)`);
         } else {
           console.log('✓ No stale vehicles to remove');
           

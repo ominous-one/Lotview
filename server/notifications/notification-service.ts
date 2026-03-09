@@ -379,6 +379,137 @@ async function createOpsAlert(
   }
 }
 
+export async function createInventoryOpsNotification(
+  tx: any,
+  params: {
+    dealershipId: number;
+    eventType: 'INVENTORY_ENRICHMENT_STUCK' | 'AUTOPOST_PLATFORM_FAILED';
+    eventKey: string;
+    vehicleId: number;
+    title: string;
+    body: string;
+    deepLink: string;
+    requireEmail?: boolean;
+  }
+): Promise<void> {
+  const dealer = await tx.query.dealerships.findFirst({
+    where: eq(dealerships.id, params.dealershipId),
+    columns: { id: true, name: true },
+  });
+  if (!dealer) throw new Error('Dealership not found');
+
+  let existingEvent = await tx.query.notificationEvents.findFirst({
+    where: and(eq(notificationEvents.dealershipId, params.dealershipId), eq(notificationEvents.eventKey, params.eventKey)),
+    columns: { id: true },
+  });
+
+  const ev = existingEvent
+    ? [{ id: existingEvent.id }]
+    : await tx
+        .insert(notificationEvents)
+        .values({
+          dealershipId: params.dealershipId,
+          eventType: params.eventType,
+          eventKey: params.eventKey,
+          vehicleId: params.vehicleId,
+          summary: params.title,
+          details: {
+            vehicleId: params.vehicleId,
+            deepLink: params.deepLink,
+          },
+        })
+        .returning();
+
+  const eventId = ev[0].id as string;
+
+  const recipients = await tx.query.users.findMany({
+    where: and(eq(users.dealershipId, params.dealershipId), inArray(users.role, ['master', 'sales_manager']), eq(users.isActive, true)),
+    columns: {
+      id: true,
+      email: true,
+      notificationEmail: true,
+      notificationEmailVerifiedAt: true,
+      notificationEmailHardBouncedAt: true,
+      notificationEmailSpamComplaintAt: true,
+      name: true,
+    },
+  });
+
+  const requireEmail = !!params.requireEmail;
+
+  for (const u of recipients) {
+    const notificationKey = `${params.dealershipId}:${params.eventType}:${params.eventKey}:${u.id}`;
+
+    const insertedNotif = await tx
+      .insert(notifications)
+      .values({
+        dealershipId: params.dealershipId,
+        eventId,
+        recipientUserId: u.id,
+        notificationKey,
+        title: params.title,
+        body: params.body,
+        deepLink: params.deepLink,
+      })
+      .onConflictDoNothing()
+      .returning();
+
+    const notifId = insertedNotif[0]?.id as string | undefined;
+
+    if (!requireEmail || !notifId) continue;
+
+    const toEmail = u.notificationEmail || u.email;
+    const verified = !!toEmail && !!u.notificationEmailVerifiedAt && !u.notificationEmailHardBouncedAt && !u.notificationEmailSpamComplaintAt;
+
+    const sendKey = buildSendKey(notificationKey, 'EMAIL');
+
+    if (!verified) {
+      await tx
+        .insert(emailOutbox)
+        .values({
+          dealershipId: params.dealershipId,
+          notificationId: notifId,
+          sendKey,
+          toEmail: toEmail || 'missing',
+          toUserId: u.id,
+          subject: `[FAILED: EMAIL_UNVERIFIED] ${dealer.name} — ${params.title}`,
+          html: `<pre>${params.body}</pre>`,
+          text: params.body,
+          status: 'FAILED',
+          attemptCount: 1,
+          maxAttempts: 1,
+          nextAttemptAt: new Date(),
+          lastError: !toEmail ? 'EMAIL_MISSING' : 'EMAIL_UNVERIFIED',
+          updatedAt: new Date(),
+        })
+        .onConflictDoNothing();
+      continue;
+    }
+
+    await tx
+      .insert(emailOutbox)
+      .values({
+        dealershipId: params.dealershipId,
+        notificationId: notifId,
+        sendKey,
+        toEmail,
+        toUserId: u.id,
+        subject: `${dealer.name} — ${params.title}`,
+        html: buildAppointmentEmailHtml({
+          dealerName: dealer.name,
+          title: params.title,
+          body: params.body,
+          deepLink: params.deepLink,
+        }),
+        text: params.body,
+        status: 'PENDING',
+        nextAttemptAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .onConflictDoNothing();
+  }
+}
+
 function buildAppointmentEmailHtml(params: { dealerName: string; title: string; body: string; deepLink: string }): string {
   const escaped = params.body
     .replaceAll('&', '&amp;')

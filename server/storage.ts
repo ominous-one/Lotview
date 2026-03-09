@@ -1189,11 +1189,11 @@ export class DatabaseStorage implements IStorage {
     const [{ count }] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(vehicles)
-      .where(eq(vehicles.dealershipId, dealershipId));
+      .where(and(eq(vehicles.dealershipId, dealershipId), isNull(vehicles.deletedAt)));
     
     // Get paginated vehicles
     const vehiclesList = await db.select().from(vehicles)
-      .where(eq(vehicles.dealershipId, dealershipId))
+      .where(and(eq(vehicles.dealershipId, dealershipId), isNull(vehicles.deletedAt)))
       .orderBy(desc(vehicles.createdAt))
       .limit(limit)
       .offset(offset);
@@ -1207,8 +1207,9 @@ export class DatabaseStorage implements IStorage {
   async getVehicleById(id: number, dealershipId: number): Promise<Vehicle | undefined> {
     const result = await db.select().from(vehicles)
       .where(and(
-        eq(vehicles.id, id), 
-        eq(vehicles.dealershipId, dealershipId)
+        eq(vehicles.id, id),
+        eq(vehicles.dealershipId, dealershipId),
+        isNull(vehicles.deletedAt)
       ))
       .limit(1);
     return result[0];
@@ -1220,7 +1221,8 @@ export class DatabaseStorage implements IStorage {
     const result = await db.select().from(vehicles)
       .where(and(
         sql`UPPER(TRIM(${vehicles.vin})) = ${normalizedVin}`,
-        eq(vehicles.dealershipId, dealershipId)
+        eq(vehicles.dealershipId, dealershipId),
+        isNull(vehicles.deletedAt)
       ))
       .limit(1);
     return result[0];
@@ -1241,6 +1243,7 @@ export class DatabaseStorage implements IStorage {
       .from(vehicles)
       .where(and(
         eq(vehicles.dealershipId, dealershipId),
+        isNull(vehicles.deletedAt),
         sql`${vehicles.vin} IS NOT NULL`,
         sql`UPPER(TRIM(${vehicles.vin})) != ALL(${normalizedVins}::text[])`
       ));
@@ -1249,13 +1252,20 @@ export class DatabaseStorage implements IStorage {
       return { deletedCount: 0, deletedVins: [] };
     }
     
-    // Delete in one efficient query using parameterized array
+    // Soft-delete in one efficient query using parameterized array
     const idsToDelete = toDelete.map(v => v.id);
-    await db.delete(vehicles).where(and(
-      eq(vehicles.dealershipId, dealershipId),
-      sql`${vehicles.id} = ANY(${idsToDelete}::int[])`
-    ));
-    
+    const deletedAt = new Date();
+    await db.update(vehicles)
+      .set({
+        deletedAt,
+        deletedReason: 'REMOVED_BY_SYNC',
+        lifecycleStatus: 'REMOVED_BY_SYNC',
+      })
+      .where(and(
+        eq(vehicles.dealershipId, dealershipId),
+        sql`${vehicles.id} = ANY(${idsToDelete}::int[])`
+      ));
+
     return {
       deletedCount: toDelete.length,
       deletedVins: toDelete.map(v => v.vin).filter((v): v is string => v !== null)
@@ -1293,11 +1303,18 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteVehicle(id: number, dealershipId: number): Promise<boolean> {
-    // Only delete vehicles belonging to this dealership
-    await db.delete(vehicles).where(and(
-      eq(vehicles.id, id),
-      eq(vehicles.dealershipId, dealershipId)
-    ));
+    // Soft-delete only (never hard-delete in production)
+    const deletedAt = new Date();
+    await db.update(vehicles)
+      .set({
+        deletedAt,
+        deletedReason: 'MANUAL_DELETE',
+        lifecycleStatus: 'DELETED',
+      })
+      .where(and(
+        eq(vehicles.id, id),
+        eq(vehicles.dealershipId, dealershipId)
+      ));
     return true;
   }
 

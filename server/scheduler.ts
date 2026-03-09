@@ -7,6 +7,8 @@ import { facebookService } from './facebook-service';
 import { facebookCatalogService } from './facebook-catalog-service';
 import { processScheduledMessages } from './scheduled-message-service';
 import { processEmailOutboxBatch } from './notifications/email-outbox-worker';
+import { runPhotoEnrichmentSweep } from './inventory-enrichment-service';
+import { evaluateAndEnqueueAutopostQueue } from './autopost-queue-service';
 
 let schedulerInitialized = false;
 let marketAnalysisSchedulerInitialized = false;
@@ -34,30 +36,76 @@ export function startInventoryScheduler() {
     return;
   }
 
-  // Run scraper every night at 2 AM Pacific - uses ZenRows/Zyte scraping logic
-  // with full VDP extraction (trim, fuel type, images, Carfax badges, etc.)
+  // Run Olympic Hyundai Vancouver (dealershipId=1) ingest every night at 2 AM Pacific.
+  // Canonical path: robust scraper (uses ZenRows/Zyte + retries + validation gates).
   cron.schedule('0 2 * * *', async () => {
-    console.log('🕐 Running nightly inventory sync (ZenRows/Zyte scraper)...');
+    console.log('🕐 Running nightly inventory sync (robust scraper) [dealershipId=1]...');
     try {
-      await scrapeWithZenRows();
-      console.log('✓ Nightly inventory sync complete');
+      const result = await runRobustScrape('scheduler', 1);
+      if (!result.success) {
+        throw new Error(result.error || 'Robust scrape failed');
+      }
+      console.log(`✓ Nightly inventory sync complete: ${result.vehiclesFound} vehicles (method=${result.method}, retries=${result.retryCount})`);
     } catch (error) {
       console.error('✗ Nightly inventory sync failed:', error);
-      // Fallback to robust scraper if ZenRows fails
-      console.log('🔄 Attempting fallback with robust scraper...');
+      // Legacy fallback (kept for now): run full ZenRows sync
       try {
-        const targetIds = await getActiveDealershipIds();
-        for (const dealershipId of targetIds) {
-          const result = await runRobustScrape('scheduler', dealershipId);
-          if (result.success) {
-            console.log(`✓ Fallback: Dealership ${dealershipId}: ${result.vehiclesFound} vehicles`);
-          } else {
-            console.error(`✗ Fallback: Dealership ${dealershipId}: failed (${result.error})`);
-          }
-        }
+        console.log('🔄 Attempting legacy fallback with scrapeWithZenRows()...');
+        await scrapeWithZenRows();
+        console.log('✓ Legacy fallback inventory sync complete');
       } catch (fallbackError) {
-        console.error('✗ Fallback scraper also failed:', fallbackError);
+        console.error('✗ Legacy fallback also failed:', fallbackError);
       }
+    }
+  });
+
+  // Photo enrichment sweep (all active dealerships)
+  // Retries vehicles until they reach >=10 unique photos (or hit stop conditions)
+  cron.schedule('*/30 * * * *', async () => {
+    try {
+      const targetIds = await getActiveDealershipIds();
+      for (const dealershipId of targetIds) {
+        const result = await runPhotoEnrichmentSweep({ dealershipId, limit: 25, minPhotosTarget: 10 });
+        console.log(`[Enrichment] Dealership ${dealershipId}: processed=${result.processed}, updated=${result.updated}, skipped=${result.skipped}, failed=${result.failed}, terminal=${(result as any).terminal ?? 0}`);
+
+        // After enrichment, evaluate autopost eligibility + enqueue.
+        try {
+          const { evaluateAndEnqueueAutopost } = await import('./autopost-queue-api');
+          const r = await evaluateAndEnqueueAutopost({ dealershipId, actorUserId: null, minPhotosTarget: 10 });
+          if (r.enqueued || r.updatedEligibility) {
+            console.log(`[AutopostQueue] Dealership ${dealershipId}: enqueued=${r.enqueued}, eligibilityUpdated=${r.updatedEligibility}`);
+          }
+        } catch (e) {
+          console.error(`[AutopostQueue] Dealership ${dealershipId}: evaluate/enqueue failed:`, e);
+        }
+      }
+    } catch (error) {
+      console.error('[Enrichment] Sweep failed:', error);
+    }
+  });
+
+  // Periodic eligibility evaluation (in case eligibility changes without enrichment)
+  cron.schedule('*/10 * * * *', async () => {
+    try {
+      const targetIds = await getActiveDealershipIds();
+      const { evaluateAndEnqueueAutopost } = await import('./autopost-queue-api');
+      for (const dealershipId of targetIds) {
+        await evaluateAndEnqueueAutopost({ dealershipId, actorUserId: null, minPhotosTarget: 10 });
+      }
+    } catch (error) {
+      console.error('[AutopostQueue] Scheduled evaluate/enqueue failed:', error);
+    }
+  });
+
+  // Autopost queue evaluation (enqueues vehicles + reconciles photo gate blocking).
+  // Enable in production with ENABLE_AUTOPOST_QUEUE=true.
+  cron.schedule('*/10 * * * *', async () => {
+    if (process.env.ENABLE_AUTOPOST_QUEUE !== 'true') return;
+    try {
+      const result = await evaluateAndEnqueueAutopostQueue({ dealershipId: 1, actorUserId: null });
+      console.log(`[AutopostQueue] Evaluate complete: enqueued=${result.enqueued}, updated=${result.updated}, skipped=${result.skipped}`);
+    } catch (error) {
+      console.error('[AutopostQueue] Evaluate failed:', error);
     }
   });
 

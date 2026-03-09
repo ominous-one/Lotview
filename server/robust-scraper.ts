@@ -2120,7 +2120,13 @@ async function attemptZenRowsScrape(dealershipId?: number): Promise<{
               
               // CLEANUP: Delete any PENDING placeholder records with the same VDP URL
               // This ensures we don't have duplicates when a vehicle is successfully scraped
-              const deletedPending = await db.delete(vehicles)
+              const deletedAt = new Date();
+              const deletedPending = await db.update(vehicles)
+                .set({
+                  deletedAt,
+                  deletedReason: 'SCRAPE_PLACEHOLDER_REPLACED',
+                  lifecycleStatus: 'REPLACED',
+                })
                 .where(and(
                   eq(vehicles.dealershipId, source.dealershipId),
                   eq(vehicles.dealerVdpUrl, vdpUrl),
@@ -2402,9 +2408,16 @@ async function attemptZenRowsScrape(dealershipId?: number): Promise<{
 
       if (vehiclesToDelete.length > 0) {
         const idsToDelete = vehiclesToDelete.map(v => v.id);
-        await db.delete(vehicles).where(inArray(vehicles.id, idsToDelete));
+        const deletedAt = new Date();
+        await db.update(vehicles)
+          .set({
+            deletedAt,
+            deletedReason: 'REMOVED_BY_SYNC',
+            lifecycleStatus: 'REMOVED_BY_SYNC',
+          })
+          .where(inArray(vehicles.id, idsToDelete));
         totalDeleted = vehiclesToDelete.length;
-        logInfo('[Robust Scraper] ZenRows deleted vehicles missing for 3+ consecutive scrapes', { 
+        logInfo('[Robust Scraper] ZenRows soft-deleted vehicles missing for 3+ consecutive scrapes', { 
           service: 'scraper', 
           method: 'zenrows', 
           deletedCount: totalDeleted,
@@ -2841,8 +2854,14 @@ async function attemptScrapingBeeScrape(dealershipId?: number): Promise<{
             }
             logInfo('[Robust Scraper] ScrapingBee imported vehicle', { service: 'scraper', method: 'scrapingbee', year, make, model, vin: vehicle.vin, action: upsertResult.action });
             
-            // CLEANUP: Delete any PENDING placeholder records with the same VDP URL
-            const deletedPending = await db.delete(vehicles)
+            // CLEANUP: Soft-delete any PENDING placeholder records with the same VDP URL
+            const deletedAt = new Date();
+            const deletedPending = await db.update(vehicles)
+              .set({
+                deletedAt,
+                deletedReason: 'SCRAPE_PLACEHOLDER_REPLACED',
+                lifecycleStatus: 'REPLACED',
+              })
               .where(and(
                 eq(vehicles.dealershipId, source.dealershipId),
                 eq(vehicles.dealerVdpUrl, vdpUrl),
@@ -2950,9 +2969,16 @@ async function attemptScrapingBeeScrape(dealershipId?: number): Promise<{
 
       if (vehiclesToDelete.length > 0) {
         const idsToDelete = vehiclesToDelete.map(v => v.id);
-        await db.delete(vehicles).where(inArray(vehicles.id, idsToDelete));
+        const deletedAt = new Date();
+        await db.update(vehicles)
+          .set({
+            deletedAt,
+            deletedReason: 'REMOVED_BY_SYNC',
+            lifecycleStatus: 'REMOVED_BY_SYNC',
+          })
+          .where(inArray(vehicles.id, idsToDelete));
         totalDeleted = vehiclesToDelete.length;
-        logInfo('[Robust Scraper] ScrapingBee deleted vehicles missing for 3+ consecutive scrapes', { 
+        logInfo('[Robust Scraper] ScrapingBee soft-deleted vehicles missing for 3+ consecutive scrapes', { 
           service: 'scraper', 
           method: 'scrapingbee', 
           deletedCount: totalDeleted,
