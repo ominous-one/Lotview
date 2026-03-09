@@ -941,7 +941,7 @@ export default function Manager() {
     defaultRadiusKm: 50
   });
   const [isSavingSettings, setIsSavingSettings] = useState(false);
-  const [activeManagerTab, setActiveManagerTab] = useState<'appraisal' | 'inventory' | 'my-inventory' | 'conversations' | 'prompts' | 'settings' | 'history' | 'followup' | 'call-scoring' | 'templates' | 'appointments'>('appraisal');
+  const [activeManagerTab, setActiveManagerTab] = useState<'appraisal' | 'inventory' | 'competitive' | 'my-inventory' | 'conversations' | 'prompts' | 'settings' | 'history' | 'followup' | 'call-scoring' | 'templates' | 'appointments'>('appraisal');
 
   // Conversations state
   const [allConversations, setAllConversations] = useState<{
@@ -973,6 +973,17 @@ export default function Manager() {
   // Live market pricing state (MarketCheck real-time data)
   const [livePricing, setLivePricing] = useState<any>(null);
   const [isLoadingLivePricing, setIsLoadingLivePricing] = useState(false);
+
+  // Competitive report state (Workstream 2)
+  const [competitiveRadiusKm, setCompetitiveRadiusKm] = useState<number>(100);
+  const [competitiveReport, setCompetitiveReport] = useState<any>(null);
+  const [isLoadingCompetitiveReport, setIsLoadingCompetitiveReport] = useState(false);
+  const [isRunningCompetitiveReport, setIsRunningCompetitiveReport] = useState(false);
+
+  // Appraisal comps engine state (Workstream 3)
+  const [trimMode, setTrimMode] = useState<'exact' | 'near'>('exact');
+  const [appraisalComps, setAppraisalComps] = useState<any>(null);
+  const [isLoadingAppraisalComps, setIsLoadingAppraisalComps] = useState(false);
 
   // Investment tier calculation (vAuto ProfitTime GPS equivalent)
   // Factors: demand score, days supply, market velocity, AND profit potential
@@ -1193,6 +1204,13 @@ export default function Manager() {
   useEffect(() => {
     if (activeManagerTab === 'conversations' && user && !allConversations) {
       loadConversations();
+    }
+  }, [activeManagerTab, user]);
+
+  // Load competitive report when tab is selected
+  useEffect(() => {
+    if (activeManagerTab === 'competitive' && user && !competitiveReport && !isLoadingCompetitiveReport) {
+      loadCompetitiveReport();
     }
   }, [activeManagerTab, user]);
 
@@ -1761,6 +1779,66 @@ export default function Manager() {
     }
   };
 
+  const loadCompetitiveReport = async () => {
+    setIsLoadingCompetitiveReport(true);
+    try {
+      const token = localStorage.getItem('auth_token');
+      const result = await apiGet<any>(`/api/manager/competitive-report/latest?radiusKm=${competitiveRadiusKm}`, {
+        'Authorization': `Bearer ${token}`
+      });
+      setCompetitiveReport(result);
+    } catch (error) {
+      console.error('Competitive report load error:', error);
+      setCompetitiveReport(null);
+    } finally {
+      setIsLoadingCompetitiveReport(false);
+    }
+  };
+
+  const runCompetitiveReportNow = async () => {
+    setIsRunningCompetitiveReport(true);
+    try {
+      const token = localStorage.getItem('auth_token');
+      const result = await apiPost<any>('/api/manager/competitive-report/run', { radiusKm: competitiveRadiusKm }, {
+        'Authorization': `Bearer ${token}`
+      });
+      setCompetitiveReport(result?.run ? result : competitiveReport);
+      // Refresh latest
+      await loadCompetitiveReport();
+    } catch (error) {
+      console.error('Competitive report run error:', error);
+    } finally {
+      setIsRunningCompetitiveReport(false);
+    }
+  };
+
+  const fetchAppraisalComps = async (vinNumber: string) => {
+    if (!vinNumber || vinNumber.trim().length !== 17) return;
+    if (!settings.postalCode) return;
+
+    setIsLoadingAppraisalComps(true);
+    setAppraisalComps(null);
+
+    try {
+      const token = localStorage.getItem('auth_token');
+      const result = await apiPost<any>('/api/manager/appraisal-comps', {
+        vin: vinNumber.trim().toUpperCase(),
+        mileageKm: pricingForm.mileage ? parseInt(pricingForm.mileage) : undefined,
+        postalCode: settings.postalCode.trim(),
+        radiusKm: parseInt(pricingForm.radiusKm) || settings.defaultRadiusKm || 100,
+        trimMode,
+      }, {
+        'Authorization': `Bearer ${token}`
+      });
+
+      setAppraisalComps(result);
+    } catch (error) {
+      console.error('Appraisal comps error:', error);
+    } finally {
+      setIsLoadingAppraisalComps(false);
+    }
+  };
+
   const handleMarketSearch = async (overrides?: { make?: string; model?: string; years?: number[]; trims?: string[] }) => {
     const searchMake = overrides?.make || pricingForm.make;
     const searchModel = overrides?.model || pricingForm.model;
@@ -2154,6 +2232,16 @@ export default function Manager() {
                   Inventory Analysis
                 </Button>
                 <Button
+                  variant={activeManagerTab === 'competitive' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setActiveManagerTab('competitive')}
+                  data-testid="tab-competitive-report"
+                  className="flex items-center gap-2"
+                >
+                  <BarChart3 className="w-4 h-4" />
+                  Competitive Report
+                </Button>
+                <Button
                   variant={activeManagerTab === 'my-inventory' ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => setActiveManagerTab('my-inventory')}
@@ -2246,6 +2334,84 @@ export default function Manager() {
               </div>
             </CardHeader>
             <CardContent>
+              {/* Competitive Report Tab */}
+              {activeManagerTab === 'competitive' && (
+                <div className="space-y-4 animate-in fade-in duration-500" data-testid="tab-content-competitive">
+                  <div className="flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold">Competitive Report</h3>
+                      <p className="text-sm text-muted-foreground">Snapshot of where your units sit in the market. Runs automatically every ~48 hours.</p>
+                    </div>
+                    <div className="flex gap-2 items-center">
+                      <select
+                        className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                        value={competitiveRadiusKm}
+                        onChange={(e) => setCompetitiveRadiusKm(parseInt(e.target.value))}
+                      >
+                        {[100,250,500,1000].map(v => <option key={v} value={v}>{v} km</option>)}
+                        <option value={99999}>National</option>
+                      </select>
+                      <Button variant="outline" size="sm" onClick={loadCompetitiveReport} disabled={isLoadingCompetitiveReport}>
+                        Refresh
+                      </Button>
+                      <Button size="sm" onClick={runCompetitiveReportNow} disabled={isRunningCompetitiveReport}>
+                        Run Now
+                      </Button>
+                    </div>
+                  </div>
+
+                  {isLoadingCompetitiveReport ? (
+                    <div className="p-4 border rounded-md bg-muted/30">Loading report…</div>
+                  ) : competitiveReport?.run ? (
+                    <div className="space-y-3">
+                      <div className="text-sm text-muted-foreground">
+                        Generated: {new Date(competitiveReport.run.generatedAt).toLocaleString()} · Radius: {competitiveReport.run.radiusKm} km
+                      </div>
+                      <div className="overflow-x-auto border rounded-md">
+                        <table className="min-w-full text-sm">
+                          <thead className="bg-muted/50">
+                            <tr>
+                              <th className="text-left p-2">Unit</th>
+                              <th className="text-left p-2">VIN</th>
+                              <th className="text-right p-2">Mileage</th>
+                              <th className="text-right p-2">Your Price</th>
+                              <th className="text-right p-2">Comp Median</th>
+                              <th className="text-right p-2">Δ</th>
+                              <th className="text-left p-2">Position</th>
+                              <th className="text-left p-2">Confidence</th>
+                              <th className="text-right p-2">Comps</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(competitiveReport.units || []).slice(0, 200).map((u: any) => (
+                              <tr key={u.id} className="border-t">
+                                <td className="p-2">{u.year} {u.make} {u.model} {u.trim || ''}</td>
+                                <td className="p-2 font-mono text-xs">{u.vin || '—'}</td>
+                                <td className="p-2 text-right tabular-nums">{typeof u.ourMileage === 'number' ? `${Number(u.ourMileage).toLocaleString()} km` : '—'}</td>
+                                <td className="p-2 text-right tabular-nums">{u.ourPrice ? `$${Number(u.ourPrice).toLocaleString()}` : '—'}</td>
+                                <td className="p-2 text-right tabular-nums">{u.compMedianPrice ? `$${Number(u.compMedianPrice).toLocaleString()}` : '—'}</td>
+                                <td className="p-2 text-right tabular-nums">{typeof u.deltaToMedian === 'number' ? `$${Number(u.deltaToMedian).toLocaleString()}` : '—'}</td>
+                                <td className="p-2">{u.position || '—'}</td>
+                                <td className="p-2"><Badge variant={u.confidence === 'high' ? 'default' : u.confidence === 'medium' ? 'secondary' : 'outline'} className="capitalize">{u.confidence || '—'}</Badge></td>
+                                <td className="p-2 text-right tabular-nums">{u.compCount}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div className="text-xs text-muted-foreground">
+                        Notes: Accident history is shown as accident_free / reported / unknown. Unknown means the source didn’t provide it.
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-4 border rounded-md bg-muted/30">
+                      No snapshot yet. Click <b>Run Now</b> to generate one.
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Vehicle Appraisal Tab */}
               {activeManagerTab === 'appraisal' && (
                 <div className="space-y-6 animate-in fade-in duration-500" data-testid="tab-content-appraisal">

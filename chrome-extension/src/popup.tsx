@@ -109,7 +109,8 @@ function Popup() {
   const [tplShared, setTplShared] = useState(false);
   const [dataLoadFailed, setDataLoadFailed] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [aiAutoReplyEnabled, setAiAutoReplyEnabled] = useState(false);
+  // v1.2 default: AUTO-SEND enabled by default (policy-gated in content script)
+  const [aiAutoReplyEnabled, setAiAutoReplyEnabled] = useState(true);
   const [chatLogs, setChatLogs] = useState<any[]>([]);
   const [chatLogsLoading, setChatLogsLoading] = useState(false);
   const [expandedConvId, setExpandedConvId] = useState<number | null>(null);
@@ -535,7 +536,7 @@ function Popup() {
       fetchLimits();
       // Load auto-reply status
       sendMessage<{ ok: boolean; enabled?: boolean }>({ type: "AI_AUTO_REPLY_STATUS" }).then(res => {
-        if (res?.ok) setAiAutoReplyEnabled(res.enabled || false);
+        if (res?.ok) setAiAutoReplyEnabled(res.enabled !== false);
       });
     }
   }, [auth]);
@@ -997,7 +998,7 @@ function Popup() {
             <select value={platform} onChange={(e) => setPlatform(e.target.value as Platform)} data-testid="select-platform">
               <option value="facebook">Facebook Marketplace</option>
               <option value="kijiji" disabled>Kijiji (coming soon)</option>
-              <option value="craigslist" disabled>Craigslist (coming soon)</option>
+              <option value="craigslist">Craigslist (Assist)</option>
             </select>
           </div>
 

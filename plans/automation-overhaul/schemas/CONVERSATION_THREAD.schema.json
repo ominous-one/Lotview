@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lotview.local/schemas/CONVERSATION_THREAD.schema.json",
+  "title": "ConversationThread",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "dealershipId",
+    "fbThreadId",
+    "participant",
+    "listingUrl",
+    "vehicleId",
+    "automation"
+  ],
+  "properties": {
+    "dealershipId": { "type": "integer", "minimum": 1 },
+    "fbThreadId": { "type": "string", "minLength": 1 },
+    "participant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "displayName"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "displayName": { "type": "string", "minLength": 1 }
+      }
+    },
+    "listingUrl": { "type": "string", "minLength": 1 },
+    "vehicleId": { "type": "string", "minLength": 1 },
+    "automation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "globalKillSwitch",
+        "threadPaused",
+        "doNotContact",
+        "autoSendEnabled",
+        "policyVersion",
+        "nameConfidence",
+        "vehicleConfidence"
+      ],
+      "properties": {
+        "globalKillSwitch": { "type": "boolean" },
+        "threadPaused": { "type": "boolean" },
+        "doNotContact": { "type": "boolean" },
+        "autoSendEnabled": { "type": "boolean" },
+        "policyVersion": { "type": "string", "minLength": 1 },
+        "nameConfidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "vehicleConfidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "reasonCodes": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "updatedAt": { "type": "string", "format": "date-time" }
+  }
+}

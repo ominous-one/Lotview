@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lotview.local/schemas/REPLY_SUGGESTION.schema.json",
+  "title": "ReplySuggestion",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "dealershipId",
+    "fbThreadId",
+    "vehicleId",
+    "candidateReply",
+    "policyReport",
+    "typingSim"
+  ],
+  "properties": {
+    "dealershipId": { "type": "integer", "minimum": 1 },
+    "fbThreadId": { "type": "string", "minLength": 1 },
+    "vehicleId": { "type": "string", "minLength": 1 },
+    "candidateReply": { "type": "string", "minLength": 1 },
+    "policyReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allow", "reasonCodes", "nameConfidence", "vehicleConfidence"],
+      "properties": {
+        "allow": { "type": "boolean" },
+        "reasonCodes": { "type": "array", "items": { "type": "string" } },
+        "nameConfidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "vehicleConfidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "escalate": { "type": "boolean" },
+        "dnc": { "type": "boolean" }
+      }
+    },
+    "typingSim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["basePauseMs", "charsPerSecond", "jitter", "maxDelayMs"],
+      "properties": {
+        "basePauseMs": { "type": "integer", "minimum": 0 },
+        "charsPerSecond": { "type": "number", "minimum": 0.1 },
+        "jitter": { "type": "number", "minimum": 0, "maximum": 1 },
+        "maxDelayMs": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "createdAt": { "type": "string", "format": "date-time" }
+  }
+}

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900">
+<title>Automation Settings</title>
+<style>
+  .bg{fill:#FFFFFF}
+  .subtle{fill:#F7FAFC}
+  .muted{fill:#EDF2F7}
+  .border{stroke:#E2E8F0;stroke-width:1}
+  .border2{stroke:#CBD5E0;stroke-width:1}
+  .t{font-family: Inter, Segoe UI, Arial, sans-serif; fill:#1A202C}
+  .tm{fill:#4A5568}
+  .ts{fill:#718096}
+  .h1{font-size:22px;font-weight:700}
+  .h2{font-size:16px;font-weight:700}
+  .b{font-size:13px;font-weight:600}
+  .p{font-size:12px;font-weight:500}
+  .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:11px}
+  .chip{fill:#EDF2F7; stroke:#E2E8F0; stroke-width:1}
+  .chipText{font-size:11px;font-weight:700; fill:#4A5568}
+  .primaryBtn{fill:#1A365D}
+  .primaryBtnText{font-size:12px;font-weight:700; fill:#fff}
+  .ghostBtn{fill:#F7FAFC; stroke:#E2E8F0; stroke-width:1}
+  .dangerBtn{fill:#9B2C2C}
+  .dangerText{fill:#fff;font-weight:800;font-size:12px}
+  .callout{fill:#F7FAFC; stroke:#CBD5E0; stroke-width:1}
+  .kbd{fill:#fff; stroke:#CBD5E0; stroke-width:1}
+  .focus{fill:none; stroke:#1A365D; stroke-width:2; stroke-dasharray:6 4}
+</style>
+<rect x="0" y="0" width="1440" height="900" class="bg" /><rect x="0" y="0" width="220" height="900" class="subtle" /><rect x="0" y="0" width="220" height="900" fill="none" class="border"/><text x="18" y="32" class="t h2" >LotView</text><rect x="18" y="48" width="164" height="22" class="chip" /> <text x="28" y="63" class="t chipText" >Dealer: Olympic Auto</text><text x="18" y="92" class="t b tm" >Inbox</text><text x="18" y="118" class="t b tm" >Competitive</text><text x="18" y="144" class="t b tm" >Appraisals</text><text x="18" y="170" class="t b tm" >Automation</text><rect x="220" y="0" width="1220" height="62" class="bg" /><rect x="220" y="0" width="1220" height="62" fill="none" class="border"/><text x="242" y="28" class="t h1" >Automation Settings</text><text x="242" y="48" class="t p ts" >Dealer-wide guardrails for auto-send, typing simulation, escalation, and audit access.</text><rect x="1140" y="18" width="185.6" height="22" class="chip" /> <text x="1150" y="33" class="t chipText" >Automation: ON (Dealer)</text><rect x="1258" y="16" width="160" height="30" class="dangerBtn" rx="8"/><text x="1270" y="36" class="t dangerText" >KILL SWITCH</text><rect x="236" y="78" width="586" height="190" class="bg" /><rect x="236" y="78" width="586" height="190" fill="none" class="border"/><text x="252" y="106" class="t h2" >FB Auto-send thresholds</text><text x="252" y="136" class="t p ts" >Default mode</text><rect x="252" y="146" width="113.60000000000001" height="22" class="chip" /> <text x="262" y="161" class="t chipText" >AUTO-SEND: ON</text><text x="252" y="182" class="t p" >Lead name confidence ≥ 0.75</text><text x="252" y="204" class="t p" >Vehicle mapping confidence ≥ 0.80</text><text x="252" y="226" class="t p" >Max auto turns per thread: 2</text><rect x="646" y="220" width="80" height="30" class="ghostBtn" rx="8"/><text x="658" y="240" class="t b tm" >Edit</text><rect x="838" y="78" width="586" height="190" class="bg" /><rect x="838" y="78" width="586" height="190" fill="none" class="border"/><text x="854" y="106" class="t h2" >Business hours + rate limits</text><text x="854" y="136" class="t p ts" >Business hours (local)</text><text x="854" y="160" class="t p" >Mon–Fri 9:00–18:00 · Sat 10:00–16:00</text><rect x="854" y="172" width="200" height="22" class="chip" /> <text x="864" y="187" class="t chipText" >After-hours: Suggest only</text><text x="854" y="210" class="t p" >Rate limit: 35 auto sends / user / day</text><text x="854" y="232" class="t p" >Burst: 6 / hour (rolling)</text><rect x="236" y="284" width="586" height="190" class="bg" /><rect x="236" y="284" width="586" height="190" fill="none" class="border"/><text x="252" y="312" class="t h2" >Typing simulation</text><text x="252" y="342" class="t p ts" >ms/char</text><text x="252" y="366" class="t p" >30–90ms (jitter 18%)</text><text x="252" y="390" class="t p" >Pause every 28–44 chars (150–450ms)</text><text x="252" y="414" class="t p" >Abort on DOM drift / focus loss / action block</text><rect x="646" y="426" width="110" height="30" class="ghostBtn" rx="8"/><text x="658" y="446" class="t b tm" >Preview</text><rect x="838" y="284" width="586" height="190" class="bg" /><rect x="838" y="284" width="586" height="190" fill="none" class="border"/><text x="854" y="312" class="t h2" >Escalation rules</text><text x="854" y="342" class="t p ts" >Auto-send is blocked when:</text><text x="854" y="366" class="t p" >• intent is denylisted (price negotiation, financing promises)</text><text x="854" y="390" class="t p" >• missing lead name / vehicle confidence</text><text x="854" y="414" class="t p" >• second auto turn already used</text><rect x="236" y="490" width="1188" height="180" class="bg" /><rect x="236" y="490" width="1188" height="180" fill="none" class="border"/><text x="252" y="518" class="t h2" >Audit + Safety</text><text x="252" y="546" class="t p ts" >All outbound actions are logged with mode, policy report, confidence scores, and typing duration.</text><rect x="252" y="574" width="160" height="30" class="primaryBtn" rx="8"/><text x="264" y="594" class="t primaryBtnText" >Open audit log</text><rect x="456" y="574" width="210" height="30" class="dangerBtn" rx="8"/><text x="468" y="594" class="t dangerText" >PAUSE ALL AUTOMATION</text><text x="252" y="626" class="t p ts" >Pausing stops auto-send immediately. Suggestions still generate unless you disable generation.</text></svg>

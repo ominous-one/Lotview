@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="820" viewBox="0 0 1400 820">
+<title>FB Marketplace Inbox — End-to-end reply flow</title>
+<style>
+  .bg{fill:#FFFFFF}
+  .subtle{fill:#F7FAFC}
+  .muted{fill:#EDF2F7}
+  .border{stroke:#E2E8F0;stroke-width:1}
+  .border2{stroke:#CBD5E0;stroke-width:1}
+  .t{font-family: Inter, Segoe UI, Arial, sans-serif; fill:#1A202C}
+  .tm{fill:#4A5568}
+  .ts{fill:#718096}
+  .h1{font-size:22px;font-weight:700}
+  .h2{font-size:16px;font-weight:700}
+  .b{font-size:13px;font-weight:600}
+  .p{font-size:12px;font-weight:500}
+  .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:11px}
+  .chip{fill:#EDF2F7; stroke:#E2E8F0; stroke-width:1}
+  .chipText{font-size:11px;font-weight:700; fill:#4A5568}
+  .primaryBtn{fill:#1A365D}
+  .primaryBtnText{font-size:12px;font-weight:700; fill:#fff}
+  .ghostBtn{fill:#F7FAFC; stroke:#E2E8F0; stroke-width:1}
+  .dangerBtn{fill:#9B2C2C}
+  .dangerText{fill:#fff;font-weight:800;font-size:12px}
+  .callout{fill:#F7FAFC; stroke:#CBD5E0; stroke-width:1}
+  .kbd{fill:#fff; stroke:#CBD5E0; stroke-width:1}
+  .focus{fill:none; stroke:#1A365D; stroke-width:2; stroke-dasharray:6 4}
+</style>
+<rect x="0" y="0" width="1400" height="820" class="bg" /><text x="24" y="40" class="t h1" >FB Marketplace Inbox — End-to-end reply flow</text><text x="24" y="64" class="t p ts" >Flows show main path + guardrails (pause/blocked/escalation) with audit hooks.</text><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="6" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3 z" fill="#4A5568"/></marker></defs><rect x="60" y="120" width="290" height="86" rx="14" fill="#F7FAFC" stroke="#CBD5E0" stroke-width="1"/><text x="76" y="150" class="t b" >Inbound message ingested</text><text x="76" y="174" class="t p ts" >Extension DOM bridge → backend store</text><line x1="350" y1="163" x2="384" y2="163" stroke="#4A5568" stroke-width="2" marker-end="url(#arrow)"/><rect x="384" y="120" width="290" height="86" rx="14" fill="#F7FAFC" stroke="#CBD5E0" stroke-width="1"/><text x="400" y="150" class="t b" >Lead + vehicle mapped</text><text x="400" y="174" class="t p ts" >Extract lead name + map to unit (confidence gated)</text><line x1="674" y1="163" x2="708" y2="163" stroke="#4A5568" stroke-width="2" marker-end="url(#arrow)"/><rect x="708" y="120" width="290" height="86" rx="14" fill="#F7FAFC" stroke="#CBD5E0" stroke-width="1"/><text x="724" y="150" class="t b" >Policy decision</text><text x="724" y="174" class="t p ts" >Allowlist/denylist + business hours + anti-loop</text><line x1="998" y1="163" x2="1032" y2="163" stroke="#4A5568" stroke-width="2" marker-end="url(#arrow)"/><rect x="1032" y="120" width="290" height="86" rx="14" fill="#FFFAF0" stroke="#975A16" stroke-width="1"/><text x="1048" y="150" class="t b" >Auto-send or queue</text><text x="1048" y="174" class="t p ts" >Auto-send if all gates pass; else “needs approval”</text><line x1="1177" y1="206" x2="1177" y2="346" stroke="#4A5568" stroke-width="2" marker-end="url(#arrow)"/><line x1="1177" y1="346" x2="205" y2="346" stroke="#4A5568" stroke-width="2" marker-end="url(#arrow)"/><line x1="205" y1="346" x2="205" y2="360" stroke="#4A5568" stroke-width="2" marker-end="url(#arrow)"/><rect x="60" y="360" width="290" height="86" rx="14" fill="#F7FAFC" stroke="#CBD5E0" stroke-width="1"/><text x="76" y="390" class="t b" >Typing simulation</text><text x="76" y="414" class="t p ts" >Countdown + abort; stops on drift/focus loss</text><line x1="350" y1="403" x2="384" y2="403" stroke="#4A5568" stroke-width="2" marker-end="url(#arrow)"/><rect x="384" y="360" width="290" height="86" rx="14" fill="#F7FAFC" stroke="#CBD5E0" stroke-width="1"/><text x="400" y="390" class="t b" >Send via UI automation</text><text x="400" y="414" class="t p ts" >Extension sends message; detects action-block</text><line x1="674" y1="403" x2="708" y2="403" stroke="#4A5568" stroke-width="2" marker-end="url(#arrow)"/><rect x="708" y="360" width="290" height="86" rx="14" fill="#F7FAFC" stroke="#CBD5E0" stroke-width="1"/><text x="724" y="390" class="t b" >Audit log written</text><text x="724" y="414" class="t p ts" >Mode + why + confidence + typing duration</text><rect x="24" y="702" width="540" height="86" class="subtle" rx="14" stroke="#CBD5E0" stroke-width="1"/><text x="44" y="732" class="t b" >Legend</text><rect x="44" y="748" width="18" height="18" rx="4" fill="#F7FAFC" stroke="#CBD5E0"/><text x="70" y="762" class="t p ts" >Normal step</text><rect x="200" y="748" width="18" height="18" rx="4" fill="#FFFAF0" stroke="#975A16"/><text x="226" y="762" class="t p ts" >Paused / needs human</text><rect x="390" y="748" width="18" height="18" rx="4" fill="#FFF5F5" stroke="#9B2C2C"/><text x="416" y="762" class="t p ts" >Blocked / safety stop</text></svg>

@@ -1,0 +1,9 @@
+{
+  "fbThreadId": "t_dnc_003",
+  "participant": { "id": "u_003", "displayName": "Taylor" },
+  "listingUrl": "https://www.facebook.com/marketplace/item/789",
+  "vehicle": { "vehicleId": "veh_003", "year": 2020, "make": "Ford", "model": "Escape", "trim": "SE" },
+  "messages": [
+    { "messageId": "m1", "direction": "inbound", "text": "STOP messaging me.", "sentAt": "2026-03-08T20:10:00Z" }
+  ]
+}

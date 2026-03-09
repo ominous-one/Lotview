@@ -1,0 +1,35 @@
+# Local development (Docker Postgres) — SAFE DEFAULTS
+#
+# Usage:
+#   Copy to repo root as .env (or use dotenv tooling):
+#     cp env/dev.local.example .env
+#
+# Requires:
+#   docker compose up -d db
+#   npm run db:push
+#
+
+# --- Core ---
+NODE_ENV=development
+PORT=5000
+
+# --- Database (matches docker-compose.yml db service) ---
+DATABASE_URL=postgresql://lotview:lotview_dev@localhost:5432/lotview
+PGHOST=localhost
+PGPORT=5432
+PGUSER=lotview
+PGPASSWORD=lotview_dev
+PGDATABASE=lotview
+
+# --- Safety: no external sends ---
+NOTIFICATIONS_TEST_MODE=true
+LOTVIEW_EXTERNAL_FETCHES=false
+LOTVIEW_ALLOW_PAID_APIS=false
+ENABLE_COMPETITIVE_REPORT_SCHEDULER=false
+
+# --- Auth (dev-only; replace for real deployments) ---
+JWT_SECRET=dev-only-change-me-dev-only-change-me
+SESSION_SECRET=dev-only-change-me-dev-only-change-me
+
+# Optional
+# REDIS_URL=redis://localhost:6379

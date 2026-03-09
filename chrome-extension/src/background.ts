@@ -1119,6 +1119,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           }
 
           const result = await res.json();
+
+          // Map FB listing URL → vehicleId for inbox thread→vehicle binding.
+          // This is best-effort and stored locally; backend also records the listing.
+          try {
+            if (result?.listingUrl && typeof result.listingUrl === "string") {
+              const key = "lvFbListingMap";
+              const stored = await chrome.storage.local.get([key]) as any;
+              const map = (stored[key] || {}) as Record<string, { vehicleId: number; savedAt: number }>;
+              map[result.listingUrl] = { vehicleId, savedAt: Date.now() };
+              await chrome.storage.local.set({ [key]: map });
+            }
+          } catch {
+            // ignore
+          }
+
           sendResponse({ ok: true, ...result });
         } catch (err: unknown) {
           const error = err instanceof Error ? err.message : "Auto-post failed";
@@ -1179,7 +1194,97 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
       if (message.type === "AI_AUTO_REPLY_STATUS") {
         const stored = await chrome.storage.local.get(["aiAutoReplyEnabled"]) as { aiAutoReplyEnabled?: boolean };
-        sendResponse({ ok: true, enabled: stored.aiAutoReplyEnabled === true });
+        // v1.2 default: AUTO-SEND ON (but content script still enforces the Safety Envelope)
+        const enabled = stored.aiAutoReplyEnabled !== false;
+        sendResponse({ ok: true, enabled });
+        return;
+      }
+
+      // FB Marketplace Replies (Workstream 4D) — server ingestion + settings
+      if (message.type === "FB_REPLIES_SETTINGS_GET") {
+        const auth = await getStoredAuth();
+        if (!auth?.token) { sendResponse({ ok: false, error: "Not authenticated" }); return; }
+        try {
+          const data = await apiWithRetry<any>("/api/extension/fb-replies/settings", auth.token);
+          sendResponse({ ok: true, data });
+        } catch (err: unknown) {
+          sendResponse({ ok: false, error: err instanceof Error ? err.message : "Fetch failed" });
+        }
+        return;
+      }
+
+      if (message.type === "FB_REPLIES_INGEST_THREAD") {
+        const auth = await getStoredAuth();
+        if (!auth?.token) { sendResponse({ ok: false, error: "Not authenticated" }); return; }
+        try {
+          const result = await apiWithRetry<any>("/api/extension/fb-replies/thread", auth.token, {
+            method: "POST",
+            body: JSON.stringify(message.payload || {}),
+          });
+          sendResponse({ ok: true, result });
+        } catch (err: unknown) {
+          sendResponse({ ok: false, error: err instanceof Error ? err.message : "Ingest failed" });
+        }
+        return;
+      }
+
+      if (message.type === "FB_REPLIES_INGEST_MESSAGE") {
+        const auth = await getStoredAuth();
+        if (!auth?.token) { sendResponse({ ok: false, error: "Not authenticated" }); return; }
+        try {
+          const result = await apiWithRetry<any>("/api/extension/fb-replies/message", auth.token, {
+            method: "POST",
+            body: JSON.stringify(message.payload || {}),
+          });
+          sendResponse({ ok: true, result });
+        } catch (err: unknown) {
+          sendResponse({ ok: false, error: err instanceof Error ? err.message : "Ingest failed" });
+        }
+        return;
+      }
+
+      if (message.type === "FB_REPLIES_INGEST_AUDIT") {
+        const auth = await getStoredAuth();
+        if (!auth?.token) { sendResponse({ ok: false, error: "Not authenticated" }); return; }
+        try {
+          const result = await apiWithRetry<any>("/api/extension/fb-replies/audit", auth.token, {
+            method: "POST",
+            body: JSON.stringify(message.payload || {}),
+          });
+          sendResponse({ ok: true, result });
+        } catch (err: unknown) {
+          sendResponse({ ok: false, error: err instanceof Error ? err.message : "Ingest failed" });
+        }
+        return;
+      }
+
+      if (message.type === "FB_REPLIES_INGEST_MAPPING") {
+        const auth = await getStoredAuth();
+        if (!auth?.token) { sendResponse({ ok: false, error: "Not authenticated" }); return; }
+        try {
+          const result = await apiWithRetry<any>("/api/extension/fb-replies/mapping", auth.token, {
+            method: "POST",
+            body: JSON.stringify(message.payload || {}),
+          });
+          sendResponse({ ok: true, result });
+        } catch (err: unknown) {
+          sendResponse({ ok: false, error: err instanceof Error ? err.message : "Ingest failed" });
+        }
+        return;
+      }
+
+      if (message.type === "FB_REPLIES_DECIDE_SEND") {
+        const auth = await getStoredAuth();
+        if (!auth?.token) { sendResponse({ ok: false, error: "Not authenticated" }); return; }
+        try {
+          const data = await apiWithRetry<any>("/api/extension/fb-replies/decide-send", auth.token, {
+            method: "POST",
+            body: JSON.stringify(message.payload || {}),
+          });
+          sendResponse({ ok: true, data });
+        } catch (err: unknown) {
+          sendResponse({ ok: false, error: err instanceof Error ? err.message : "Decide failed" });
+        }
         return;
       }
 

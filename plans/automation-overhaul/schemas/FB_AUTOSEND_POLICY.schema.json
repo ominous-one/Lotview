@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lotview.local/schemas/FB_AUTOSEND_POLICY.schema.json",
+  "title": "FbAutoSendPolicy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "policyVersion",
+    "defaultAutoSendEnabled",
+    "businessHours",
+    "rateLimits",
+    "confidenceThresholds",
+    "typingSim"
+  ],
+  "properties": {
+    "policyVersion": { "type": "string", "minLength": 1 },
+    "defaultAutoSendEnabled": { "type": "boolean" },
+    "businessHours": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tz", "days"],
+      "properties": {
+        "tz": { "type": "string", "minLength": 1 },
+        "days": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["dow", "start", "end"],
+            "properties": {
+              "dow": { "type": "integer", "minimum": 0, "maximum": 6 },
+              "start": { "type": "string", "pattern": "^\\d{2}:\\d{2}$" },
+              "end": { "type": "string", "pattern": "^\\d{2}:\\d{2}$" }
+            }
+          }
+        },
+        "quietHours": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["start", "end"],
+          "properties": {
+            "start": { "type": "string", "pattern": "^\\d{2}:\\d{2}$" },
+            "end": { "type": "string", "pattern": "^\\d{2}:\\d{2}$" }
+          }
+        }
+      }
+    },
+    "rateLimits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["maxAutoPerHour", "maxAutoPerDay", "minMinutesBetweenAuto"],
+      "properties": {
+        "maxAutoPerHour": { "type": "integer", "minimum": 0 },
+        "maxAutoPerDay": { "type": "integer", "minimum": 0 },
+        "minMinutesBetweenAuto": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "confidenceThresholds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["minNameConfidence", "minVehicleConfidence"],
+      "properties": {
+        "minNameConfidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "minVehicleConfidence": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "typingSim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["basePauseMs", "charsPerSecondMin", "charsPerSecondMax", "jitter", "maxDelayMs"],
+      "properties": {
+        "basePauseMs": { "type": "integer", "minimum": 0 },
+        "charsPerSecondMin": { "type": "number", "minimum": 0.1 },
+        "charsPerSecondMax": { "type": "number", "minimum": 0.1 },
+        "jitter": { "type": "number", "minimum": 0, "maximum": 1 },
+        "maxDelayMs": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "intentAllowlist": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "intentDenylist": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

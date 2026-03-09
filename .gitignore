@@ -21,6 +21,9 @@ vite.config.ts.*
 coverage/
 *.tsbuildinfo
 
+# Local runtime artifacts
+artifacts/
+
 # Chrome extension build output
 chrome-extension/dist/
 chrome-extension/*.zip

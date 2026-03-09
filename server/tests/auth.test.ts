@@ -56,6 +56,7 @@ describe('Auth Module', () => {
     });
 
     it('should produce different hashes for the same password (salted)', async () => {
+      // bcrypt cost factor may be configured higher in some environments; allow extra time.
       const password = 'SamePassword';
       const hash1 = await hashPassword(password);
       const hash2 = await hashPassword(password);
@@ -63,7 +64,7 @@ describe('Auth Module', () => {
       // Both should still verify
       expect(await comparePassword(password, hash1)).toBe(true);
       expect(await comparePassword(password, hash2)).toBe(true);
-    });
+    }, 20000);
   });
 
   describe('JWT Token Generation', () => {

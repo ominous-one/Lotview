@@ -10,6 +10,7 @@ import { craigslistScraper } from './craigslist-scraper';
 import { cargurusScraper } from './cargurus-scraper-service';
 import { deduplicateListings } from './market-deduplication';
 import type { InsertMarketListing } from '@shared/schema';
+import { zenrowsFallbackAggregate } from './zenrows-fallback';
 
 export interface MarketAggregationParams {
   make: string;
@@ -32,6 +33,7 @@ export interface MarketAggregationResult {
   scraperCount: number;
   kijijiCount: number;
   craigslistCount: number;
+  zenrowsFallbackCount: number;
   duplicatesRemoved: number;
   mergedRecords: number;
   success: boolean;
@@ -64,6 +66,7 @@ export class MarketAggregationService {
       scraperCount: 0,
       kijijiCount: 0,
       craigslistCount: 0,
+      zenrowsFallbackCount: 0,
       duplicatesRemoved: 0,
       mergedRecords: 0,
       success: true,
@@ -325,6 +328,46 @@ export class MarketAggregationService {
     } catch (error) {
       console.error('[MarketAggregation] Craigslist error:', error);
       result.errors.push(`Craigslist: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+
+    // 7. ZenRows explicit fallback (API-first + ZenRows fallback requirement)
+    // Only attempt when we have no listings at all.
+    if (allListings.length === 0 && params.postalCode && params.radiusKm) {
+      try {
+        const settings = await storage.getDealershipAutomationSettings(dealershipId);
+        const cfg = {
+          enabled: !!(settings?.zenrowsFallbackEnabled),
+          maxCallsPerMinute: settings?.zenrowsMaxCallsPerMinute ?? 6,
+          maxCallsPerHour: settings?.zenrowsMaxCallsPerHour ?? 120,
+        };
+
+        const z = await zenrowsFallbackAggregate({
+          dealershipId,
+          make: params.make,
+          model: params.model,
+          yearMin: params.yearMin,
+          yearMax: params.yearMax,
+          postalCode: params.postalCode,
+          radiusKm: params.radiusKm,
+          maxResults: Math.min(params.maxResults || 50, 50),
+          config: cfg,
+          browserlessService,
+        });
+
+        if (z.used) {
+          console.log(`[MarketAggregation] ZenRows fallback used (${z.listings.length} listings)${z.reason ? `: ${z.reason}` : ''}`);
+        }
+
+        for (const listing of z.listings) {
+          allListings.push(listing);
+          result.zenrowsFallbackCount++;
+        }
+
+        if (result.zenrowsFallbackCount > 0) result.sources.push('zenrows_fallback');
+      } catch (error) {
+        console.error('[MarketAggregation] ZenRows fallback error:', error);
+        result.errors.push(`ZenRowsFallback: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
     }
 
     // Deduplicate all collected listings

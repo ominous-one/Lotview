@@ -1,5 +1,6 @@
 import { db } from "./db";
 import { hashPassword } from "./auth";
+import crypto from "crypto";
 import { 
   dealerships,
   dealershipSubscriptions,
@@ -29,6 +30,11 @@ import {
   scheduledMessages,
   conversationAssignments,
   remarketingVehicles,
+  fbReplySettings,
+  fbInboxThreads,
+  fbInboxMessages,
+  fbInboxAuditEvents,
+  fbThreadVehicleMap,
   type Dealership,
   type InsertDealership,
   type DealershipSubscription,
@@ -85,6 +91,16 @@ import {
   type InsertConversationAssignment,
   type RemarketingVehicle,
   type InsertRemarketingVehicle,
+  type FbReplySettings,
+  type InsertFbReplySettings,
+  type FbInboxThread,
+  type InsertFbInboxThread,
+  type FbInboxMessage,
+  type InsertFbInboxMessage,
+  type FbInboxAuditEvent,
+  type InsertFbInboxAuditEvent,
+  type FbThreadVehicleMap,
+  type InsertFbThreadVehicleMap,
   pbsConfig,
   type PbsConfig,
   type InsertPbsConfig,
@@ -143,6 +159,18 @@ import {
   marketSnapshots,
   type MarketSnapshot,
   type InsertMarketSnapshot,
+  dealershipAutomationSettings,
+  type DealershipAutomationSettings,
+  type InsertDealershipAutomationSettings,
+  vinDecodeCache,
+  type VinDecodeCache,
+  type InsertVinDecodeCache,
+  competitiveReportRuns,
+  type CompetitiveReportRun,
+  type InsertCompetitiveReportRun,
+  competitiveReportUnits,
+  type CompetitiveReportUnit,
+  type InsertCompetitiveReportUnit,
   facebookCatalogConfig,
   type FacebookCatalogConfig,
   type InsertFacebookCatalogConfig,
@@ -599,6 +627,13 @@ export interface IStorage {
   getManagerSettingsByDealership(dealershipId: number): Promise<ManagerSettings | undefined>;
   createManagerSettings(settings: InsertManagerSettings): Promise<ManagerSettings>;
   updateManagerSettings(userId: number, dealershipId: number, settings: Partial<InsertManagerSettings>): Promise<ManagerSettings | undefined>;
+
+  // Dealership Automation Settings (Multi-Tenant)
+  getDealershipAutomationSettings(dealershipId: number): Promise<DealershipAutomationSettings | undefined>;
+  upsertDealershipAutomationSettings(
+    dealershipId: number,
+    settings: Partial<InsertDealershipAutomationSettings>
+  ): Promise<DealershipAutomationSettings>;
   
   // Market Listings (Multi-Tenant)
   getMarketListings(dealershipId: number, filters: { make?: string; model?: string; yearMin?: number; yearMax?: number; source?: string }, limit?: number, offset?: number): Promise<{ listings: MarketListing[]; total: number }>;
@@ -609,7 +644,27 @@ export interface IStorage {
   updateMarketListingColors(id: number, dealershipId: number, colors: { interiorColor?: string; exteriorColor?: string; vin?: string }): Promise<MarketListing | undefined>;
   deactivateMarketListing(dealershipId: number, url: string): Promise<boolean>;
   deleteOldMarketListings(dealershipId: number, daysOld: number): Promise<number>;
-  
+
+  // VIN Decode Cache (Multi-Tenant)
+  getVinDecodeCache(dealershipId: number, vin: string): Promise<VinDecodeCache | undefined>;
+  upsertVinDecodeCache(dealershipId: number, vin: string, payload: {
+    baselineSource: string;
+    baselinePayload: any;
+    enrichedSource?: string | null;
+    enrichedPayload?: any | null;
+    trimConfidence?: string;
+    optionsConfidence?: string;
+    expiresAt?: Date | null;
+  }): Promise<VinDecodeCache>;
+
+  // Competitive Report Snapshots (Multi-Tenant)
+  createCompetitiveReportRun(run: InsertCompetitiveReportRun): Promise<CompetitiveReportRun>;
+  updateCompetitiveReportRun(id: number, dealershipId: number, patch: Partial<InsertCompetitiveReportRun>): Promise<CompetitiveReportRun | undefined>;
+  listCompetitiveReportRuns(dealershipId: number, limit?: number): Promise<CompetitiveReportRun[]>;
+  getLatestCompetitiveReportRun(dealershipId: number, radiusKm?: number): Promise<CompetitiveReportRun | undefined>;
+  createCompetitiveReportUnits(units: InsertCompetitiveReportUnit[]): Promise<CompetitiveReportUnit[]>;
+  getCompetitiveReportUnits(runId: number, dealershipId: number): Promise<CompetitiveReportUnit[]>;
+
   // CarGurus Color Cache
   getCargurusColorByVin(vin: string): Promise<CargurusColorCache | undefined>;
   upsertCargurusColorCache(data: InsertCargurusColorCache): Promise<CargurusColorCache>;
@@ -951,6 +1006,71 @@ export interface IStorage {
   markScrapeQueueCompleted(id: number, vehicleId: number): Promise<void>;
   markScrapeQueueFailed(id: number, errorMessage: string): Promise<void>;
   clearScrapeQueue(scrapeRunId: number): Promise<void>;
+
+  // ====== FB MARKETPLACE REPLIES (Workstream 4D) ======
+  getFbReplySettings(dealershipId: number): Promise<FbReplySettings>;
+  updateFbReplySettings(dealershipId: number, updates: Partial<InsertFbReplySettings>): Promise<FbReplySettings>;
+
+  upsertFbInboxThread(params: {
+    dealershipId: number;
+    fbThreadId: string;
+    fbAccountId?: number | null;
+    participantName?: string | null;
+    participantId?: string | null;
+    leadNameConfidence?: number | null;
+    listingUrl?: string | null;
+    listingTitle?: string | null;
+    unreadCount?: number | null;
+    lastMessageAt?: Date | null;
+  }): Promise<FbInboxThread>;
+
+  appendFbInboxMessage(params: {
+    dealershipId: number;
+    fbThreadId: string;
+    fbMessageId?: string | null;
+    direction: "INBOUND" | "OUTBOUND";
+    senderRole: "BUYER" | "DEALER_USER" | "SYSTEM";
+    sentAt?: Date | null;
+    text: string;
+    attachments?: any;
+    ingestedFrom?: string;
+    safetyFlags?: any;
+  }): Promise<{ thread: FbInboxThread; message?: FbInboxMessage; wasInserted: boolean }>;
+
+  appendFbInboxAuditEvent(params: {
+    dealershipId: number;
+    fbThreadId?: string | null;
+    eventKey: string;
+    kind: string;
+    details?: any;
+  }): Promise<{ event?: FbInboxAuditEvent; wasInserted: boolean }>;
+
+  upsertFbThreadVehicleMapping(params: {
+    dealershipId: number;
+    fbThreadId: string;
+    participantName: string;
+    listingUrl: string;
+    vehicleId: number;
+    confidence: number;
+    method: string;
+  }): Promise<FbThreadVehicleMap>;
+
+  listFbInboxThreads(dealershipId: number, limit?: number, offset?: number): Promise<{ threads: FbInboxThread[]; total: number }>;
+  getFbInboxThreadById(dealershipId: number, id: number): Promise<FbInboxThread | undefined>;
+  getFbInboxThreadByFbThreadId(dealershipId: number, fbThreadId: string): Promise<FbInboxThread | undefined>;
+  listFbInboxMessages(dealershipId: number, threadId: number, limit?: number): Promise<FbInboxMessage[]>;
+  /**
+   * Lightweight count helper for server-authoritative policy (rate limits / anti-loop).
+   * NOTE: this counts ingested messages, not necessarily FB-delivered messages.
+   */
+  countFbInboxMessages(
+    dealershipId: number,
+    opts: { threadId?: number; direction?: "INBOUND" | "OUTBOUND"; senderRole?: "BUYER" | "DEALER_USER" | "SYSTEM"; since?: Date; until?: Date }
+  ): Promise<number>;
+  listFbInboxAuditEvents(dealershipId: number, params?: { threadId?: number; kind?: string; limit?: number; offset?: number }): Promise<{ events: FbInboxAuditEvent[]; total: number }>;
+  setFbInboxThreadPaused(dealershipId: number, threadId: number, paused: boolean): Promise<FbInboxThread | undefined>;
+  setFbInboxThreadAutoSendEnabled(dealershipId: number, threadId: number, enabled: boolean): Promise<FbInboxThread | undefined>;
+  setFbInboxThreadDnc(dealershipId: number, threadId: number, dnc: boolean): Promise<FbInboxThread | undefined>;
 
   // ====== CARFAX REPORTS ======
   getCarfaxReport(vehicleId: number): Promise<CarfaxReport | undefined>;
@@ -3471,6 +3591,41 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
+  // ====== DEALERSHIP AUTOMATION SETTINGS (Multi-Tenant) ======
+  async getDealershipAutomationSettings(dealershipId: number): Promise<DealershipAutomationSettings | undefined> {
+    const result = await db
+      .select()
+      .from(dealershipAutomationSettings)
+      .where(eq(dealershipAutomationSettings.dealershipId, dealershipId))
+      .limit(1);
+    return result[0];
+  }
+
+  async upsertDealershipAutomationSettings(
+    dealershipId: number,
+    settings: Partial<InsertDealershipAutomationSettings>
+  ): Promise<DealershipAutomationSettings> {
+    // Ensure the dealership exists (tenant safety)
+    const d = await this.getDealershipById(dealershipId);
+    if (!d) throw new Error('Dealership not found');
+
+    const existing = await this.getDealershipAutomationSettings(dealershipId);
+    if (!existing) {
+      const result = await db
+        .insert(dealershipAutomationSettings)
+        .values({ dealershipId, ...settings } as any)
+        .returning();
+      return result[0];
+    }
+
+    const result = await db
+      .update(dealershipAutomationSettings)
+      .set({ ...settings, updatedAt: new Date() } as any)
+      .where(eq(dealershipAutomationSettings.dealershipId, dealershipId))
+      .returning();
+    return result[0];
+  }
+
   // ====== MARKET LISTINGS (Multi-Tenant) ======
   async getMarketListings(dealershipId: number, filters: { make?: string; model?: string; yearMin?: number; yearMax?: number; source?: string; trim?: string }, limit: number = 50, offset: number = 0): Promise<{ listings: MarketListing[]; total: number }> {
     const conditions = [];
@@ -3660,6 +3815,142 @@ export class DatabaseStorage implements IStorage {
       ));
     
     return 0; // Drizzle doesn't return count for deletes
+  }
+
+  // ====== VIN DECODE CACHE (Multi-Tenant) ======
+  async getVinDecodeCache(dealershipId: number, vin: string): Promise<VinDecodeCache | undefined> {
+    const cleanVIN = vin.trim().toUpperCase();
+    const result = await db
+      .select()
+      .from(vinDecodeCache)
+      .where(and(
+        eq(vinDecodeCache.dealershipId, dealershipId),
+        eq(vinDecodeCache.vin, cleanVIN)
+      ))
+      .limit(1);
+    const row = result[0];
+    if (!row) return undefined;
+
+    if (row.expiresAt && row.expiresAt.getTime() < Date.now()) {
+      return undefined;
+    }
+
+    return row;
+  }
+
+  async upsertVinDecodeCache(
+    dealershipId: number,
+    vin: string,
+    payload: {
+      baselineSource: string;
+      baselinePayload: any;
+      enrichedSource?: string | null;
+      enrichedPayload?: any | null;
+      trimConfidence?: string;
+      optionsConfidence?: string;
+      expiresAt?: Date | null;
+    }
+  ): Promise<VinDecodeCache> {
+    const cleanVIN = vin.trim().toUpperCase();
+    const now = new Date();
+
+    const values: InsertVinDecodeCache = {
+      vin: cleanVIN,
+      dealershipId,
+      baselineSource: payload.baselineSource,
+      baselinePayload: payload.baselinePayload,
+      enrichedSource: payload.enrichedSource ?? null,
+      enrichedPayload: payload.enrichedPayload ?? null,
+      trimConfidence: payload.trimConfidence ?? 'unknown',
+      optionsConfidence: payload.optionsConfidence ?? 'unknown',
+      expiresAt: payload.expiresAt ?? null,
+    };
+
+    const result = await db
+      .insert(vinDecodeCache)
+      .values(values)
+      .onConflictDoUpdate({
+        target: [vinDecodeCache.dealershipId, vinDecodeCache.vin],
+        set: {
+          dealershipId,
+          baselineSource: values.baselineSource,
+          baselinePayload: values.baselinePayload,
+          enrichedSource: values.enrichedSource,
+          enrichedPayload: values.enrichedPayload,
+          trimConfidence: values.trimConfidence,
+          optionsConfidence: values.optionsConfidence,
+          expiresAt: values.expiresAt,
+          updatedAt: now,
+        },
+      })
+      .returning();
+
+    return result[0];
+  }
+
+  // ====== COMPETITIVE REPORTS (Multi-Tenant) ======
+  async createCompetitiveReportRun(run: InsertCompetitiveReportRun): Promise<CompetitiveReportRun> {
+    const result = await db.insert(competitiveReportRuns).values(run).returning();
+    return result[0];
+  }
+
+  async updateCompetitiveReportRun(id: number, dealershipId: number, patch: Partial<InsertCompetitiveReportRun>): Promise<CompetitiveReportRun | undefined> {
+    const result = await db
+      .update(competitiveReportRuns)
+      .set({ ...patch })
+      .where(and(
+        eq(competitiveReportRuns.id, id),
+        eq(competitiveReportRuns.dealershipId, dealershipId)
+      ))
+      .returning();
+    return result[0];
+  }
+
+  async listCompetitiveReportRuns(dealershipId: number, limit: number = 10): Promise<CompetitiveReportRun[]> {
+    return await db
+      .select()
+      .from(competitiveReportRuns)
+      .where(eq(competitiveReportRuns.dealershipId, dealershipId))
+      .orderBy(desc(competitiveReportRuns.generatedAt))
+      .limit(limit);
+  }
+
+  async getLatestCompetitiveReportRun(dealershipId: number, radiusKm?: number): Promise<CompetitiveReportRun | undefined> {
+    const conditions = [eq(competitiveReportRuns.dealershipId, dealershipId)];
+    if (typeof radiusKm === 'number' && Number.isFinite(radiusKm)) {
+      conditions.push(eq(competitiveReportRuns.radiusKm, radiusKm));
+    }
+
+    const result = await db
+      .select()
+      .from(competitiveReportRuns)
+      .where(and(...conditions))
+      .orderBy(desc(competitiveReportRuns.generatedAt))
+      .limit(1);
+    return result[0];
+  }
+
+  async createCompetitiveReportUnits(units: InsertCompetitiveReportUnit[]): Promise<CompetitiveReportUnit[]> {
+    if (units.length === 0) return [];
+    const result = await db.insert(competitiveReportUnits).values(units).returning();
+    return result;
+  }
+
+  async getCompetitiveReportUnits(runId: number, dealershipId: number): Promise<CompetitiveReportUnit[]> {
+    // Enforce tenancy via join on runs.dealership_id
+    const result = await db
+      .select({
+        unit: competitiveReportUnits,
+      })
+      .from(competitiveReportUnits)
+      .innerJoin(competitiveReportRuns, eq(competitiveReportRuns.id, competitiveReportUnits.runId))
+      .where(and(
+        eq(competitiveReportUnits.runId, runId),
+        eq(competitiveReportRuns.dealershipId, dealershipId)
+      ))
+      .orderBy(desc(competitiveReportUnits.compCount));
+
+    return result.map(r => r.unit);
   }
 
   // ====== SUPER ADMIN - GLOBAL SETTINGS ======
@@ -6406,6 +6697,340 @@ export class DatabaseStorage implements IStorage {
   async clearScrapeQueue(scrapeRunId: number): Promise<void> {
     await db.delete(scrapeQueue)
       .where(eq(scrapeQueue.scrapeRunId, scrapeRunId));
+  }
+
+  // ====== FB MARKETPLACE REPLIES (Workstream 4D) ======
+
+  private fbDedupeHash(input: string): string {
+    return crypto.createHash("sha256").update(input).digest("hex");
+  }
+
+  async getFbReplySettings(dealershipId: number): Promise<FbReplySettings> {
+    const existing = await db.select().from(fbReplySettings)
+      .where(eq(fbReplySettings.dealershipId, dealershipId))
+      .limit(1);
+
+    if (existing[0]) return existing[0];
+
+    const created = await db.insert(fbReplySettings)
+      .values({ dealershipId })
+      .returning();
+    return created[0];
+  }
+
+  async updateFbReplySettings(dealershipId: number, updates: Partial<InsertFbReplySettings>): Promise<FbReplySettings> {
+    await this.getFbReplySettings(dealershipId); // ensure row exists
+    const result = await db.update(fbReplySettings)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(fbReplySettings.dealershipId, dealershipId))
+      .returning();
+    return result[0];
+  }
+
+  async getFbInboxThreadByFbThreadId(dealershipId: number, fbThreadId: string): Promise<FbInboxThread | undefined> {
+    const result = await db.select().from(fbInboxThreads)
+      .where(and(eq(fbInboxThreads.dealershipId, dealershipId), eq(fbInboxThreads.fbThreadId, fbThreadId)))
+      .limit(1);
+    return result[0];
+  }
+
+  async upsertFbInboxThread(params: {
+    dealershipId: number;
+    fbThreadId: string;
+    fbAccountId?: number | null;
+    participantName?: string | null;
+    participantId?: string | null;
+    leadNameConfidence?: number | null;
+    listingUrl?: string | null;
+    listingTitle?: string | null;
+    unreadCount?: number | null;
+    lastMessageAt?: Date | null;
+  }): Promise<FbInboxThread> {
+    const now = new Date();
+
+    return await db.transaction(async (tx) => {
+      const existing = await tx.select().from(fbInboxThreads)
+        .where(and(eq(fbInboxThreads.dealershipId, params.dealershipId), eq(fbInboxThreads.fbThreadId, params.fbThreadId)))
+        .limit(1);
+
+      if (existing[0]) {
+        const updated = await tx.update(fbInboxThreads)
+          .set({
+            fbAccountId: params.fbAccountId ?? existing[0].fbAccountId,
+            participantName: params.participantName ?? existing[0].participantName,
+            participantId: params.participantId ?? existing[0].participantId,
+            leadNameConfidence: typeof params.leadNameConfidence === "number" ? params.leadNameConfidence : existing[0].leadNameConfidence,
+            listingUrl: params.listingUrl ?? existing[0].listingUrl,
+            listingTitle: params.listingTitle ?? existing[0].listingTitle,
+            unreadCount: typeof params.unreadCount === "number" ? params.unreadCount : existing[0].unreadCount,
+            lastMessageAt: params.lastMessageAt ?? existing[0].lastMessageAt,
+            updatedAt: now,
+          })
+          .where(eq(fbInboxThreads.id, existing[0].id))
+          .returning();
+        return updated[0];
+      }
+
+      const inserted = await tx.insert(fbInboxThreads)
+        .values({
+          dealershipId: params.dealershipId,
+          fbThreadId: params.fbThreadId,
+          fbAccountId: params.fbAccountId ?? null,
+          participantName: params.participantName ?? null,
+          participantId: params.participantId ?? null,
+          leadNameConfidence: typeof params.leadNameConfidence === "number" ? params.leadNameConfidence : 0,
+          listingUrl: params.listingUrl ?? null,
+          listingTitle: params.listingTitle ?? null,
+          unreadCount: typeof params.unreadCount === "number" ? params.unreadCount : 0,
+          lastMessageAt: params.lastMessageAt ?? null,
+          updatedAt: now,
+        })
+        .returning();
+
+      return inserted[0];
+    });
+  }
+
+  async appendFbInboxMessage(params: {
+    dealershipId: number;
+    fbThreadId: string;
+    fbMessageId?: string | null;
+    direction: "INBOUND" | "OUTBOUND";
+    senderRole: "BUYER" | "DEALER_USER" | "SYSTEM";
+    sentAt?: Date | null;
+    text: string;
+    attachments?: any;
+    ingestedFrom?: string;
+    safetyFlags?: any;
+  }): Promise<{ thread: FbInboxThread; message?: FbInboxMessage; wasInserted: boolean }> {
+    const now = new Date();
+    const sentAt = params.sentAt ?? null;
+
+    const thread = await this.upsertFbInboxThread({
+      dealershipId: params.dealershipId,
+      fbThreadId: params.fbThreadId,
+      lastMessageAt: sentAt ?? now,
+    });
+
+    const base = `${thread.id}:${params.fbMessageId || ""}:${params.direction}:${sentAt ? sentAt.toISOString() : ""}:${params.text}`;
+    const dedupeHash = this.fbDedupeHash(base);
+
+    const inserted = await db.transaction(async (tx) => {
+      if (params.fbMessageId) {
+        const exists = await tx.select({ id: fbInboxMessages.id }).from(fbInboxMessages)
+          .where(and(eq(fbInboxMessages.threadId, thread.id), eq(fbInboxMessages.fbMessageId, params.fbMessageId)))
+          .limit(1);
+        if (exists[0]) return { wasInserted: false } as const;
+      }
+
+      const exists2 = await tx.select({ id: fbInboxMessages.id }).from(fbInboxMessages)
+        .where(and(eq(fbInboxMessages.threadId, thread.id), eq(fbInboxMessages.dedupeHash, dedupeHash)))
+        .limit(1);
+      if (exists2[0]) return { wasInserted: false } as const;
+
+      const msg = await tx.insert(fbInboxMessages)
+        .values({
+          dealershipId: params.dealershipId,
+          threadId: thread.id,
+          fbMessageId: params.fbMessageId ?? null,
+          direction: params.direction,
+          senderRole: params.senderRole,
+          sentAt,
+          text: params.text,
+          attachments: params.attachments ?? [],
+          ingestedFrom: params.ingestedFrom ?? "EXTENSION_DOM",
+          safetyFlags: params.safetyFlags ?? {},
+          dedupeHash,
+        })
+        .returning();
+
+      return { wasInserted: true, msg: msg[0] } as const;
+    });
+
+    const patch: any = { updatedAt: now };
+    if (params.direction === "INBOUND") patch.lastInboundAt = sentAt ?? now;
+    if (params.direction === "OUTBOUND") patch.lastOutboundAt = sentAt ?? now;
+    patch.lastMessageAt = sentAt ?? now;
+
+    await db.update(fbInboxThreads)
+      .set(patch)
+      .where(and(eq(fbInboxThreads.id, thread.id), eq(fbInboxThreads.dealershipId, params.dealershipId)));
+
+    const refreshed = await this.getFbInboxThreadById(params.dealershipId, thread.id);
+    return { thread: refreshed || thread, message: (inserted as any).msg, wasInserted: (inserted as any).wasInserted };
+  }
+
+  async appendFbInboxAuditEvent(params: {
+    dealershipId: number;
+    fbThreadId?: string | null;
+    eventKey: string;
+    kind: string;
+    details?: any;
+  }): Promise<{ event?: FbInboxAuditEvent; wasInserted: boolean }> {
+    const existing = await db.select().from(fbInboxAuditEvents)
+      .where(and(eq(fbInboxAuditEvents.dealershipId, params.dealershipId), eq(fbInboxAuditEvents.eventKey, params.eventKey)))
+      .limit(1);
+    if (existing[0]) return { event: existing[0], wasInserted: false };
+
+    let threadId: number | null = null;
+    if (params.fbThreadId) {
+      const thread = await this.getFbInboxThreadByFbThreadId(params.dealershipId, params.fbThreadId);
+      threadId = thread?.id ?? null;
+    }
+
+    const inserted = await db.insert(fbInboxAuditEvents)
+      .values({
+        dealershipId: params.dealershipId,
+        threadId,
+        eventKey: params.eventKey,
+        kind: params.kind,
+        details: params.details ?? {},
+      })
+      .returning();
+
+    return { event: inserted[0], wasInserted: true };
+  }
+
+  async upsertFbThreadVehicleMapping(params: {
+    dealershipId: number;
+    fbThreadId: string;
+    participantName: string;
+    listingUrl: string;
+    vehicleId: number;
+    confidence: number;
+    method: string;
+  }): Promise<FbThreadVehicleMap> {
+    const now = new Date();
+
+    const existing = await db.select().from(fbThreadVehicleMap)
+      .where(and(
+        eq(fbThreadVehicleMap.dealershipId, params.dealershipId),
+        eq(fbThreadVehicleMap.fbThreadId, params.fbThreadId),
+        eq(fbThreadVehicleMap.participantName, params.participantName),
+        eq(fbThreadVehicleMap.listingUrl, params.listingUrl),
+      ))
+      .limit(1);
+
+    let row: FbThreadVehicleMap;
+    if (existing[0]) {
+      const updated = await db.update(fbThreadVehicleMap)
+        .set({ vehicleId: params.vehicleId, confidence: params.confidence, method: params.method, createdAt: now })
+        .where(eq(fbThreadVehicleMap.id, existing[0].id))
+        .returning();
+      row = updated[0];
+    } else {
+      const inserted = await db.insert(fbThreadVehicleMap)
+        .values({ ...params, createdAt: now })
+        .returning();
+      row = inserted[0];
+    }
+
+    const thread = await this.getFbInboxThreadByFbThreadId(params.dealershipId, params.fbThreadId);
+    if (thread) {
+      await db.update(fbInboxThreads)
+        .set({
+          vehicleId: params.vehicleId,
+          vehicleMappingConfidence: params.confidence,
+          vehicleMappingMethod: params.method,
+          updatedAt: now,
+        })
+        .where(and(eq(fbInboxThreads.id, thread.id), eq(fbInboxThreads.dealershipId, params.dealershipId)));
+    }
+
+    return row;
+  }
+
+  async listFbInboxThreads(dealershipId: number, limit: number = 50, offset: number = 0): Promise<{ threads: FbInboxThread[]; total: number }> {
+    const [items, count] = await Promise.all([
+      db.select().from(fbInboxThreads)
+        .where(eq(fbInboxThreads.dealershipId, dealershipId))
+        .orderBy(desc(fbInboxThreads.lastMessageAt), desc(fbInboxThreads.updatedAt))
+        .limit(limit)
+        .offset(offset),
+      db.select({ count: sql<number>`count(*)` }).from(fbInboxThreads)
+        .where(eq(fbInboxThreads.dealershipId, dealershipId)),
+    ]);
+
+    return { threads: items, total: count[0]?.count ?? 0 };
+  }
+
+  async getFbInboxThreadById(dealershipId: number, id: number): Promise<FbInboxThread | undefined> {
+    const result = await db.select().from(fbInboxThreads)
+      .where(and(eq(fbInboxThreads.dealershipId, dealershipId), eq(fbInboxThreads.id, id)))
+      .limit(1);
+    return result[0];
+  }
+
+  async listFbInboxMessages(dealershipId: number, threadId: number, limit: number = 200): Promise<FbInboxMessage[]> {
+    return await db.select().from(fbInboxMessages)
+      .where(and(eq(fbInboxMessages.dealershipId, dealershipId), eq(fbInboxMessages.threadId, threadId)))
+      .orderBy(asc(fbInboxMessages.sentAt), asc(fbInboxMessages.createdAt))
+      .limit(limit);
+  }
+
+  async countFbInboxMessages(
+    dealershipId: number,
+    opts: { threadId?: number; direction?: "INBOUND" | "OUTBOUND"; senderRole?: "BUYER" | "DEALER_USER" | "SYSTEM"; since?: Date; until?: Date }
+  ): Promise<number> {
+    const conditions: any[] = [eq(fbInboxMessages.dealershipId, dealershipId)];
+    if (opts.threadId) conditions.push(eq(fbInboxMessages.threadId, opts.threadId));
+    if (opts.direction) conditions.push(eq(fbInboxMessages.direction, opts.direction));
+    if (opts.senderRole) conditions.push(eq(fbInboxMessages.senderRole, opts.senderRole));
+    if (opts.since) conditions.push(gte(fbInboxMessages.createdAt, opts.since));
+    if (opts.until) conditions.push(lt(fbInboxMessages.createdAt, opts.until));
+
+    const whereClause = and(...conditions);
+    const result = await db.select({ count: sql<number>`count(*)` }).from(fbInboxMessages).where(whereClause);
+    return result[0]?.count ?? 0;
+  }
+
+  async listFbInboxAuditEvents(
+    dealershipId: number,
+    params?: { threadId?: number; kind?: string; limit?: number; offset?: number }
+  ): Promise<{ events: FbInboxAuditEvent[]; total: number }> {
+    const limit = params?.limit ?? 50;
+    const offset = params?.offset ?? 0;
+    const conditions: any[] = [eq(fbInboxAuditEvents.dealershipId, dealershipId)];
+    if (params?.threadId) conditions.push(eq(fbInboxAuditEvents.threadId, params.threadId));
+    if (params?.kind) conditions.push(eq(fbInboxAuditEvents.kind, params.kind));
+
+    const whereClause = and(...conditions);
+
+    const [events, count] = await Promise.all([
+      db.select().from(fbInboxAuditEvents)
+        .where(whereClause)
+        .orderBy(desc(fbInboxAuditEvents.createdAt))
+        .limit(limit)
+        .offset(offset),
+      db.select({ count: sql<number>`count(*)` }).from(fbInboxAuditEvents)
+        .where(whereClause),
+    ]);
+
+    return { events, total: count[0]?.count ?? 0 };
+  }
+
+  async setFbInboxThreadPaused(dealershipId: number, threadId: number, paused: boolean): Promise<FbInboxThread | undefined> {
+    const result = await db.update(fbInboxThreads)
+      .set({ isPaused: paused, updatedAt: new Date() })
+      .where(and(eq(fbInboxThreads.dealershipId, dealershipId), eq(fbInboxThreads.id, threadId)))
+      .returning();
+    return result[0];
+  }
+
+  async setFbInboxThreadAutoSendEnabled(dealershipId: number, threadId: number, enabled: boolean): Promise<FbInboxThread | undefined> {
+    const result = await db.update(fbInboxThreads)
+      .set({ autoSendEnabled: enabled, updatedAt: new Date() })
+      .where(and(eq(fbInboxThreads.dealershipId, dealershipId), eq(fbInboxThreads.id, threadId)))
+      .returning();
+    return result[0];
+  }
+
+  async setFbInboxThreadDnc(dealershipId: number, threadId: number, dnc: boolean): Promise<FbInboxThread | undefined> {
+    const result = await db.update(fbInboxThreads)
+      .set({ doNotContact: dnc, updatedAt: new Date() })
+      .where(and(eq(fbInboxThreads.dealershipId, dealershipId), eq(fbInboxThreads.id, threadId)))
+      .returning();
+    return result[0];
   }
 
   // ====== CARFAX REPORTS ======

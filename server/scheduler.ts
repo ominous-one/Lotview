@@ -6,11 +6,13 @@ import { storage } from './storage';
 import { facebookService } from './facebook-service';
 import { facebookCatalogService } from './facebook-catalog-service';
 import { processScheduledMessages } from './scheduled-message-service';
+import { processEmailOutboxBatch } from './notifications/email-outbox-worker';
 
 let schedulerInitialized = false;
 let marketAnalysisSchedulerInitialized = false;
 let facebookCatalogSchedulerInitialized = false;
 let scheduledMessageSchedulerInitialized = false;
+let notificationsSchedulerInitialized = false;
 
 // Helper to get active dealership IDs for multi-tenant operations
 async function getActiveDealershipIds(targetDealershipId?: number): Promise<number[]> {
@@ -684,4 +686,64 @@ export function startScheduledMessageScheduler() {
 
   scheduledMessageSchedulerInitialized = true;
   console.log('✓ Scheduled message scheduler started (runs every minute)');
+}
+
+// ===== COMPETITIVE REPORT SCHEDULER (Workstream 2) =====
+
+let competitiveReportSchedulerInitialized = false;
+
+/**
+ * Start the competitive report scheduler.
+ * Runs daily, but each dealership report is generated at most once every ~48h.
+ *
+ * Enable in production with ENABLE_COMPETITIVE_REPORT_SCHEDULER=true.
+ */
+export function startCompetitiveReportScheduler() {
+  if (competitiveReportSchedulerInitialized) {
+    console.log('Competitive report scheduler already running');
+    return;
+  }
+
+  if (process.env.ENABLE_COMPETITIVE_REPORT_SCHEDULER !== 'true') {
+    console.log('[CompetitiveReport] Scheduler disabled (set ENABLE_COMPETITIVE_REPORT_SCHEDULER=true to enable)');
+    return;
+  }
+
+  // Daily at 4:10 AM (Pacific). Report generation itself is idempotent with a 48h freshness gate.
+  cron.schedule('10 4 * * *', async () => {
+    console.log('📊 Running scheduled competitive reports...');
+    try {
+      const { CompetitiveReportService } = await import('./competitive-report-service');
+      const svc = new CompetitiveReportService();
+
+      const dealerships = await storage.getAllDealerships();
+      const active = dealerships.filter(d => d.isActive);
+
+      for (const d of active) {
+        try {
+          const postalCode = (d.postalCode || '').trim();
+          if (!postalCode) {
+            console.log(`[CompetitiveReport] Dealership ${d.id}: missing postalCode; skipping`);
+            continue;
+          }
+
+          await svc.runCompetitiveReport({
+            dealershipId: d.id,
+            radiusKm: 100,
+            postalCode,
+            disableExternalFetches: process.env.LOTVIEW_EXTERNAL_FETCHES !== 'true',
+          });
+        } catch (e) {
+          console.error(`[CompetitiveReport] Dealership ${d.id} failed:`, e);
+        }
+      }
+
+      console.log('✓ Scheduled competitive reports complete');
+    } catch (error) {
+      console.error('✗ Scheduled competitive reports failed:', error);
+    }
+  });
+
+  competitiveReportSchedulerInitialized = true;
+  console.log('✓ Competitive report scheduler started (runs daily at 4:10 AM)');
 }

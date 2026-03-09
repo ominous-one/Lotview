@@ -6,6 +6,7 @@
   "permissions": ["storage", "scripting", "downloads", "cookies", "debugger"],
   "host_permissions": [
     "https://www.facebook.com/*",
+    "https://*.craigslist.org/*",
     "https://lotview.ai/*",
     "https://*.lotview.ai/*",
     "https://olympicautogroup.ca/*",

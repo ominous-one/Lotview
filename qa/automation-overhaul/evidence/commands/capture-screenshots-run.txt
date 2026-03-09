@@ -1,0 +1,84 @@
+
+> rest-express@1.0.0 dev
+> cross-env NODE_ENV=development tsx server/index-dev.ts
+
+Γä╣ No proxies configured (SCRAPER_PROXIES env not set)
+[BrowserlessUnified] No cloud API keys configured - using local Puppeteer only
+Γ£ô Inventory scheduler started (runs nightly at 2 AM using ZenRows/Zyte scraper)
+Γ£ô Facebook token refresh scheduler started (runs daily at 3 AM)
+Γ£ô Facebook posting scheduler started (runs every minute)
+Γ£ô Market analysis scheduler started (runs daily at 3 AM)
+[CompetitiveReport] Scheduler disabled (set ENABLE_COMPETITIVE_REPORT_SCHEDULER=true to enable)
+Γ£ô Facebook Catalog scheduler started (runs daily at 4 AM)
+Γ£ô GHL sync scheduler started (runs daily at 5 AM)
+Γ£ô Automation scheduler started (runs every 5 minutes)
+Γ£ô Re-engagement scheduler started (runs daily at 6 AM)
+Γ£ô Scheduled message scheduler started (runs every minute)
+Γ£ô Notifications scheduler started (email outbox every 1 min)
+3:24:39 PM [express] serving on port 5000
+node.exe : [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline 
+data, please update: `npm i baseline-browser-mapping@latest -D`
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Users\omino\AppData\Roaming\ ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([baseline-brows...ping@latest -D`:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+3:24:42 PM [express] POST /api/e2e/seed 200 in 22ms :: {"success":true,"dealershipId":1,"manager":{"ΓÇª
+3:24:55 PM [express] GET /api/public/tracking-config 200 in 6ms :: {"gtmContainerId":null,"googleAnaΓÇª
+3:24:55 PM [express] GET /api/public/financing-rules 200 in 15ms :: {"creditTiers":[{"tierName":"ExcΓÇª
+3:24:55 PM [express] GET /api/tenancy/resolve 200 in 8ms :: {"dealership":{"id":1,"name":"WS4 FB RepΓÇª
+3:24:55 PM [express] GET /api/fb-inbox/threads 200 in 11ms :: {"threads":[{"id":3,"dealershipId":1,"ΓÇª
+3:24:55 PM [express] GET /api/fb-inbox/settings 200 in 24ms :: {"id":2,"dealershipId":1,"autoSendEnaΓÇª
+≡ƒñû Running automation engine...
+{"timestamp":"2026-03-08T22:25:00.182Z","level":"info","correlationId":"7621bd3eaa159acf","message":"[Automation] Starting automation processing for all dealerships"}
+[ScheduledMessage] Processing due scheduled messages...
+{"timestamp":"2026-03-08T22:25:00.196Z","level":"info","correlationId":"65c583378e135a57","message":"[Automation] Processing due follow-ups","context":{"dealershipId":2}}
+[ScheduledMessage] Found 0 messages due for sending
+{"timestamp":"2026-03-08T22:25:00.202Z","level":"info","correlationId":"5834048b18853225","message":"[Automation] Scanning PBS appointments for reminders","context":{"dealershipId":2}}
+{"timestamp":"2026-03-08T22:25:00.207Z","level":"info","correlationId":"26b1295711ad2364","message":"[Automation] Processing due appointment reminders","context":{"dealershipId":2}}
+{"timestamp":"2026-03-08T22:25:00.215Z","level":"info","correlationId":"271905864304edac","message":"[Automation] Processing price drop alerts","context":{"dealershipId":2}}
+{"timestamp":"2026-03-08T22:25:00.499Z","level":"info","correlationId":"068039f9a6ddc363","message":"[Automation] Processing due follow-ups","context":{"dealershipId":1}}
+{"timestamp":"2026-03-08T22:25:00.502Z","level":"info","correlationId":"1fc5a53752d40020","message":"[Automation] Scanning PBS appointments for reminders","context":{"dealershipId":1}}
+{"timestamp":"2026-03-08T22:25:00.506Z","level":"info","correlationId":"4840daa5030a0337","message":"[Automation] Processing due appointment reminders","context":{"dealershipId":1}}
+{"timestamp":"2026-03-08T22:25:00.509Z","level":"info","correlationId":"07a75d24465fba6f","message":"[Automation] Processing price drop alerts","context":{"dealershipId":1}}
+{"timestamp":"2026-03-08T22:25:00.515Z","level":"info","correlationId":"d785d655253c7c99","message":"[Automation] Processing due follow-ups","context":{"dealershipId":3}}
+{"timestamp":"2026-03-08T22:25:00.518Z","level":"info","correlationId":"650c32a867522d30","message":"[Automation] Scanning PBS appointments for reminders","context":{"dealershipId":3}}
+{"timestamp":"2026-03-08T22:25:00.521Z","level":"info","correlationId":"581efe0ed0de70bc","message":"[Automation] Processing due appointment reminders","context":{"dealershipId":3}}
+{"timestamp":"2026-03-08T22:25:00.525Z","level":"info","correlationId":"b95e6b759f28ee6c","message":"[Automation] Processing price drop alerts","context":{"dealershipId":3}}
+{"timestamp":"2026-03-08T22:25:00.529Z","level":"info","correlationId":"f6f3e0bdc0c7ae9c","message":"[Automation] Completed automation processing for all dealerships"}
+Γ£ô Automation engine cycle complete
+3:25:04 PM [express] GET /api/fb-inbox/threads/3/messages 200 in 81ms :: [{"id":3,"dealershipId":1,"ΓÇª
+3:25:04 PM [express] GET /api/fb-inbox/audit 200 in 55ms :: {"events":[{"id":3,"dealershipId":1,"thrΓÇª
+3:25:04 PM [express] GET /api/fb-inbox/audit 200 in 6ms :: {"events":[],"total":"0"}
+3:25:08 PM [express] GET /api/public/tracking-config 304 in 5ms :: {"gtmContainerId":null,"googleAnaΓÇª
+3:25:09 PM [express] GET /api/public/financing-rules 304 in 10ms :: {"creditTiers":[{"tierName":"ExcΓÇª
+3:25:09 PM [express] GET /api/tenancy/resolve 304 in 7ms :: {"dealership":{"id":1,"name":"WS4 FB RepΓÇª
+3:25:10 PM [express] GET /api/fb-inbox/settings 304 in 5ms :: {"id":2,"dealershipId":1,"autoSendEnabΓÇª
+3:25:19 PM [express] GET /api/public/tracking-config 304 in 10ms :: {"gtmContainerId":null,"googleAnΓÇª
+3:25:19 PM [express] GET /api/tenancy/resolve 304 in 7ms :: {"dealership":{"id":1,"name":"WS4 FB RepΓÇª
+3:25:19 PM [express] GET /api/public/financing-rules 304 in 10ms :: {"creditTiers":[{"tierName":"ExcΓÇª
+3:25:19 PM [express] GET /api/fb-inbox/audit 200 in 7ms :: {"events":[{"id":3,"dealershipId":1,"threΓÇª
+3:25:24 PM [express] GET /api/public/tracking-config 304 in 3ms :: {"gtmContainerId":null,"googleAnaΓÇª
+3:25:25 PM [express] GET /api/public/financing-rules 304 in 5ms :: {"creditTiers":[{"tierName":"ExceΓÇª
+3:25:25 PM [express] GET /api/tenancy/resolve 304 in 12ms :: {"dealership":{"id":1,"name":"WS4 FB ReΓÇª
+3:25:25 PM [express] GET /api/manager/settings 200 in 16ms
+3:25:25 PM [express] GET /api/inventory/makes 200 in 21ms :: []
+3:25:25 PM [express] GET /api/facebook/queue 403 in 1ms :: {"error":"Insufficient permissions"}
+3:25:25 PM [express] GET /api/conversations 200 in 26ms :: []
+3:25:25 PM [express] GET /api/chat-prompts 200 in 26ms :: []
+3:25:25 PM [express] GET /api/dealership/website-url 200 in 49ms :: {"websiteUrl":null}
+3:25:26 PM [express] GET /api/manager/competitive-report/latest 404 in 12ms :: {"error":"NOT_FOUND",ΓÇª
+3:25:33 PM [express] GET /api/public/tracking-config 304 in 5ms :: {"gtmContainerId":null,"googleAnaΓÇª
+3:25:33 PM [express] GET /api/public/financing-rules 304 in 7ms :: {"creditTiers":[{"tierName":"ExceΓÇª
+3:25:33 PM [express] GET /api/tenancy/resolve 304 in 5ms :: {"dealership":{"id":1,"name":"WS4 FB RepΓÇª
+3:25:33 PM [express] GET /api/manager/settings 304 in 6ms
+3:25:33 PM [express] GET /api/dealership/website-url 304 in 6ms :: {"websiteUrl":null}
+3:25:33 PM [express] GET /api/chat-prompts 304 in 5ms :: []
+3:25:33 PM [express] GET /api/conversations 304 in 7ms :: []
+3:25:33 PM [express] GET /api/facebook/queue 403 in 1ms :: {"error":"Insufficient permissions"}
+3:25:33 PM [express] GET /api/inventory/makes 304 in 5ms :: []
+
+Γ£à Screenshots written to: C:\Users\omino\projects\lotview\qa\automation-overhaul\evidence\screenshots
+[ScheduledMessage] Processing due scheduled messages...
+[ScheduledMessage] Found 0 messages due for sending

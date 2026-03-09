@@ -1,0 +1,41 @@
+# Design parity screenshot capture (v1.2)
+
+Project: C:\Users\omino\projects\lotview
+Output: qa/automation-overhaul/evidence/screenshots/
+
+## Pre-reqs
+- Node + npm installed
+- Dependencies installed:
+  - npm install
+- Chrome/Chromium available (Puppeteer will use its bundled Chromium by default)
+
+## Option A (recommended): run dev server yourself, then capture
+
+Terminal 1:
+  cd C:\Users\omino\projects\lotview
+  npm run dev
+
+Terminal 2:
+  cd C:\Users\omino\projects\lotview
+  npx tsx qa/automation-overhaul/evidence/scripts/capture-design-parity-screenshots.ts --baseUrl http://localhost:5000
+
+## Option B: let the script start the dev server (best-effort)
+
+  cd C:\Users\omino\projects\lotview
+  npx tsx qa/automation-overhaul/evidence/scripts/capture-design-parity-screenshots.ts --start --baseUrl http://localhost:5000
+
+## Headful (debug)
+
+  cd C:\Users\omino\projects\lotview
+  npx tsx qa/automation-overhaul/evidence/scripts/capture-design-parity-screenshots.ts --headful --baseUrl http://localhost:5000
+
+## Expected outputs
+- qa/automation-overhaul/evidence/screenshots/sales-fb-inbox.png
+- qa/automation-overhaul/evidence/screenshots/sales-fb-automation.png
+- qa/automation-overhaul/evidence/screenshots/sales-fb-audit.png
+- qa/automation-overhaul/evidence/screenshots/manager-competitive-report.png
+- qa/automation-overhaul/evidence/screenshots/manager-dashboard.png
+
+## Notes / safety
+- The script seeds a deterministic localStorage session (auth_token + user) to bypass UI route guards.
+- No external side effects: it only loads pages and saves screenshots locally.

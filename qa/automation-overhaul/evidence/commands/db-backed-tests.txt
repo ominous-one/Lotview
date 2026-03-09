@@ -1,0 +1,26 @@
+# DB-backed QA runs (WS4) — evidence
+Date: 2026-03-08
+Project: C:\Users\omino\projects\lotview
+
+## Summary (objective)
+- docker db/redis: STARTED
+- migrations: APPLIED
+- fb-replies-ingestion.test.ts: PASS
+- fb-replies-decide-send.int.test.ts: PASS
+
+## Commands (PowerShell)
+```powershell
+cd C:\Users\omino\projects\lotview
+
+docker compose up -d db redis
+$env:DATABASE_URL = 'postgresql://lotview:lotview_dev@localhost:5432/lotview_qa'
+
+npm run db:push
+
+npx tsx server/tests/fb-replies-ingestion.test.ts
+npx tsx server/tests/fb-replies-decide-send.int.test.ts
+```
+
+## Notes
+- Full raw logs were previously noisy due to PowerShell piping/encoding.
+- This file is the canonical evidence summary used for CEO signoff.

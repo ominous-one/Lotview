@@ -11,6 +11,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { isSafeE2ERequest, seedE2E } from "./e2e-test-mode";
 
 // JWT_SECRET must be set in production for security (SESSION_SECRET accepted as alias)
 const JWT_SECRET_ENV = process.env.JWT_SECRET || process.env.SESSION_SECRET;
@@ -120,6 +121,21 @@ function extractDealershipFromSubdomain(hostname: string): string | null {
 export function tenantMiddleware(storage: any) {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
+      // E2E deterministic mode (LOCALHOST + NON-PROD ONLY)
+      // Bypasses tenancy resolution and forces a stable dealershipId.
+      if (isSafeE2ERequest(req)) {
+        const seeded = await seedE2E();
+        req.dealershipId = seeded.dealershipId;
+        req.tenantSource = 'default';
+        try {
+          const dealership = await storage.getDealership(seeded.dealershipId);
+          if (dealership) req.dealership = dealership;
+        } catch {
+          // ignore
+        }
+        return next();
+      }
+
       let dealershipId: number | undefined;
       let source: TenantResolutionSource = 'none';
       

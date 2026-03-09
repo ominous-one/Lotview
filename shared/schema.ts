@@ -390,6 +390,11 @@ export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   dealershipId: integer("dealership_id").references(() => dealerships.id, { onDelete: 'cascade' }), // NULL for master users who manage all dealerships
   email: text("email").notNull().unique(),
+  // Notification email can be overridden (e.g., shared manager inbox). Verified gating is required for external sends.
+  notificationEmail: text("notification_email"),
+  notificationEmailVerifiedAt: timestamp("notification_email_verified_at"),
+  notificationEmailHardBouncedAt: timestamp("notification_email_hard_bounced_at"),
+  notificationEmailSpamComplaintAt: timestamp("notification_email_spam_complaint_at"),
   passwordHash: text("password_hash").notNull(),
   name: text("name").notNull(),
   role: text("role").notNull(), // 'super_admin', 'master', 'manager', 'salesperson'
@@ -1331,6 +1336,104 @@ export const insertMarketSnapshotSchema = createInsertSchema(marketSnapshots).om
 export type InsertMarketSnapshot = z.infer<typeof insertMarketSnapshotSchema>;
 export type MarketSnapshot = typeof marketSnapshots.$inferSelect;
 
+// ====== COMPETITIVE REPORTS + VIN CACHE + DEALERSHIP AUTOMATION SETTINGS (Automation Overhaul Workstreams 2 + 3) ======
+
+export const dealershipAutomationSettings = pgTable("dealership_automation_settings", {
+  id: serial("id").primaryKey(),
+  dealershipId: integer("dealership_id").notNull().references(() => dealerships.id, { onDelete: 'cascade' }).unique(),
+
+  competitiveReportDefaultRadiusKm: integer("competitive_report_default_radius_km").notNull().default(100),
+  competitiveReportCadenceHours: integer("competitive_report_cadence_hours").notNull().default(48),
+  competitiveReportAllowNational: boolean("competitive_report_allow_national").notNull().default(true),
+
+  businessHours: jsonb("business_hours").notNull().default(sql`'{}'::jsonb`),
+  thresholds: jsonb("thresholds").notNull().default(sql`'{}'::jsonb`),
+
+  zenrowsFallbackEnabled: boolean("zenrows_fallback_enabled").notNull().default(false),
+  zenrowsMaxCallsPerMinute: integer("zenrows_max_calls_per_minute").notNull().default(6),
+  zenrowsMaxCallsPerHour: integer("zenrows_max_calls_per_hour").notNull().default(120),
+
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertDealershipAutomationSettingsSchema = createInsertSchema(dealershipAutomationSettings).omit({
+  id: true,
+  updatedAt: true,
+});
+export type InsertDealershipAutomationSettings = z.infer<typeof insertDealershipAutomationSettingsSchema>;
+export type DealershipAutomationSettings = typeof dealershipAutomationSettings.$inferSelect;
+
+export const vinDecodeCache = pgTable("vin_decode_cache", {
+  id: serial("id").primaryKey(),
+  dealershipId: integer("dealership_id").notNull().references(() => dealerships.id, { onDelete: 'cascade' }),
+  vin: text("vin").notNull(),
+  baselineSource: text("baseline_source").notNull(),
+  baselinePayload: jsonb("baseline_payload").notNull(),
+  enrichedSource: text("enriched_source"),
+  enrichedPayload: jsonb("enriched_payload"),
+  trimConfidence: text("trim_confidence").notNull().default('unknown'),
+  optionsConfidence: text("options_confidence").notNull().default('unknown'),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at"),
+});
+
+export const competitiveReportRuns = pgTable("competitive_report_runs", {
+  id: serial("id").primaryKey(),
+  dealershipId: integer("dealership_id").notNull().references(() => dealerships.id, { onDelete: 'cascade' }),
+  generatedAt: timestamp("generated_at").defaultNow().notNull(),
+  radiusKm: integer("radius_km").notNull().default(100),
+  sources: jsonb("sources").notNull().default(sql`'[]'::jsonb`),
+  status: text("status").notNull().default('success'),
+  metrics: jsonb("metrics"),
+  error: text("error"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const competitiveReportUnits = pgTable("competitive_report_units", {
+  id: serial("id").primaryKey(),
+  runId: integer("run_id").notNull().references(() => competitiveReportRuns.id, { onDelete: 'cascade' }),
+  vehicleId: integer("vehicle_id").notNull().references(() => vehicles.id, { onDelete: 'cascade' }),
+  vin: text("vin"),
+  year: integer("year"),
+  make: text("make"),
+  model: text("model"),
+  trim: text("trim"),
+  ourPrice: integer("our_price"),
+  ourMileage: integer("our_mileage"),
+  ourDaysOnLot: integer("our_days_on_lot"),
+  compCount: integer("comp_count").notNull().default(0),
+  compMedianPrice: integer("comp_median_price"),
+  deltaToMedian: integer("delta_to_median"),
+  position: text("position"),
+  confidence: text("confidence").notNull().default('low'),
+  comps: jsonb("comps").notNull().default(sql`'[]'::jsonb`),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertVinDecodeCacheSchema = createInsertSchema(vinDecodeCache).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertVinDecodeCache = z.infer<typeof insertVinDecodeCacheSchema>;
+export type VinDecodeCache = typeof vinDecodeCache.$inferSelect;
+
+export const insertCompetitiveReportRunSchema = createInsertSchema(competitiveReportRuns).omit({
+  id: true,
+  generatedAt: true,
+  createdAt: true,
+});
+export type InsertCompetitiveReportRun = z.infer<typeof insertCompetitiveReportRunSchema>;
+export type CompetitiveReportRun = typeof competitiveReportRuns.$inferSelect;
+
+export const insertCompetitiveReportUnitSchema = createInsertSchema(competitiveReportUnits).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertCompetitiveReportUnit = z.infer<typeof insertCompetitiveReportUnitSchema>;
+export type CompetitiveReportUnit = typeof competitiveReportUnits.$inferSelect;
+
 // ====== ONBOARDING SYSTEM TABLES ======
 
 // Dealership branding - logos, colors, content
@@ -1665,6 +1768,176 @@ export const insertGhlAppointmentSyncSchema = createInsertSchema(ghlAppointmentS
 
 export type InsertGhlAppointmentSync = z.infer<typeof insertGhlAppointmentSyncSchema>;
 export type GhlAppointmentSync = typeof ghlAppointmentSync.$inferSelect;
+
+// ====== WS4E: CANONICAL LOTVIEW APPOINTMENTS + NOTIFICATIONS ======
+
+export const appointments = pgTable("appointments", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  dealershipId: integer("dealership_id").notNull().references(() => dealerships.id, { onDelete: 'cascade' }),
+  threadId: integer("thread_id"),
+  vehicleId: integer("vehicle_id").references(() => vehicles.id, { onDelete: 'set null' }),
+  leadName: text("lead_name"),
+  leadPhone: text("lead_phone"),
+  leadEmail: text("lead_email"),
+  sourceChannel: text("source_channel").notNull().default('unknown'),
+  type: text("type").notNull(), // IN_PERSON_VISIT | TEST_DRIVE | PHONE_CALL
+  status: text("status").notNull(), // DRAFT | PROPOSED | ...
+  ownerUserId: integer("owner_user_id").references(() => users.id, { onDelete: 'set null' }),
+  startAt: timestamp("start_at").notNull(),
+  endAt: timestamp("end_at"),
+  timezone: text("timezone").notNull(),
+  location: text("location"),
+  notes: text("notes"),
+  createdByType: text("created_by_type").notNull().default('SYSTEM'),
+  createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: 'set null' }),
+  idempotencyKey: text("idempotency_key"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertAppointmentSchema = createInsertSchema(appointments).omit({
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertAppointment = z.infer<typeof insertAppointmentSchema>;
+export type Appointment = typeof appointments.$inferSelect;
+
+export const appointmentAuditEvents = pgTable("appointment_audit_events", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  dealershipId: integer("dealership_id").notNull().references(() => dealerships.id, { onDelete: 'cascade' }),
+  appointmentId: uuid("appointment_id").notNull().references(() => appointments.id, { onDelete: 'cascade' }),
+  kind: text("kind").notNull(),
+  actorType: text("actor_type").notNull(), // SYSTEM | USER
+  actorUserId: integer("actor_user_id").references(() => users.id, { onDelete: 'set null' }),
+  occurredAt: timestamp("occurred_at").defaultNow().notNull(),
+  idempotencyKey: text("idempotency_key"),
+  reasonCodes: text("reason_codes").array(),
+  details: jsonb("details"),
+  sourceThreadId: integer("source_thread_id"),
+});
+
+export const insertAppointmentAuditEventSchema = createInsertSchema(appointmentAuditEvents).omit({
+  occurredAt: true,
+});
+
+export type InsertAppointmentAuditEvent = z.infer<typeof insertAppointmentAuditEventSchema>;
+export type AppointmentAuditEvent = typeof appointmentAuditEvents.$inferSelect;
+
+export const notificationEvents = pgTable("notification_events", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  dealershipId: integer("dealership_id").notNull().references(() => dealerships.id, { onDelete: 'cascade' }),
+  eventType: text("event_type").notNull(),
+  eventKey: text("event_key"),
+  appointmentId: uuid("appointment_id").references(() => appointments.id, { onDelete: 'cascade' }),
+  threadId: integer("thread_id"),
+  vehicleId: integer("vehicle_id").references(() => vehicles.id, { onDelete: 'set null' }),
+  ownerUserId: integer("owner_user_id").references(() => users.id, { onDelete: 'set null' }),
+  occurredAt: timestamp("occurred_at").defaultNow().notNull(),
+  summary: text("summary").notNull(),
+  details: jsonb("details"),
+});
+
+export const insertNotificationEventSchema = createInsertSchema(notificationEvents).omit({
+  occurredAt: true,
+});
+
+export type InsertNotificationEvent = z.infer<typeof insertNotificationEventSchema>;
+export type NotificationEvent = typeof notificationEvents.$inferSelect;
+
+export const notifications = pgTable("notifications", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  dealershipId: integer("dealership_id").notNull().references(() => dealerships.id, { onDelete: 'cascade' }),
+  eventId: uuid("event_id").notNull().references(() => notificationEvents.id, { onDelete: 'cascade' }),
+  recipientUserId: integer("recipient_user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  notificationKey: text("notification_key").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  deepLink: text("deep_link"),
+  isRead: boolean("is_read").notNull().default(false),
+  readAt: timestamp("read_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertNotificationSchema = createInsertSchema(notifications).omit({
+  createdAt: true,
+});
+
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+export type Notification = typeof notifications.$inferSelect;
+
+export const emailOutbox = pgTable("email_outbox", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  dealershipId: integer("dealership_id").notNull().references(() => dealerships.id, { onDelete: 'cascade' }),
+  notificationId: uuid("notification_id").notNull().references(() => notifications.id, { onDelete: 'cascade' }),
+  sendKey: text("send_key").notNull(),
+  toEmail: text("to_email").notNull(),
+  toUserId: integer("to_user_id").references(() => users.id, { onDelete: 'set null' }),
+  subject: text("subject").notNull(),
+  html: text("html").notNull(),
+  text: text("text"),
+  status: text("status").notNull().default('PENDING'),
+  attemptCount: integer("attempt_count").notNull().default(0),
+  maxAttempts: integer("max_attempts").notNull().default(8),
+  nextAttemptAt: timestamp("next_attempt_at").notNull().defaultNow(),
+  lastError: text("last_error"),
+  providerMessageId: text("provider_message_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  sentAt: timestamp("sent_at"),
+});
+
+export const insertEmailOutboxSchema = createInsertSchema(emailOutbox).omit({
+  attemptCount: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertEmailOutbox = z.infer<typeof insertEmailOutboxSchema>;
+export type EmailOutbox = typeof emailOutbox.$inferSelect;
+
+export const emailVerificationTokens = pgTable("email_verification_tokens", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  email: text("email").notNull(),
+  token: text("token").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt: timestamp("used_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertEmailVerificationTokenSchema = createInsertSchema(emailVerificationTokens).omit({
+  createdAt: true,
+});
+
+export type InsertEmailVerificationToken = z.infer<typeof insertEmailVerificationTokenSchema>;
+export type EmailVerificationToken = typeof emailVerificationTokens.$inferSelect;
+
+// WS4E Follow-up tasks
+export const followUpTasks = pgTable("follow_up_tasks", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  dealershipId: integer("dealership_id").notNull().references(() => dealerships.id, { onDelete: 'cascade' }),
+  appointmentId: uuid("appointment_id").references(() => appointments.id, { onDelete: 'cascade' }),
+  ownerUserId: integer("owner_user_id").references(() => users.id, { onDelete: 'set null' }),
+  kind: text("kind").notNull(),
+  status: text("status").notNull().default('OPEN'),
+  title: text("title").notNull(),
+  description: text("description"),
+  dueAt: timestamp("due_at"),
+  completedAt: timestamp("completed_at"),
+  createdByType: text("created_by_type").notNull().default('SYSTEM'),
+  createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertFollowUpTaskSchema = createInsertSchema(followUpTasks).omit({
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertFollowUpTask = z.infer<typeof insertFollowUpTaskSchema>;
+export type FollowUpTask = typeof followUpTasks.$inferSelect;
 
 // GoHighLevel API Logs - track API calls for debugging and rate limiting
 export const ghlApiLogs = pgTable("ghl_api_logs", {
@@ -2911,3 +3184,138 @@ export const insertAiSettingsSchema = createInsertSchema(aiSettings).omit({
 
 export type InsertAiSettings = z.infer<typeof insertAiSettingsSchema>;
 export type AiSettings = typeof aiSettings.$inferSelect;
+
+// ====== FB MARKETPLACE REPLIES (Workstream 4D) ======
+
+export const fbReplySettings = pgTable("fb_reply_settings", {
+  id: serial("id").primaryKey(),
+  dealershipId: integer("dealership_id").notNull().references(() => dealerships.id, { onDelete: 'cascade' }).unique(),
+  // v1.2: AUTO-SEND default ON (but may be blocked by safety envelope)
+  autoSendEnabled: boolean("auto_send_enabled").notNull().default(true),
+  // Global kill switch for all outbound automation (auto + manual send intents)
+  globalKillSwitch: boolean("global_kill_switch").notNull().default(false),
+  // Audit metadata for global kill switch toggles (for UX + compliance)
+  globalKillSwitchLastToggledAt: timestamp("global_kill_switch_last_toggled_at"),
+  globalKillSwitchLastToggledBy: text("global_kill_switch_last_toggled_by"),
+  globalKillSwitchLastReason: text("global_kill_switch_last_reason"),
+  // Business hours schedule + timezone live on dealerships.timezone; keep config here as JSON for flexibility
+  businessHours: jsonb("business_hours").notNull().default(sql`'{}'::jsonb`),
+  rateLimits: jsonb("rate_limits").notNull().default(sql`'{}'::jsonb`),
+  thresholds: jsonb("thresholds").notNull().default(sql`'{}'::jsonb`),
+  typingSim: jsonb("typing_sim").notNull().default(sql`'{}'::jsonb`),
+  dryRun: boolean("dry_run").notNull().default(false),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertFbReplySettingsSchema = createInsertSchema(fbReplySettings).omit({
+  id: true,
+  updatedAt: true,
+});
+
+export type InsertFbReplySettings = z.infer<typeof insertFbReplySettingsSchema>;
+export type FbReplySettings = typeof fbReplySettings.$inferSelect;
+
+export const fbInboxThreads = pgTable("fb_inbox_threads", {
+  id: serial("id").primaryKey(),
+  dealershipId: integer("dealership_id").notNull().references(() => dealerships.id, { onDelete: 'cascade' }),
+  fbThreadId: text("fb_thread_id").notNull(),
+  fbAccountId: integer("fb_account_id").references(() => fbMarketplaceAccounts.id, { onDelete: 'set null' }),
+
+  participantName: text("participant_name"),
+  participantId: text("participant_id"),
+  leadNameConfidence: real("lead_name_confidence").notNull().default(0),
+
+  listingUrl: text("listing_url"),
+  listingTitle: text("listing_title"),
+
+  vehicleId: integer("vehicle_id").references(() => vehicles.id, { onDelete: 'set null' }),
+  vehicleMappingConfidence: real("vehicle_mapping_confidence").notNull().default(0),
+  vehicleMappingMethod: text("vehicle_mapping_method"),
+
+  state: text("state").notNull().default("NEW_INBOUND"),
+  unreadCount: integer("unread_count").notNull().default(0),
+  lastInboundAt: timestamp("last_inbound_at"),
+  lastOutboundAt: timestamp("last_outbound_at"),
+  lastMessageAt: timestamp("last_message_at"),
+
+  doNotContact: boolean("do_not_contact").notNull().default(false),
+  escalated: boolean("escalated").notNull().default(false),
+
+  // Per-thread kill switches / overrides
+  isPaused: boolean("is_paused").notNull().default(false),
+  autoSendEnabled: boolean("auto_send_enabled").notNull().default(true),
+
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertFbInboxThreadSchema = createInsertSchema(fbInboxThreads).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertFbInboxThread = z.infer<typeof insertFbInboxThreadSchema>;
+export type FbInboxThread = typeof fbInboxThreads.$inferSelect;
+
+export const fbInboxMessages = pgTable("fb_inbox_messages", {
+  id: serial("id").primaryKey(),
+  dealershipId: integer("dealership_id").notNull().references(() => dealerships.id, { onDelete: 'cascade' }),
+  threadId: integer("thread_id").notNull().references(() => fbInboxThreads.id, { onDelete: 'cascade' }),
+  fbMessageId: text("fb_message_id"),
+  direction: text("direction").notNull(), // INBOUND | OUTBOUND
+  senderRole: text("sender_role").notNull(), // BUYER | DEALER_USER | SYSTEM
+  sentAt: timestamp("sent_at"),
+  text: text("text").notNull(),
+  attachments: jsonb("attachments").notNull().default(sql`'[]'::jsonb`),
+  ingestedFrom: text("ingested_from").notNull().default("EXTENSION_DOM"),
+  safetyFlags: jsonb("safety_flags").notNull().default(sql`'{}'::jsonb`),
+  dedupeHash: text("dedupe_hash").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertFbInboxMessageSchema = createInsertSchema(fbInboxMessages).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertFbInboxMessage = z.infer<typeof insertFbInboxMessageSchema>;
+export type FbInboxMessage = typeof fbInboxMessages.$inferSelect;
+
+export const fbInboxAuditEvents = pgTable("fb_inbox_audit_events", {
+  id: serial("id").primaryKey(),
+  dealershipId: integer("dealership_id").notNull().references(() => dealerships.id, { onDelete: 'cascade' }),
+  threadId: integer("thread_id").references(() => fbInboxThreads.id, { onDelete: 'cascade' }),
+  eventKey: text("event_key").notNull(), // idempotency key from extension / server
+  kind: text("kind").notNull(), // e.g. AUTO_SENT / BLOCKED / ESCALATED / DNC_SET / THROTTLED / DRY_RUN
+  details: jsonb("details").notNull().default(sql`'{}'::jsonb`),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertFbInboxAuditEventSchema = createInsertSchema(fbInboxAuditEvents).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertFbInboxAuditEvent = z.infer<typeof insertFbInboxAuditEventSchema>;
+export type FbInboxAuditEvent = typeof fbInboxAuditEvents.$inferSelect;
+
+export const fbThreadVehicleMap = pgTable("fb_thread_vehicle_map", {
+  id: serial("id").primaryKey(),
+  dealershipId: integer("dealership_id").notNull().references(() => dealerships.id, { onDelete: 'cascade' }),
+  fbThreadId: text("fb_thread_id").notNull(),
+  participantName: text("participant_name").notNull().default(""),
+  listingUrl: text("listing_url").notNull().default(""),
+  vehicleId: integer("vehicle_id").notNull().references(() => vehicles.id, { onDelete: 'cascade' }),
+  confidence: real("confidence").notNull().default(0),
+  method: text("method").notNull().default("unknown"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertFbThreadVehicleMapSchema = createInsertSchema(fbThreadVehicleMap).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertFbThreadVehicleMap = z.infer<typeof insertFbThreadVehicleMapSchema>;
+export type FbThreadVehicleMap = typeof fbThreadVehicleMap.$inferSelect;

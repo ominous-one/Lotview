@@ -34,16 +34,18 @@ import {
   fbMarketplaceSettings,
   vehicleImages
 } from "@shared/schema";
-import { eq, desc, sql, and, gt, gte, isNull, asc, or } from "drizzle-orm";
+import { eq, desc, sql, and, gt, gte, lte, isNull, asc, or } from "drizzle-orm";
 import { fromZodError } from "zod-validation-error";
 import { triggerManualSync } from "./scheduler";
 import { testBadgeDetection } from "./scraper";
+import { decideSendFbMarketplaceReply } from "./fb-replies/decide-send";
 import { generateChatResponse, type ChatMessage } from "./openai";
 import { generateSalesResponse, generateFollowUp } from "./ai-sales-agent";
 import { calculatePayments, formatPaymentForChat } from "./ai-payment-calculator";
 
 import { authMiddleware, requireRole, generateToken, comparePassword, hashPassword, verifyToken, extensionHmacMiddleware, generatePostingToken, validatePostingToken, type AuthRequest } from "./auth";
 import { requireDealership, superAdminOnly } from "./tenant-middleware";
+import { isSafeE2ERequest, seedE2E } from "./e2e-test-mode";
 import { facebookService } from "./facebook-service";
 import { facebookMarketplaceAutomation } from "./facebook-marketplace-automation";
 import { generateMarketplaceContent, type SocialTemplates } from "./openai";
@@ -58,6 +60,12 @@ import { createPbsApiService } from "./pbs-api-service";
 import { ObjectStorageService } from "./objectStorage";
 import { createGhlMessageSyncService } from "./ghl-message-sync-service";
 import { isFeatureEnabled, FEATURE_FLAGS } from "./feature-flags";
+import { createAppointment, transitionAppointment } from "./appointments/appointment-service";
+import { parseCancelledBy } from "./appointments/appointment-input";
+import { reassignAppointmentOwner } from "./appointments/appointment-reassign";
+import { appointments, appointmentAuditEvents, notifications, emailOutbox, users as usersTable, followUpTasks } from "@shared/schema";
+import { startNotificationEmailVerification, verifyNotificationEmailToken } from "./notifications/email-verification";
+import { createFollowUpTasksForAppointmentEvent } from "./follow-ups/follow-up-service";
 
 // Configure multer for in-memory logo uploads (for object storage)
 const logoUpload = multer({
@@ -151,6 +159,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       timestamp: new Date().toISOString(),
       checks,
     });
+  });
+
+  // ===== E2E TEST MODE (LOCALHOST + NON-PROD ONLY) =====
+  
+  app.post("/api/e2e/seed", async (req, res) => {
+    try {
+      if (!isSafeE2ERequest(req)) {
+        return res.status(404).json({ error: "Not found" });
+      }
+
+      const seeded = await seedE2E();
+      res.json({
+        success: true,
+        ...seeded,
+      });
+    } catch (error) {
+      logError("[E2E] seed failed", error instanceof Error ? error : new Error(String(error)), { route: "api-e2e-seed" });
+      res.status(500).json({ error: "E2E seed failed" });
+    }
   });
 
   // ===== PUBLIC OBJECT STORAGE (Persistent file serving) =====
@@ -8430,6 +8457,127 @@ Format your response in clear sections with actionable recommendations.`;
     }
   });
 
+  // ===== Competitive Report (Workstream 2) =====
+
+  app.get('/api/manager/competitive-report/settings', authMiddleware, requireRole('manager'), async (req, res) => {
+    try {
+      const dealershipId = (req as AuthRequest).dealershipId || 1;
+      // Ensure a row exists so defaults are persisted.
+      const settings = await storage.upsertDealershipAutomationSettings(dealershipId, {});
+      res.json(settings);
+    } catch (error) {
+      logError('Error fetching competitive report settings:', error instanceof Error ? error : new Error(String(error)), { route: 'api-manager-competitive-report-settings-get' });
+      res.status(500).json({ error: 'FAILED', message: 'Failed to fetch settings' });
+    }
+  });
+
+  app.put('/api/manager/competitive-report/settings', authMiddleware, requireRole('manager'), async (req, res) => {
+    try {
+      const dealershipId = (req as AuthRequest).dealershipId || 1;
+      const body = req.body || {};
+
+      // Minimal validation + allow partial updates.
+      const patch: any = {};
+      if (body.competitiveReportDefaultRadiusKm != null) patch.competitiveReportDefaultRadiusKm = parseInt(body.competitiveReportDefaultRadiusKm);
+      if (body.competitiveReportCadenceHours != null) patch.competitiveReportCadenceHours = parseInt(body.competitiveReportCadenceHours);
+      if (body.competitiveReportAllowNational != null) patch.competitiveReportAllowNational = !!body.competitiveReportAllowNational;
+      if (body.businessHours != null) patch.businessHours = body.businessHours;
+      if (body.thresholds != null) patch.thresholds = body.thresholds;
+      if (body.zenrowsFallbackEnabled != null) patch.zenrowsFallbackEnabled = !!body.zenrowsFallbackEnabled;
+      if (body.zenrowsMaxCallsPerMinute != null) patch.zenrowsMaxCallsPerMinute = parseInt(body.zenrowsMaxCallsPerMinute);
+      if (body.zenrowsMaxCallsPerHour != null) patch.zenrowsMaxCallsPerHour = parseInt(body.zenrowsMaxCallsPerHour);
+
+      const updated = await storage.upsertDealershipAutomationSettings(dealershipId, patch);
+      res.json(updated);
+    } catch (error) {
+      logError('Error updating competitive report settings:', error instanceof Error ? error : new Error(String(error)), { route: 'api-manager-competitive-report-settings-put' });
+      res.status(500).json({ error: 'FAILED', message: 'Failed to update settings' });
+    }
+  });
+
+  app.get('/api/manager/competitive-report/latest', authMiddleware, requireRole('manager'), async (req, res) => {
+    try {
+      const dealershipId = (req as AuthRequest).dealershipId || 1;
+      const settings = await storage.getDealershipAutomationSettings(dealershipId);
+      const defaultRadiusKm = settings?.competitiveReportDefaultRadiusKm ?? 100;
+      const radiusKm = req.query.radiusKm ? parseInt(req.query.radiusKm as string) : defaultRadiusKm;
+
+      const run = await storage.getLatestCompetitiveReportRun(dealershipId, radiusKm);
+      if (!run) {
+        return res.status(404).json({ error: 'NOT_FOUND', message: 'No competitive report snapshot found yet' });
+      }
+
+      const units = await storage.getCompetitiveReportUnits(run.id, dealershipId);
+      res.json({ run, units });
+    } catch (error) {
+      logError('Error fetching competitive report:', error instanceof Error ? error : new Error(String(error)), { route: 'api-manager-competitive-report-latest' });
+      res.status(500).json({ error: 'FAILED', message: 'Failed to fetch competitive report' });
+    }
+  });
+
+  app.post('/api/manager/competitive-report/run', authMiddleware, requireRole('manager'), async (req, res) => {
+    try {
+      const dealershipId = (req as AuthRequest).dealershipId || 1;
+      const settings = await storage.getDealershipAutomationSettings(dealershipId);
+      const defaultRadiusKm = settings?.competitiveReportDefaultRadiusKm ?? 100;
+      const radiusKm = req.body?.radiusKm ? parseInt(req.body.radiusKm) : defaultRadiusKm;
+
+      const d = await storage.getDealershipById(dealershipId);
+      const postalCode = (d?.postalCode || '').trim();
+      if (!postalCode) {
+        return res.status(400).json({ error: 'MISSING_POSTAL', message: 'Dealership postal code required' });
+      }
+
+      const { CompetitiveReportService } = await import('./competitive-report-service');
+      const svc = new CompetitiveReportService();
+      const result = await svc.runCompetitiveReport({
+        dealershipId,
+        radiusKm,
+        postalCode,
+        disableExternalFetches: process.env.LOTVIEW_EXTERNAL_FETCHES !== 'true',
+      });
+
+      res.json(result);
+    } catch (error) {
+      logError('Error running competitive report:', error instanceof Error ? error : new Error(String(error)), { route: 'api-manager-competitive-report-run' });
+      res.status(500).json({ error: 'FAILED', message: error instanceof Error ? error.message : 'Failed to run competitive report' });
+    }
+  });
+
+  // ===== Appraisal Comps Engine (Workstream 3) =====
+
+  app.post('/api/manager/appraisal-comps', authMiddleware, requireRole('manager'), async (req, res) => {
+    try {
+      const dealershipId = (req as AuthRequest).dealershipId || 1;
+      const { vin, mileageKm, postalCode, radiusKm, trimMode } = req.body || {};
+
+      if (!vin || typeof vin !== 'string' || vin.trim().length !== 17) {
+        return res.status(400).json({ error: 'INVALID_VIN', message: 'VIN must be 17 characters' });
+      }
+
+      if (!postalCode || typeof postalCode !== 'string') {
+        return res.status(400).json({ error: 'MISSING_POSTAL', message: 'postalCode required (Canada-only)' });
+      }
+
+      const { getAppraisalComps } = await import('./comps-engine');
+      const result = await getAppraisalComps({
+        dealershipId,
+        vin,
+        mileageKm: typeof mileageKm === 'number' ? mileageKm : (mileageKm ? parseInt(mileageKm) : undefined),
+        postalCode,
+        radiusKm: radiusKm ? parseInt(radiusKm) : 100,
+        trimMode: trimMode === 'exact' ? 'exact' : 'near',
+        maxComps: 25,
+        disableExternalFetches: process.env.LOTVIEW_EXTERNAL_FETCHES !== 'true',
+      });
+
+      res.json(result);
+    } catch (error) {
+      logError('Error getting appraisal comps:', error instanceof Error ? error : new Error(String(error)), { route: 'api-manager-appraisal-comps' });
+      res.status(500).json({ error: 'FAILED', message: error instanceof Error ? error.message : 'Failed to fetch comps' });
+    }
+  });
+
   // Get VIN-specific live market pricing (retail, wholesale, demand)
   app.post("/api/manager/vin-pricing", authMiddleware, requireRole("manager"), async (req, res) => {
     try {
@@ -12357,18 +12505,7 @@ Format your response in clear sections with actionable recommendations.`;
       });
       
       // Generate impersonation token
-      const impersonationToken = generateToken({
-        id: targetUser.id,
-        email: targetUser.email,
-        role: targetUser.role,
-        name: targetUser.name,
-        dealershipId: targetUser.dealershipId,
-        isActive: targetUser.isActive,
-        createdBy: targetUser.createdBy,
-        createdAt: targetUser.createdAt,
-        updatedAt: targetUser.updatedAt,
-        passwordHash: ''
-      });
+      const impersonationToken = generateToken(targetUser as any);
       
       // Log audit action
       await storage.logAuditAction({
@@ -15239,6 +15376,215 @@ Return ONLY the enhanced description, nothing else.`;
     }
   });
 
+  // ====== FB MARKETPLACE REPLIES (Workstream 4D) — EXTENSION INGESTION (idempotent) ======
+
+  // Extension: Fetch reply policy/settings (server is source of truth)
+  app.get("/api/extension/fb-replies/settings", extensionHmacMiddleware, authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const settings = await storage.getFbReplySettings(dealershipId);
+      res.json(settings);
+    } catch (error: any) {
+      logError("Extension fb-replies settings failed", error, { route: "api-extension-fb-replies-settings" });
+      res.status(500).json({ error: "Failed to fetch settings" });
+    }
+  });
+
+  // Extension: Upsert thread snapshot
+  app.post("/api/extension/fb-replies/thread", extensionHmacMiddleware, authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const {
+        fbThreadId,
+        fbAccountId,
+        participantName,
+        participantId,
+        leadNameConfidence,
+        listingUrl,
+        listingTitle,
+        unreadCount,
+        lastMessageAt,
+      } = req.body || {};
+
+      if (!fbThreadId || typeof fbThreadId !== "string") {
+        return res.status(400).json({ error: "fbThreadId required" });
+      }
+
+      const thread = await storage.upsertFbInboxThread({
+        dealershipId,
+        fbThreadId,
+        fbAccountId: typeof fbAccountId === "number" ? fbAccountId : null,
+        participantName: typeof participantName === "string" ? participantName : null,
+        participantId: typeof participantId === "string" ? participantId : null,
+        leadNameConfidence: typeof leadNameConfidence === "number" ? leadNameConfidence : null,
+        listingUrl: typeof listingUrl === "string" ? listingUrl : null,
+        listingTitle: typeof listingTitle === "string" ? listingTitle : null,
+        unreadCount: typeof unreadCount === "number" ? unreadCount : null,
+        lastMessageAt: lastMessageAt ? new Date(lastMessageAt) : null,
+      });
+
+      res.json({ ok: true, thread });
+    } catch (error: any) {
+      logError("Extension fb-replies thread upsert failed", error, { route: "api-extension-fb-replies-thread" });
+      res.status(500).json({ error: "Failed to upsert thread" });
+    }
+  });
+
+  // Extension: Append message (idempotent)
+  app.post("/api/extension/fb-replies/message", extensionHmacMiddleware, authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const { fbThreadId, fbMessageId, direction, senderRole, sentAt, text, attachments, ingestedFrom, safetyFlags } = req.body || {};
+
+      if (!fbThreadId || typeof fbThreadId !== "string") return res.status(400).json({ error: "fbThreadId required" });
+      if (!direction || (direction !== "INBOUND" && direction !== "OUTBOUND")) return res.status(400).json({ error: "direction must be INBOUND|OUTBOUND" });
+      if (!senderRole || (senderRole !== "BUYER" && senderRole !== "DEALER_USER" && senderRole !== "SYSTEM")) return res.status(400).json({ error: "senderRole invalid" });
+      if (!text || typeof text !== "string") return res.status(400).json({ error: "text required" });
+
+      const result = await storage.appendFbInboxMessage({
+        dealershipId,
+        fbThreadId,
+        fbMessageId: typeof fbMessageId === "string" ? fbMessageId : null,
+        direction,
+        senderRole,
+        sentAt: sentAt ? new Date(sentAt) : null,
+        text,
+        attachments,
+        ingestedFrom: typeof ingestedFrom === "string" ? ingestedFrom : undefined,
+        safetyFlags,
+      });
+
+      res.json({ ok: true, ...result });
+    } catch (error: any) {
+      logError("Extension fb-replies message append failed", error, { route: "api-extension-fb-replies-message" });
+      res.status(500).json({ error: "Failed to append message" });
+    }
+  });
+
+  // Extension: Append audit event (idempotent by eventKey)
+  app.post("/api/extension/fb-replies/audit", extensionHmacMiddleware, authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const { fbThreadId, eventKey, kind, details } = req.body || {};
+      if (!eventKey || typeof eventKey !== "string") return res.status(400).json({ error: "eventKey required" });
+      if (!kind || typeof kind !== "string") return res.status(400).json({ error: "kind required" });
+
+      const result = await storage.appendFbInboxAuditEvent({
+        dealershipId,
+        fbThreadId: typeof fbThreadId === "string" ? fbThreadId : null,
+        eventKey,
+        kind,
+        details,
+      });
+
+      res.json({ ok: true, ...result });
+    } catch (error: any) {
+      logError("Extension fb-replies audit append failed", error, { route: "api-extension-fb-replies-audit" });
+      res.status(500).json({ error: "Failed to append audit event" });
+    }
+  });
+
+  // Extension: Upsert mapping fbThreadId + participant + listingUrl → vehicleId
+  app.post("/api/extension/fb-replies/mapping", extensionHmacMiddleware, authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const { fbThreadId, participantName, listingUrl, vehicleId, confidence, method } = req.body || {};
+      if (!fbThreadId || typeof fbThreadId !== "string") return res.status(400).json({ error: "fbThreadId required" });
+      if (!participantName || typeof participantName !== "string") return res.status(400).json({ error: "participantName required" });
+      if (!listingUrl || typeof listingUrl !== "string") return res.status(400).json({ error: "listingUrl required" });
+      if (!vehicleId || typeof vehicleId !== "number") return res.status(400).json({ error: "vehicleId required" });
+
+      const row = await storage.upsertFbThreadVehicleMapping({
+        dealershipId,
+        fbThreadId,
+        participantName,
+        listingUrl,
+        vehicleId,
+        confidence: typeof confidence === "number" ? confidence : 0,
+        method: typeof method === "string" ? method : "unknown",
+      });
+
+      res.json({ ok: true, mapping: row });
+    } catch (error: any) {
+      logError("Extension fb-replies mapping upsert failed", error, { route: "api-extension-fb-replies-mapping" });
+      res.status(500).json({ error: "Failed to upsert mapping" });
+    }
+  });
+
+  // Extension: Decide whether an auto-send attempt is allowed (server-authoritative)
+  app.post("/api/extension/fb-replies/decide-send", extensionHmacMiddleware, authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const {
+        fbThreadId,
+        participantName,
+        leadNameConfidence,
+        listingUrl,
+        listingTitle,
+        vehicleId,
+        vehicleDisplayName,
+        vehicleMappingConfidence,
+        recentMessages,
+        candidateReply,
+        intent,
+        localSignals,
+      } = req.body || {};
+
+      if (!fbThreadId || typeof fbThreadId !== "string") return res.status(400).json({ error: "fbThreadId required" });
+      if (!candidateReply || typeof candidateReply !== "string") return res.status(400).json({ error: "candidateReply required" });
+
+      const decision = await decideSendFbMarketplaceReply(storage, {
+        dealershipId,
+        fbThreadId,
+        participantName: typeof participantName === "string" ? participantName : null,
+        leadNameConfidence: typeof leadNameConfidence === "number" ? leadNameConfidence : null,
+        listingUrl: typeof listingUrl === "string" ? listingUrl : null,
+        listingTitle: typeof listingTitle === "string" ? listingTitle : null,
+        vehicleId: typeof vehicleId === "number" ? vehicleId : null,
+        vehicleDisplayName: typeof vehicleDisplayName === "string" ? vehicleDisplayName : null,
+        vehicleMappingConfidence: typeof vehicleMappingConfidence === "number" ? vehicleMappingConfidence : null,
+        recentMessages: Array.isArray(recentMessages) ? recentMessages : undefined,
+        candidateReply,
+        intent: intent && typeof intent === "object" ? { intent: String((intent as any).intent || "UNKNOWN"), confidence: Number((intent as any).confidence || 0) } : null,
+        localSignals: localSignals && typeof localSignals === "object" ? localSignals : null,
+      });
+
+      // UX: persist the server-authoritative policy decision so the Sales Inbox UI can explain "why".
+      // Idempotency: key by thread + candidate reply (same content => same key).
+      try {
+        const eventKey = crypto.createHash("sha256").update(`DECIDE_SEND:${fbThreadId}:${candidateReply}`).digest("hex");
+        await storage.appendFbInboxAuditEvent({
+          dealershipId,
+          fbThreadId,
+          eventKey,
+          kind: "DECIDE_SEND",
+          details: {
+            at: Date.now(),
+            fbThreadId,
+            candidateReply,
+            participantName: typeof participantName === "string" ? participantName : null,
+            leadNameConfidence: typeof leadNameConfidence === "number" ? leadNameConfidence : null,
+            listingUrl: typeof listingUrl === "string" ? listingUrl : null,
+            listingTitle: typeof listingTitle === "string" ? listingTitle : null,
+            vehicleId: typeof vehicleId === "number" ? vehicleId : null,
+            vehicleDisplayName: typeof vehicleDisplayName === "string" ? vehicleDisplayName : null,
+            vehicleMappingConfidence: typeof vehicleMappingConfidence === "number" ? vehicleMappingConfidence : null,
+            intent: intent && typeof intent === "object" ? { intent: String((intent as any).intent || "UNKNOWN"), confidence: Number((intent as any).confidence || 0) } : null,
+            localSignals: localSignals && typeof localSignals === "object" ? localSignals : null,
+            decision,
+          },
+        });
+      } catch {
+        // ignore audit persistence failure
+      }
+
+      res.json(decision);
+    } catch (error: any) {
+      logError("Extension fb-replies decide-send failed", error, { route: "api-extension-fb-replies-decide-send" });
+      res.status(500).json({ error: "Failed to decide send" });
+    }
+  });
+
   // Decode HTML entities for extension text fields (e.g., &#x2F; → /, &#x27; → ')
   function decodeHtmlEntities(text: string | null | undefined): string | null {
     if (!text) return text as null;
@@ -16431,5 +16777,599 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
     }
   });
   
+
+  // ====== FB INBOX (Sales Manager UI) ======
+
+  app.get("/api/fb-inbox/settings", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const settings = await storage.getFbReplySettings(dealershipId);
+      res.json(settings);
+    } catch (error: any) {
+      logError("FB inbox settings fetch failed", error, { route: "api-fb-inbox-settings-get" });
+      res.status(500).json({ error: error.message || "Failed" });
+    }
+  });
+
+  app.put("/api/fb-inbox/settings", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const body = req.body || {};
+
+      const existing = await storage.getFbReplySettings(dealershipId);
+
+      // Enforce kill switch confirmation + audit metadata.
+      const wantsKill = typeof body.globalKillSwitch === "boolean" ? body.globalKillSwitch : undefined;
+      const killChanged = typeof wantsKill === "boolean" && wantsKill !== (existing.globalKillSwitch === true);
+
+      const updates: any = { ...body };
+      const killSwitchReason = typeof body.killSwitchReason === "string" ? body.killSwitchReason.trim() : "";
+      delete updates.killSwitchReason;
+
+      if (killChanged) {
+        if (!killSwitchReason) {
+          return res.status(400).json({ error: "killSwitchReason is required when toggling the global kill switch" });
+        }
+
+        updates.globalKillSwitchLastToggledAt = new Date();
+        updates.globalKillSwitchLastToggledBy = req.user?.email || "unknown";
+        updates.globalKillSwitchLastReason = killSwitchReason;
+      }
+
+      const settings = await storage.updateFbReplySettings(dealershipId, updates);
+      res.json(settings);
+    } catch (error: any) {
+      logError("FB inbox settings update failed", error, { route: "api-fb-inbox-settings-put" });
+      res.status(500).json({ error: error.message || "Failed" });
+    }
+  });
+
+  app.get("/api/fb-inbox/threads", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const limit = Math.min(parseInt((req.query.limit as string) || "50", 10) || 50, 200);
+      const offset = parseInt((req.query.offset as string) || "0", 10) || 0;
+      const result = await storage.listFbInboxThreads(dealershipId, limit, offset);
+      res.json(result);
+    } catch (error: any) {
+      logError("FB inbox threads list failed", error, { route: "api-fb-inbox-threads" });
+      res.status(500).json({ error: error.message || "Failed" });
+    }
+  });
+
+  app.get("/api/fb-inbox/threads/:id", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const id = parseInt(req.params.id, 10);
+      const thread = await storage.getFbInboxThreadById(dealershipId, id);
+      if (!thread) return res.status(404).json({ error: "Not found" });
+      res.json(thread);
+    } catch (error: any) {
+      logError("FB inbox thread get failed", error, { route: "api-fb-inbox-thread" });
+      res.status(500).json({ error: error.message || "Failed" });
+    }
+  });
+
+  app.get("/api/fb-inbox/threads/:id/messages", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const id = parseInt(req.params.id, 10);
+      const limit = Math.min(parseInt((req.query.limit as string) || "200", 10) || 200, 500);
+      const msgs = await storage.listFbInboxMessages(dealershipId, id, limit);
+      res.json(msgs);
+    } catch (error: any) {
+      logError("FB inbox messages list failed", error, { route: "api-fb-inbox-thread-messages" });
+      res.status(500).json({ error: error.message || "Failed" });
+    }
+  });
+
+  app.post("/api/fb-inbox/threads/:id/pause", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const id = parseInt(req.params.id, 10);
+      const paused = !!req.body?.paused;
+      const thread = await storage.setFbInboxThreadPaused(dealershipId, id, paused);
+      res.json(thread);
+    } catch (error: any) {
+      logError("FB inbox thread pause failed", error, { route: "api-fb-inbox-thread-pause" });
+      res.status(500).json({ error: error.message || "Failed" });
+    }
+  });
+
+  // UX: abort a pending/queued automation attempt by pausing the thread + logging intent.
+  app.post("/api/fb-inbox/threads/:id/abort", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const id = parseInt(req.params.id, 10);
+      const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+      if (!reason) return res.status(400).json({ error: "reason is required" });
+
+      const thread = await storage.setFbInboxThreadPaused(dealershipId, id, true);
+
+      try {
+        const fbThreadId = thread?.fbThreadId || null;
+        const eventKey = crypto.createHash("sha256").update(`ABORT_REQUESTED:${dealershipId}:${id}:${reason}`).digest("hex");
+        await storage.appendFbInboxAuditEvent({
+          dealershipId,
+          fbThreadId,
+          eventKey,
+          kind: "ABORT_REQUESTED",
+          details: {
+            at: Date.now(),
+            by: req.user?.email || "unknown",
+            reason,
+            threadId: id,
+          },
+        });
+      } catch {
+        // ignore audit failure
+      }
+
+      res.json({ ok: true, thread });
+    } catch (error: any) {
+      logError("FB inbox abort failed", error, { route: "api-fb-inbox-thread-abort" });
+      res.status(500).json({ error: error.message || "Failed" });
+    }
+  });
+
+  app.post("/api/fb-inbox/threads/:id/auto-send", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const id = parseInt(req.params.id, 10);
+      const enabled = !!req.body?.enabled;
+      const thread = await storage.setFbInboxThreadAutoSendEnabled(dealershipId, id, enabled);
+      res.json(thread);
+    } catch (error: any) {
+      logError("FB inbox thread auto-send update failed", error, { route: "api-fb-inbox-thread-auto-send" });
+      res.status(500).json({ error: error.message || "Failed" });
+    }
+  });
+
+  app.post("/api/fb-inbox/threads/:id/dnc", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const id = parseInt(req.params.id, 10);
+      const dnc = !!req.body?.dnc;
+      const thread = await storage.setFbInboxThreadDnc(dealershipId, id, dnc);
+      res.json(thread);
+    } catch (error: any) {
+      logError("FB inbox thread dnc update failed", error, { route: "api-fb-inbox-thread-dnc" });
+      res.status(500).json({ error: error.message || "Failed" });
+    }
+  });
+
+  app.get("/api/fb-inbox/audit", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const threadId = req.query.threadId ? parseInt(req.query.threadId as string, 10) : undefined;
+      const kind = (req.query.kind as string) || undefined;
+      const limit = Math.min(parseInt((req.query.limit as string) || "50", 10) || 50, 200);
+      const offset = parseInt((req.query.offset as string) || "0", 10) || 0;
+      const result = await storage.listFbInboxAuditEvents(dealershipId, { threadId, kind, limit, offset });
+      res.json(result);
+    } catch (error: any) {
+      logError("FB inbox audit list failed", error, { route: "api-fb-inbox-audit" });
+      res.status(500).json({ error: error.message || "Failed" });
+    }
+  });
+
+  // ===== WS4E: Appointments (canonical internal calendar) =====
+
+  app.get("/api/appointments", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const start = req.query.start ? new Date(req.query.start as string) : null;
+      const end = req.query.end ? new Date(req.query.end as string) : null;
+      const ownerUserId = req.query.ownerUserId ? parseInt(req.query.ownerUserId as string, 10) : undefined;
+      const status = req.query.status ? String(req.query.status) : undefined;
+
+      // RBAC: master + sales_manager can see all; salesperson only own.
+      const role = req.user?.role;
+      const selfId = req.user?.id;
+
+      const effectiveOwnerFilter = role === 'salesperson' ? selfId : ownerUserId;
+
+      const whereClauses: any[] = [eq(appointments.dealershipId, dealershipId)];
+      if (effectiveOwnerFilter) whereClauses.push(eq(appointments.ownerUserId, effectiveOwnerFilter));
+      if (start) whereClauses.push(gte(appointments.startAt, start));
+      if (end) whereClauses.push(lte(appointments.startAt, end));
+      if (status) whereClauses.push(eq(appointments.status, status));
+
+      const rows = await db.select().from(appointments).where(and(...whereClauses)).orderBy(desc(appointments.startAt)).limit(200);
+      res.json({ appointments: rows });
+    } catch (error: any) {
+      logError('List appointments failed', error, { route: 'api-appointments-list' });
+      res.status(500).json({ error: error.message || 'Failed' });
+    }
+  });
+
+  app.post("/api/appointments", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const actor = req.user ? { actorType: 'USER' as const, actorUserId: req.user.id } : { actorType: 'SYSTEM' as const };
+
+      const body = req.body || {};
+      const result = await createAppointment(
+        {
+          dealershipId,
+          type: body.type,
+          status: body.status,
+          startAt: new Date(body.startAt),
+          endAt: body.endAt ? new Date(body.endAt) : undefined,
+          timezone: body.timezone,
+          ownerUserId: body.ownerUserId ?? null,
+          vehicleId: body.vehicleId ?? null,
+          threadId: body.threadId ?? null,
+          leadName: body.leadName ?? null,
+          leadPhone: body.leadPhone ?? null,
+          leadEmail: body.leadEmail ?? null,
+          sourceChannel: body.sourceChannel ?? 'unknown',
+          location: body.location ?? null,
+          notes: body.notes ?? null,
+          idempotencyKey: body.idempotencyKey ?? null,
+          escalationEmail: body.escalationEmail ?? null,
+        },
+        actor
+      );
+      res.json(result);
+    } catch (error: any) {
+      if (error?.code === 'APPOINTMENT_CONFLICT') {
+        return res.status(409).json({ error: 'Conflict', code: 'APPOINTMENT_CONFLICT' });
+      }
+      logError('Create appointment failed', error, { route: 'api-appointments-create' });
+      res.status(500).json({ error: error.message || 'Failed' });
+    }
+  });
+
+  app.get("/api/appointments/:id", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const id = req.params.id;
+
+      const appt = await db.query.appointments.findFirst({
+        where: and(eq(appointments.id, id as any), eq(appointments.dealershipId, dealershipId)),
+      });
+      if (!appt) return res.status(404).json({ error: 'Not found' });
+
+      // RBAC
+      if (req.user?.role === 'salesperson' && appt.ownerUserId !== req.user.id) {
+        return res.status(403).json({ error: 'Insufficient permissions' });
+      }
+
+      const audit = await db.query.appointmentAuditEvents.findMany({
+        where: eq(appointmentAuditEvents.appointmentId, appt.id),
+        orderBy: desc(appointmentAuditEvents.occurredAt),
+        limit: 200,
+      });
+
+      res.json({ appointment: appt, auditEvents: audit });
+    } catch (error: any) {
+      logError('Get appointment failed', error, { route: 'api-appointments-get' });
+      res.status(500).json({ error: error.message || 'Failed' });
+    }
+  });
+
+  app.post("/api/appointments/:id/reschedule", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const id = req.params.id;
+      const actor = { actorType: 'USER' as const, actorUserId: req.user!.id };
+
+      const { startAt, endAt, reason, idempotencyKey } = req.body || {};
+      const next = await transitionAppointment({
+        dealershipId,
+        appointmentId: id,
+        from: 'BOOKED',
+        to: 'RESCHEDULED',
+        auditKind: 'APPT_RESCHEDULED',
+        actor,
+        idempotencyKey: idempotencyKey ?? null,
+        reasonCodes: reason ? ['USER_OVERRIDE'] : null,
+        details: { reason: reason || null },
+        targetStartAt: new Date(startAt),
+        targetEndAt: endAt ? new Date(endAt) : null,
+        escalationEmail: req.body?.escalationEmail ?? null,
+      });
+      res.json({ appointment: next });
+    } catch (error: any) {
+      if (error?.code === 'APPOINTMENT_CONFLICT') {
+        return res.status(409).json({ error: 'Conflict', code: 'APPOINTMENT_CONFLICT' });
+      }
+      logError('Reschedule appointment failed', error, { route: 'api-appointments-reschedule' });
+      res.status(500).json({ error: error.message || 'Failed' });
+    }
+  });
+
+  app.post("/api/appointments/:id/cancel", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const id = req.params.id;
+      const actor = { actorType: 'USER' as const, actorUserId: req.user!.id };
+      const { cancelledBy, reason, idempotencyKey } = req.body || {};
+
+      const parsed = parseCancelledBy(cancelledBy);
+      const to = parsed === 'BUYER' ? 'CANCELLED_BY_BUYER' : 'CANCELLED_BY_DEALER';
+      const auditKind = parsed === 'BUYER' ? 'APPT_CANCELLED_BUYER' : 'APPT_CANCELLED_DEALER';
+
+      const next = await transitionAppointment({
+        dealershipId,
+        appointmentId: id,
+        from: 'BOOKED',
+        to: to as any,
+        auditKind: auditKind as any,
+        actor,
+        idempotencyKey: idempotencyKey ?? null,
+        reasonCodes: reason ? ['USER_OVERRIDE'] : null,
+        details: { reason: reason || null },
+        escalationEmail: req.body?.escalationEmail ?? null,
+      });
+      res.json({ appointment: next });
+    } catch (error: any) {
+      if (String(error?.message || '').startsWith('Invalid cancelledBy') || String(error?.message || '').includes('cancelledBy must be a string')) {
+        return res.status(400).json({ error: error.message });
+      }
+      logError('Cancel appointment failed', error, { route: 'api-appointments-cancel' });
+      res.status(500).json({ error: error.message || 'Failed' });
+    }
+  });
+
+  app.post("/api/appointments/:id/request-reschedule", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const id = req.params.id;
+      const actor = { actorType: 'USER' as const, actorUserId: req.user!.id };
+
+      const next = await transitionAppointment({
+        dealershipId,
+        appointmentId: id,
+        from: 'BOOKED',
+        to: 'RESCHEDULE_REQUESTED',
+        auditKind: 'APPT_RESCHEDULE_REQUESTED',
+        actor,
+        idempotencyKey: req.body?.idempotencyKey ?? null,
+        reasonCodes: req.body?.reason ? ['USER_OVERRIDE'] : null,
+        details: { reason: req.body?.reason ?? null },
+        escalationEmail: req.body?.escalationEmail ?? null,
+      });
+
+      res.json({ appointment: next });
+    } catch (error: any) {
+      logError('Request reschedule failed', error, { route: 'api-appointments-request-reschedule' });
+      res.status(500).json({ error: error.message || 'Failed' });
+    }
+  });
+
+  app.post("/api/appointments/:id/no-show", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const id = req.params.id;
+      const actor = { actorType: 'USER' as const, actorUserId: req.user!.id };
+
+      const next = await transitionAppointment({
+        dealershipId,
+        appointmentId: id,
+        from: 'BOOKED',
+        to: 'NO_SHOW',
+        auditKind: 'APPT_NO_SHOW',
+        actor,
+        idempotencyKey: req.body?.idempotencyKey ?? null,
+        reasonCodes: req.body?.reason ? ['USER_OVERRIDE'] : null,
+        details: { reason: req.body?.reason ?? null },
+        escalationEmail: req.body?.escalationEmail ?? null,
+      });
+
+      res.json({ appointment: next });
+    } catch (error: any) {
+      logError('Mark no-show failed', error, { route: 'api-appointments-no-show' });
+      res.status(500).json({ error: error.message || 'Failed' });
+    }
+  });
+
+  app.post("/api/appointments/:id/complete", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const id = req.params.id;
+      const actor = { actorType: 'USER' as const, actorUserId: req.user!.id };
+
+      const next = await transitionAppointment({
+        dealershipId,
+        appointmentId: id,
+        from: 'BOOKED',
+        to: 'COMPLETED',
+        auditKind: 'APPT_COMPLETED',
+        actor,
+        idempotencyKey: req.body?.idempotencyKey ?? null,
+        reasonCodes: req.body?.reason ? ['USER_OVERRIDE'] : null,
+        details: { reason: req.body?.reason ?? null },
+        escalationEmail: req.body?.escalationEmail ?? null,
+      });
+
+      res.json({ appointment: next });
+    } catch (error: any) {
+      logError('Mark completed failed', error, { route: 'api-appointments-complete' });
+      res.status(500).json({ error: error.message || 'Failed' });
+    }
+  });
+
+  app.post("/api/appointments/:id/reassign", authMiddleware, requireDealership, requireRole('master', 'manager', 'sales_manager'), async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const id = req.params.id;
+      const { newOwnerUserId, reason, idempotencyKey } = req.body || {};
+      if (!reason) return res.status(400).json({ error: 'reason required' });
+
+      const next = await reassignAppointmentOwner({
+        dealershipId,
+        appointmentId: id,
+        newOwnerUserId: newOwnerUserId ?? null,
+        actor: { actorType: 'USER', actorUserId: req.user!.id },
+        reason,
+        idempotencyKey: idempotencyKey ?? null,
+      });
+
+      res.json({ appointment: next });
+    } catch (error: any) {
+      logError('Reassign appointment failed', error, { route: 'api-appointments-reassign' });
+      res.status(500).json({ error: error.message || 'Failed' });
+    }
+  });
+
+  // Follow-up tasks feed
+  app.get('/api/follow-up-tasks', authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const role = req.user?.role;
+      const selfId = req.user!.id;
+      const ownerUserId = req.query.ownerUserId ? parseInt(req.query.ownerUserId as string, 10) : undefined;
+      const status = req.query.status ? String(req.query.status) : undefined;
+
+      const whereClauses: any[] = [eq(followUpTasks.dealershipId, dealershipId)];
+
+      if (role === 'salesperson') {
+        whereClauses.push(eq(followUpTasks.ownerUserId, selfId));
+      } else if (ownerUserId) {
+        whereClauses.push(eq(followUpTasks.ownerUserId, ownerUserId));
+      }
+
+      if (status) whereClauses.push(eq(followUpTasks.status, status));
+
+      const rows = await db.select().from(followUpTasks).where(and(...whereClauses)).orderBy(desc(followUpTasks.createdAt)).limit(200);
+      res.json({ tasks: rows });
+    } catch (error: any) {
+      logError('List follow-up tasks failed', error, { route: 'api-follow-up-tasks-list' });
+      res.status(500).json({ error: error.message || 'Failed' });
+    }
+  });
+
+  app.post('/api/appointments/:id/follow-up/no-response', authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const id = req.params.id;
+      await db.transaction(async (tx) => {
+        await createFollowUpTasksForAppointmentEvent(tx, {
+          dealershipId,
+          appointmentId: id,
+          createdByType: 'USER',
+          createdByUserId: req.user!.id,
+          eventType: 'APPOINTMENT_NO_RESPONSE',
+        });
+      });
+      res.json({ success: true });
+    } catch (error: any) {
+      logError('Create no-response follow-up failed', error, { route: 'api-appointments-follow-up-no-response' });
+      res.status(500).json({ error: error.message || 'Failed' });
+    }
+  });
+
+  // ===== WS4E: In-app notifications feed + email outbox audit =====
+
+  app.get('/api/notifications', authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const userId = req.user!.id;
+      const limit = Math.min(parseInt((req.query.limit as string) || '50', 10) || 50, 200);
+
+      const rows = await db.query.notifications.findMany({
+        where: and(eq(notifications.dealershipId, dealershipId), eq(notifications.recipientUserId, userId)),
+        orderBy: desc(notifications.createdAt),
+        limit,
+      });
+
+      res.json({ notifications: rows });
+    } catch (error: any) {
+      logError('List notifications failed', error, { route: 'api-notifications-list' });
+      res.status(500).json({ error: error.message || 'Failed' });
+    }
+  });
+
+  app.post('/api/notifications/:id/read', authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const userId = req.user!.id;
+      const id = req.params.id;
+
+      const updated = await db
+        .update(notifications)
+        .set({ isRead: true, readAt: new Date() })
+        .where(and(eq(notifications.id, id as any), eq(notifications.dealershipId, dealershipId), eq(notifications.recipientUserId, userId)))
+        .returning();
+
+      res.json({ notification: updated[0] });
+    } catch (error: any) {
+      logError('Mark notification read failed', error, { route: 'api-notifications-read' });
+      res.status(500).json({ error: error.message || 'Failed' });
+    }
+  });
+
+  app.get('/api/notifications/email-outbox', authMiddleware, requireDealership, requireRole('master', 'sales_manager'), async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const limit = Math.min(parseInt((req.query.limit as string) || '100', 10) || 100, 500);
+
+      const rows = await db.query.emailOutbox.findMany({
+        where: eq(emailOutbox.dealershipId, dealershipId),
+        orderBy: desc(emailOutbox.createdAt),
+        limit,
+      });
+
+      res.json({ outbox: rows });
+    } catch (error: any) {
+      logError('List email outbox failed', error, { route: 'api-notifications-email-outbox' });
+      res.status(500).json({ error: error.message || 'Failed' });
+    }
+  });
+
+  // Manager email settings + verification
+  app.get('/api/notifications/settings/manager-emails', authMiddleware, requireDealership, requireRole('master', 'sales_manager'), async (req: AuthRequest, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const mgrs = await db.query.users.findMany({
+        where: and(eq(usersTable.dealershipId, dealershipId), eq(usersTable.role, 'sales_manager'), eq(usersTable.isActive, true)),
+        columns: {
+          id: true,
+          name: true,
+          email: true,
+          notificationEmail: true,
+          notificationEmailVerifiedAt: true,
+          notificationEmailHardBouncedAt: true,
+          notificationEmailSpamComplaintAt: true,
+        },
+        orderBy: asc(usersTable.name),
+      });
+
+      res.json({ managers: mgrs });
+    } catch (error: any) {
+      logError('List manager emails failed', error, { route: 'api-notifications-settings-manager-emails' });
+      res.status(500).json({ error: error.message || 'Failed' });
+    }
+  });
+
+  app.post('/api/notifications/settings/manager-emails/:userId/start-verify', authMiddleware, requireDealership, requireRole('master', 'sales_manager'), async (req: AuthRequest, res) => {
+    try {
+      const userId = parseInt(req.params.userId, 10);
+      const email = String(req.body?.email || '').trim();
+      if (!email) return res.status(400).json({ error: 'email required' });
+
+      const tokenInfo = await startNotificationEmailVerification({ userId, email });
+      res.json({ success: true, testMode: tokenInfo.testMode });
+    } catch (error: any) {
+      logError('Start verify email failed', error, { route: 'api-notifications-start-verify' });
+      res.status(500).json({ error: error.message || 'Failed' });
+    }
+  });
+
+  app.get('/api/notifications/verify-email', async (req, res) => {
+    const token = String(req.query.token || '');
+    if (!token) return res.status(400).send('Missing token');
+
+    const result = await verifyNotificationEmailToken(token);
+    if (!result.success) {
+      return res.status(400).send('Invalid or expired token');
+    }
+
+    // Redirect to manager email settings.
+    return res.redirect('/manager/notifications/settings');
+  });
+
   return httpServer;
 }

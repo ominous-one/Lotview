@@ -59,6 +59,14 @@ async function buildExtension() {
 
   await build({
     ...commonOptions,
+    entryPoints: [path.join(srcDir, 'content-craigslist.ts')],
+    outfile: path.join(distDir, 'content-craigslist.js'),
+    format: 'iife',
+  });
+  console.log('  ✓ content-craigslist.js');
+
+  await build({
+    ...commonOptions,
     entryPoints: [path.join(srcDir, 'content-lotview.ts')],
     outfile: path.join(distDir, 'content-lotview.js'),
     format: 'iife',

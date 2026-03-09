@@ -1,0 +1,9 @@
+{
+  "fbThreadId": "t_price_004",
+  "participant": { "id": "u_004", "displayName": "Sam" },
+  "listingUrl": "https://www.facebook.com/marketplace/item/999",
+  "vehicle": { "vehicleId": "veh_004", "year": 2017, "make": "BMW", "model": "3 Series", "trim": "330i" },
+  "messages": [
+    { "messageId": "m1", "direction": "inbound", "text": "Would you take $18,000? Also can I see it today?", "sentAt": "2026-03-08T20:15:00Z" }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "fbThreadId": "t_basic_001",
+  "participant": { "id": "u_001", "displayName": "Alex" },
+  "listingUrl": "https://www.facebook.com/marketplace/item/123",
+  "vehicle": { "vehicleId": "veh_001", "year": 2019, "make": "Toyota", "model": "RAV4", "trim": "XLE" },
+  "messages": [
+    { "messageId": "m1", "direction": "inbound", "text": "Hi is this still available?", "sentAt": "2026-03-08T20:00:00Z" }
+  ]
+}

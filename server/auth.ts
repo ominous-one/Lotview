@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import type { Request, Response, NextFunction } from "express";
 import type { User } from "@shared/schema";
+import { getE2EUserFromToken, isSafeE2ERequest, seedE2E } from "./e2e-test-mode";
 
 // JWT_SECRET must be set in production for security (SESSION_SECRET accepted as alias)
 const JWT_SECRET = process.env.JWT_SECRET || process.env.SESSION_SECRET;
@@ -65,6 +66,18 @@ export function verifyToken(token: string): any {
 
 export async function authMiddleware(req: AuthRequest, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
+
+  // E2E deterministic mode (LOCALHOST + NON-PROD ONLY)
+  // Accept stable bearer tokens without JWT verification.
+  if (isSafeE2ERequest(req) && authHeader && authHeader.startsWith("Bearer ")) {
+    const token = authHeader.substring(7);
+    const dealershipId = req.dealershipId || (await seedE2E()).dealershipId;
+    const e2eUser = getE2EUserFromToken(token, dealershipId);
+    if (e2eUser) {
+      req.user = e2eUser;
+      return next();
+    }
+  }
   
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({ error: "No token provided" });

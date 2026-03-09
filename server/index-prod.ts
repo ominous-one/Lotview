@@ -5,7 +5,8 @@ import path from "node:path";
 import express, { type Express, type Request } from "express";
 
 import runApp from "./app";
-import { startInventoryScheduler, startMarketAnalysisScheduler, startFacebookCatalogScheduler, startGhlSyncScheduler, startAutomationScheduler, startReengagementScheduler, startScheduledMessageScheduler } from "./scheduler";
+import { startInventoryScheduler, startMarketAnalysisScheduler, startFacebookCatalogScheduler, startGhlSyncScheduler, startAutomationScheduler, startReengagementScheduler, startScheduledMessageScheduler, startCompetitiveReportScheduler } from "./scheduler";
+import { startNotificationsScheduler } from "./scheduler.notifications";
 import { startPostingScheduler } from "./posting-scheduler";
 
 export async function serveStatic(app: Express, server: Server) {
@@ -34,6 +35,9 @@ export async function serveStatic(app: Express, server: Server) {
   
   // Start the market analysis scheduler
   startMarketAnalysisScheduler();
+
+  // Start the competitive report scheduler (every ~48h per dealer)
+  startCompetitiveReportScheduler();
   
   // Start the Facebook Catalog auto-sync scheduler
   startFacebookCatalogScheduler();
@@ -49,6 +53,9 @@ export async function serveStatic(app: Express, server: Server) {
   
   // Start the scheduled message scheduler
   startScheduledMessageScheduler();
+
+  // Start WS4E notifications outbox processor
+  startNotificationsScheduler();
   
   await runApp(serveStatic);
 })();

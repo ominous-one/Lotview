@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900">
+<title>Competitive Report</title>
+<style>
+  .bg{fill:#FFFFFF}
+  .subtle{fill:#F7FAFC}
+  .muted{fill:#EDF2F7}
+  .border{stroke:#E2E8F0;stroke-width:1}
+  .border2{stroke:#CBD5E0;stroke-width:1}
+  .t{font-family: Inter, Segoe UI, Arial, sans-serif; fill:#1A202C}
+  .tm{fill:#4A5568}
+  .ts{fill:#718096}
+  .h1{font-size:22px;font-weight:700}
+  .h2{font-size:16px;font-weight:700}
+  .b{font-size:13px;font-weight:600}
+  .p{font-size:12px;font-weight:500}
+  .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:11px}
+  .chip{fill:#EDF2F7; stroke:#E2E8F0; stroke-width:1}
+  .chipText{font-size:11px;font-weight:700; fill:#4A5568}
+  .primaryBtn{fill:#1A365D}
+  .primaryBtnText{font-size:12px;font-weight:700; fill:#fff}
+  .ghostBtn{fill:#F7FAFC; stroke:#E2E8F0; stroke-width:1}
+  .dangerBtn{fill:#9B2C2C}
+  .dangerText{fill:#fff;font-weight:800;font-size:12px}
+  .callout{fill:#F7FAFC; stroke:#CBD5E0; stroke-width:1}
+  .kbd{fill:#fff; stroke:#CBD5E0; stroke-width:1}
+  .focus{fill:none; stroke:#1A365D; stroke-width:2; stroke-dasharray:6 4}
+</style>
+<rect x="0" y="0" width="1440" height="900" class="bg" /><rect x="0" y="0" width="220" height="900" class="subtle" /><rect x="0" y="0" width="220" height="900" fill="none" class="border"/><text x="18" y="32" class="t h2" >LotView</text><rect x="18" y="48" width="164" height="22" class="chip" /> <text x="28" y="63" class="t chipText" >Dealer: Olympic Auto</text><text x="18" y="92" class="t b tm" >Inbox</text><text x="18" y="118" class="t b tm" >Competitive</text><text x="18" y="144" class="t b tm" >Appraisals</text><text x="18" y="170" class="t b tm" >Automation</text><rect x="220" y="0" width="1220" height="62" class="bg" /><rect x="220" y="0" width="1220" height="62" fill="none" class="border"/><text x="242" y="28" class="t h1" >Competitive Report</text><text x="242" y="48" class="t p ts" >Every 48h snapshot. Price bands, comp sets, and export-ready tables.</text><rect x="1140" y="18" width="135.2" height="22" class="chip" /> <text x="1150" y="33" class="t chipText" >Last run: 2h ago</text><rect x="1258" y="16" width="160" height="30" class="dangerBtn" rx="8"/><text x="1270" y="36" class="t dangerText" >KILL SWITCH</text><rect x="236" y="78" width="1188" height="66" class="bg" /><rect x="236" y="78" width="1188" height="66" fill="none" class="border"/><text x="252" y="104" class="t h2" >Filters</text><rect x="252" y="112" width="120.8" height="22" class="chip" /> <text x="262" y="127" class="t chipText" >Radius: 0–25km</text><rect x="366" y="112" width="128" height="22" class="chip" /> <text x="376" y="127" class="t chipText" >Radius: 25–50km</text><rect x="494" y="112" width="135.2" height="22" class="chip" /> <text x="504" y="127" class="t chipText" >Radius: 50–100km</text><rect x="630" y="112" width="84.8" height="22" class="chip" /> <text x="640" y="127" class="t chipText" >Make: Any</text><rect x="738" y="112" width="84.8" height="22" class="chip" /> <text x="748" y="127" class="t chipText" >Trim: Any</text><rect x="1318" y="96" width="90" height="30" class="ghostBtn" rx="8"/><text x="1330" y="116" class="t b tm" >Reset</text><rect x="236" y="160" width="520" height="176" class="bg" /><rect x="236" y="160" width="520" height="176" fill="none" class="border"/><text x="252" y="188" class="t h2" >Recommended price band</text><text x="252" y="212" class="t p ts" >Unit selected: 2020 RAV4 XLE · DOM 41</text><rect x="252" y="232" width="488" height="56" class="subtle" rx="12"/><text x="266" y="266" class="t h1" >$29,900  —  $32,400</text><rect x="252" y="296" width="135.2" height="22" class="chip" /> <text x="262" y="311" class="t chipText" >Confidence: High</text><rect x="620" y="294" width="80" height="30" class="ghostBtn" rx="8"/><text x="632" y="314" class="t b tm" >Why?</text><rect x="772" y="160" width="652" height="724" class="bg" /><rect x="772" y="160" width="652" height="724" fill="none" class="border"/><text x="788" y="188" class="t h2" >Inventory vs comps</text><text x="788" y="212" class="t p ts" >Click a row to drill into its comp set. Unknowns are explicit.</text><rect x="788" y="232" width="620" height="30" class="subtle" /><rect x="788" y="232" width="620" height="30" fill="none" class="border"/><text x="796" y="252" class="t b tm" >Unit</text><text x="1046" y="252" class="t b tm" >Price</text><text x="1126" y="252" class="t b tm" >DOM</text><text x="1186" y="252" class="t b tm" >Km</text><text x="1256" y="252" class="t b tm" >Trim match</text><text x="1386" y="252" class="t b tm" ># Comps</text><text x="1456" y="252" class="t b tm" >Position</text><rect x="788" y="272" width="620" height="34" class="muted" rx="8"/><rect x="788" y="316" width="620" height="34" class="muted" rx="8"/><rect x="788" y="360" width="620" height="34" class="muted" rx="8"/><rect x="788" y="404" width="620" height="34" class="muted" rx="8"/><rect x="788" y="448" width="620" height="34" class="muted" rx="8"/><rect x="788" y="492" width="620" height="34" class="muted" rx="8"/><rect x="788" y="536" width="620" height="34" class="muted" rx="8"/><rect x="788" y="580" width="620" height="34" class="muted" rx="8"/><rect x="788" y="624" width="620" height="34" class="muted" rx="8"/><rect x="788" y="668" width="620" height="34" class="muted" rx="8"/><text x="252" y="326" class="t b tm" >Loading snapshot…</text></svg>

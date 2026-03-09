@@ -6,6 +6,7 @@
   "permissions": ["storage", "scripting", "downloads", "cookies"],
   "host_permissions": [
     "https://www.facebook.com/*",
+    "https://*.craigslist.org/*",
     "https://lotview.ai/*",
     "https://*.lotview.ai/*",
     "https://olympicautogroup.ca/*",
@@ -31,6 +32,15 @@
         "https://www.facebook.com/marketplace/you/selling*"
       ],
       "js": ["content-facebook.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.facebook.com/marketplace/inbox/*",
+        "https://www.facebook.com/marketplace/t/*",
+        "https://www.facebook.com/messages/t/*"
+      ],
+      "js": ["content-facebook-messenger.js"],
       "run_at": "document_idle"
     },
     {

@@ -22,7 +22,7 @@ export function getAllDrivers(): PlatformDriver[] {
 }
 
 export function isDriverImplemented(platform: Platform): boolean {
-  return platform === "facebook";
+  return platform === "facebook" || platform === "craigslist";
 }
 
 export { facebookDriver, kijijiDriver, craigslistDriver };
