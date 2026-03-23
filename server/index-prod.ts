@@ -2,12 +2,23 @@ import fs from "node:fs";
 import { type Server } from "node:http";
 import path from "node:path";
 
-import express, { type Express, type Request } from "express";
+import express, { type Express } from "express";
 
 import runApp from "./app";
-import { startInventoryScheduler, startMarketAnalysisScheduler, startFacebookCatalogScheduler, startGhlSyncScheduler, startAutomationScheduler, startReengagementScheduler, startScheduledMessageScheduler, startCompetitiveReportScheduler } from "./scheduler";
+import { createFBMarketplaceScheduler } from "./fb-marketplace-service";
+import {
+  startInventoryScheduler,
+  startMarketAnalysisScheduler,
+  startFacebookCatalogScheduler,
+  startGhlSyncScheduler,
+  startAutomationScheduler,
+  startReengagementScheduler,
+  startScheduledMessageScheduler,
+  startCompetitiveReportScheduler,
+} from "./scheduler";
 import { startNotificationsScheduler } from "./scheduler.notifications";
 import { startPostingScheduler } from "./posting-scheduler";
+import { ensureProductionRuntimeRequirements, logRuntimeReadinessSummary } from "./runtime-readiness";
 
 export async function serveStatic(app: Express, server: Server) {
   const distPath = path.resolve(import.meta.dirname, "public");
@@ -20,42 +31,44 @@ export async function serveStatic(app: Express, server: Server) {
 
   app.use(express.static(distPath));
 
-  // fall through to index.html if the file doesn't exist
   app.use("*", (_req, res) => {
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 }
 
-(async () => {
-  // Start the inventory scheduler
+function shouldStartSchedulers() {
+  if (process.env.LOTVIEW_ENABLE_SCHEDULERS !== 'false') {
+    const schedulerProcess = process.env.LOTVIEW_SCHEDULER_PROCESS || 'worker';
+    return schedulerProcess === 'web';
+  }
+
+  return false;
+}
+
+async function startProductionSchedulers() {
+  console.log("[Runtime] Starting production schedulers");
   startInventoryScheduler();
-  
-  // Start the Facebook posting scheduler
   startPostingScheduler();
-  
-  // Start the market analysis scheduler
+  await createFBMarketplaceScheduler();
   startMarketAnalysisScheduler();
-
-  // Start the competitive report scheduler (every ~48h per dealer)
   startCompetitiveReportScheduler();
-  
-  // Start the Facebook Catalog auto-sync scheduler
   startFacebookCatalogScheduler();
-  
-  // Start the GoHighLevel CRM sync scheduler
   startGhlSyncScheduler();
-  
-  // Start the automation engine scheduler
   startAutomationScheduler();
-  
-  // Start the re-engagement campaign scheduler
   startReengagementScheduler();
-  
-  // Start the scheduled message scheduler
   startScheduledMessageScheduler();
-
-  // Start WS4E notifications outbox processor
   startNotificationsScheduler();
-  
+}
+
+(async () => {
+  logRuntimeReadinessSummary();
+  ensureProductionRuntimeRequirements({ processType: "web" });
+
+  if (shouldStartSchedulers()) {
+    await startProductionSchedulers();
+  } else {
+    console.log("[Runtime] LOTVIEW_ENABLE_SCHEDULERS=false, skipping scheduler startup in this process");
+  }
+
   await runApp(serveStatic);
 })();

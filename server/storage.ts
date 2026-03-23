@@ -685,8 +685,9 @@ export interface IStorage {
   getDealershipById(id: number): Promise<Dealership | undefined>;
   
   // Password Reset Tokens
-  createPasswordResetToken(userId: number, tokenHash: string, expiresAt: Date): Promise<PasswordResetToken>;
+  createPasswordResetToken(userId: number, tokenHash: string, expiresAt: Date, tokenLookupHash?: string): Promise<PasswordResetToken>;
   getAllValidPasswordResetTokens(): Promise<PasswordResetToken[]>;
+  getValidPasswordResetTokenByLookupHash(tokenLookupHash: string): Promise<PasswordResetToken | undefined>;
   markPasswordResetTokenUsed(id: number): Promise<void>;
   deleteExpiredPasswordResetTokens(): Promise<number>;
   
@@ -4340,9 +4341,9 @@ export class DatabaseStorage implements IStorage {
   }
   
   // ====== PASSWORD RESET TOKENS ======
-  async createPasswordResetToken(userId: number, tokenHash: string, expiresAt: Date): Promise<PasswordResetToken> {
+  async createPasswordResetToken(userId: number, tokenHash: string, expiresAt: Date, tokenLookupHash?: string): Promise<PasswordResetToken> {
     const result = await db.insert(passwordResetTokens)
-      .values({ userId, tokenHash, expiresAt })
+      .values({ userId, tokenHash, tokenLookupHash, expiresAt })
       .returning();
     return result[0];
   }
@@ -4353,6 +4354,17 @@ export class DatabaseStorage implements IStorage {
         gt(passwordResetTokens.expiresAt, new Date()),
         isNull(passwordResetTokens.usedAt)
       ));
+  }
+
+  async getValidPasswordResetTokenByLookupHash(tokenLookupHash: string): Promise<PasswordResetToken | undefined> {
+    const result = await db.select().from(passwordResetTokens)
+      .where(and(
+        eq(passwordResetTokens.tokenLookupHash, tokenLookupHash),
+        gt(passwordResetTokens.expiresAt, new Date()),
+        isNull(passwordResetTokens.usedAt)
+      ))
+      .limit(1);
+    return result[0];
   }
   
   async markPasswordResetTokenUsed(id: number): Promise<void> {

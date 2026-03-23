@@ -55,7 +55,7 @@ import {
   setPhotoGateOverride,
 } from './autopost-queue-service';
 
-import { authMiddleware, requireRole, generateToken, comparePassword, hashPassword, verifyToken, extensionHmacMiddleware, generatePostingToken, validatePostingToken, type AuthRequest } from "./auth";
+import { authMiddleware, requireRole, generateToken, generateImpersonationToken, comparePassword, hashPassword, verifyToken, extensionHmacMiddleware, generatePostingToken, validatePostingToken, type AuthRequest } from "./auth";
 import { requireDealership, superAdminOnly } from "./tenant-middleware";
 import { isSafeE2ERequest, seedE2E } from "./e2e-test-mode";
 import { facebookService } from "./facebook-service";
@@ -114,6 +114,25 @@ interface OAuthSession {
   expiresAt: number;
 }
 const oauthSessionStore = new Map<string, OAuthSession>();
+
+function computeResetTokenLookupHash(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+async function resolveLoginUser(email: string, dealershipId?: number) {
+  const normalizedEmail = email.trim().toLowerCase();
+  const user = await storage.getUserByEmail(normalizedEmail, dealershipId);
+
+  if (!user) {
+    return undefined;
+  }
+
+  if (dealershipId && user.dealershipId !== dealershipId) {
+    return undefined;
+  }
+
+  return user;
+}
 
 // Clean up expired states every hour
 setInterval(() => {
@@ -272,8 +291,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Email and password are required" });
       }
       
-      // Find user by email
-      const user = await storage.getUserByEmail(email);
+      // Find user by normalized email within tenant context when available
+      const user = await resolveLoginUser(email, req.dealershipId);
       if (!user) {
         return res.status(401).json({ error: "Invalid email or password" });
       }
@@ -348,7 +367,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Email is required" });
       }
       
-      const user = await storage.getUserByEmail(email.trim().toLowerCase());
+      const user = await resolveLoginUser(email, req.dealershipId);
       
       // Always return success to prevent email enumeration attacks
       if (!user || !user.isActive) {
@@ -358,10 +377,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Generate secure token (32 bytes = 256 bits)
       const token = crypto.randomBytes(32).toString('hex');
+      const tokenLookupHash = computeResetTokenLookupHash(token);
       const tokenHash = await bcrypt.hash(token, 12);
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour expiry
       
-      await storage.createPasswordResetToken(user.id, tokenHash, expiresAt);
+      await storage.createPasswordResetToken(user.id, tokenHash, expiresAt, tokenLookupHash);
       
       // Send password reset email
       const { sendPasswordResetEmail } = await import('./email-service');
@@ -394,18 +414,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json({ valid: false });
       }
       
-      // Check all unexpired tokens for this hash match
-      const allTokens = await storage.getAllValidPasswordResetTokens();
-      
-      // Find matching token (bcrypt compare)
-      for (const storedToken of allTokens) {
-        const isMatch = await bcrypt.compare(token, storedToken.tokenHash);
-        if (isMatch) {
-          return res.json({ valid: true });
-        }
+      const lookupHash = computeResetTokenLookupHash(token);
+      const storedToken = await storage.getValidPasswordResetTokenByLookupHash(lookupHash);
+
+      if (!storedToken) {
+        return res.json({ valid: false });
       }
-      
-      res.json({ valid: false });
+
+      const isMatch = await bcrypt.compare(token, storedToken.tokenHash);
+      res.json({ valid: isMatch });
     } catch (error) {
       logError('Error validating reset token:', error instanceof Error ? error : new Error(String(error)), { route: 'api-auth-reset-password-token' });
       res.json({ valid: false });
@@ -425,19 +442,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Password must be at least 12 characters" });
       }
       
-      // Find matching valid token
-      const allTokens = await storage.getAllValidPasswordResetTokens();
-      
-      let matchedToken = null;
-      for (const storedToken of allTokens) {
-        const isMatch = await bcrypt.compare(token, storedToken.tokenHash);
-        if (isMatch) {
-          matchedToken = storedToken;
-          break;
-        }
-      }
-      
+      const lookupHash = computeResetTokenLookupHash(token);
+      const matchedToken = await storage.getValidPasswordResetTokenByLookupHash(lookupHash);
+
       if (!matchedToken) {
+        return res.status(400).json({ error: "Invalid or expired reset token" });
+      }
+
+      const isMatch = await bcrypt.compare(token, matchedToken.tokenHash);
+      if (!isMatch) {
         return res.status(400).json({ error: "Invalid or expired reset token" });
       }
       
@@ -12705,8 +12718,8 @@ Format your response in clear sections with actionable recommendations.`;
         actionsPerformed: 0
       });
       
-      // Generate impersonation token
-      const impersonationToken = generateToken(targetUser as any);
+      // Generate short-lived impersonation token with explicit impersonation claims
+      const impersonationToken = generateImpersonationToken(targetUser, session.id, req.user!.id);
       
       // Log audit action
       await storage.logAuditAction({
@@ -12744,31 +12757,43 @@ Format your response in clear sections with actionable recommendations.`;
   // End impersonation session
   app.post("/api/super-admin/impersonate/end", authMiddleware, async (req: AuthRequest, res) => {
     try {
-      const { sessionId, superAdminId } = req.body;
-      
-      if (!sessionId || !superAdminId) {
-        return res.status(400).json({ error: "Session ID and super admin ID are required" });
+      const decoded = verifyToken((req.headers.authorization || '').replace(/^Bearer\s+/i, '')) as any;
+      const requestedSessionId = Number(req.body?.sessionId);
+
+      let sessionId: number | undefined;
+      let superAdminId: number | undefined;
+
+      if (decoded?.isImpersonating && decoded?.impersonationSessionId && decoded?.impersonatedBy) {
+        sessionId = Number(decoded.impersonationSessionId);
+        superAdminId = Number(decoded.impersonatedBy);
+      } else if (req.user?.role === 'super_admin' && Number.isFinite(requestedSessionId)) {
+        sessionId = requestedSessionId;
+        superAdminId = req.user.id;
       }
-      
+
+      if (!sessionId || !superAdminId) {
+        return res.status(403).json({ error: "A valid impersonation session is required" });
+      }
+
       const session = await storage.endImpersonationSession(sessionId, superAdminId);
-      
+
       if (!session) {
         return res.status(404).json({ error: "Session not found" });
       }
-      
+
       // Log audit action
       await storage.logAuditAction({
         userId: superAdminId,
         action: 'impersonate_end',
         resource: 'user',
         resourceId: session.targetUserId.toString(),
-        details: JSON.stringify({ 
+        details: JSON.stringify({
           sessionId: session.id,
           actionsPerformed: session.actionsPerformed
         }),
         ipAddress: req.ip || null
       });
-      
+
       res.json({ success: true, session });
     } catch (error) {
       logError('Error ending impersonation:', error instanceof Error ? error : new Error(String(error)), { route: 'api-super-admin-impersonate-end' });
@@ -15511,7 +15536,7 @@ Return ONLY the enhanced description, nothing else.`;
         return res.status(400).json({ error: "Email and password required" });
       }
       
-      const user = await storage.getUserByEmail(email);
+      const user = await resolveLoginUser(email, req.dealershipId);
       if (!user || !user.isActive) {
         return res.status(401).json({ error: "Invalid credentials" });
       }

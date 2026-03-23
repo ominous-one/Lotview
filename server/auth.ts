@@ -12,6 +12,7 @@ if (!JWT_SECRET && process.env.NODE_ENV === "production") {
 // Development fallback
 const SECRET = JWT_SECRET || "olympic-auto-jwt-dev-secret-DO-NOT-USE-IN-PRODUCTION";
 const JWT_EXPIRES_IN = "1h";
+const IMPERSONATION_JWT_EXPIRES_IN = "15m";
 
 // JWT claims for security best practices
 const JWT_ISSUER = "lotview.ai";
@@ -35,7 +36,9 @@ export async function comparePassword(password: string, hash: string): Promise<b
   return await bcrypt.compare(password, hash);
 }
 
-export function generateToken(user: User): string {
+type AdditionalJwtClaims = Record<string, unknown>;
+
+export function generateToken(user: User, additionalClaims: AdditionalJwtClaims = {}): string {
   return jwt.sign(
     {
       id: user.id,
@@ -43,10 +46,32 @@ export function generateToken(user: User): string {
       role: user.role,
       name: user.name,
       dealershipId: user.dealershipId,
+      ...additionalClaims,
     },
     SECRET,
-    { 
+    {
       expiresIn: JWT_EXPIRES_IN,
+      issuer: JWT_ISSUER,
+      audience: JWT_AUDIENCE,
+    }
+  );
+}
+
+export function generateImpersonationToken(user: User, sessionId: number, superAdminId: number): string {
+  return jwt.sign(
+    {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      name: user.name,
+      dealershipId: user.dealershipId,
+      impersonationSessionId: sessionId,
+      impersonatedBy: superAdminId,
+      isImpersonating: true,
+    },
+    SECRET,
+    {
+      expiresIn: IMPERSONATION_JWT_EXPIRES_IN,
       issuer: JWT_ISSUER,
       audience: JWT_AUDIENCE,
     }

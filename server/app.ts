@@ -39,6 +39,54 @@ if (isProduction) {
   app.set("trust proxy", 1);
 }
 
+const SENSITIVE_RESPONSE_KEYS = new Set([
+  'token',
+  'rawToken',
+  'accessToken',
+  'refreshToken',
+  'impersonationToken',
+  'password',
+  'passwordHash',
+  'tokenHash',
+  'authorization',
+  'cookie',
+  'set-cookie',
+  'email',
+  'phone',
+  'customerEmail',
+  'customerPhone',
+  'supportEmail',
+  'salesEmail',
+]);
+
+function redactForLogs(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(redactForLogs);
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, nestedValue]) => {
+        if (SENSITIVE_RESPONSE_KEYS.has(key)) {
+          return [key, '[REDACTED]'];
+        }
+        return [key, redactForLogs(nestedValue)];
+      }),
+    );
+  }
+
+  return value;
+}
+
+function shouldLogResponseBody(path: string): boolean {
+  return !(
+    path.startsWith('/api/auth/') ||
+    path.startsWith('/api/extension/login') ||
+    path.startsWith('/api/super-admin/impersonate') ||
+    path.startsWith('/api/external-api-tokens')
+  );
+}
+
 // Security headers with helmet
 app.use(helmet({
   contentSecurityPolicy: {
@@ -124,6 +172,10 @@ app.use((req, res, next) => {
   res.on("finish", () => {
     const duration = Date.now() - start;
     if (reqPath.startsWith("/api")) {
+      const redactedResponse = capturedJsonResponse && shouldLogResponseBody(reqPath)
+        ? redactForLogs(capturedJsonResponse)
+        : undefined;
+
       if (useJsonLogs) {
         console.log(JSON.stringify({
           timestamp: new Date().toISOString(),
@@ -135,14 +187,15 @@ app.use((req, res, next) => {
           duration_ms: duration,
           ip: req.ip,
           user_agent: req.get("user-agent"),
+          response: redactedResponse,
         }));
       } else {
         let logLine = `${req.method} ${reqPath} ${res.statusCode} in ${duration}ms`;
-        if (capturedJsonResponse) {
-          logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+        if (redactedResponse) {
+          logLine += ` :: ${JSON.stringify(redactedResponse)}`;
         }
-        if (logLine.length > 80) {
-          logLine = logLine.slice(0, 79) + "\u2026";
+        if (logLine.length > 240) {
+          logLine = logLine.slice(0, 239) + "…";
         }
         log(logLine);
       }

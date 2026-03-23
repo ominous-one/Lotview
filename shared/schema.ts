@@ -625,11 +625,14 @@ export type AuditLog = typeof auditLogs.$inferSelect;
 export const passwordResetTokens = pgTable("password_reset_tokens", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  tokenLookupHash: text("token_lookup_hash"), // deterministic SHA-256 lookup hash for efficient reset token search
   tokenHash: text("token_hash").notNull(), // bcrypt hash of the reset token
   expiresAt: timestamp("expires_at").notNull(), // Token expiration (1 hour default)
   usedAt: timestamp("used_at"), // When token was used (null if unused)
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  tokenLookupHashIdx: index("password_reset_tokens_token_lookup_hash_idx").on(table.tokenLookupHash),
+}));
 
 export const insertPasswordResetTokenSchema = createInsertSchema(passwordResetTokens).omit({
   id: true,

@@ -29,6 +29,13 @@
       "when": 1740499200000,
       "tag": "0003_carfax_reports",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1774312400000,
+      "tag": "0005_auth_scheduler_hardening",
+      "breakpoints": true
     }
   ]
 }
