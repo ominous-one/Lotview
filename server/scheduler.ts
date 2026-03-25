@@ -36,25 +36,27 @@ export function startInventoryScheduler() {
     return;
   }
 
-  // Run Olympic Hyundai Vancouver (dealershipId=1) ingest every night at 2 AM Pacific.
-  // Canonical path: robust scraper (uses ZenRows/Zyte + retries + validation gates).
+  // Run nightly inventory sync for each active dealership instead of hard-wiring dealership 1.
   cron.schedule('0 2 * * *', async () => {
-    console.log('🕐 Running nightly inventory sync (robust scraper) [dealershipId=1]...');
-    try {
-      const result = await runRobustScrape('scheduler', 1);
-      if (!result.success) {
-        throw new Error(result.error || 'Robust scrape failed');
-      }
-      console.log(`✓ Nightly inventory sync complete: ${result.vehiclesFound} vehicles (method=${result.method}, retries=${result.retryCount})`);
-    } catch (error) {
-      console.error('✗ Nightly inventory sync failed:', error);
-      // Legacy fallback (kept for now): run full ZenRows sync
+    const targetIds = await getActiveDealershipIds();
+    console.log(`🕐 Running nightly inventory sync for ${targetIds.length} active dealership(s)...`);
+
+    for (const dealershipId of targetIds) {
       try {
-        console.log('🔄 Attempting legacy fallback with scrapeWithZenRows()...');
-        await scrapeWithZenRows();
-        console.log('✓ Legacy fallback inventory sync complete');
-      } catch (fallbackError) {
-        console.error('✗ Legacy fallback also failed:', fallbackError);
+        const result = await runRobustScrape('scheduler', dealershipId);
+        if (!result.success) {
+          throw new Error(result.error || 'Robust scrape failed');
+        }
+        console.log(`✓ Dealership ${dealershipId} inventory sync complete: ${result.vehiclesFound} vehicles (method=${result.method}, retries=${result.retryCount})`);
+      } catch (error) {
+        console.error(`✗ Dealership ${dealershipId} inventory sync failed:`, error);
+        try {
+          console.log(`🔄 Attempting legacy fallback with scrapeWithZenRows(${dealershipId})...`);
+          await scrapeWithZenRows(dealershipId);
+          console.log(`✓ Dealership ${dealershipId} legacy fallback inventory sync complete`);
+        } catch (fallbackError) {
+          console.error(`✗ Dealership ${dealershipId} legacy fallback also failed:`, fallbackError);
+        }
       }
     }
   });
@@ -102,8 +104,11 @@ export function startInventoryScheduler() {
   cron.schedule('*/10 * * * *', async () => {
     if (process.env.ENABLE_AUTOPOST_QUEUE !== 'true') return;
     try {
-      const result = await evaluateAndEnqueueAutopostQueue({ dealershipId: 1, actorUserId: null });
-      console.log(`[AutopostQueue] Evaluate complete: enqueued=${result.enqueued}, updated=${result.updated}, skipped=${result.skipped}`);
+      const targetIds = await getActiveDealershipIds();
+      for (const dealershipId of targetIds) {
+        const result = await evaluateAndEnqueueAutopostQueue({ dealershipId, actorUserId: null });
+        console.log(`[AutopostQueue] Dealership ${dealershipId}: enqueued=${result.enqueued}, updated=${result.updated}, skipped=${result.skipped}`);
+      }
     } catch (error) {
       console.error('[AutopostQueue] Evaluate failed:', error);
     }

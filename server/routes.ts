@@ -2844,38 +2844,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // ===== VEHICLE ROUTES =====
   
-  // Get all vehicles with 24h view counts (randomized for engagement)
+  // Get vehicles. Public/default path returns a slim paginated inventory DTO.
+  // Authenticated/admin callers can request the full row shape with ?view=full.
   app.get("/api/vehicles", async (req, res) => {
     try {
-      // SECURITY: Require dealership context from tenant middleware
-      // Tenant middleware handles: JWT token > subdomain lookup > single-tenant default
-      // Returns 400 if no dealership context could be resolved
       if (!req.dealershipId) {
         return res.status(400).json({ 
           error: "Dealership context required. Access via subdomain or with valid authentication." 
         });
       }
       const dealershipId = req.dealershipId;
-      
-      // Parse pagination parameters (optional - maintains backward compatibility)
-      const page = req.query.page ? parseInt(req.query.page as string) : undefined;
-      const limit = page ? Math.min(parseInt(req.query.limit as string) || 50, 100) : 10000; // No limit if page not specified
-      const offset = page ? (page - 1) * limit : 0;
-      
-      const { vehicles: vehiclesList, total } = await storage.getVehicles(dealershipId, limit, offset);
-      
-      // Add randomized view counts (5-35 views) to create social proof
-      // Use localImages (deduplicated) when available, fall back to images
-      // This ensures the VDP page shows the same images as the Chrome extension
-      const vehiclesWithViews = vehiclesList.map(vehicle => ({
-        ...vehicle,
-        images: (vehicle.localImages && vehicle.localImages.length > 0) ? vehicle.localImages : vehicle.images,
-        views: Math.floor(Math.random() * (35 - 5 + 1)) + 5 // Random between 5-35
-      }));
-      
-      // Return paginated response if page param provided, otherwise return array (backward compatible)
-      if (page) {
-        res.json({
+      const requestedView = typeof req.query.view === 'string' ? req.query.view.toLowerCase() : 'public';
+      const wantsFullView = requestedView === 'full';
+      const page = Math.max(parseInt(req.query.page as string, 10) || 1, 1);
+      const limitCap = wantsFullView ? 250 : 48;
+      const defaultLimit = wantsFullView ? 100 : 24;
+      const limit = Math.min(Math.max(parseInt(req.query.limit as string, 10) || defaultLimit, 1), limitCap);
+      const offset = (page - 1) * limit;
+
+      if (wantsFullView) {
+        const { vehicles: vehiclesList, total } = await storage.getVehicles(dealershipId, limit, offset);
+        const vehiclesWithViews = vehiclesList.map(vehicle => ({
+          ...vehicle,
+          images: (vehicle.localImages && vehicle.localImages.length > 0) ? vehicle.localImages : vehicle.images,
+          views: Math.floor(Math.random() * (35 - 5 + 1)) + 5
+        }));
+
+        return res.json({
           data: vehiclesWithViews,
           pagination: {
             page,
@@ -2884,9 +2879,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
             totalPages: Math.ceil(total / limit)
           }
         });
-      } else {
-        res.json(vehiclesWithViews);
       }
+
+      const { vehicles: vehiclesList, total } = await storage.getPublicInventoryVehicles(dealershipId, limit, offset);
+      const vehiclesWithViews = vehiclesList.map(vehicle => ({
+        ...vehicle,
+        views: Math.floor(Math.random() * (35 - 5 + 1)) + 5
+      }));
+
+      res.json({
+        data: vehiclesWithViews,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit)
+        }
+      });
     } catch (error) {
       logError('Error fetching vehicles:', error instanceof Error ? error : new Error(String(error)), { route: 'api-vehicles' });
       res.status(500).json({ error: "Failed to fetch vehicles" });

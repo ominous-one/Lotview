@@ -141,11 +141,18 @@ export function getFinancingRules(): Promise<FinancingRules> {
 }
 
 // Vehicle API
-export async function getVehicles(): Promise<Vehicle[]> {
-  // Note: This is a PUBLIC endpoint - do not send auth headers
-  // Dealership filtering is handled automatically by server-side tenant middleware
-  // based on subdomain resolution - no need for authentication
-  const response = await fetch("/api/vehicles", {
+export interface PaginatedVehiclesResponse<TVehicle = Vehicle> {
+  data: TVehicle[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export async function getVehicles(page: number = 1, limit: number = 24): Promise<PaginatedVehiclesResponse<Vehicle>> {
+  const response = await fetch(`/api/vehicles?page=${page}&limit=${limit}`, {
     credentials: 'include',
   });
   if (!response.ok) {

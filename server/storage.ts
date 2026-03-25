@@ -290,6 +290,32 @@ import {
 } from "@shared/schema";
 import { eq, desc, asc, sql, and, gte, lte, lt, gt, inArray, or, ilike, isNotNull, isNull, type SQL } from "drizzle-orm";
 
+export interface PublicInventoryVehicle {
+  id: number;
+  year: number;
+  make: string;
+  model: string;
+  trim: string | null;
+  highlights?: string | null;
+  type: string;
+  price: number;
+  odometer: number;
+  images: string[];
+  badges: string[];
+  location: string;
+  dealership: string;
+  description: string;
+  vin?: string | null;
+  stockNumber?: string | null;
+  cargurusPrice?: number | null;
+  cargurusUrl?: string | null;
+  dealRating?: string | null;
+  carfaxUrl?: string | null;
+  dealerVdpUrl?: string | null;
+  videoUrl?: string | null;
+  filterGroupId?: number | null;
+}
+
 export interface IStorage {
   // ====== SUPER ADMIN - GLOBAL SETTINGS ======
   getGlobalSetting(key: string): Promise<GlobalSetting | undefined>;
@@ -344,6 +370,7 @@ export interface IStorage {
   // ====== VEHICLE OPERATIONS (Multi-Tenant) ======
   // dealershipId is REQUIRED for all multi-tenant operations to ensure data isolation
   getVehicles(dealershipId: number, limit?: number, offset?: number): Promise<{ vehicles: Vehicle[]; total: number }>;
+  getPublicInventoryVehicles(dealershipId: number, limit?: number, offset?: number): Promise<{ vehicles: PublicInventoryVehicle[]; total: number }>;
   getVehicleById(id: number, dealershipId: number): Promise<Vehicle | undefined>;
   getVehicleByVin(vin: string, dealershipId: number): Promise<Vehicle | undefined>;
   deleteVehiclesByVinNotIn(vins: string[], dealershipId: number): Promise<{ deletedCount: number; deletedVins: string[] }>;
@@ -1202,6 +1229,75 @@ export class DatabaseStorage implements IStorage {
     return {
       vehicles: vehiclesList,
       total: count
+    };
+  }
+
+  async getPublicInventoryVehicles(dealershipId: number, limit: number = 24, offset: number = 0): Promise<{ vehicles: PublicInventoryVehicle[]; total: number }> {
+    const [{ count }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(vehicles)
+      .where(and(eq(vehicles.dealershipId, dealershipId), isNull(vehicles.deletedAt)));
+
+    const vehiclesList = await db
+      .select({
+        id: vehicles.id,
+        year: vehicles.year,
+        make: vehicles.make,
+        model: vehicles.model,
+        trim: vehicles.trim,
+        highlights: vehicles.highlights,
+        type: vehicles.type,
+        price: vehicles.price,
+        odometer: vehicles.odometer,
+        primaryImages: vehicles.localImages,
+        fallbackImages: vehicles.images,
+        badges: vehicles.badges,
+        location: vehicles.location,
+        dealership: vehicles.dealership,
+        description: vehicles.description,
+        vin: vehicles.vin,
+        stockNumber: vehicles.stockNumber,
+        cargurusPrice: vehicles.cargurusPrice,
+        cargurusUrl: vehicles.cargurusUrl,
+        dealRating: vehicles.dealRating,
+        carfaxUrl: vehicles.carfaxUrl,
+        dealerVdpUrl: vehicles.dealerVdpUrl,
+        videoUrl: vehicles.videoUrl,
+        filterGroupId: vehicles.filterGroupId,
+      })
+      .from(vehicles)
+      .where(and(eq(vehicles.dealershipId, dealershipId), isNull(vehicles.deletedAt)))
+      .orderBy(desc(vehicles.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    return {
+      vehicles: vehiclesList.map((vehicle) => ({
+        id: vehicle.id,
+        year: vehicle.year,
+        make: vehicle.make,
+        model: vehicle.model,
+        trim: vehicle.trim,
+        highlights: vehicle.highlights,
+        type: vehicle.type,
+        price: vehicle.price ?? 0,
+        odometer: vehicle.odometer ?? 0,
+        images: (vehicle.primaryImages && vehicle.primaryImages.length > 0) ? vehicle.primaryImages : (vehicle.fallbackImages ?? []),
+        badges: vehicle.badges ?? [],
+        location: vehicle.location ?? '',
+        dealership: vehicle.dealership ?? '',
+        description: vehicle.description ?? '',
+        vin: vehicle.vin,
+        stockNumber: vehicle.stockNumber,
+        cargurusPrice: vehicle.cargurusPrice,
+        cargurusUrl: vehicle.cargurusUrl,
+        dealRating: vehicle.dealRating,
+        carfaxUrl: vehicle.carfaxUrl,
+        dealerVdpUrl: vehicle.dealerVdpUrl,
+        videoUrl: vehicle.videoUrl,
+        filterGroupId: vehicle.filterGroupId,
+      })),
+      total: count,
     };
   }
 

@@ -18,6 +18,7 @@ export default function Inventory() {
   const { dealership } = useTenant();
   const queryClient = useQueryClient();
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const [filters, setFilters] = useState<FilterState>({
     type: 'all',
     priceMax: 100000,
@@ -34,18 +35,21 @@ export default function Inventory() {
     queryClient.invalidateQueries({ queryKey: ["vehicles"] });
   }, [queryClient]);
 
-  const { data: vehicles = [], isLoading, refetch, isFetching, status, error } = useQuery({
-    queryKey: ["vehicles"],
+  const { data: vehiclesResponse, isLoading, refetch, isFetching, status, error } = useQuery({
+    queryKey: ["vehicles", currentPage],
     queryFn: async () => {
       console.log('[Inventory] Fetching vehicles from API...');
-      const result = await getVehicles();
-      console.log('[Inventory] API returned', result?.length ?? 0, 'vehicles');
+      const result = await getVehicles(currentPage, 24);
+      console.log('[Inventory] API returned', result?.data?.length ?? 0, 'vehicles on page', result?.pagination?.page ?? 1);
       return result;
     },
     staleTime: 0,
     refetchOnMount: 'always',
     gcTime: 0,
   });
+
+  const vehicles = vehiclesResponse?.data ?? [];
+  const pagination = vehiclesResponse?.pagination;
 
   // Debug logging
   useEffect(() => {
@@ -209,11 +213,35 @@ export default function Inventory() {
                 <button onClick={() => setFilters({ type: 'all', priceMax: 100000, location: 'all', dealership: 'all', search: '', make: 'all', sortBy: 'default', filterGroup: 'all' })} className="text-primary font-bold mt-2 hover:underline">Clear Filters</button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                {filteredInventory.map(car => (
-                  <VehicleCard key={car.id} car={car} />
-                ))}
-              </div>
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {filteredInventory.map(car => (
+                    <VehicleCard key={car.id} car={car} />
+                  ))}
+                </div>
+
+                {pagination && pagination.totalPages > 1 && (
+                  <div className="mt-8 flex items-center justify-center gap-3">
+                    <button
+                      onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                      disabled={currentPage <= 1 || isFetching}
+                      className="px-4 py-2 rounded-lg border border-border disabled:opacity-50"
+                    >
+                      Previous
+                    </button>
+                    <span className="text-sm text-muted-foreground">
+                      Page {pagination.page} of {pagination.totalPages}
+                    </span>
+                    <button
+                      onClick={() => setCurrentPage((page) => Math.min(pagination.totalPages, page + 1))}
+                      disabled={currentPage >= pagination.totalPages || isFetching}
+                      className="px-4 py-2 rounded-lg border border-border disabled:opacity-50"
+                    >
+                      Next
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </main>
         </div>

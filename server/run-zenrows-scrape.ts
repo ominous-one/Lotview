@@ -452,13 +452,22 @@ function extractTrim(html: string, make: string, model: string, vdpUrl: string):
   return { trim: '', highlights };
 }
 
-export async function scrapeWithZenRows() {
+export async function scrapeWithZenRows(targetDealershipId: number = 1) {
+  const scrapeSources = await storage.getScrapeSources(targetDealershipId);
+  const primarySource = scrapeSources.find((source) => source.isActive) || scrapeSources[0];
+  const dealership = await storage.getDealership(targetDealershipId);
+
+  if (!primarySource || !dealership) {
+    console.error(`❌ No active scrape source found for dealership ${targetDealershipId}`);
+    return;
+  }
+
   console.log('╔══════════════════════════════════════════════════════════════════╗');
-  console.log('║   Olympic Hyundai Vancouver - Inventory Scraper (Zyte)          ║');
+  console.log(`║   ${dealership.name} - Inventory Scraper (Zyte)          ║`);
   console.log('╚══════════════════════════════════════════════════════════════════╝');
   
-  const dealershipId = 1; // Olympic Hyundai Vancouver
-  const inventoryUrl = 'https://www.olympichyundaivancouver.com/vehicles/used/?st=price,desc&view=grid&sc=used';
+  const dealershipId = targetDealershipId;
+  const inventoryUrl = primarySource.sourceUrl;
   
   console.log('\n📥 Step 1: Fetching inventory listing page...');
   const listingResult = await browserlessService.zyteScrape(inventoryUrl, { scrollToBottom: true });

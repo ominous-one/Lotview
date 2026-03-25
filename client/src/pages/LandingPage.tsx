@@ -30,13 +30,13 @@ export default function LandingPage() {
   const [isVisible, setIsVisible] = useState(false);
   
   // Fetch real vehicles for the preview
-  const { data: vehicles = [] } = useQuery({
+  const { data: vehiclesResponse } = useQuery({
     queryKey: ["vehicles-preview"],
-    queryFn: getVehicles,
+    queryFn: () => getVehicles(1, 3),
   });
   
   // Get first 3 vehicles for the hero preview
-  const previewVehicles = vehicles.slice(0, 3);
+  const previewVehicles = vehiclesResponse?.data ?? [];
 
   useEffect(() => {
     setIsVisible(true);

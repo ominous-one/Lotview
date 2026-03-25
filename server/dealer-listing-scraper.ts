@@ -2571,74 +2571,80 @@ export async function scrapeDealerListingsCheckpointed(
   dealershipId?: number
 ): Promise<CheckpointedScrapeResult> {
   console.log('\n=== CHECKPOINTED SCRAPING (Saves progress every 5 vehicles) ===');
-  
+
   let totalCount = 0;
   let insertedCount = 0;
   let updatedCount = 0;
   let resumed = false;
   let currentScrapeRunId = scrapeRunId || 0;
-  
-  // Get configs from database
+
   const dealerConfigs = await getDealerConfigsFromDb(dealershipId);
   if (dealerConfigs.length === 0) {
     console.warn(`  ⚠ No active scrape sources found${dealershipId ? ` for dealership ${dealershipId}` : ''}`);
     return { total: 0, inserted: 0, updated: 0, resumed: false, scrapeRunId: currentScrapeRunId };
   }
   console.log(`  Found ${dealerConfigs.length} active scrape sources${dealershipId ? ` (dealership ${dealershipId})` : ''}`);
-  
-  const CHECKPOINT_INTERVAL = 5; // Save checkpoint every 5 vehicles
-  
+
+  const CHECKPOINT_INTERVAL = 5;
+
   for (const config of dealerConfigs) {
     console.log(`\n[${config.name}] Starting checkpointed scrape (dealershipId: ${config.dealershipId})...`);
-    
+
+    let activeScrapeRunId = 0;
+
     try {
-      // Check for incomplete queue from a previous run
       const incompleteQueue = await storage.getIncompleteScrapeQueue(config.dealershipId);
-      
       let queueItems: ScrapeQueue[] = [];
-      
+
       if (incompleteQueue && incompleteQueue.items.length > 0) {
-        // Resume from previous incomplete run
         console.log(`  📋 Resuming from previous run (${incompleteQueue.items.length} vehicles remaining)`);
         queueItems = incompleteQueue.items;
+        activeScrapeRunId = incompleteQueue.scrapeRunId;
         currentScrapeRunId = incompleteQueue.scrapeRunId;
         resumed = true;
       } else {
-        // Fresh start - extract VDP URLs and populate queue
+        const scrapeRun = await storage.createScrapeRun({
+          dealershipId: config.dealershipId,
+          scrapeType: 'incremental',
+          scrapeMethod: 'puppeteer',
+          status: 'running',
+          triggeredBy: scrapeRunId ? 'manual' : 'scheduler',
+        });
+        activeScrapeRunId = scrapeRun.id;
+        currentScrapeRunId = scrapeRun.id;
+
         console.log(`  📋 Fresh scrape - extracting VDP URLs first...`);
         console.log(`  📍 Target URL: ${config.url}`);
         console.log(`  🌐 Domain: ${config.domain}`);
-        
+
         const vdpUrls = await extractVdpUrlsOnly(config);
-        
+
         if (vdpUrls.length === 0) {
+          await storage.updateScrapeRun(activeScrapeRunId, {
+            status: 'failed',
+            errorMessage: 'No VDP URLs found for source',
+            completedAt: new Date(),
+          });
           console.error(`  ✗ CRITICAL: No VDP URLs found for ${config.name}`);
-          console.error(`    This may indicate:`);
-          console.error(`    - Cloudflare blocking (check cf_clearance cookie)`);
-          console.error(`    - Website structure changed`);
-          console.error(`    - Network/connectivity issue`);
           continue;
         }
-        
-        // Create queue entries
+
         const queueEntries: InsertScrapeQueue[] = vdpUrls.map((url, index) => ({
-          scrapeRunId: currentScrapeRunId || null,
+          scrapeRunId: activeScrapeRunId,
           dealershipId: config.dealershipId,
           vdpUrl: url.vdpUrl,
           vehicleTitle: url.vehicleTitle,
           position: index + 1,
-          status: "pending" as const,
+          status: 'pending' as const,
         }));
-        
-        // Batch insert queue entries
+
         queueItems = await storage.createScrapeQueueBatch(queueEntries);
         console.log(`  ✓ Queued ${queueItems.length} vehicles for processing`);
       }
-      
-      // Process queue items in batches
+
       const fingerprint = generateRandomFingerprint();
       console.log(`  Applied fingerprint: ${fingerprint.viewport.width}x${fingerprint.viewport.height}`);
-      
+
       const browser = await puppeteer.launch({
         headless: true,
         args: [
@@ -2654,20 +2660,18 @@ export async function scrapeDealerListingsCheckpointed(
         ],
         defaultViewport: fingerprint.viewport
       });
-      
+
       let page = await browser.newPage();
       await applyFingerprint(page, fingerprint);
-      
-      // Load cookies
+
       const savedCookies = await cookieStore.loadCookies(config.domain);
       if (savedCookies && savedCookies.length > 0) {
         try { await page.setCookie(...savedCookies); } catch (e) {}
       }
-      
+
       let savedCookiesBackup = savedCookies || [];
       let processedInBatch = 0;
-      
-      // Helper to refresh page
+
       const refreshPage = async (reason: string) => {
         console.log(`    🔄 ${reason}`);
         try {
@@ -2681,32 +2685,30 @@ export async function scrapeDealerListingsCheckpointed(
         await applyFingerprint(page, fingerprint);
         console.log(`    ✓ Page refreshed with ${savedCookiesBackup.length} cookies preserved`);
       };
-      
+
       console.log(`  Processing ${queueItems.length} vehicles (checkpoint every ${CHECKPOINT_INTERVAL})...`);
-      
+
+      let runProcessed = 0;
+      let runInserted = 0;
+      let runUpdated = 0;
+
       for (let i = 0; i < queueItems.length; i++) {
         const queueItem = queueItems[i];
         console.log(`  [${i + 1}/${queueItems.length}] ${queueItem.vehicleTitle}...`);
-        
-        // Mark as processing
-        await storage.updateScrapeQueueItem(queueItem.id, { status: "processing" });
-        
-        // Refresh page periodically
+
+        await storage.updateScrapeQueueItem(queueItem.id, { status: 'processing' });
+
         if (processedInBatch > 0 && processedInBatch % CHECKPOINT_INTERVAL === 0) {
           await refreshPage(`Checkpoint refresh (processed ${processedInBatch} vehicles)`);
         }
-        
+
         try {
-          // Extract vehicle data
           const detailData = await scrapeVehicleDetailPage(page, queueItem.vdpUrl);
-          
-          // Parse year/make/model from title
           const titleParts = (queueItem.vehicleTitle || '').split(' ');
           const year = parseInt(titleParts[0]) || 2024;
           const make = titleParts[1] || '';
           const model = titleParts.slice(2).join(' ') || '';
-          
-          // Check if new vehicle (skip if so)
+
           const lowerUrl = config.url.toLowerCase();
           const scrapingUsedInventory = lowerUrl.includes('/used') || lowerUrl.includes('/preowned');
           if (isLikelyNewVehicle(year, detailData.odometer, detailData.rawOdometerKm, detailData.isNewCondition, scrapingUsedInventory)) {
@@ -2714,12 +2716,11 @@ export async function scrapeDealerListingsCheckpointed(
             await storage.markScrapeQueueCompleted(queueItem.id, 0);
             continue;
           }
-          
-          // Build vehicle data
+
           const recalculatedBadges = detectBadges(detailData.description || '', year, detailData.odometer || undefined);
           const existingBadges = detailData.badges.filter(b => !recalculatedBadges.includes(b) && b !== 'Low Kilometers');
           const finalBadges = [...recalculatedBadges, ...existingBadges];
-          
+
           const vehicleData: DealerVehicleListing = {
             vin: detailData.vin,
             year,
@@ -2739,7 +2740,6 @@ export async function scrapeDealerListingsCheckpointed(
             location: config.location,
             imageQuality: detailData.imageQuality,
             dataQualityScore: detailData.dataQualityScore,
-            // Extended VDP fields
             exteriorColor: detailData.exteriorColor,
             interiorColor: detailData.interiorColor,
             transmission: detailData.transmission,
@@ -2752,64 +2752,71 @@ export async function scrapeDealerListingsCheckpointed(
             vdpDescription: detailData.vdpDescription,
             engine: detailData.engine || null,
           };
-          
-          // Save vehicle
+
           const result = await onVehicleSaved(vehicleData);
-          
-          // Mark as completed
           await storage.markScrapeQueueCompleted(queueItem.id, result.id);
-          
+
           totalCount++;
+          runProcessed++;
           processedInBatch++;
           if (result.action === 'inserted') {
             insertedCount++;
+            runInserted++;
             console.log(`    💾 NEW: ${vehicleData.year} ${vehicleData.make} ${vehicleData.model} (ID: ${result.id})`);
           } else {
             updatedCount++;
+            runUpdated++;
             console.log(`    💾 UPDATED: ${vehicleData.year} ${vehicleData.make} ${vehicleData.model} (ID: ${result.id})`);
           }
-          
-          // Human-like delay
+
           await randomDelay(800, 1500);
-          
         } catch (error: any) {
           console.error(`    ✗ Error processing ${queueItem.vehicleTitle}:`, error.message);
-          
-          // Mark as failed
           const retryCount = (queueItem.retryCount || 0) + 1;
           if (retryCount < 3) {
-            // Will retry on next run
-            await storage.updateScrapeQueueItem(queueItem.id, { 
-              status: "pending",
+            await storage.updateScrapeQueueItem(queueItem.id, {
+              status: 'pending',
               retryCount,
-              errorMessage: error.message 
+              errorMessage: error.message
             });
           } else {
             await storage.markScrapeQueueFailed(queueItem.id, error.message);
           }
-          
-          // If frame detachment, refresh and continue
+
           if (error.message?.includes('detached') || error.message?.includes('closed')) {
             await refreshPage('Emergency recovery from frame detachment');
           }
         }
       }
-      
+
       try { await browser.close(); } catch (e) {}
-      console.log(`  ✓ ${config.name}: Completed (${totalCount} processed)`);
-      
+      await storage.updateScrapeRun(activeScrapeRunId, {
+        status: 'success',
+        vehiclesFound: runProcessed,
+        vehiclesInserted: runInserted,
+        vehiclesUpdated: runUpdated,
+        completedAt: new Date(),
+      });
+      console.log(`  ✓ ${config.name}: Completed (${runProcessed} processed)`);
     } catch (error) {
       console.error(`  ✗ Failed to scrape ${config.name}:`, error);
+      if (activeScrapeRunId) {
+        await storage.updateScrapeRun(activeScrapeRunId, {
+          status: 'failed',
+          errorMessage: error instanceof Error ? error.message : String(error),
+          completedAt: new Date(),
+        });
+      }
     }
   }
-  
+
   console.log(`\n✓ CHECKPOINTED scrape complete: ${totalCount} total (${insertedCount} new, ${updatedCount} updated)${resumed ? ' [RESUMED]' : ''}\n`);
-  
-  return { 
-    total: totalCount, 
-    inserted: insertedCount, 
-    updated: updatedCount, 
+
+  return {
+    total: totalCount,
+    inserted: insertedCount,
+    updated: updatedCount,
     resumed,
-    scrapeRunId: currentScrapeRunId 
+    scrapeRunId: currentScrapeRunId
   };
 }

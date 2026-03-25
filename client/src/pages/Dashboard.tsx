@@ -608,10 +608,10 @@ export default function Dashboard() {
 
   const loadVehicles = async (token: string) => {
     try {
-      const data = await apiGet<any[]>('/api/vehicles', {
+      const response = await apiGet<{ data: any[] }>('/api/vehicles?view=full&limit=250', {
         'Authorization': `Bearer ${token}`,
       });
-      setAllVehicles(data);
+      setAllVehicles(response.data || []);
     } catch (error) {
       console.error("Failed to load vehicles:", error);
     }

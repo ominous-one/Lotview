@@ -503,9 +503,10 @@ export default function Sales() {
   const { data: vehicles = [], isLoading: vehiclesLoading } = useQuery<Vehicle[]>({
     queryKey: ['vehicles'],
     queryFn: async () => {
-      const response = await fetch('/api/vehicles');
+      const response = await fetch('/api/vehicles?view=full&limit=250');
       if (!response.ok) throw new Error('Failed to fetch vehicles');
-      return response.json();
+      const payload = await response.json();
+      return payload.data || [];
     }
   });
 

@@ -26,13 +26,15 @@ export default function EmbedWidget() {
     });
   }, []);
 
-  const { data: vehicles, isLoading } = useQuery<Car[]>({
-    queryKey: ['vehicles'],
-    queryFn: getVehicles,
+  const { data: vehiclesResponse, isLoading } = useQuery({
+    queryKey: ['vehicles', 'embed'],
+    queryFn: () => getVehicles(1, 48),
   });
 
+  const vehicles: Car[] = vehiclesResponse?.data ?? [];
+
   // Filter vehicles based on URL parameters
-  const filteredVehicles = vehicles?.filter((vehicle) => {
+  const filteredVehicles = vehicles.filter((vehicle: Car) => {
     if (filters.dealership && vehicle.dealership !== filters.dealership) return false;
     if (filters.make && vehicle.make.toLowerCase() !== filters.make.toLowerCase()) return false;
     if (filters.type && vehicle.type !== filters.type) return false;

@@ -150,7 +150,7 @@ export function InventoryManagement({
         headers["X-Dealership-Id"] = dealerId.toString();
       }
       
-      const response = await fetch("/api/vehicles", { headers });
+      const response = await fetch("/api/vehicles?view=full&limit=250", { headers });
       
       if (response.ok) {
         const data = await response.json();
