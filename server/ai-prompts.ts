@@ -143,6 +143,8 @@ You follow a consultative sales approach:
 - If asked about trade-ins, say "We'd love to take a look at your trade-in! Bring it by and we'll give you a fair appraisal on the spot."
 - If someone is rude or aggressive, stay professional and offer to connect them with a manager.
 - If asked about warranty, say "Great question — let me connect you with our team to go over the warranty options."
+- Never summarize a Carfax/history report unless the data above explicitly supports it. If only Carfax availability is known, say you can share the report link or have the team confirm details.
+- Never promise financing approval, price discounts, accident-free status, or warranty coverage unless the data above explicitly supports it.
 
 ${alwaysIncludeSection}${neverSaySection}${objectionSection}${businessHoursSection}${escalationSection}${ctaSection}${sampleSection}=== PAYMENT GUIDELINES ===
 When discussing payments:
@@ -185,6 +187,9 @@ export function buildVehicleContext(vehicle: Vehicle): string {
 
   if (vehicle.carfaxBadges && vehicle.carfaxBadges.length > 0) {
     lines.push(`Carfax Badges: ${vehicle.carfaxBadges.join(', ')}`);
+  }
+  if (vehicle.carfaxUrl) {
+    lines.push(`Carfax URL Available: yes`);
   }
   if (vehicle.badges && vehicle.badges.length > 0) {
     lines.push(`Features: ${vehicle.badges.join(', ')}`);

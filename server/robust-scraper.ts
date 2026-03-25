@@ -154,36 +154,83 @@ function extractCarfaxBadges(html: string): string[] {
 /**
  * Extract Carfax report URL from HTML
  */
+function decodeHtmlEntitiesForScraper(value: string): string {
+  return value
+    .replace(/&amp;/g, '&')
+    .replace(/&#x2F;/gi, '/')
+    .replace(/&#x3A;/gi, ':')
+    .replace(/&#x3D;/gi, '=')
+    .replace(/&#x26;/gi, '&')
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, num) => String.fromCharCode(parseInt(num, 10)));
+}
+
+function normalizePotentialCarfaxUrl(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  let value = decodeHtmlEntitiesForScraper(String(raw)).trim();
+  if (!value) return null;
+  if (value.startsWith('//')) value = `https:${value}`;
+  if (value.startsWith('/')) return null;
+  if (!/^https?:\/\//i.test(value)) return null;
+  if (!/carfax\.(ca|com)/i.test(value)) return null;
+  if (/^https?:\/\/(www\.)?carfax\.(ca|com)\/?$/i.test(value)) return null;
+  return value;
+}
+
 function extractCarfaxUrl(html: string): string | null {
   const $ = cheerio.load(html);
+  const normalizedHtml = decodeHtmlEntitiesForScraper(html);
   
   // Strategy 1: Look for vhr.carfax.ca links (the actual report links)
-  const vhrPattern = /https?:\/\/vhr\.carfax\.ca\/\?id=[A-Za-z0-9%\/+=]+/g;
-  const vhrMatches = html.match(vhrPattern);
+  const vhrPattern = /https?:\/\/vhr\.carfax\.ca\/\?id=[A-Za-z0-9%\/+=_-]+/g;
+  const vhrMatches = normalizedHtml.match(vhrPattern);
   if (vhrMatches && vhrMatches.length > 0) {
-    logInfo('[Carfax Extraction] Found vhr.carfax.ca link via regex', { url: vhrMatches[0] });
-    return vhrMatches[0];
+    const normalized = normalizePotentialCarfaxUrl(vhrMatches[0]);
+    if (normalized) {
+      logInfo('[Carfax Extraction] Found vhr.carfax.ca link via regex', { url: normalized });
+      return normalized;
+    }
   }
   
   // Strategy 2: Look for Carfax links in href attributes with vhr subdomain
-  const carfaxLinks = $('a[href*="carfax"]');
+  const carfaxLinks = $('a[href*="carfax"], a[data-href*="carfax"], a[data-url*="carfax"]');
   for (let i = 0; i < carfaxLinks.length; i++) {
-    const href = $(carfaxLinks[i]).attr('href');
+    const href = normalizePotentialCarfaxUrl($(carfaxLinks[i]).attr('href') || $(carfaxLinks[i]).attr('data-href') || $(carfaxLinks[i]).attr('data-url'));
     if (href && href.includes('vhr.carfax')) {
       logInfo('[Carfax Extraction] Found vhr.carfax link in href', { url: href });
       return href;
     }
   }
+
+  // Strategy 2b: Inspect structured data / inline config blobs common on dealer VDPs.
+  const structuredPatterns = [
+    /"(?:carfaxUrl|carfaxURL|carfax_report_url|carfaxReportUrl|vehicleHistoryUrl)"\s*:\s*"([^"]+)"/gi,
+    /"(?:href|url)"\s*:\s*"(https?:\\\/\\\/(?:vhr\\\.)?carfax\\\.(?:ca|com)[^"]+)"/gi,
+    /(?:carfaxUrl|carfaxURL|carfaxReportUrl|vehicleHistoryUrl)\s*[:=]\s*['"]([^'"]+)['"]/gi,
+  ];
+  for (const pattern of structuredPatterns) {
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(normalizedHtml))) {
+      const normalized = normalizePotentialCarfaxUrl(match[1]);
+      if (normalized) {
+        logInfo('[Carfax Extraction] Found Carfax URL in structured data', { url: normalized });
+        return normalized;
+      }
+    }
+  }
   
   // Strategy 3: Look for onclick handlers with Carfax URLs
   const onclickPattern = /onclick\s*=\s*["'][^"']*vhr\.carfax\.ca[^"']*["']/gi;
-  const onclickMatches = html.match(onclickPattern);
+  const onclickMatches = normalizedHtml.match(onclickPattern);
   if (onclickMatches) {
     for (const match of onclickMatches) {
       const urlMatch = match.match(/https?:\/\/vhr\.carfax\.ca\/[^"'\s)]+/);
       if (urlMatch) {
-        logInfo('[Carfax Extraction] Found vhr.carfax link in onclick', { url: urlMatch[0] });
-        return urlMatch[0];
+        const normalized = normalizePotentialCarfaxUrl(urlMatch[0]);
+        if (normalized) {
+          logInfo('[Carfax Extraction] Found vhr.carfax link in onclick', { url: normalized });
+          return normalized;
+        }
       }
     }
   }
@@ -195,15 +242,16 @@ function extractCarfaxUrl(html: string): string | null {
     const dataUrl = elem.attr('data-url') || elem.attr('data-href') || 
                     elem.attr('data-link') || elem.attr('data-carfax') || 
                     elem.attr('data-carfax-url');
-    if (dataUrl && dataUrl.includes('vhr.carfax')) {
-      logInfo('[Carfax Extraction] Found vhr.carfax in data attribute', { url: dataUrl });
-      return dataUrl;
+    const normalized = normalizePotentialCarfaxUrl(dataUrl);
+    if (normalized && normalized.includes('vhr.carfax')) {
+      logInfo('[Carfax Extraction] Found vhr.carfax in data attribute', { url: normalized });
+      return normalized;
     }
   }
   
   // Strategy 5: Look for direct Carfax links with VIN-specific paths
   for (let i = 0; i < carfaxLinks.length; i++) {
-    const href = $(carfaxLinks[i]).attr('href');
+    const href = normalizePotentialCarfaxUrl($(carfaxLinks[i]).attr('href') || $(carfaxLinks[i]).attr('data-href') || $(carfaxLinks[i]).attr('data-url'));
     if (href && (href.includes('/vehicle/') || href.includes('/vhr/') || href.includes('vin='))) {
       return href;
     }
@@ -213,15 +261,16 @@ function extractCarfaxUrl(html: string): string | null {
   const dataCarfax = $('[data-carfax], [data-carfax-url], [data-carfax-link]').first();
   if (dataCarfax.length) {
     const url = dataCarfax.attr('data-carfax') || dataCarfax.attr('data-carfax-url') || dataCarfax.attr('data-carfax-link');
-    if (url && !url.match(/^https?:\/\/(www\.)?carfax\.(ca|com)\/?$/)) {
-      return url;
+    const normalized = normalizePotentialCarfaxUrl(url);
+    if (normalized) {
+      return normalized;
     }
   }
   
   // Strategy 7: Look for any Carfax link (excluding homepage)
   for (let i = 0; i < carfaxLinks.length; i++) {
-    const href = $(carfaxLinks[i]).attr('href');
-    if (href && !href.match(/^https?:\/\/(www\.)?carfax\.(ca|com)\/?$/)) {
+    const href = normalizePotentialCarfaxUrl($(carfaxLinks[i]).attr('href') || $(carfaxLinks[i]).attr('data-href') || $(carfaxLinks[i]).attr('data-url'));
+    if (href) {
       return href;
     }
   }
@@ -562,11 +611,14 @@ async function fetchVdpContent(vdpUrl: string): Promise<VdpContent> {
       const html = await scraper.fn(vdpUrl);
       if (html && html.length > 1000 && !isCloudflareBlockPage(html)) {
         const content = extractVdpContent(html);
-        if (content.vdpDescription || content.techSpecs) {
+        if (content.vdpDescription || content.techSpecs || content.carfaxUrl || content.carfaxBadges.length > 0 || content.stockNumber) {
           logInfo(`[VDP Scraper] Successfully extracted content using ${scraper.name}`, { 
             service: 'scraper', method: 'vdp', 
             hasDesc: !!content.vdpDescription, 
-            hasSpecs: !!content.techSpecs 
+            hasSpecs: !!content.techSpecs,
+            hasCarfaxUrl: !!content.carfaxUrl,
+            carfaxBadgeCount: content.carfaxBadges.length,
+            hasStockNumber: !!content.stockNumber,
           });
           return content;
         }

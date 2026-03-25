@@ -65,6 +65,22 @@ function platformBlockedReason(params: {
   return { blocked: false, reason: null };
 }
 
+function summarizeQueueBlockedReason(statuses: Array<{ status: string; lastError?: string | null }>): string | null {
+  const blocked = statuses
+    .filter((s) => s.status === 'blocked' && s.lastError)
+    .map((s) => s.lastError!.trim())
+    .filter(Boolean);
+  if (blocked.length > 0) return Array.from(new Set(blocked)).join(' | ');
+
+  const failed = statuses
+    .filter((s) => s.status === 'failed' && s.lastError)
+    .map((s) => s.lastError!.trim())
+    .filter(Boolean);
+  if (failed.length > 0) return `retrying: ${Array.from(new Set(failed)).join(' | ')}`;
+
+  return null;
+}
+
 export async function evaluateAndEnqueueAutopostQueue(params: {
   dealershipId: number;
   actorUserId?: number | null;
@@ -352,11 +368,48 @@ export async function listAutopostQueue(params: {
     return platform === 'facebook_marketplace' ? i.fbStatus !== 'not_queued' : i.clStatus !== 'not_queued';
   });
 
-  return filtered.map((i) => ({
-    ...i,
-    photoCount: (i.images || []).length,
-    uniquePhotoCount: uniquePhotoCount(i.images || []),
-  }));
+  const queueItemIds = filtered.map((i) => i.queueItemId);
+  const recentEvents = queueItemIds.length
+    ? await db
+        .select({
+          queueItemId: autopostQueueEvents.queueItemId,
+          eventType: autopostQueueEvents.eventType,
+          message: autopostQueueEvents.message,
+          platform: autopostQueueEvents.platform,
+          createdAt: autopostQueueEvents.createdAt,
+        })
+        .from(autopostQueueEvents)
+        .where(inArray(autopostQueueEvents.queueItemId, queueItemIds))
+        .orderBy(desc(autopostQueueEvents.createdAt))
+    : [];
+
+  const latestEventByQueue = new Map<string, (typeof recentEvents)[number]>();
+  for (const ev of recentEvents) {
+    if (!latestEventByQueue.has(ev.queueItemId)) latestEventByQueue.set(ev.queueItemId, ev);
+  }
+
+  return filtered.map((i) => {
+    const platformStatuses = [
+      { platform: 'facebook_marketplace', status: i.fbStatus, lastError: i.fbLastError },
+      { platform: 'craigslist', status: i.clStatus, lastError: i.clLastError },
+    ];
+    const latestEvent = latestEventByQueue.get(i.queueItemId) || null;
+    const queueBlockedReason = summarizeQueueBlockedReason(platformStatuses as any);
+
+    return {
+      ...i,
+      blockedReason: queueBlockedReason || i.blockedReason,
+      photoCount: (i.images || []).length,
+      uniquePhotoCount: uniquePhotoCount(i.images || []),
+      statusSummary: {
+        blockedReason: queueBlockedReason,
+        queuedPlatforms: platformStatuses.filter((s) => s.status === 'queued').map((s) => s.platform),
+        failedPlatforms: platformStatuses.filter((s) => s.status === 'failed').map((s) => s.platform),
+        postedPlatforms: platformStatuses.filter((s) => s.status === 'posted').map((s) => s.platform),
+      },
+      latestEvent,
+    };
+  });
 }
 
 export async function reorderAutopostQueue(params: {
@@ -539,6 +592,10 @@ export async function claimNextAutopostItem(params: {
         SET status='blocked', last_error=${gate.reason}, updated_at=now()
         WHERE id=${row.platform_status_id}
       `);
+      await tx
+        .update(autopostQueueItems)
+        .set({ blockedReason: gate.reason, updatedAt: new Date() })
+        .where(eq(autopostQueueItems.id, row.queue_item_id));
       await tx.insert(autopostQueueEvents).values({
         dealershipId: params.dealershipId,
         queueItemId: row.queue_item_id,
@@ -641,29 +698,56 @@ export async function recordAutopostResult(params: {
       },
     });
 
-    // If both platforms are terminal, dequeue.
+    // If both platforms are terminal, dequeue. If all remaining paths are exhausted, also dequeue for operator visibility.
     const statuses = await tx
-      .select({ platform: autopostPlatformStatuses.platform, status: autopostPlatformStatuses.status })
+      .select({
+        platform: autopostPlatformStatuses.platform,
+        status: autopostPlatformStatuses.status,
+        attemptCount: autopostPlatformStatuses.attemptCount,
+        lastError: autopostPlatformStatuses.lastError,
+      })
       .from(autopostPlatformStatuses)
       .where(eq(autopostPlatformStatuses.queueItemId, params.queueItemId));
 
+    const queueBlockedReason = summarizeQueueBlockedReason(statuses as any);
+    await tx
+      .update(autopostQueueItems)
+      .set({ blockedReason: queueBlockedReason, updatedAt: now })
+      .where(eq(autopostQueueItems.id, params.queueItemId));
+
     const terminal = (s: any) => ['posted', 'skipped'].includes(String(s));
+    const exhausted = (s: any) => ['posted', 'skipped'].includes(String(s.status)) || (String(s.status) === 'failed' && Number(s.attemptCount || 0) >= MAX_ATTEMPTS_PER_PLATFORM);
     const done = statuses.length >= 2 && statuses.every((s) => terminal(s.status));
+    const exhaustedAllPlatforms = statuses.length >= 2 && statuses.every(exhausted);
 
-    if (done) {
-      await tx
-        .update(autopostQueueItems)
-        .set({ isActive: false, dequeuedAt: now, updatedAt: now })
-        .where(eq(autopostQueueItems.id, params.queueItemId));
-
+    if (exhaustedAllPlatforms && !done) {
       await tx.insert(autopostQueueEvents).values({
         dealershipId: params.dealershipId,
         queueItemId: params.queueItemId,
         platform: null,
         actorUserId,
         eventType: 'DEQUEUED',
-        message: 'Dequeued (all platforms complete)',
+        message: 'Dequeued (all platform attempts exhausted)',
+        metadata: { statuses },
       });
+    }
+
+    if (done || exhaustedAllPlatforms) {
+      await tx
+        .update(autopostQueueItems)
+        .set({ isActive: false, dequeuedAt: now, updatedAt: now, blockedReason: queueBlockedReason })
+        .where(eq(autopostQueueItems.id, params.queueItemId));
+
+      if (done) {
+        await tx.insert(autopostQueueEvents).values({
+          dealershipId: params.dealershipId,
+          queueItemId: params.queueItemId,
+          platform: null,
+          actorUserId,
+          eventType: 'DEQUEUED',
+          message: 'Dequeued (all platforms complete)',
+        });
+      }
     }
   });
 }

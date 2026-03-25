@@ -179,6 +179,28 @@ function computePersonalizationOk(input: DecideSendInput): { ok: boolean; reason
   return { ok: reasons.length === 0, reasons };
 }
 
+function computeCandidateReplyRisk(input: DecideSendInput): { ok: boolean; reasons: string[] } {
+  const reasons: string[] = [];
+  const reply = (input.candidateReply || "").toLowerCase();
+  const recentThreadText = (input.recentMessages || []).map((m) => m.text || "").join(" \n ").toLowerCase();
+  const threadAskedAboutHistory = /(carfax|accident|damage|claim|service history|history report)/i.test(recentThreadText);
+
+  if (/(guaranteed approval|guaranteed financing|approved today|everyone is approved)/i.test(reply)) {
+    reasons.push("candidate:risky_financing_claim");
+  }
+  if (/(accident[- ]?free|clean carfax|clean history|no accidents)/i.test(reply) && !threadAskedAboutHistory) {
+    reasons.push("candidate:unsolicited_history_claim");
+  }
+  if (threadAskedAboutHistory && !/(carfax|history report|vehicle history|accident)/i.test(reply)) {
+    reasons.push("candidate:history_question_not_answered_safely");
+  }
+  if (/(text me|call me at|email me at|gmail\.com|@)/i.test(reply) && !/dealer(ship)?|team|store/.test(reply)) {
+    reasons.push("candidate:off_platform_contact_push");
+  }
+
+  return { ok: reasons.length === 0, reasons };
+}
+
 export async function decideSendFbMarketplaceReply(storage: IStorage, params: DecideSendInput): Promise<DecideSendOutput> {
   const reasonCodes: string[] = [];
 
@@ -240,6 +262,9 @@ export async function decideSendFbMarketplaceReply(storage: IStorage, params: De
   // 7) Personalization requirement
   const personalization = computePersonalizationOk(params);
   if (!personalization.ok) reasonCodes.push(...personalization.reasons.map((r) => `personalization:${r}`));
+
+  const candidateRisk = computeCandidateReplyRisk(params);
+  if (!candidateRisk.ok) reasonCodes.push(...candidateRisk.reasons);
 
   // 8) Anti-loop and freshness guards (based on DB)
   // If we don't have a thread row yet, create it so we can attach messages/audits later.
@@ -307,8 +332,16 @@ export async function decideSendFbMarketplaceReply(storage: IStorage, params: De
 
   // Escalate suggestion
   const escalate =
-    reasonCodes.some((r) => r === "action_block" || r === "escalated" || r.startsWith("intent_denylisted") || r.startsWith("rate_limit")) ||
-    intent === "HOSTILE" || intent === "FINANCING" || intent === "PRICE_NEGOTIATION";
+    reasonCodes.some((r) =>
+      r === "action_block" ||
+      r === "escalated" ||
+      r.startsWith("intent_denylisted") ||
+      r.startsWith("rate_limit") ||
+      r.startsWith("candidate:") ||
+      r === "vehicle_conf_low" ||
+      r === "personalization:vehicle_identity_missing"
+    ) ||
+    intent === "HOSTILE" || intent === "FINANCING" || intent === "PRICE_NEGOTIATION" || intent === "ACCIDENT_HISTORY";
 
   const counters = { autoMin, autoHour, autoDay, totalDay, autoTurns };
 

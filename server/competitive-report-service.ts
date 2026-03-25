@@ -21,6 +21,11 @@ function median(nums: number[]): number | undefined {
   return a.length % 2 === 0 ? Math.round((a[mid - 1] + a[mid]) / 2) : a[mid];
 }
 
+function average(nums: number[]): number | undefined {
+  if (!nums.length) return undefined;
+  return Math.round(nums.reduce((sum, n) => sum + n, 0) / nums.length);
+}
+
 function asAccidentHistory(listing: MarketListing): 'accident_free' | 'reported' | 'unknown' {
   try {
     const raw = listing.historyBadges;
@@ -112,16 +117,18 @@ export class CompetitiveReportService {
         if (!v.make || !v.model || !v.year) continue;
 
         // Use comps engine to ensure data freshness + deterministic scoring.
-        const comps = await getAppraisalComps({
-          dealershipId: params.dealershipId,
-          vin: v.vin || 'UNKNOWNVINUNKNOWN',
-          mileageKm: v.odometer || undefined,
-          postalCode: params.postalCode,
-          radiusKm: params.radiusKm,
-          trimMode: 'near',
-          maxComps: 25,
-          disableExternalFetches: params.disableExternalFetches,
-        }).catch(() => null);
+        const comps = v.vin
+          ? await getAppraisalComps({
+              dealershipId: params.dealershipId,
+              vin: v.vin,
+              mileageKm: v.odometer || undefined,
+              postalCode: params.postalCode,
+              radiusKm: params.radiusKm,
+              trimMode: 'near',
+              maxComps: 25,
+              disableExternalFetches: params.disableExternalFetches,
+            }).catch(() => null)
+          : null;
 
         // If VIN not available, fall back to cached listings by make/model/year bucket.
         let listings: MarketListing[] = [];
@@ -139,7 +146,8 @@ export class CompetitiveReportService {
           listings = r.listings;
         }
 
-        const compPrices = listings.map(l => l.price).filter(p => typeof p === 'number' && p > 0);
+        const normalizedComps = listings.slice(0, 25).map(normalizeComp);
+        const compPrices = normalizedComps.map(l => l.price).filter((p): p is number => typeof p === 'number' && p > 0);
         const compMedian = median(compPrices);
         const ourPrice = v.price ?? null;
         const delta = typeof compMedian === 'number' && typeof ourPrice === 'number'
@@ -147,8 +155,25 @@ export class CompetitiveReportService {
           : null;
 
         const position = delta === null ? null : delta < -500 ? 'under' : delta > 500 ? 'over' : 'at';
-
-        const normalizedComps = listings.slice(0, 25).map(normalizeComp);
+        const compDays = normalizedComps.map((c) => c.daysOnLot).filter((d): d is number => typeof d === 'number' && d >= 0);
+        const compMileage = normalizedComps.map((c) => c.mileageKm).filter((m): m is number => typeof m === 'number' && m >= 0);
+        const daysMedian = median(compDays);
+        const mileageMedian = median(compMileage);
+        const accidentFreeCount = normalizedComps.filter((c) => c.accidentHistory === 'accident_free').length;
+        const reportedDamageCount = normalizedComps.filter((c) => c.accidentHistory === 'reported').length;
+        const summary = {
+          priceMedian: compMedian ?? null,
+          priceAverage: average(compPrices) ?? null,
+          averageDaysOnLot: average(compDays) ?? null,
+          medianDaysOnLot: daysMedian ?? null,
+          medianMileageKm: mileageMedian ?? null,
+          accidentFreeCount,
+          reportedDamageCount,
+          sourceBreakdown: normalizedComps.reduce<Record<string, number>>((acc, comp) => {
+            acc[comp.source] = (acc[comp.source] || 0) + 1;
+            return acc;
+          }, {}),
+        };
 
         unitRows.push({
           runId: run.id,
@@ -166,7 +191,15 @@ export class CompetitiveReportService {
           deltaToMedian: typeof delta === 'number' ? delta : null,
           position: position,
           confidence: normalizedComps.length >= 10 ? 'high' : normalizedComps.length >= 4 ? 'medium' : 'low',
-          comps: normalizedComps,
+          comps: normalizedComps.map((comp) => ({
+            ...comp,
+            priceDeltaFromOurVehicle: typeof ourPrice === 'number' ? comp.price - ourPrice : null,
+            priceDeltaFromMedian: typeof compMedian === 'number' ? comp.price - compMedian : null,
+            isNearMileageBand: typeof mileageMedian === 'number' && typeof comp.mileageKm === 'number'
+              ? Math.abs(comp.mileageKm - mileageMedian) <= 20000
+              : null,
+          })),
+          summary,
         } as any);
       } catch (e) {
         errors.push(e instanceof Error ? e.message : String(e));
@@ -179,7 +212,12 @@ export class CompetitiveReportService {
       status: errors.length > 0 ? 'partial' : 'success',
       metrics: {
         vehiclesScanned: vehicles.length,
+        vehiclesWithVin: vehicles.filter((v) => !!v.vin).length,
         unitsWritten: created.length,
+        avgCompCount: average(unitRows.map((u) => Number(u.compCount || 0)).filter((n) => n > 0)) ?? 0,
+        highConfidenceUnits: unitRows.filter((u: any) => u.confidence === 'high').length,
+        mediumConfidenceUnits: unitRows.filter((u: any) => u.confidence === 'medium').length,
+        lowConfidenceUnits: unitRows.filter((u: any) => u.confidence === 'low').length,
         errorsCount: errors.length,
       } as any,
       error: errors.length > 0 ? errors.slice(0, 5).join(' | ') : null,
