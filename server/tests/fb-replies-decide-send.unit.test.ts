@@ -31,6 +31,7 @@ function makeMockStorage(overrides?: Partial<any>) {
     getFbReplySettings: async () => settings,
     getDealership: async () => dealership,
     getFbInboxThreadByFbThreadId: async () => thread,
+    getVehicleById: async () => overrides?.vehicle ?? null,
     upsertFbInboxThread: async () => thread,
     countFbInboxMessages: async (_dealershipId: number, opts: any) => {
       // Very small router for unit tests
@@ -117,5 +118,66 @@ describe("decideSendFbMarketplaceReply (unit)", () => {
 
     expect(out.allow).toBe(false);
     expect(out.reasonCodes.some((r) => r.startsWith("rate_limit:"))).toBe(true);
+  });
+
+  test("denies history answer when no Carfax grounding exists", async () => {
+    const storage = makeMockStorage({
+      vehicle: {
+        id: 22,
+        year: 2019,
+        make: 'Honda',
+        model: 'Civic',
+        trim: 'LX',
+        carfaxUrl: null,
+        carfaxBadges: [],
+      },
+    });
+
+    const out = await decideSendFbMarketplaceReply(storage, {
+      dealershipId: 1,
+      fbThreadId: "t_1",
+      participantName: "Alex Buyer",
+      leadNameConfidence: 0.92,
+      vehicleId: 22,
+      listingTitle: "2019 Honda Civic",
+      vehicleDisplayName: "2019 Honda Civic",
+      vehicleMappingConfidence: 0.95,
+      recentMessages: [{ direction: 'INBOUND', senderRole: 'BUYER', text: 'Can you send me the Carfax?', sentAt: null }],
+      candidateReply: "Hey Alex — absolutely, I can send over the Carfax for the 2019 Honda Civic.",
+      intent: { intent: "AVAILABILITY_CHECK", confidence: 0.95 },
+    });
+
+    expect(out.allow).toBe(false);
+    expect(out.reasonCodes).toContain('candidate:history_claim_not_grounded');
+  });
+
+  test("denies reply that names the wrong vehicle", async () => {
+    const storage = makeMockStorage({
+      vehicle: {
+        id: 23,
+        year: 2019,
+        make: 'Honda',
+        model: 'Civic',
+        trim: 'LX',
+        carfaxUrl: 'https://carfax.example/report',
+        carfaxBadges: ['One Owner'],
+      },
+    });
+
+    const out = await decideSendFbMarketplaceReply(storage, {
+      dealershipId: 1,
+      fbThreadId: "t_1",
+      participantName: "Alex Buyer",
+      leadNameConfidence: 0.92,
+      vehicleId: 23,
+      listingTitle: "2019 Honda Civic",
+      vehicleDisplayName: "2019 Honda Civic",
+      vehicleMappingConfidence: 0.95,
+      candidateReply: "Hey Alex — yes, the 2020 Toyota Corolla is still available.",
+      intent: { intent: "AVAILABILITY_CHECK", confidence: 0.95 },
+    });
+
+    expect(out.allow).toBe(false);
+    expect(out.reasonCodes).toContain('candidate:vehicle_identity_not_grounded');
   });
 });

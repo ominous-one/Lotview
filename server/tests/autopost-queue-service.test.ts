@@ -6,6 +6,7 @@ import {
   claimNextAutopostItem,
   evaluateAndEnqueueAutopostQueue,
   listAutopostQueue,
+  recordAutopostResult,
   reorderAutopostQueue,
   setPhotoGateOverride,
   computeDefaultQueueSortKey,
@@ -172,6 +173,61 @@ describe('autopost-queue-service', () => {
     });
     expect(statusRow?.status).toBe('claimed');
     expect((statusRow?.attemptCount || 0) >= 1).toBe(true);
+  }, 30000);
+
+  test('exhausted platform failures remain visible for operator review', async () => {
+    const slug = `apq-terminal-${Date.now()}`;
+    const dealer = await seedTestDealership('Autopost Queue Terminal Dealer', slug);
+    const mgr = await seedTestUser(dealer.id, `${slug}@test.com`, 'master', 'Test Master');
+
+    const now = Date.now();
+    const vehicle = await insertVehicleReturningId(buildVehicle({
+      dealershipId: dealer.id,
+      vin: `VINTERM-${now}`,
+      stock: `STERM-${now}`,
+      createdAt: new Date(now - 5000),
+      images: Array.from({ length: 12 }, (_, i) => `https://img-term/${i}.jpg`),
+      odometer: 15000,
+      year: new Date().getFullYear(),
+    }));
+
+    await evaluateAndEnqueueAutopostQueue({ dealershipId: dealer.id, actorUserId: mgr.id });
+    const queue = await listAutopostQueue({ dealershipId: dealer.id, platform: 'all' });
+    const item = queue.find((x: any) => x.vehicleId === vehicle.id);
+    expect(item).toBeTruthy();
+
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const claim = await claimNextAutopostItem({ dealershipId: dealer.id, platform: 'facebook_marketplace', actorUserId: mgr.id });
+      expect(claim?.queueItemId).toBe(item.queueItemId);
+      await recordAutopostResult({
+        dealershipId: dealer.id,
+        queueItemId: item.queueItemId,
+        platform: 'facebook_marketplace',
+        status: 'failed',
+        error: `fb failed ${attempt}`,
+        actorUserId: mgr.id,
+      });
+    }
+
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const claim = await claimNextAutopostItem({ dealershipId: dealer.id, platform: 'craigslist', actorUserId: mgr.id });
+      expect(claim?.queueItemId).toBe(item.queueItemId);
+      await recordAutopostResult({
+        dealershipId: dealer.id,
+        queueItemId: item.queueItemId,
+        platform: 'craigslist',
+        status: 'failed',
+        error: `cl failed ${attempt}`,
+        actorUserId: mgr.id,
+      });
+    }
+
+    const queueRow = await db.query.autopostQueueItems.findFirst({ where: eq(autopostQueueItems.id, item.queueItemId) });
+    expect(queueRow?.isActive).toBe(true);
+    expect(queueRow?.blockedReason).toMatch(/retrying|failed|exhausted/i);
+
+    const fbNext = await claimNextAutopostItem({ dealershipId: dealer.id, platform: 'facebook_marketplace', actorUserId: mgr.id });
+    expect(fbNext).toBeNull();
   }, 30000);
 
   test('reorder persists priority ranks and list reflects order', async () => {

@@ -71,7 +71,8 @@ function extractCarfaxBadges(html: string): string[] {
   
   // Strategy 1: Carfax CDN badge SVG URLs (most authoritative)
   const svgMatches = html.match(/cdn\.carfax\.ca\/badging[^"'\s>]+\.svg/gi) || [];
-  const badgeNames = new Set(svgMatches.map(url => url.toLowerCase()));
+  const svgSrcsetMatches = html.match(/cdn\.carfax\.ca\/badging[^"'\s,>]+\.svg/gi) || [];
+  const badgeNames = new Set([...svgMatches, ...svgSrcsetMatches].map(url => url.toLowerCase()));
   
   // Map SVG filenames to badge display names
   if ([...badgeNames].some(b => b.includes('oneowner') || b.includes('one-owner'))) {
@@ -129,10 +130,11 @@ function extractCarfaxBadges(html: string): string[] {
   }
   
   // Strategy 3: Look for Carfax badge images with alt text
-  $('img[src*="carfax"], img[alt*="carfax"], img[alt*="Carfax"]').each((_, img) => {
+  $('img[src*="carfax"], img[srcset*="carfax"], img[data-src*="carfax"], img[alt*="carfax"], img[alt*="Carfax"]').each((_, img) => {
     const alt = $(img).attr('alt')?.toLowerCase() || '';
     const src = $(img).attr('src')?.toLowerCase() || '';
-    const combined = alt + ' ' + src;
+    const srcset = $(img).attr('srcset')?.toLowerCase() || $(img).attr('data-src')?.toLowerCase() || '';
+    const combined = alt + ' ' + src + ' ' + srcset;
     
     if (/one\s*owner|oneowner/i.test(combined) && !badges.includes('One Owner')) {
       badges.push('One Owner');
@@ -161,20 +163,92 @@ function decodeHtmlEntitiesForScraper(value: string): string {
     .replace(/&#x3A;/gi, ':')
     .replace(/&#x3D;/gi, '=')
     .replace(/&#x26;/gi, '&')
+    .replace(/\\\//g, '/')
+    .replace(/\u0026/gi, '&')
+    .replace(/\u002f/gi, '/')
+    .replace(/\u003a/gi, ':')
+    .replace(/\u003d/gi, '=')
     .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
     .replace(/&#(\d+);/g, (_, num) => String.fromCharCode(parseInt(num, 10)));
 }
 
-function normalizePotentialCarfaxUrl(raw: string | null | undefined): string | null {
+function extractCarfaxUrlFromWrappedValue(value: string): string | null {
+  const decoded = decodeHtmlEntitiesForScraper(value);
+
+  const nestedUrlPatterns = [
+    /https?:\/\/(?:vhr\.)?carfax\.(?:ca|com)[^"'\s)<\\]+/gi,
+    /(?:[?&](?:url|u|href|target|redirect|redirect_uri|report|reportUrl|carfax|carfaxUrl)=)([^&"'\s]+)/gi,
+  ];
+
+  for (const pattern of nestedUrlPatterns) {
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(decoded))) {
+      const candidate = match[1] || match[0];
+      const normalized = normalizePotentialCarfaxUrl(candidate, true);
+      if (normalized) return normalized;
+    }
+  }
+
+  return null;
+}
+
+function normalizePotentialCarfaxUrl(raw: string | null | undefined, allowNestedExtraction = false): string | null {
   if (!raw) return null;
   let value = decodeHtmlEntitiesForScraper(String(raw)).trim();
   if (!value) return null;
+
+  value = value
+    .replace(/^['"`]+|['"`]+$/g, '')
+    .replace(/[),.;]+$/g, '')
+    .trim();
+
   if (value.startsWith('//')) value = `https:${value}`;
-  if (value.startsWith('/')) return null;
-  if (!/^https?:\/\//i.test(value)) return null;
-  if (!/carfax\.(ca|com)/i.test(value)) return null;
-  if (/^https?:\/\/(www\.)?carfax\.(ca|com)\/?$/i.test(value)) return null;
-  return value;
+
+  if (!/^https?:\/\//i.test(value)) {
+    if (allowNestedExtraction) {
+      return extractCarfaxUrlFromWrappedValue(value);
+    }
+    return null;
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return allowNestedExtraction ? extractCarfaxUrlFromWrappedValue(value) : null;
+  }
+
+  if (!/carfax\.(ca|com)$/i.test(parsed.hostname) && !/\.carfax\.(ca|com)$/i.test(parsed.hostname)) {
+    if (!allowNestedExtraction) return null;
+
+    for (const [, paramValue] of parsed.searchParams.entries()) {
+      const nested = normalizePotentialCarfaxUrl(paramValue, false);
+      if (nested) return nested;
+      const decodedParam = (() => {
+        try {
+          return decodeURIComponent(paramValue);
+        } catch {
+          return paramValue;
+        }
+      })();
+      const decodedNested = normalizePotentialCarfaxUrl(decodedParam, false);
+      if (decodedNested) return decodedNested;
+    }
+
+    return extractCarfaxUrlFromWrappedValue(value);
+  }
+
+  if (/^https?:\/\/(www\.)?carfax\.(ca|com)\/?$/i.test(parsed.toString())) return null;
+
+  if (!parsed.pathname || parsed.pathname === '/') {
+    const hasMeaningfulQuery = ['id', 'vin', 'plate', 'partner', 'ref'].some(param => parsed.searchParams.has(param));
+    if (!hasMeaningfulQuery && !/^vhr\.carfax\.(ca|com)$/i.test(parsed.hostname)) {
+      return null;
+    }
+  }
+
+  parsed.hash = '';
+  return parsed.toString();
 }
 
 function extractCarfaxUrl(html: string): string | null {
@@ -193,9 +267,20 @@ function extractCarfaxUrl(html: string): string | null {
   }
   
   // Strategy 2: Look for Carfax links in href attributes with vhr subdomain
-  const carfaxLinks = $('a[href*="carfax"], a[data-href*="carfax"], a[data-url*="carfax"]');
+  const carfaxLinks = $('a[href*="carfax"], a[data-href*="carfax"], a[data-url*="carfax"], a[data-link*="carfax"], [data-carfax-url], [data-carfax], [data-href*="carfax"], [data-link*="carfax"]');
+  const getCarfaxCandidateFromElement = (element: any) =>
+    normalizePotentialCarfaxUrl(
+      $(element).attr('href') ||
+      $(element).attr('data-href') ||
+      $(element).attr('data-url') ||
+      $(element).attr('data-link') ||
+      $(element).attr('data-carfax-url') ||
+      $(element).attr('data-carfax'),
+      true
+    );
+
   for (let i = 0; i < carfaxLinks.length; i++) {
-    const href = normalizePotentialCarfaxUrl($(carfaxLinks[i]).attr('href') || $(carfaxLinks[i]).attr('data-href') || $(carfaxLinks[i]).attr('data-url'));
+    const href = getCarfaxCandidateFromElement(carfaxLinks[i]);
     if (href && href.includes('vhr.carfax')) {
       logInfo('[Carfax Extraction] Found vhr.carfax link in href', { url: href });
       return href;
@@ -242,7 +327,7 @@ function extractCarfaxUrl(html: string): string | null {
     const dataUrl = elem.attr('data-url') || elem.attr('data-href') || 
                     elem.attr('data-link') || elem.attr('data-carfax') || 
                     elem.attr('data-carfax-url');
-    const normalized = normalizePotentialCarfaxUrl(dataUrl);
+    const normalized = normalizePotentialCarfaxUrl(dataUrl, true);
     if (normalized && normalized.includes('vhr.carfax')) {
       logInfo('[Carfax Extraction] Found vhr.carfax in data attribute', { url: normalized });
       return normalized;
@@ -251,7 +336,7 @@ function extractCarfaxUrl(html: string): string | null {
   
   // Strategy 5: Look for direct Carfax links with VIN-specific paths
   for (let i = 0; i < carfaxLinks.length; i++) {
-    const href = normalizePotentialCarfaxUrl($(carfaxLinks[i]).attr('href') || $(carfaxLinks[i]).attr('data-href') || $(carfaxLinks[i]).attr('data-url'));
+    const href = getCarfaxCandidateFromElement(carfaxLinks[i]);
     if (href && (href.includes('/vehicle/') || href.includes('/vhr/') || href.includes('vin='))) {
       return href;
     }
@@ -261,7 +346,7 @@ function extractCarfaxUrl(html: string): string | null {
   const dataCarfax = $('[data-carfax], [data-carfax-url], [data-carfax-link]').first();
   if (dataCarfax.length) {
     const url = dataCarfax.attr('data-carfax') || dataCarfax.attr('data-carfax-url') || dataCarfax.attr('data-carfax-link');
-    const normalized = normalizePotentialCarfaxUrl(url);
+    const normalized = normalizePotentialCarfaxUrl(url, true);
     if (normalized) {
       return normalized;
     }
@@ -269,7 +354,7 @@ function extractCarfaxUrl(html: string): string | null {
   
   // Strategy 7: Look for any Carfax link (excluding homepage)
   for (let i = 0; i < carfaxLinks.length; i++) {
-    const href = normalizePotentialCarfaxUrl($(carfaxLinks[i]).attr('href') || $(carfaxLinks[i]).attr('data-href') || $(carfaxLinks[i]).attr('data-url'));
+    const href = getCarfaxCandidateFromElement(carfaxLinks[i]);
     if (href) {
       return href;
     }

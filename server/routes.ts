@@ -9218,6 +9218,19 @@ Format your response in clear sections with actionable recommendations.`;
       // Get the latest market snapshot for timestamp
       const latestSnapshot = await storage.getLatestMarketSnapshotDate(dealershipId);
       
+      const normalizeInventoryTrim = (value?: string | null) =>
+        (value || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+      const trimsRoughlyMatch = (vehicleTrim?: string | null, listingTrim?: string | null) => {
+        const a = normalizeInventoryTrim(vehicleTrim);
+        const b = normalizeInventoryTrim(listingTrim);
+        if (!a || !b) return false;
+        if (a.includes(b) || b.includes(a)) return true;
+        const aWords = a.split(' ').filter(Boolean);
+        const bWords = b.split(' ').filter(Boolean);
+        const overlap = aWords.filter(word => bWords.some(candidate => candidate.includes(word) || word.includes(candidate))).length;
+        return overlap >= Math.min(aWords.length, bWords.length) && overlap > 0;
+      };
+
       // Build market comparison for each vehicle
       const vehiclesWithMarket = await Promise.all(vehicles.map(async (vehicle) => {
         // Get cached market data for this vehicle's make/model/year
@@ -9230,8 +9243,17 @@ Format your response in clear sections with actionable recommendations.`;
         
         // Filter by approximate radius (if we have location data)
         const relevantListings = marketListings.filter(l => l.isActive);
-        
-        if (relevantListings.length === 0) {
+        const trimMatchedListings = vehicle.trim
+          ? relevantListings.filter(l => trimsRoughlyMatch(vehicle.trim, l.trim))
+          : [];
+        const noTrimListings = relevantListings.filter(l => !l.trim);
+        const analysisListings = trimMatchedListings.length >= 3
+          ? trimMatchedListings
+          : trimMatchedListings.length + noTrimListings.length >= 3
+            ? [...trimMatchedListings, ...noTrimListings]
+            : relevantListings;
+
+        if (analysisListings.length === 0) {
           return {
             ...vehicle,
             marketData: null,
@@ -9239,9 +9261,10 @@ Format your response in clear sections with actionable recommendations.`;
             priceComparison: null
           };
         }
+
+        const prices = analysisListings.map(l => l.price).filter(p => p && p > 0).sort((a, b) => a! - b!);
         
         // Calculate price statistics
-        const prices = relevantListings.map(l => l.price).filter(p => p && p > 0).sort((a, b) => a! - b!);
         if (prices.length === 0) {
           return {
             ...vehicle,
@@ -9257,6 +9280,13 @@ Format your response in clear sections with actionable recommendations.`;
         const maxPrice = prices[prices.length - 1]!;
         const p25 = prices[Math.floor(prices.length * 0.25)]!;
         const p75 = prices[Math.floor(prices.length * 0.75)]!;
+        const highQualityListings = analysisListings.filter(l => (l.sourceConfidence || 0) >= 70).length;
+        const trimMatchedCount = trimMatchedListings.length;
+        const marketConfidence = prices.length >= 12 && highQualityListings >= Math.max(3, Math.round(prices.length * 0.3))
+          ? 'high'
+          : prices.length >= 5
+            ? 'medium'
+            : 'low';
         
         // Calculate this vehicle's percentile position
         const vehiclePrice = vehicle.price || 0;
@@ -9278,7 +9308,7 @@ Format your response in clear sections with actionable recommendations.`;
         
         // Get top comparable listings (up to 10, sorted by price proximity to vehicle)
         const now = new Date();
-        const comparableListings = relevantListings
+        const comparableListings = analysisListings
           .filter(l => l.price && l.price > 0)
           .sort((a, b) => {
             const diffA = Math.abs((a.price || 0) - vehiclePrice);
@@ -9314,13 +9344,18 @@ Format your response in clear sections with actionable recommendations.`;
         return {
           ...vehicle,
           marketData: {
-            totalListings: relevantListings.length,
+            totalListings: analysisListings.length,
             avgPrice,
             medianPrice,
             minPrice,
             maxPrice,
             p25,
-            p75
+            p75,
+            confidence: marketConfidence,
+            highQualityListings,
+            trimMatchedListings: trimMatchedCount,
+            fallbackToNoTrim: trimMatchedCount < 3 && noTrimListings.length > 0,
+            staleSnapshot: latestSnapshot ? (Date.now() - new Date(latestSnapshot).getTime()) > (1000 * 60 * 60 * 36) : true
           },
           comparableListings,
           percentilePosition,

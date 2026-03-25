@@ -179,11 +179,22 @@ function computePersonalizationOk(input: DecideSendInput): { ok: boolean; reason
   return { ok: reasons.length === 0, reasons };
 }
 
-function computeCandidateReplyRisk(input: DecideSendInput): { ok: boolean; reasons: string[] } {
+function computeCandidateReplyRisk(input: DecideSendInput, inventoryVehicle?: any | null): { ok: boolean; reasons: string[] } {
   const reasons: string[] = [];
   const reply = (input.candidateReply || "").toLowerCase();
   const recentThreadText = (input.recentMessages || []).map((m) => m.text || "").join(" \n ").toLowerCase();
   const threadAskedAboutHistory = /(carfax|accident|damage|claim|service history|history report)/i.test(recentThreadText);
+  const vehicleName = [inventoryVehicle?.year, inventoryVehicle?.make, inventoryVehicle?.model, inventoryVehicle?.trim]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  const vehicleAliases = [
+    vehicleName,
+    (input.vehicleDisplayName || "").trim().toLowerCase(),
+    (input.listingTitle || "").trim().toLowerCase(),
+  ].filter(Boolean);
+  const supportsHistoryLink = !!inventoryVehicle?.carfaxUrl;
+  const supportsHistoryBadges = Array.isArray(inventoryVehicle?.carfaxBadges) && inventoryVehicle.carfaxBadges.length > 0;
 
   if (/(guaranteed approval|guaranteed financing|approved today|everyone is approved)/i.test(reply)) {
     reasons.push("candidate:risky_financing_claim");
@@ -193,6 +204,15 @@ function computeCandidateReplyRisk(input: DecideSendInput): { ok: boolean; reaso
   }
   if (threadAskedAboutHistory && !/(carfax|history report|vehicle history|accident)/i.test(reply)) {
     reasons.push("candidate:history_question_not_answered_safely");
+  }
+  if (threadAskedAboutHistory && /(carfax|history report|vehicle history)/i.test(reply) && !supportsHistoryLink && !supportsHistoryBadges) {
+    reasons.push("candidate:history_claim_not_grounded");
+  }
+  if (vehicleAliases.length > 0 && /(honda|toyota|ford|chevrolet|chevy|bmw|audi|mercedes|nissan|mazda|lexus|kia|hyundai|subaru|jeep|ram|gmc|volkswagen|vw|tesla)/i.test(reply)) {
+    const matchesKnownVehicle = vehicleAliases.some((alias) => alias && reply.includes(alias));
+    if (!matchesKnownVehicle) {
+      reasons.push("candidate:vehicle_identity_not_grounded");
+    }
   }
   if (/(text me|call me at|email me at|gmail\.com|@)/i.test(reply) && !/dealer(ship)?|team|store/.test(reply)) {
     reasons.push("candidate:off_platform_contact_push");
@@ -209,6 +229,9 @@ export async function decideSendFbMarketplaceReply(storage: IStorage, params: De
     storage.getDealership(params.dealershipId),
     storage.getFbInboxThreadByFbThreadId(params.dealershipId, params.fbThreadId),
   ]);
+
+  const resolvedVehicleId = typeof params.vehicleId === "number" ? params.vehicleId : (typeof thread?.vehicleId === "number" ? thread.vehicleId : null);
+  const inventoryVehicle = resolvedVehicleId ? await storage.getVehicleById(resolvedVehicleId, params.dealershipId) : null;
 
   const thresholds = mergeJsonDefaults(DEFAULT_THRESHOLDS, (settings as any).thresholds);
   const rateLimits = mergeJsonDefaults(DEFAULT_RATE_LIMITS, (settings as any).rateLimits);
@@ -263,7 +286,7 @@ export async function decideSendFbMarketplaceReply(storage: IStorage, params: De
   const personalization = computePersonalizationOk(params);
   if (!personalization.ok) reasonCodes.push(...personalization.reasons.map((r) => `personalization:${r}`));
 
-  const candidateRisk = computeCandidateReplyRisk(params);
+  const candidateRisk = computeCandidateReplyRisk(params, inventoryVehicle);
   if (!candidateRisk.ok) reasonCodes.push(...candidateRisk.reasons);
 
   // 8) Anti-loop and freshness guards (based on DB)

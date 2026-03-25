@@ -137,6 +137,11 @@ async function processPostingQueues() {
 }
 
 export function startPostingScheduler() {
+  if (process.env.ENABLE_LEGACY_FACEBOOK_POSTING_SCHEDULER !== 'true') {
+    console.log("[PostingScheduler] Legacy Facebook posting scheduler disabled; using autopost/FB Marketplace queue paths only. Set ENABLE_LEGACY_FACEBOOK_POSTING_SCHEDULER=true to re-enable.");
+    return;
+  }
+
   if (schedulerActive) {
     console.log("Posting scheduler already running");
     return;
@@ -158,9 +163,12 @@ export function stopPostingScheduler() {
 
 export async function getSchedulerStatus() {
   const schedules = await storage.getAllPostingSchedules(1);
+  const legacySchedulerEnabled = process.env.ENABLE_LEGACY_FACEBOOK_POSTING_SCHEDULER === 'true';
   return {
     active: schedulerActive,
     processing: isProcessing,
+    legacySchedulerEnabled,
+    mode: legacySchedulerEnabled ? 'legacy-facebook-queue' : 'disabled-in-favor-of-autopost-and-fb-marketplace-queue',
     schedules: schedules.map(s => ({
       userId: s.userId,
       isActive: s.isActive,

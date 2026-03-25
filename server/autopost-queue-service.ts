@@ -10,6 +10,7 @@ import {
   type AutopostPlatformStatus,
 } from '@shared/schema';
 import { uniquePhotoCount } from './vehicle-photo-utils';
+import { createInventoryOpsNotification } from './notifications/notification-service';
 
 const PHOTO_GATE_MIN_UNIQUE = 10;
 const MAX_ATTEMPTS_PER_PLATFORM = 3;
@@ -727,27 +728,58 @@ export async function recordAutopostResult(params: {
         platform: null,
         actorUserId,
         eventType: 'DEQUEUED',
-        message: 'Dequeued (all platform attempts exhausted)',
-        metadata: { statuses },
+        message: 'Terminal hold for operator review (all platform attempts exhausted)',
+        metadata: { statuses, terminalHold: true },
       });
+
+      await tx
+        .update(autopostQueueItems)
+        .set({
+          isActive: true,
+          dequeuedAt: null,
+          updatedAt: now,
+          blockedReason: queueBlockedReason || 'All platform attempts exhausted',
+        })
+        .where(eq(autopostQueueItems.id, params.queueItemId));
     }
 
-    if (done || exhaustedAllPlatforms) {
+    if (done) {
       await tx
         .update(autopostQueueItems)
         .set({ isActive: false, dequeuedAt: now, updatedAt: now, blockedReason: queueBlockedReason })
         .where(eq(autopostQueueItems.id, params.queueItemId));
 
-      if (done) {
-        await tx.insert(autopostQueueEvents).values({
-          dealershipId: params.dealershipId,
-          queueItemId: params.queueItemId,
-          platform: null,
-          actorUserId,
-          eventType: 'DEQUEUED',
-          message: 'Dequeued (all platforms complete)',
-        });
-      }
+      await tx.insert(autopostQueueEvents).values({
+        dealershipId: params.dealershipId,
+        queueItemId: params.queueItemId,
+        platform: null,
+        actorUserId,
+        eventType: 'DEQUEUED',
+        message: 'Dequeued (all platforms complete)',
+      });
     }
   });
+
+  if (params.status === 'failed') {
+    try {
+      const queueRow = await db.query.autopostQueueItems.findFirst({
+        where: and(eq(autopostQueueItems.id, params.queueItemId), eq(autopostQueueItems.dealershipId, params.dealershipId)),
+        columns: { vehicleId: true, blockedReason: true },
+      });
+
+      if (queueRow?.vehicleId) {
+        await createInventoryOpsNotification(db, {
+          dealershipId: params.dealershipId,
+          eventType: 'AUTOPOST_PLATFORM_FAILED',
+          eventKey: `autopost:${params.queueItemId}:${params.platform}:${params.status}:${params.error || 'unknown'}`,
+          vehicleId: queueRow.vehicleId,
+          title: `Autopost failed: ${params.platform}`,
+          body: `Queue item ${params.queueItemId} failed on ${params.platform}.${params.error ? `\nReason: ${params.error}` : ''}${queueRow.blockedReason ? `\nQueue state: ${queueRow.blockedReason}` : ''}`,
+          deepLink: `/manager/autopost/queue`,
+        });
+      }
+    } catch (notificationError) {
+      console.error('[AutopostQueue] Failed to create autopost failure notification:', notificationError);
+    }
+  }
 }
