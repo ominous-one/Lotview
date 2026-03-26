@@ -325,14 +325,15 @@ export async function decodeVIN(vin: string, dealershipId?: number): Promise<VIN
   
   console.log(`[VIN Decoder] Starting decode for ${cleanVIN}`);
   
-  const effectiveDealershipId = dealershipId || 1;
   let marketCheckApiKey: string | null = null;
   
-  try {
-    const apiKeys = await storage.getDealershipApiKeys(effectiveDealershipId);
-    marketCheckApiKey = apiKeys?.marketcheckKey || null;
-  } catch (error) {
-    console.log('[VIN Decoder] Error fetching API keys:', error);
+  if (typeof dealershipId === 'number' && Number.isFinite(dealershipId)) {
+    try {
+      const apiKeys = await storage.getDealershipApiKeys(dealershipId);
+      marketCheckApiKey = apiKeys?.marketcheckKey || null;
+    } catch (error) {
+      console.log('[VIN Decoder] Error fetching API keys:', error);
+    }
   }
   
   const apiNinjasKey = process.env.API_NINJAS_KEY || null;

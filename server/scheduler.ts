@@ -9,6 +9,7 @@ import { processScheduledMessages } from './scheduled-message-service';
 import { processEmailOutboxBatch } from './notifications/email-outbox-worker';
 import { runPhotoEnrichmentSweep } from './inventory-enrichment-service';
 import { evaluateAndEnqueueAutopostQueue } from './autopost-queue-service';
+import { evaluateAndEnqueueAutopost } from './autopost-queue-api';
 
 let schedulerInitialized = false;
 let marketAnalysisSchedulerInitialized = false;
@@ -72,7 +73,6 @@ export function startInventoryScheduler() {
 
         // After enrichment, evaluate autopost eligibility + enqueue.
         try {
-          const { evaluateAndEnqueueAutopost } = await import('./autopost-queue-api');
           const r = await evaluateAndEnqueueAutopost({ dealershipId, actorUserId: null, minPhotosTarget: 10 });
           if (r.enqueued || r.updatedEligibility) {
             console.log(`[AutopostQueue] Dealership ${dealershipId}: enqueued=${r.enqueued}, eligibilityUpdated=${r.updatedEligibility}`);
@@ -90,7 +90,6 @@ export function startInventoryScheduler() {
   cron.schedule('*/10 * * * *', async () => {
     try {
       const targetIds = await getActiveDealershipIds();
-      const { evaluateAndEnqueueAutopost } = await import('./autopost-queue-api');
       for (const dealershipId of targetIds) {
         await evaluateAndEnqueueAutopost({ dealershipId, actorUserId: null, minPhotosTarget: 10 });
       }

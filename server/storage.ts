@@ -1101,8 +1101,8 @@ export interface IStorage {
   setFbInboxThreadDnc(dealershipId: number, threadId: number, dnc: boolean): Promise<FbInboxThread | undefined>;
 
   // ====== CARFAX REPORTS ======
-  getCarfaxReport(vehicleId: number): Promise<CarfaxReport | undefined>;
-  getCarfaxReportByVin(vin: string): Promise<CarfaxReport | undefined>;
+  getCarfaxReport(vehicleId: number, dealershipId: number): Promise<CarfaxReport | undefined>;
+  getCarfaxReportByVin(vin: string, dealershipId: number): Promise<CarfaxReport | undefined>;
   upsertCarfaxReport(data: InsertCarfaxReport): Promise<CarfaxReport>;
 }
 
@@ -7159,24 +7159,31 @@ export class DatabaseStorage implements IStorage {
   }
 
   // ====== CARFAX REPORTS ======
-  async getCarfaxReport(vehicleId: number): Promise<CarfaxReport | undefined> {
+  async getCarfaxReport(vehicleId: number, dealershipId: number): Promise<CarfaxReport | undefined> {
     const result = await db.select().from(carfaxReports)
-      .where(eq(carfaxReports.vehicleId, vehicleId))
+      .where(and(
+        eq(carfaxReports.vehicleId, vehicleId),
+        eq(carfaxReports.dealershipId, dealershipId),
+      ))
+      .orderBy(desc(carfaxReports.scrapedAt))
       .limit(1);
     return result[0];
   }
 
-  async getCarfaxReportByVin(vin: string): Promise<CarfaxReport | undefined> {
+  async getCarfaxReportByVin(vin: string, dealershipId: number): Promise<CarfaxReport | undefined> {
     const result = await db.select().from(carfaxReports)
-      .where(eq(carfaxReports.vin, vin))
+      .where(and(
+        eq(carfaxReports.vin, vin),
+        eq(carfaxReports.dealershipId, dealershipId),
+      ))
       .orderBy(desc(carfaxReports.scrapedAt))
       .limit(1);
     return result[0];
   }
 
   async upsertCarfaxReport(data: InsertCarfaxReport): Promise<CarfaxReport> {
-    // Check if report exists for this VIN
-    const existing = data.vin ? await this.getCarfaxReportByVin(data.vin) : undefined;
+    // Check if report exists for this VIN within the same dealership.
+    const existing = data.vin ? await this.getCarfaxReportByVin(data.vin, data.dealershipId) : undefined;
 
     if (existing) {
       const result = await db.update(carfaxReports)

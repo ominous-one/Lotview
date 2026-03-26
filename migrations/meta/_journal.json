@@ -33,8 +33,78 @@
     {
       "idx": 4,
       "version": "7",
-      "when": 1774312400000,
+      "when": 1741104000000,
+      "tag": "0004_competitive_reports_and_vin_cache",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1741190400000,
       "tag": "0005_auth_scheduler_hardening",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1741276800000,
+      "tag": "0005_dealership_automation_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1741363200000,
+      "tag": "0005_fb_marketplace_replies",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1741449600000,
+      "tag": "0006_fb_reply_settings_kill_switch_metadata",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1741536000000,
+      "tag": "0007_ws4e_appointments_notifications",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1741622400000,
+      "tag": "0008_ws4e_followup_calendar_state",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1741708800000,
+      "tag": "0009_inventory_sync_autopost_queue_soft_delete",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1741795200000,
+      "tag": "0010_inventory_sync_identity_photo_status_autopost_eligibility",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1741881600000,
+      "tag": "0011_request_access_leads",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1741968000000,
+      "tag": "0012_inventory_scraper_runtime_indexes",
       "breakpoints": true
     }
   ]

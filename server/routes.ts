@@ -150,6 +150,36 @@ setInterval(() => {
   }
 }, 3600000);
 
+function parseDealershipIdParam(value: unknown): number | null {
+  if (typeof value !== 'string' && typeof value !== 'number') {
+    return null;
+  }
+
+  const parsed = typeof value === 'number' ? value : parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+async function resolvePublicDealership(storageRef: typeof storage, req: any) {
+  if (req.query?.slug && typeof req.query.slug === 'string') {
+    return storageRef.getDealershipBySlug(req.query.slug);
+  }
+
+  if (req.query?.subdomain && typeof req.query.subdomain === 'string') {
+    return storageRef.getDealershipBySubdomain(req.query.subdomain);
+  }
+
+  const explicitDealershipId = parseDealershipIdParam(req.query?.dealershipId);
+  if (explicitDealershipId) {
+    return storageRef.getDealership(explicitDealershipId);
+  }
+
+  if (req.dealershipId) {
+    return storageRef.getDealership(req.dealershipId);
+  }
+
+  return null;
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   
   // ===== HEALTH CHECK ENDPOINTS (Enterprise Monitoring) =====
@@ -2944,7 +2974,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Vehicle not found" });
       }
 
-      const report = await storage.getCarfaxReport(id);
+      const report = await storage.getCarfaxReport(id, dealershipId);
       if (!report) {
         return res.status(404).json({ error: "No Carfax report found for this vehicle" });
       }
@@ -2967,7 +2997,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Vehicle not found" });
       }
 
-      const report = await storage.getCarfaxReport(id);
+      const report = await storage.getCarfaxReport(id, dealershipId);
       if (!report) {
         return res.status(404).json({ error: "No Carfax report found for this vehicle" });
       }
@@ -3831,100 +3861,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       logError('Error deleting vehicle:', error instanceof Error ? error : new Error(String(error)), { route: 'api-vehicles-id' });
       res.status(500).json({ error: "Failed to delete vehicle" });
-    }
-  });
-
-  // ===== Autopost Priority Queue (v1.1) =====
-
-  // List autopost queue (manager/master)
-  app.get("/api/manager/autopost/queue", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: any, res) => {
-    try {
-      const dealershipId = req.dealershipId!;
-      const platform = (req.query.platform as any) || 'all';
-
-      const { listAutopostQueue } = await import('./autopost-queue-api');
-      const rows = await listAutopostQueue({ dealershipId, platform });
-      res.json({ items: rows });
-    } catch (error: any) {
-      logError('Error listing autopost queue:', error instanceof Error ? error : new Error(String(error)), { route: 'api-manager-autopost-queue' });
-      res.status(500).json({ error: 'Failed to list autopost queue' });
-    }
-  });
-
-  // Reorder autopost queue
-  app.post("/api/manager/autopost/queue/reorder", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: any, res) => {
-    try {
-      const dealershipId = req.dealershipId!;
-      const orderedQueueItemIds = req.body?.orderedQueueItemIds;
-      if (!Array.isArray(orderedQueueItemIds) || orderedQueueItemIds.length === 0) {
-        return res.status(400).json({ error: 'orderedQueueItemIds array required' });
-      }
-
-      const { reorderAutopostQueue } = await import('./autopost-queue-api');
-      await reorderAutopostQueue({ dealershipId, orderedQueueItemIds, actorUserId: req.user?.id ?? null });
-      res.json({ ok: true });
-    } catch (error: any) {
-      logError('Error reordering autopost queue:', error instanceof Error ? error : new Error(String(error)), { route: 'api-manager-autopost-queue-reorder' });
-      res.status(500).json({ error: 'Failed to reorder autopost queue', details: error.message });
-    }
-  });
-
-  // Set/clear photo gate override
-  app.post("/api/manager/autopost/queue/:queueItemId/photo-override", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: any, res) => {
-    try {
-      const dealershipId = req.dealershipId!;
-      const queueItemId = req.params.queueItemId;
-      const enabled = !!req.body?.enabled;
-      const reason = req.body?.reason;
-
-      const { setPhotoGateOverride } = await import('./autopost-queue-api');
-      await setPhotoGateOverride({ dealershipId, queueItemId, enabled, reason, actorUserId: req.user?.id ?? null });
-      res.json({ ok: true });
-    } catch (error: any) {
-      logError('Error setting photo override:', error instanceof Error ? error : new Error(String(error)), { route: 'api-manager-autopost-queue-photo-override' });
-      res.status(500).json({ error: 'Failed to set photo override' });
-    }
-  });
-
-  // Claim next item (worker/extension)
-  app.post("/api/autopost/claim-next", async (req: any, res) => {
-    try {
-      const { dealershipId, platform } = req.body || {};
-      if (!dealershipId || !platform) {
-        return res.status(400).json({ error: 'dealershipId and platform are required' });
-      }
-
-      // TODO: add service-token auth for extension/worker. For now, gate with env.
-      if (process.env.ENABLE_AUTOPOST_WORKER_API !== 'true') {
-        return res.status(403).json({ error: 'Autopost worker API disabled (set ENABLE_AUTOPOST_WORKER_API=true)' });
-      }
-
-      const { claimNextAutopostItem } = await import('./autopost-queue-api');
-      const claimed = await claimNextAutopostItem({ dealershipId: Number(dealershipId), platform });
-      res.json({ claimed });
-    } catch (error: any) {
-      logError('Error claiming autopost item:', error instanceof Error ? error : new Error(String(error)), { route: 'api-autopost-claim-next' });
-      res.status(500).json({ error: 'Failed to claim next' });
-    }
-  });
-
-  // Result callback
-  app.post("/api/autopost/result", async (req: any, res) => {
-    try {
-      const { dealershipId, queueItemId, platform, status, postedUrl, externalId, error } = req.body || {};
-      if (!dealershipId || !queueItemId || !platform || !status) {
-        return res.status(400).json({ error: 'dealershipId, queueItemId, platform, status are required' });
-      }
-      if (process.env.ENABLE_AUTOPOST_WORKER_API !== 'true') {
-        return res.status(403).json({ error: 'Autopost worker API disabled (set ENABLE_AUTOPOST_WORKER_API=true)' });
-      }
-
-      const { recordAutopostResult } = await import('./autopost-queue-api');
-      await recordAutopostResult({ dealershipId: Number(dealershipId), queueItemId, platform, status, postedUrl, externalId, error });
-      res.json({ ok: true });
-    } catch (error: any) {
-      logError('Error recording autopost result:', error instanceof Error ? error : new Error(String(error)), { route: 'api-autopost-result' });
-      res.status(500).json({ error: 'Failed to record result' });
     }
   });
 
@@ -6696,8 +6632,12 @@ Format your response in clear sections with actionable recommendations.`;
   // Get active fees for payment calculation (public)
   app.get("/api/public/dealership-fees", async (req, res) => {
     try {
-      const dealershipId = 1; // Default for now
-      const fees = await storage.getActiveDealershipFees(dealershipId);
+      const dealership = await resolvePublicDealership(storage, req);
+      if (!dealership) {
+        return res.status(400).json({ error: "Dealership context required" });
+      }
+
+      const fees = await storage.getActiveDealershipFees(dealership.id);
       res.json(fees);
     } catch (error) {
       logError('Error fetching active fees:', error instanceof Error ? error : new Error(String(error)), { route: 'api-public-dealership-fees' });
@@ -6706,31 +6646,10 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Get public dealership info for legal pages (Privacy Policy, Terms of Service)
-  // Supports resolution by: slug, subdomain, or dealershipId query params
-  // Falls back to dealershipId=1 for backward compatibility
+  // Supports resolution by: slug, subdomain, explicit dealershipId, or tenant middleware context.
   app.get("/api/public/dealership-info", async (req, res) => {
     try {
-      let dealership = null;
-      
-      // Try to resolve dealership by slug first
-      if (req.query.slug) {
-        dealership = await storage.getDealershipBySlug(req.query.slug as string);
-      }
-      // Then try subdomain
-      else if (req.query.subdomain) {
-        dealership = await storage.getDealershipBySubdomain(req.query.subdomain as string);
-      }
-      // Then try explicit dealershipId
-      else if (req.query.dealershipId) {
-        const id = parseInt(req.query.dealershipId as string, 10);
-        if (!isNaN(id) && id > 0) {
-          dealership = await storage.getDealership(id);
-        }
-      }
-      // Fallback to default dealership (ID 1) for single-tenant deployments
-      else {
-        dealership = await storage.getDealership(1);
-      }
+      const dealership = await resolvePublicDealership(storage, req);
       
       if (!dealership) {
         return res.status(404).json({ error: "Dealership not found" });
@@ -6960,11 +6879,14 @@ Format your response in clear sections with actionable recommendations.`;
   // Public endpoint to get VDP footer (for displaying on VDP pages)
   app.get("/api/public/vdp-footer", async (req, res) => {
     try {
-      const dealershipId = req.dealershipId || 1;
-      const dealership = await storage.getDealershipById(dealershipId);
+      const dealership = await resolvePublicDealership(storage, req);
       
+      if (!dealership) {
+        return res.status(400).json({ error: "Dealership context required" });
+      }
+
       res.json({
-        vdpFooterDescription: dealership?.vdpFooterDescription || null,
+        vdpFooterDescription: dealership.vdpFooterDescription || null,
       });
     } catch (error) {
       logError('Error fetching public VDP footer:', error instanceof Error ? error : new Error(String(error)), { route: 'api-public-vdp-footer' });
@@ -8646,7 +8568,10 @@ Format your response in clear sections with actionable recommendations.`;
   app.get("/api/manager/price-history", authMiddleware, requireRole("manager"), async (req, res) => {
     try {
       const { make, model, externalId } = req.query;
-      const dealershipId = (req as AuthRequest).dealershipId || 1;
+      const dealershipId = (req as AuthRequest).dealershipId;
+      if (!dealershipId) {
+        return res.status(400).json({ error: "Dealership context required" });
+      }
       
       const history = await storage.getPriceHistory(dealershipId, {
         make: make as string,
@@ -8665,7 +8590,10 @@ Format your response in clear sections with actionable recommendations.`;
   app.get("/api/manager/market-snapshots", authMiddleware, requireRole("manager"), async (req, res) => {
     try {
       const { make, model, limit } = req.query;
-      const dealershipId = (req as AuthRequest).dealershipId || 1;
+      const dealershipId = (req as AuthRequest).dealershipId;
+      if (!dealershipId) {
+        return res.status(400).json({ error: "Dealership context required" });
+      }
       
       const snapshots = await storage.getMarketSnapshots(dealershipId, {
         make: make as string,
@@ -8720,7 +8648,10 @@ Format your response in clear sections with actionable recommendations.`;
 
   app.get('/api/manager/competitive-report/latest', authMiddleware, requireRole('manager'), async (req, res) => {
     try {
-      const dealershipId = (req as AuthRequest).dealershipId || 1;
+      const dealershipId = (req as AuthRequest).dealershipId;
+      if (!dealershipId) {
+        return res.status(400).json({ error: 'Dealership context required' });
+      }
       const settings = await storage.getDealershipAutomationSettings(dealershipId);
       const defaultRadiusKm = settings?.competitiveReportDefaultRadiusKm ?? 100;
       const radiusKm = req.query.radiusKm ? parseInt(req.query.radiusKm as string) : defaultRadiusKm;
@@ -8740,7 +8671,10 @@ Format your response in clear sections with actionable recommendations.`;
 
   app.post('/api/manager/competitive-report/run', authMiddleware, requireRole('manager'), async (req, res) => {
     try {
-      const dealershipId = (req as AuthRequest).dealershipId || 1;
+      const dealershipId = (req as AuthRequest).dealershipId;
+      if (!dealershipId) {
+        return res.status(400).json({ error: 'Dealership context required' });
+      }
       const settings = await storage.getDealershipAutomationSettings(dealershipId);
       const defaultRadiusKm = settings?.competitiveReportDefaultRadiusKm ?? 100;
       const radiusKm = req.body?.radiusKm ? parseInt(req.body.radiusKm) : defaultRadiusKm;
@@ -8771,7 +8705,10 @@ Format your response in clear sections with actionable recommendations.`;
 
   app.post('/api/manager/appraisal-comps', authMiddleware, requireRole('manager'), async (req, res) => {
     try {
-      const dealershipId = (req as AuthRequest).dealershipId || 1;
+      const dealershipId = (req as AuthRequest).dealershipId;
+      if (!dealershipId) {
+        return res.status(400).json({ error: 'Dealership context required' });
+      }
       const { vin, mileageKm, postalCode, radiusKm, trimMode } = req.body || {};
 
       if (!vin || typeof vin !== 'string' || vin.trim().length !== 17) {
@@ -12166,7 +12103,10 @@ Format your response in clear sections with actionable recommendations.`;
   // Mark call as reviewed
   app.post("/api/call-recordings/:id/review", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), async (req: AuthRequest, res) => {
     try {
-      const dealershipId = req.user?.dealershipId || 1;
+      const dealershipId = req.dealershipId;
+      if (!dealershipId) {
+        return res.status(400).json({ error: "Dealership context required" });
+      }
       const id = parseInt(req.params.id);
       const { notes } = req.body;
       
@@ -12191,7 +12131,10 @@ Format your response in clear sections with actionable recommendations.`;
   // Get call analysis criteria
   app.get("/api/call-analysis-criteria", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), async (req: AuthRequest, res) => {
     try {
-      const dealershipId = req.user?.dealershipId || 1;
+      const dealershipId = req.dealershipId;
+      if (!dealershipId) {
+        return res.status(400).json({ error: "Dealership context required" });
+      }
       const criteria = await storage.getCallAnalysisCriteria(dealershipId);
       res.json(criteria);
     } catch (error) {
@@ -12203,7 +12146,10 @@ Format your response in clear sections with actionable recommendations.`;
   // Create call analysis criteria
   app.post("/api/call-analysis-criteria", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), async (req: AuthRequest, res) => {
     try {
-      const dealershipId = req.user?.dealershipId || 1;
+      const dealershipId = req.dealershipId;
+      if (!dealershipId) {
+        return res.status(400).json({ error: "Dealership context required" });
+      }
       const { name, description, category, weight, promptGuidance } = req.body;
       
       const criteria = await storage.createCallAnalysisCriteria({
@@ -16066,7 +16012,7 @@ Interior: ${vehicle.interiorColor || 'N/A'}
 Fuel: ${vehicle.fuelType || 'N/A'}
 Transmission: ${vehicle.transmission || 'N/A'}
 Drivetrain: ${vehicle.drivetrain || 'N/A'}
-Carfax: ${(vehicle.carfaxBadges ?? []).join(', ') || 'Clean history available'}
+Carfax: ${(vehicle.carfaxBadges ?? []).join(', ') || (vehicle.carfaxUrl ? 'History report available' : 'History report status not confirmed')}
 Features: ${(techSpecs.features ?? []).slice(0, 10).join(', ') || 'Well-equipped'}
 Mechanical: ${(techSpecs.mechanical ?? []).slice(0, 5).join(', ') || 'N/A'}
 Interior Features: ${(techSpecs.interior ?? []).slice(0, 5).join(', ') || 'N/A'}
@@ -17714,15 +17660,19 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
   });
 
   // Worker/extension: claim next
-  app.post('/api/autopost/claim-next', authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+  app.post('/api/autopost/claim-next', externalApiAuth, async (req: any, res) => {
     try {
-      const dealershipId = req.dealershipId!;
+      const token = req.externalToken;
+      const dealershipId = Number(req.dealershipId);
       const platform = String(req.body?.platform || '') as any;
       if (platform !== 'facebook_marketplace' && platform !== 'craigslist') {
         return res.status(400).json({ error: 'platform must be facebook_marketplace|craigslist' });
       }
+      if (!token?.permissions?.includes('autopost:write')) {
+        return res.status(403).json({ error: 'Token does not have autopost:write permission' });
+      }
 
-      const item = await claimNextAutopostItem({ dealershipId, platform, actorUserId: req.user?.id ?? null });
+      const item = await claimNextAutopostItem({ dealershipId, platform, actorUserId: null });
       res.json({ item });
     } catch (error: any) {
       logError('Claim next failed', error, { route: 'api-autopost-claim-next' });
@@ -17731,9 +17681,10 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
   });
 
   // Worker/extension: record result
-  app.post('/api/autopost/result', authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+  app.post('/api/autopost/result', externalApiAuth, async (req: any, res) => {
     try {
-      const dealershipId = req.dealershipId!;
+      const token = req.externalToken;
+      const dealershipId = Number(req.dealershipId);
       const queueItemId = String(req.body?.queueItemId || '');
       const platform = String(req.body?.platform || '') as any;
       const status = String(req.body?.status || '') as any;
@@ -17744,6 +17695,9 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
       if (status !== 'posted' && status !== 'failed' && status !== 'skipped') {
         return res.status(400).json({ error: 'status must be posted|failed|skipped' });
       }
+      if (!token?.permissions?.includes('autopost:write')) {
+        return res.status(403).json({ error: 'Token does not have autopost:write permission' });
+      }
 
       await recordAutopostResult({
         dealershipId,
@@ -17753,7 +17707,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
         postedUrl: req.body?.postedUrl ? String(req.body.postedUrl) : null,
         externalId: req.body?.externalId ? String(req.body.externalId) : null,
         error: req.body?.error ? String(req.body.error) : null,
-        actorUserId: req.user?.id ?? null,
+        actorUserId: null,
       });
 
       res.json({ success: true });
@@ -17765,3 +17719,4 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
 
   return httpServer;
 }
+

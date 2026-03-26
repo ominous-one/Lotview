@@ -378,7 +378,7 @@ export async function scrapeAndStoreCarfaxReport(
 
   try {
     // Check if we already have a recent report for this VIN
-    const existing = await storage.getCarfaxReportByVin(vin);
+    const existing = await storage.getCarfaxReportByVin(vin, dealershipId);
     if (existing && existing.scrapedAt) {
       const hoursSince = (Date.now() - existing.scrapedAt.getTime()) / (1000 * 60 * 60);
       if (hoursSince < 24) {

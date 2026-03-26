@@ -399,14 +399,15 @@ export async function enrichVIN(vin: string, dealershipId?: number): Promise<Enr
   console.log(`[VIN Enrichment] Starting comprehensive decode for ${cleanVIN}`);
   
   // Get API keys
-  const effectiveDealershipId = dealershipId || 1;
   let marketCheckApiKey: string | null = null;
   
-  try {
-    const apiKeys = await storage.getDealershipApiKeys(effectiveDealershipId);
-    marketCheckApiKey = apiKeys?.marketcheckKey || null;
-  } catch (error) {
-    console.log('[VIN Enrichment] Error fetching API keys:', error);
+  if (typeof dealershipId === 'number' && Number.isFinite(dealershipId)) {
+    try {
+      const apiKeys = await storage.getDealershipApiKeys(dealershipId);
+      marketCheckApiKey = apiKeys?.marketcheckKey || null;
+    } catch (error) {
+      console.log('[VIN Enrichment] Error fetching API keys:', error);
+    }
   }
   
   // Collect results from multiple sources in parallel

@@ -409,7 +409,7 @@ export async function generateSalesResponse(req: AiSalesRequest): Promise<AiSale
   // 3. Load Carfax report if vehicle has a VIN
   let carfaxReport: CarfaxReport | undefined;
   if (vehicle?.id) {
-    carfaxReport = await storage.getCarfaxReport(vehicle.id);
+    carfaxReport = await storage.getCarfaxReport(vehicle.id, vehicle.dealershipId);
   }
 
   // 4. Build conversation history

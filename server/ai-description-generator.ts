@@ -141,7 +141,7 @@ export async function generateDescription(vehicleId: number, dealershipId: numbe
     }
 
     const carfaxBadges = vehicle.carfaxBadges || [];
-    const carfaxReport = await storage.getCarfaxReport(vehicleId);
+    const carfaxReport = await storage.getCarfaxReport(vehicleId, vehicle.dealershipId);
     const allBadges = [...carfaxBadges, ...(carfaxReport?.badges || [])];
     const uniqueBadges = [...new Set(allBadges)];
 
