@@ -3695,7 +3695,7 @@ export default function Manager() {
               {/* Conversations Tab - iMessage Style */}
               {activeManagerTab === 'conversations' && (
                 <ConversationsPanel 
-                  dealershipId={user?.dealershipId || 1}
+                  dealershipId={user?.dealershipId ?? undefined}
                   onSwitchToTraining={() => setActiveManagerTab('call-scoring')}
                 />
               )}
@@ -4007,7 +4007,7 @@ export default function Manager() {
               {/* Follow-up Sequences Tab */}
               {activeManagerTab === 'followup' && (
                 <div data-testid="tab-content-followup">
-                  <FollowUpSequenceEditor dealershipId={user?.dealershipId || 1} />
+                  <FollowUpSequenceEditor dealershipId={user?.dealershipId ?? undefined} />
                 </div>
               )}
 

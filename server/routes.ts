@@ -57,6 +57,7 @@ import {
 
 import { authMiddleware, requireRole, generateToken, generateImpersonationToken, comparePassword, hashPassword, verifyToken, extensionHmacMiddleware, generatePostingToken, validatePostingToken, type AuthRequest } from "./auth";
 import { requireDealership, superAdminOnly } from "./tenant-middleware";
+import { resolveDealershipIdStrict } from "./tenant-utils";
 import { isSafeE2ERequest, seedE2E } from "./e2e-test-mode";
 import { facebookService } from "./facebook-service";
 import { facebookMarketplaceAutomation } from "./facebook-marketplace-automation";
@@ -114,6 +115,10 @@ interface OAuthSession {
   expiresAt: number;
 }
 const oauthSessionStore = new Map<string, OAuthSession>();
+
+function requireResolvedDealershipId(req: AuthRequest): number | null {
+  return resolveDealershipIdStrict(req);
+}
 
 function computeResetTokenLookupHash(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
@@ -5785,9 +5790,13 @@ IMPORTANT: The suggestedPrompt should be a complete, ready-to-use system prompt.
   app.post("/api/admin/enhance-prompt", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), async (req, res) => {
     try {
       const authReq = req as AuthRequest;
-      const dealershipId = authReq.user?.role === "super_admin" 
-        ? (req.body.dealershipId || 1) 
-        : req.dealershipId!;
+      const bodyDealershipId = req.body?.dealershipId ? parseInt(String(req.body.dealershipId), 10) : null;
+      const dealershipId = authReq.user?.role === "super_admin"
+        ? bodyDealershipId
+        : requireResolvedDealershipId(authReq);
+      if (!dealershipId) {
+        return res.status(400).json({ error: "Dealership context required" });
+      }
       
       const { text, promptType, context } = req.body;
       
@@ -8022,7 +8031,10 @@ Format your response in clear sections with actionable recommendations.`;
   app.post("/api/manager/decode-vin", authMiddleware, requireRole("manager"), async (req: AuthRequest, res) => {
     try {
       const { vin, autoSave = true } = req.body;
-      const dealershipId = req.dealershipId || 1;
+      const dealershipId = requireResolvedDealershipId(req);
+      if (!dealershipId) {
+        return res.status(400).json({ error: "Dealership context required" });
+      }
       const userId = req.user?.id;
       
       if (!vin || typeof vin !== 'string') {
@@ -8249,7 +8261,10 @@ Format your response in clear sections with actionable recommendations.`;
         const appraisalFlagEnabled = await isFeatureEnabled(FEATURE_FLAGS.ENABLE_APPRAISAL_AUTOSAVE, req.dealershipId);
         if (autoSave && appraisalFlagEnabled && vin && typeof vin === 'string' && vin.length >= 11) {
           try {
-            const dealershipId = req.dealershipId || 1;
+            const dealershipId = requireResolvedDealershipId(req);
+            if (!dealershipId) {
+              throw new Error("Dealership context required for appraisal auto-save");
+            }
             const existing = await storage.getVehicleAppraisalByVin(vin, dealershipId);
             
             if (existing) {
@@ -8465,7 +8480,10 @@ Format your response in clear sections with actionable recommendations.`;
       const appraisalFlagEnabled2 = await isFeatureEnabled(FEATURE_FLAGS.ENABLE_APPRAISAL_AUTOSAVE, req.dealershipId);
       if (autoSave && appraisalFlagEnabled2 && vin && typeof vin === 'string' && vin.length >= 11) {
         try {
-          const dealershipId = req.dealershipId || 1;
+          const dealershipId = requireResolvedDealershipId(req);
+          if (!dealershipId) {
+            throw new Error("Dealership context required for appraisal auto-save");
+          }
           const existing = await storage.getVehicleAppraisalByVin(vin, dealershipId);
           
           if (existing) {
@@ -8532,7 +8550,10 @@ Format your response in clear sections with actionable recommendations.`;
       }
 
       const authReq = req as AuthRequest;
-      const dealershipId = authReq.dealershipId || 1;
+      const dealershipId = requireResolvedDealershipId(authReq);
+      if (!dealershipId) {
+        return res.status(400).json({ error: 'Dealership context required' });
+      }
       
       // Get settings for defaults
       const settings = authReq.user ? await storage.getManagerSettings(authReq.user.id, dealershipId) : null;
@@ -8612,7 +8633,10 @@ Format your response in clear sections with actionable recommendations.`;
 
   app.get('/api/manager/competitive-report/settings', authMiddleware, requireRole('manager'), async (req, res) => {
     try {
-      const dealershipId = (req as AuthRequest).dealershipId || 1;
+      const dealershipId = requireResolvedDealershipId(req as AuthRequest);
+      if (!dealershipId) {
+        return res.status(400).json({ error: 'Dealership context required' });
+      }
       // Ensure a row exists so defaults are persisted.
       const settings = await storage.upsertDealershipAutomationSettings(dealershipId, {});
       res.json(settings);
@@ -8624,7 +8648,10 @@ Format your response in clear sections with actionable recommendations.`;
 
   app.put('/api/manager/competitive-report/settings', authMiddleware, requireRole('manager'), async (req, res) => {
     try {
-      const dealershipId = (req as AuthRequest).dealershipId || 1;
+      const dealershipId = requireResolvedDealershipId(req as AuthRequest);
+      if (!dealershipId) {
+        return res.status(400).json({ error: 'Dealership context required' });
+      }
       const body = req.body || {};
 
       // Minimal validation + allow partial updates.
@@ -12006,7 +12033,10 @@ Format your response in clear sections with actionable recommendations.`;
   // Get call recordings (manager/admin only)
   app.get("/api/call-recordings", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), async (req: AuthRequest, res) => {
     try {
-      const dealershipId = req.user?.dealershipId || 1;
+      const dealershipId = requireResolvedDealershipId(req);
+      if (!dealershipId) {
+        return res.status(400).json({ error: "Dealership context required" });
+      }
       const { salespersonId, startDate, endDate, analysisStatus, needsReview, minScore, maxScore, limit, offset } = req.query;
       
       const filters: any = {};
@@ -12035,7 +12065,10 @@ Format your response in clear sections with actionable recommendations.`;
   // Get call recording stats (must be before :id route)
   app.get("/api/call-recordings/stats", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), async (req: AuthRequest, res) => {
     try {
-      const dealershipId = req.user?.dealershipId || 1;
+      const dealershipId = requireResolvedDealershipId(req);
+      if (!dealershipId) {
+        return res.status(400).json({ error: "Dealership context required" });
+      }
       const { startDate, endDate } = req.query;
       
       const stats = await storage.getCallRecordingStats(
@@ -12054,7 +12087,10 @@ Format your response in clear sections with actionable recommendations.`;
   // Get call recording by ID
   app.get("/api/call-recordings/:id", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), async (req: AuthRequest, res) => {
     try {
-      const dealershipId = req.user?.dealershipId || 1;
+      const dealershipId = requireResolvedDealershipId(req);
+      if (!dealershipId) {
+        return res.status(400).json({ error: "Dealership context required" });
+      }
       const id = parseInt(req.params.id);
       
       const recording = await storage.getCallRecordingById(id, dealershipId);
@@ -12072,7 +12108,10 @@ Format your response in clear sections with actionable recommendations.`;
   // Re-analyze a call
   app.post("/api/call-recordings/:id/analyze", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), async (req: AuthRequest, res) => {
     try {
-      const dealershipId = req.user?.dealershipId || 1;
+      const dealershipId = requireResolvedDealershipId(req);
+      if (!dealershipId) {
+        return res.status(400).json({ error: "Dealership context required" });
+      }
       const id = parseInt(req.params.id);
       
       const recording = await storage.getCallRecordingById(id, dealershipId);
@@ -12172,7 +12211,10 @@ Format your response in clear sections with actionable recommendations.`;
   // Update call analysis criteria
   app.patch("/api/call-analysis-criteria/:id", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), async (req: AuthRequest, res) => {
     try {
-      const dealershipId = req.user?.dealershipId || 1;
+      const dealershipId = requireResolvedDealershipId(req);
+      if (!dealershipId) {
+        return res.status(400).json({ error: "Dealership context required" });
+      }
       const id = parseInt(req.params.id);
       
       const criteria = await storage.updateCallAnalysisCriteria(id, dealershipId, req.body);
@@ -12190,7 +12232,10 @@ Format your response in clear sections with actionable recommendations.`;
   // Delete call analysis criteria
   app.delete("/api/call-analysis-criteria/:id", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), async (req: AuthRequest, res) => {
     try {
-      const dealershipId = req.user?.dealershipId || 1;
+      const dealershipId = requireResolvedDealershipId(req);
+      if (!dealershipId) {
+        return res.status(400).json({ error: "Dealership context required" });
+      }
       const id = parseInt(req.params.id);
       
       await storage.deleteCallAnalysisCriteria(id, dealershipId);
@@ -12204,7 +12249,10 @@ Format your response in clear sections with actionable recommendations.`;
   // Seed default criteria
   app.post("/api/call-analysis-criteria/seed-defaults", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), async (req: AuthRequest, res) => {
     try {
-      const dealershipId = req.user?.dealershipId || 1;
+      const dealershipId = requireResolvedDealershipId(req);
+      if (!dealershipId) {
+        return res.status(400).json({ error: "Dealership context required" });
+      }
       const { seedDefaultCriteria } = await import('./call-analysis-service');
       await seedDefaultCriteria(dealershipId);
       
@@ -12858,7 +12906,11 @@ Format your response in clear sections with actionable recommendations.`;
       
       // Use the dealership ID from the user's token, not from query params
       // This ensures tenant isolation - users can only subscribe to their own dealership
-      const dealershipId = user.dealershipId || 1; // Super admins default to dealership 1
+      const dealershipId = resolveDealershipIdStrict({ user });
+      if (!dealershipId) {
+        ws.close(4001, 'Dealership context required');
+        return;
+      }
       
       const client: AuthenticatedClient = {
         ws,

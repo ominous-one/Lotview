@@ -1,13 +1,13 @@
 # WORKING_BUFFER
 
 Status: ACTIVE
-Last Updated: 2026-03-26
+Last Updated: 2026-03-27
 
 Use this as the short-lived execution scratchpad for the current LotView run.
 
 ## Current context
 - activeObjective: Push LotView toward actual production readiness, not planning theater.
-- currentState: Auditing and fixing highest-risk multi-tenant and runtime issues already visible in repo.
+- currentState: Re-established repo truth for targeted tenancy-risk slices and removed additional unsafe dealership-1 fallbacks that were still live in manager/call-scoring/UI paths.
 - acceptanceTarget:
   - remove additional unsafe dealership fallbacks in critical paths
   - keep web/worker topology coherent in repo
@@ -15,32 +15,34 @@ Use this as the short-lived execution scratchpad for the current LotView run.
   - return exact remaining live blockers
 
 ## Decisions
-- Start with tenant isolation and scheduler/runtime correctness before lower-risk cleanup.
-- Prefer fail-closed behavior over dealership 1 compatibility fallbacks.
-- Only claim completion for what is evidenced locally; live workflows still need live credentials/runtime.
+- Keep preferring fail-closed behavior over dealership 1 compatibility defaults.
+- Prioritize high-leverage paths that touch manager operations, appraisal autosave, prompt enhancement, websocket subscription scoping, and manager UI request headers.
+- Only claim what is evidenced in this run.
 
 ## Evidence produced
-- Verified current modified files and repo dirty state via git status.
-- Confirmed remaining fallback hotspots in tests and legacy paths via code search; production route definitions now show a single `/api/autopost/claim-next` and `/api/autopost/result` registration, both guarded by `externalApiAuth` and `autopost:write` permission checks in `server/routes.ts`.
-- Patched `server/market-aggregation-service.ts` so aggregation always uses dealership-scoped MarketCheck and Apify services; the previous global/env fallback branch is gone from this path.
-- Patched `server/robust-scraper.ts` Apify market refresh to fail closed without `dealershipId` and to read/update only the target dealership inventory instead of falling back to a global vehicle slice.
-- Patched `server/runtime-readiness.ts` to emit startup drift indicators for DB config source (`DATABASE_URL` vs `PG*` vs missing) and migrations directory presence.
-- Verified runtime split wiring locally:
-  - `package.json` builds both `dist/index.js` and `dist/index-worker.js`
-  - `server/index-prod.ts` only starts schedulers when `LOTVIEW_SCHEDULER_PROCESS=web`
-  - `server/index-worker.ts` only starts schedulers when `LOTVIEW_SCHEDULER_PROCESS=worker`
-  - `server/posting-scheduler.ts` keeps the legacy Facebook posting scheduler disabled unless `ENABLE_LEGACY_FACEBOOK_POSTING_SCHEDULER=true`
-- Verified autopost queue service still enforces terminal hold/exhaustion semantics in code (`MAX_ATTEMPTS_PER_PLATFORM = 3`, claimed status transition, and operator-review hold path in `server/autopost-queue-service.ts`).
-- Validation evidence:
-  - `npm run check` passed
-  - `npm run build` passed
-  - direct import of `server/db.ts` fails without DB config: `Database configuration not found. Please ensure the database is provisioned.`
-  - DB-backed tests like `server/tests/autopost-queue-service.test.ts` still cannot run in this session without DB env because they import `../db` and execute live DDL in `beforeAll`
+- `git grep` re-established current fallback hotspots in targeted files before patching.
+- Patched `server/routes.ts` to require explicit dealership context instead of silently defaulting to dealership 1 in these slices:
+  - `/api/admin/enhance-prompt` super-admin dealership selection
+  - `/api/manager/decode-vin`
+  - appraisal auto-save branches inside manager pricing flows
+  - `/api/manager/enhanced-market-analysis`
+  - competitive report settings get/put routes
+  - call recordings list/stats/detail/re-analyze routes
+  - call analysis criteria update/delete/seed-defaults routes
+  - websocket authenticated client dealership binding
+- Patched `client/src/components/InventoryManagement.tsx` so force-rescrape and download-all-images requests now fail locally when dealership context is absent instead of sending `X-Dealership-Id: 1`.
+- Patched `client/src/pages/Manager.tsx` so `ConversationsPanel` and `FollowUpSequenceEditor` no longer receive dealership 1 as an implicit fallback prop.
+- Post-patch grep over the targeted files no longer found the audited patterns except for unrelated remaining sites elsewhere in `server/routes.ts` and other UI files.
+- Validation evidence from this run:
+  - `npm run check` → exited 0
+  - `npm run build` → exited 0
+  - Vite production build completed, then esbuild emitted `dist/index.js` and `dist/index-worker.js`
 
 ## Open blockers
-- No live DB/deploy/external-account access yet.
-- DB-backed autopost queue tests cannot be executed in this session because `server/db.ts` hard-fails without `DATABASE_URL` or PG* env vars.
-- Remaining route/component tenancy fallbacks still exist outside this slice, including multiple `req.dealershipId || 1` sites in `server/routes.ts` and UI-side `|| 1` defaults.
+- No live DB/deploy/external-account access in-session.
+- Cannot prove runtime behavior for posting, inbox automation, onboarding, or live websocket auth against a real deployment from this run.
+- DB-backed tests remain blocked without valid DB env (`DATABASE_URL` or `PG*`); prior direct import of `server/db.ts` in this workspace fails hard when DB config is missing.
+- Remaining fallback hotspots still exist outside this slice, including additional `req.dealershipId || 1` / `req.user?.dealershipId || 1` usage in other `server/routes.ts` sections and UI defaults like `client/src/pages/SuperAdminDashboard.tsx`.
 
 ## Immediate next action
-- Audit and patch the remaining route/component `|| 1` fallback sites, then run focused regression on tenant-isolated API flows.
+- Continue patching remaining dealership-context fallbacks in untouched routes/components, then rerun local validation and, if credentials become available, execute live DB/deploy/runtime proof.

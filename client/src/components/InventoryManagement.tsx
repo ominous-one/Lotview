@@ -101,7 +101,10 @@ export function InventoryManagement({
         throw new Error("Not authenticated");
       }
       
-      const effectiveDealershipId = selectedDealership || dealershipId || 1;
+      const effectiveDealershipId = selectedDealership ?? dealershipId;
+      if (!effectiveDealershipId) {
+        throw new Error("Dealership context required");
+      }
       const response = await fetch(`/api/vehicles/${vehicleId}/force-rescrape`, {
         method: "POST",
         headers: {
@@ -457,10 +460,14 @@ export function InventoryManagement({
                     description: "Preparing ZIP file with all vehicle photos...",
                   });
                   const token = localStorage.getItem("auth_token");
+                  const effectiveDealershipId = selectedDealership ?? dealershipId;
+                  if (!effectiveDealershipId) {
+                    throw new Error("Dealership context required");
+                  }
                   const response = await fetch("/api/inventory/download-all-images", {
                     headers: {
                       "Authorization": `Bearer ${token}`,
-                      "X-Dealership-Id": (selectedDealership || dealershipId || 1).toString(),
+                      "X-Dealership-Id": effectiveDealershipId.toString(),
                     },
                   });
                   if (!response.ok) throw new Error("Download failed");
