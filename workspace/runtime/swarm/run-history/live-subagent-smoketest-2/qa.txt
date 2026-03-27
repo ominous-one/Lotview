@@ -1,0 +1,1 @@
+QA verified proof.txt exactly matched LIVE_SUBAGENT_SMOKETEST_OK with trailing newline.
