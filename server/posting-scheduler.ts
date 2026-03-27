@@ -1,4 +1,7 @@
 import cron from "node-cron";
+import { eq } from "drizzle-orm";
+import { postingSchedule } from "@shared/schema";
+import { db } from "./db";
 import { storage } from "./storage";
 import { facebookService } from "./facebook-service";
 
@@ -15,12 +18,13 @@ async function processPostingQueues() {
   isProcessing = true;
   
   try {
-    const schedules = await storage.getAllPostingSchedules(1);
+    const schedules = await db
+      .select()
+      .from(postingSchedule)
+      .where(eq(postingSchedule.isActive, true));
     
     for (const schedule of schedules) {
-      if (!schedule.isActive) continue;
-      
-      const dealershipId = schedule.dealershipId || 1;
+      const dealershipId = schedule.dealershipId;
       const now = new Date();
       
       if (schedule.lastPostedAt) {
@@ -162,7 +166,10 @@ export function stopPostingScheduler() {
 }
 
 export async function getSchedulerStatus() {
-  const schedules = await storage.getAllPostingSchedules(1);
+  const schedules = await db
+    .select()
+    .from(postingSchedule)
+    .where(eq(postingSchedule.isActive, true));
   const legacySchedulerEnabled = process.env.ENABLE_LEGACY_FACEBOOK_POSTING_SCHEDULER === 'true';
   return {
     active: schedulerActive,
@@ -170,6 +177,7 @@ export async function getSchedulerStatus() {
     legacySchedulerEnabled,
     mode: legacySchedulerEnabled ? 'legacy-facebook-queue' : 'disabled-in-favor-of-autopost-and-fb-marketplace-queue',
     schedules: schedules.map(s => ({
+      dealershipId: s.dealershipId,
       userId: s.userId,
       isActive: s.isActive,
       lastPostedAt: s.lastPostedAt,

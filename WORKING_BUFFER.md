@@ -1,26 +1,30 @@
 # WORKING_BUFFER
 
-Status: READY
+Status: ACTIVE
 Last Updated: 2026-03-26
 
 Use this as the short-lived execution scratchpad for the current LotView run.
 
 ## Current context
-- activeObjective: Run a fresh live three-role subagent smoketest.
-- currentState: Preparing sequential subagent execution.
-- acceptanceTarget: All three fresh artifacts exist and are independently verified.
+- activeObjective: Push LotView toward actual production readiness, not planning theater.
+- currentState: Auditing and fixing highest-risk multi-tenant and runtime issues already visible in repo.
+- acceptanceTarget:
+  - remove additional unsafe dealership fallbacks in critical paths
+  - keep web/worker topology coherent in repo
+  - pass typecheck/build after edits
+  - return exact remaining live blockers
 
 ## Decisions
-- Run subagents sequentially because QA and reviewer depend on prior files.
-- Use a fresh directory `workspace/runtime/swarm/run-history/live-subagent-smoketest-2/` to keep this run distinct.
+- Start with tenant isolation and scheduler/runtime correctness before lower-risk cleanup.
+- Prefer fail-closed behavior over dealership 1 compatibility fallbacks.
+- Only claim completion for what is evidenced locally; live workflows still need live credentials/runtime.
 
 ## Evidence produced
-- workspace/runtime/swarm/run-history/live-subagent-smoketest-2/proof.txt
-- workspace/runtime/swarm/run-history/live-subagent-smoketest-2/qa.txt
-- workspace/runtime/swarm/run-history/live-subagent-smoketest-2/reviewer.txt
+- Verified current modified files and repo dirty state via git status.
+- Confirmed remaining fallback hotspots in apify-service, cargurus-scraper-service, market-aggregation-service, marketcheck-service, and posting-scheduler.
 
 ## Open blockers
-- None.
+- No live DB/deploy/external-account access yet.
 
 ## Immediate next action
-- Return completion details for the fresh three-role smoketest.
+- Patch remaining high-risk dealership fallback behavior and re-run validation.

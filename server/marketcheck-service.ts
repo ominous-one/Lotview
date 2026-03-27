@@ -267,11 +267,14 @@ export class MarketCheckService {
    * Search and convert to our format
    */
   async searchAndConvert(params: MarketCheckSearchParams): Promise<InsertMarketListing[]> {
-    const dealershipId = params.dealershipId || 1; // Default to dealership 1 for backwards compat
+    if (!params.dealershipId) {
+      throw new Error('dealershipId is required for MarketCheck listing conversion');
+    }
+
     const listings = await this.searchListings(params);
     return listings
       .filter(l => l.price > 0) // Filter out listings without prices
-      .map(l => this.convertToMarketListing(l, dealershipId))
+      .map(l => this.convertToMarketListing(l, params.dealershipId!))
       .filter((l): l is InsertMarketListing => l !== null); // Filter out null results
   }
 

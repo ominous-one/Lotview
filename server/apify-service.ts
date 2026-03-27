@@ -259,11 +259,14 @@ export class ApifyService {
    * Scrape and convert to our format
    */
   async scrapeAndConvert(params: ApifySearchParams): Promise<InsertMarketListing[]> {
-    const dealershipId = params.dealershipId || 1;
+    if (!params.dealershipId) {
+      throw new Error('dealershipId is required for Apify market listing conversion');
+    }
+
     const listings = await this.scrapeAutoTrader(params);
     return listings
       .filter(l => l.price > 1000) // Filter out invalid prices
-      .map(l => this.convertToMarketListing(l, dealershipId));
+      .map(l => this.convertToMarketListing(l, params.dealershipId!));
   }
 
   /**

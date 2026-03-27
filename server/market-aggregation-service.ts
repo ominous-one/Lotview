@@ -74,9 +74,13 @@ export class MarketAggregationService {
       sources: []
     };
 
+    if (!params.dealershipId) {
+      throw new Error('dealershipId is required for market aggregation');
+    }
+
     const { operationMetricsId } = params;
     const allListings: InsertMarketListing[] = [];
-    const dealershipId = params.dealershipId || 1;
+    const dealershipId = params.dealershipId;
 
     try {
       console.log(`[MarketAggregation] Starting data collection for ${params.make} ${params.model}${params.dealershipId ? ` (dealership ${params.dealershipId})` : ''}`);

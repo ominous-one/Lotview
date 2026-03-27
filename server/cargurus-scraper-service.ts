@@ -508,8 +508,12 @@ export class CargurusScraper {
   }
 
   async searchAndConvert(params: CargurusSearchParams): Promise<InsertMarketListing[]> {
+    if (!params.dealershipId) {
+      throw new Error('dealershipId is required for CarGurus market listing conversion');
+    }
+
     const vehicles = await this.searchListings(params);
-    const dealershipId = params.dealershipId || 1;
+    const dealershipId = params.dealershipId;
     
     return vehicles.map(vehicle => {
       const confidence = calculateSourceConfidence(vehicle);

@@ -1,21 +1,25 @@
 # ACTIVE_SWARM_RUN
 
-Status: READY
+Status: ACTIVE
 Last Updated: 2026-03-26
 
 Update this file for any non-trivial LotView run so a fresh session can resume accurately.
 
-- runId: live-subagent-smoketest-2026-03-26-b
+- runId: lotview-production-push-20260326-2042
 - state: EXECUTING
-- objective: Run a live three-role subagent smoketest inside the inherited workspace.
-- userAsk: Run a live three-role subagent smoketest inside the inherited workspace.
+- objective: Push LotView toward real production readiness by fixing highest-risk repo issues first, validating them, and surfacing exact live blockers.
+- userAsk: Completely finish LotView end-to-end.
 - ownerAgent: assistant
 - supportingAgents: engineer, qa-tester, reviewer
-- requiredTools: sessions_spawn, read, write
-- verifiedAvailableTools: sessions_spawn, read, write
-- deliverables: proof.txt, qa.txt, reviewer.txt under workspace/runtime/swarm/run-history/live-subagent-smoketest-2/
-- evidence: workspace/runtime/swarm/run-history/live-subagent-smoketest-2/proof.txt; workspace/runtime/swarm/run-history/live-subagent-smoketest-2/qa.txt; workspace/runtime/swarm/run-history/live-subagent-smoketest-2/reviewer.txt
+- requiredTools: read, write, edit, exec, browser
+- verifiedAvailableTools: read, write, edit, exec, browser
+- deliverables: hardened repo changes, validation evidence, exact blocker list for anything requiring live env access
+- evidence:
+  - Loaded execution contracts and current repo state
+  - Verified browser and exec availability in-session
 - blockers:
-- nextStep: Report completion to user with subagent labels and session keys.
-- milestone: Swarm smoketest completed
-- notes: Fresh run completed successfully in live-subagent-smoketest-2.
+  - Live DB state unknown
+  - External account / deploy credentials not yet available in-session
+- nextStep: Eliminate remaining dealership fallback paths in high-risk services and schedulers, then run typecheck/build.
+- milestone: Production push initialized
+- notes: Do not claim complete production readiness without live proof for posting, inbox automation, onboarding, and deployment topology.
