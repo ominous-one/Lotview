@@ -464,6 +464,12 @@ interface VdpContent {
   carfaxBadges: string[];
   carfaxUrl: string | null;
   stockNumber: string | null;
+  exteriorColor: string | null;
+  interiorColor: string | null;
+  transmission: string | null;
+  drivetrain: string | null;
+  fuelType: string | null;
+  engine: string | null;
 }
 
 /**
@@ -669,6 +675,11 @@ function extractVdpContent(html: string): VdpContent {
   
   // Extract stock number
   const stockNumber = extractStockNumber(html, $);
+  const colors = extractColors(html);
+  const transmission = extractTransmission(html);
+  const drivetrain = extractDrivetrain(html);
+  const fuelType = extractFuelType(html);
+  const engine = extractEngine(html);
   
   return {
     vdpDescription,
@@ -676,6 +687,12 @@ function extractVdpContent(html: string): VdpContent {
     carfaxBadges,
     carfaxUrl,
     stockNumber,
+    exteriorColor: colors.exterior,
+    interiorColor: colors.interior,
+    transmission,
+    drivetrain,
+    fuelType,
+    engine,
   };
 }
 
@@ -717,7 +734,19 @@ async function fetchVdpContent(vdpUrl: string): Promise<VdpContent> {
     }
   }
   
-  return { vdpDescription: null, techSpecs: null, carfaxBadges: [], carfaxUrl: null, stockNumber: null };
+  return {
+    vdpDescription: null,
+    techSpecs: null,
+    carfaxBadges: [],
+    carfaxUrl: null,
+    stockNumber: null,
+    exteriorColor: null,
+    interiorColor: null,
+    transmission: null,
+    drivetrain: null,
+    fuelType: null,
+    engine: null,
+  };
 }
 
 async function fetchWithZenRows(vdpUrl: string): Promise<string | null> {
@@ -1057,6 +1086,8 @@ function extractColors(html: string): { exterior: string | null; interior: strin
   const extPatterns = [
     /exterior\s*colou?r[:\s]+([A-Za-z\s]+?)(?:<|&|\n|,|;|\||$)/i,
     /colou?r\s*(?:\(exterior\)|exterior)[:\s]+([A-Za-z\s]+?)(?:<|&|\n|,|;|\||$)/i,
+    /<dt[^>]*>\s*exterior\s*colou?r\s*<\/dt>\s*<dd[^>]*>\s*([^<]+)/i,
+    /<th[^>]*>\s*exterior\s*colou?r\s*<\/th>\s*<td[^>]*>\s*([^<]+)/i,
   ];
   for (const pattern of extPatterns) {
     const match = html.match(pattern);
@@ -1070,6 +1101,8 @@ function extractColors(html: string): { exterior: string | null; interior: strin
   const intPatterns = [
     /interior\s*colou?r[:\s]+([A-Za-z\s]+?)(?:<|&|\n|,|;|\||$)/i,
     /colou?r\s*(?:\(interior\)|interior)[:\s]+([A-Za-z\s]+?)(?:<|&|\n|,|;|\||$)/i,
+    /<dt[^>]*>\s*interior\s*colou?r\s*<\/dt>\s*<dd[^>]*>\s*([^<]+)/i,
+    /<th[^>]*>\s*interior\s*colou?r\s*<\/th>\s*<td[^>]*>\s*([^<]+)/i,
   ];
   for (const pattern of intPatterns) {
     const match = html.match(pattern);
@@ -1088,7 +1121,7 @@ function extractColors(html: string): { exterior: string | null; interior: strin
 function extractTransmission(html: string): string | null {
   const text = html.toLowerCase();
   // Match "Transmission: Automatic" pattern from Olympic pages
-  const transmissionMatch = html.match(/transmission[:\s]+([A-Za-z]+)/i);
+  const transmissionMatch = html.match(/transmission[:\s]+([A-Za-z]+)/i) || html.match(/<dt[^>]*>\s*transmission\s*<\/dt>\s*<dd[^>]*>\s*([^<]+)/i) || html.match(/<th[^>]*>\s*transmission\s*<\/th>\s*<td[^>]*>\s*([^<]+)/i);
   if (transmissionMatch) {
     const trans = transmissionMatch[1].toLowerCase();
     if (trans.includes('auto')) return 'Automatic';
@@ -1108,7 +1141,7 @@ function extractTransmission(html: string): string | null {
 function extractDrivetrain(html: string): string | null {
   const text = html.toLowerCase();
   // Match "Drive Train: AWD" pattern from Olympic pages
-  const driveMatch = html.match(/drive\s*train[:\s]+([A-Za-z0-9]+)/i);
+  const driveMatch = html.match(/drive\s*train[:\s]+([A-Za-z0-9]+)/i) || html.match(/<dt[^>]*>\s*drive\s*train\s*<\/dt>\s*<dd[^>]*>\s*([^<]+)/i) || html.match(/<th[^>]*>\s*drive\s*train\s*<\/th>\s*<td[^>]*>\s*([^<]+)/i);
   if (driveMatch) {
     const drive = driveMatch[1].toLowerCase();
     if (drive.includes('awd') || drive.includes('all')) return 'AWD';
@@ -1121,6 +1154,27 @@ function extractDrivetrain(html: string): string | null {
   if (/\b4wd\b|\bfour[\s-]?wheel[\s-]?drive\b|\b4x4\b/.test(text)) return '4WD';
   if (/\bfwd\b|\bfront[\s-]?wheel[\s-]?drive\b/.test(text)) return 'FWD';
   if (/\brwd\b|\brear[\s-]?wheel[\s-]?drive\b/.test(text)) return 'RWD';
+  return null;
+}
+
+function extractEngine(html: string): string | null {
+  const enginePatterns = [
+    /engine\s*type[:\s]+([^<\n|,;]+)/i,
+    /engine[:\s]+([^<\n|;]+)/i,
+    /<dt[^>]*>\s*engine\s*<\/dt>\s*<dd[^>]*>\s*([^<]+)/i,
+    /<th[^>]*>\s*engine\s*<\/th>\s*<td[^>]*>\s*([^<]+)/i,
+  ];
+
+  for (const pattern of enginePatterns) {
+    const match = html.match(pattern);
+    if (match?.[1]) {
+      const candidate = match[1].replace(/\s+/g, ' ').trim();
+      if (candidate.length >= 2 && candidate.length <= 120) {
+        return candidate;
+      }
+    }
+  }
+
   return null;
 }
 
@@ -2936,15 +2990,13 @@ async function attemptScrapingBeeScrape(dealershipId?: number): Promise<{
             const location = dealershipInfo?.city || 'Vancouver';
             const dealershipName = dealershipInfo?.name || source.sourceName;
 
-            // Extract Carfax data from VDP page
-            const scrapingBeeCarfaxBadges = extractCarfaxBadges(vdpResult.html);
-            const scrapingBeeCarfaxUrl = extractCarfaxUrl(vdpResult.html);
+            const scrapingBeeVdpContent = extractVdpContent(vdpResult.html);
             
-            if (scrapingBeeCarfaxUrl || scrapingBeeCarfaxBadges.length > 0) {
+            if (scrapingBeeVdpContent.carfaxUrl || scrapingBeeVdpContent.carfaxBadges.length > 0) {
               logInfo('[Robust Scraper] Carfax data extracted (ScrapingBee)', { 
                 service: 'scraper', method: 'scrapingbee', year, make, model, 
-                hasCarfaxUrl: !!scrapingBeeCarfaxUrl,
-                carfaxBadges: scrapingBeeCarfaxBadges 
+                hasCarfaxUrl: !!scrapingBeeVdpContent.carfaxUrl,
+                carfaxBadges: scrapingBeeVdpContent.carfaxBadges 
               });
             }
 
@@ -2966,8 +3018,17 @@ async function attemptScrapingBeeScrape(dealershipId?: number): Promise<{
               description: '',
               vin: vin || `SCRAPINGBEE-${Date.now()}-${Math.random().toString(36).substring(7)}`,
               dealerVdpUrl: vdpUrl,
-              carfaxUrl: scrapingBeeCarfaxUrl || undefined,
-              carfaxBadges: scrapingBeeCarfaxBadges.length > 0 ? scrapingBeeCarfaxBadges : undefined,
+              stockNumber: scrapingBeeVdpContent.stockNumber || undefined,
+              vdpDescription: scrapingBeeVdpContent.vdpDescription,
+              techSpecs: scrapingBeeVdpContent.techSpecs,
+              carfaxUrl: scrapingBeeVdpContent.carfaxUrl || undefined,
+              carfaxBadges: scrapingBeeVdpContent.carfaxBadges.length > 0 ? scrapingBeeVdpContent.carfaxBadges : undefined,
+              exteriorColour: scrapingBeeVdpContent.exteriorColor,
+              interiorColour: scrapingBeeVdpContent.interiorColor,
+              transmission: scrapingBeeVdpContent.transmission,
+              drivetrain: scrapingBeeVdpContent.drivetrain,
+              fuelType: scrapingBeeVdpContent.fuelType,
+              engine: scrapingBeeVdpContent.engine,
             };
 
             // VALIDATION GATE: Reject vehicles with bad data
@@ -3263,6 +3324,12 @@ async function attemptBrowserlessScrape(dealershipId?: number): Promise<{
             let carfaxUrl: string | undefined;
             let carfaxBadges: string[] | undefined;
             let vdpStockNumber: string | undefined;
+            let exteriorColour: string | null = null;
+            let interiorColour: string | null = null;
+            let transmission: string | null = null;
+            let drivetrain: string | null = null;
+            let fuelType: string | null = null;
+            let engine: string | null = null;
             
             if (v.detailUrl) {
               try {
@@ -3273,6 +3340,12 @@ async function attemptBrowserlessScrape(dealershipId?: number): Promise<{
                 carfaxUrl = vdpContent.carfaxUrl || undefined;
                 carfaxBadges = vdpContent.carfaxBadges.length > 0 ? vdpContent.carfaxBadges : undefined;
                 vdpStockNumber = vdpContent.stockNumber || undefined;
+                exteriorColour = vdpContent.exteriorColor;
+                interiorColour = vdpContent.interiorColor;
+                transmission = vdpContent.transmission;
+                drivetrain = vdpContent.drivetrain;
+                fuelType = vdpContent.fuelType;
+                engine = vdpContent.engine;
                 if (vdpDescription) {
                   logInfo('[Robust Scraper] VDP description extracted', { service: 'scraper', method: 'vdp', vehicle: `${v.year} ${v.make} ${v.model}`, descLength: vdpDescription.length });
                 }
@@ -3311,6 +3384,12 @@ async function attemptBrowserlessScrape(dealershipId?: number): Promise<{
               techSpecs,
               carfaxUrl,
               carfaxBadges,
+              exteriorColour,
+              interiorColour,
+              transmission,
+              drivetrain,
+              fuelType,
+              engine,
             };
             
             // VALIDATION GATE: Reject vehicles with bad data
@@ -3856,3 +3935,12 @@ export async function getLatestScrapeStatus(dealershipId?: number): Promise<any 
   const runs = await storage.getScrapeRuns(dealershipId, 1);
   return runs.length > 0 ? runs[0] : null;
 }
+
+export const robustScraperTestables = {
+  extractVdpContent,
+  extractColors,
+  extractTransmission,
+  extractDrivetrain,
+  extractFuelType,
+  extractEngine,
+};
