@@ -42,7 +42,8 @@ Use this as the short-lived execution scratchpad for the current LotView run.
   - `/api/manager/competitor-alerts/:id/resolve`
   - `/api/manager/competitor-scan`
 - Patched `client/src/pages/SuperAdminDashboard.tsx` so the Facebook Marketplace tab no longer injects dealership 1 when dealership data is absent.
-- Post-patch grep over the targeted files no longer found the audited patterns except for unrelated remaining sites elsewhere in `server/routes.ts` and other UI files.
+- Hardened `server/tenant-utils.ts` so `resolveDealershipId()` and `getDealershipIdFromParams()` now return `null` instead of silently defaulting to dealership 1 when context is missing.
+- Post-patch grep over the targeted files no longer found the audited dealership-1 helper default patterns; remaining risk is now in broader live/runtime proof and any uncaught tenant assumptions outside these grep patterns.
 - Validation evidence from this run:
   - `npm run check` → exited 0
   - `npm run build` → exited 0
@@ -52,7 +53,7 @@ Use this as the short-lived execution scratchpad for the current LotView run.
 - No live DB/deploy/external-account access in-session.
 - Cannot prove runtime behavior for posting, inbox automation, onboarding, or live websocket auth against a real deployment from this run.
 - DB-backed tests remain blocked without valid DB env (`DATABASE_URL` or `PG*`); prior direct import of `server/db.ts` in this workspace fails hard when DB config is missing.
-- Remaining fallback hotspots still exist outside this slice, including additional `req.dealershipId || 1` / `req.user?.dealershipId || 1` usage in other `server/routes.ts` sections and fallback-capable helpers in `server/tenant-utils.ts`.
+- Remaining risk is no longer concentrated in the previously-audited dealership-1 helper defaults; the unresolved proof gap is now mostly live DB/deploy/runtime behavior plus any tenant assumptions not discoverable through the audited fallback patterns.
 
 ## Immediate next action
 - Continue patching remaining dealership-context fallbacks in untouched routes/components, then rerun local validation and, if credentials become available, execute live DB/deploy/runtime proof.
