@@ -8777,7 +8777,10 @@ Format your response in clear sections with actionable recommendations.`;
         });
       }
 
-      const dealershipId = (req as AuthRequest).dealershipId || 1;
+      const dealershipId = requireResolvedDealershipId(req as AuthRequest);
+      if (!dealershipId) {
+        return res.status(400).json({ error: 'Dealership context required' });
+      }
       
       const { getMarketCheckServiceForDealership } = await import('./marketcheck-service');
       const service = await getMarketCheckServiceForDealership(dealershipId);
@@ -8824,7 +8827,10 @@ Format your response in clear sections with actionable recommendations.`;
         });
       }
 
-      const dealershipId = (req as AuthRequest).dealershipId || 1;
+      const dealershipId = requireResolvedDealershipId(req as AuthRequest);
+      if (!dealershipId) {
+        return res.status(400).json({ error: 'Dealership context required' });
+      }
       const authReq = req as AuthRequest;
       const settings = authReq.user ? await storage.getManagerSettings(authReq.user.id, dealershipId) : null;
       
@@ -8869,7 +8875,10 @@ Format your response in clear sections with actionable recommendations.`;
   // Get competitor dealers
   app.get("/api/manager/competitors", authMiddleware, requireRole("manager"), async (req, res) => {
     try {
-      const dealershipId = (req as AuthRequest).dealershipId || 1;
+      const dealershipId = requireResolvedDealershipId(req as AuthRequest);
+      if (!dealershipId) {
+        return res.status(400).json({ error: 'Dealership context required' });
+      }
       const competitors = await storage.getCompetitorDealers(dealershipId);
       res.json(competitors);
     } catch (error) {
@@ -8881,7 +8890,10 @@ Format your response in clear sections with actionable recommendations.`;
   // Get competitor price alerts
   app.get("/api/manager/competitor-alerts", authMiddleware, requireRole("manager"), async (req, res) => {
     try {
-      const dealershipId = (req as AuthRequest).dealershipId || 1;
+      const dealershipId = requireResolvedDealershipId(req as AuthRequest);
+      if (!dealershipId) {
+        return res.status(400).json({ error: 'Dealership context required' });
+      }
       const { status, severity, vehicleId, limit } = req.query;
       const alerts = await storage.getCompetitorPriceAlerts(dealershipId, {
         status: status as string | undefined,
@@ -8898,7 +8910,10 @@ Format your response in clear sections with actionable recommendations.`;
   // Get competitor alerts summary for dashboard widget
   app.get("/api/manager/competitor-alerts/summary", authMiddleware, requireRole("manager"), async (req, res) => {
     try {
-      const dealershipId = (req as AuthRequest).dealershipId || 1;
+      const dealershipId = requireResolvedDealershipId(req as AuthRequest);
+      if (!dealershipId) {
+        return res.status(400).json({ error: 'Dealership context required' });
+      }
       const { createCompetitorMonitoringService } = await import("./competitor-monitoring-service");
       const service = createCompetitorMonitoringService(dealershipId);
       const summary = await service.getAlertSummary();
@@ -8912,7 +8927,10 @@ Format your response in clear sections with actionable recommendations.`;
   // Acknowledge a competitor price alert
   app.post("/api/manager/competitor-alerts/:id/acknowledge", authMiddleware, requireRole("manager"), async (req, res) => {
     try {
-      const dealershipId = (req as AuthRequest).dealershipId || 1;
+      const dealershipId = requireResolvedDealershipId(req as AuthRequest);
+      if (!dealershipId) {
+        return res.status(400).json({ error: 'Dealership context required' });
+      }
       const userId = (req as AuthRequest).user?.id;
       const alertId = parseInt(req.params.id);
       if (!userId) {
@@ -8932,7 +8950,10 @@ Format your response in clear sections with actionable recommendations.`;
   // Resolve a competitor price alert
   app.post("/api/manager/competitor-alerts/:id/resolve", authMiddleware, requireRole("manager"), async (req, res) => {
     try {
-      const dealershipId = (req as AuthRequest).dealershipId || 1;
+      const dealershipId = requireResolvedDealershipId(req as AuthRequest);
+      if (!dealershipId) {
+        return res.status(400).json({ error: 'Dealership context required' });
+      }
       const alertId = parseInt(req.params.id);
       const { note } = req.body;
       const alert = await storage.resolveCompetitorPriceAlert(alertId, dealershipId, note);
@@ -8949,7 +8970,10 @@ Format your response in clear sections with actionable recommendations.`;
   // Trigger manual competitor scan
   app.post("/api/manager/competitor-scan", authMiddleware, requireRole("manager"), async (req, res) => {
     try {
-      const dealershipId = (req as AuthRequest).dealershipId || 1;
+      const dealershipId = requireResolvedDealershipId(req as AuthRequest);
+      if (!dealershipId) {
+        return res.status(400).json({ error: 'Dealership context required' });
+      }
       const { createCompetitorMonitoringService } = await import("./competitor-monitoring-service");
       const service = createCompetitorMonitoringService(dealershipId);
       const result = await service.runCompetitorScan();

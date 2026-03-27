@@ -1972,11 +1972,11 @@ export default function SuperAdminDashboard() {
         {/* FB Marketplace Tab */}
         <TabsContent value="fb-marketplace">
           {dealerships && dealerships.length > 0 ? (
-            <FBMarketplacePanel dealershipId={dealerships[0]?.id || 1} />
+            <FBMarketplacePanel dealershipId={dealerships[0]?.id} />
           ) : (
             <Card>
               <CardContent className="py-8 text-center text-muted-foreground">
-                Loading dealership data...
+                Dealership context required before loading Facebook Marketplace controls.
               </CardContent>
             </Card>
           )}
