@@ -20,6 +20,6 @@ Update this file for any non-trivial LotView run so a fresh session can resume a
 - blockers:
   - Live DB state unknown
   - External account / deploy credentials not yet available in-session
-- nextStep: Eliminate remaining dealership fallback paths in high-risk services and schedulers, then run typecheck/build.
-- milestone: Production push initialized
-- notes: Do not claim complete production readiness without live proof for posting, inbox automation, onboarding, and deployment topology.
+- nextStep: Audit remaining route/component `|| 1` tenancy fallbacks and validate worker/web behavior against a live DB/deploy target.
+- milestone: Dealership-scoped scraper/runtime hardening slice validated locally
+- notes: 2026-03-26 engineer slice removed global env fallbacks from market aggregation + Apify refresh paths and added runtime drift indicators (`db_config`, `migrations_dir`) to startup logs. Local validation passed: `npm run check`, `npm run build`. Do not claim complete production readiness without live proof for posting, inbox automation, onboarding, and deployment topology.

@@ -1,6 +1,6 @@
 import { storage } from './storage';
 import { scrapeAllDealershipsIncremental, upsertVehicleByVin, checkVehicleNeedsEnrichment, updateVehiclePriceOnly, type ScrapedVehicle } from './scraper';
-import { getGlobalApifyService, getApifyServiceForDealership } from './apify-service';
+import { getApifyServiceForDealership } from './apify-service';
 import { 
   getBrowserlessServiceForDealership, 
   getGlobalBrowserlessService,
@@ -3370,12 +3370,14 @@ async function attemptApifyMarketDataRefresh(dealershipId?: number): Promise<{
   error?: string 
 }> {
   try {
-    const apifyService = dealershipId 
-      ? await getApifyServiceForDealership(dealershipId)
-      : getGlobalApifyService();
-    
+    if (!dealershipId) {
+      return { success: false, vehiclesUpdated: 0, error: 'dealershipId is required for Apify market data refresh' };
+    }
+
+    const apifyService = await getApifyServiceForDealership(dealershipId);
+
     if (!apifyService) {
-      return { success: false, vehiclesUpdated: 0, error: 'Apify service not configured' };
+      return { success: false, vehiclesUpdated: 0, error: `Apify service not configured for dealership ${dealershipId}` };
     }
 
     const connectionTest = await apifyService.testConnection();
@@ -3386,9 +3388,7 @@ async function attemptApifyMarketDataRefresh(dealershipId?: number): Promise<{
     logInfo('[Robust Scraper] Apify connected. Attempting market data refresh for existing inventory...', { service: 'scraper', method: 'apify' });
     logInfo('[Robust Scraper] NOTE: Apify searches AutoTrader.ca by make/model, cannot discover new dealer inventory.', { service: 'scraper', method: 'apify' });
     
-    const existingVehicles = dealershipId 
-      ? await db.select().from(vehicles).where(eq(vehicles.dealershipId, dealershipId)).limit(50)
-      : await db.select().from(vehicles).limit(50);
+    const existingVehicles = await db.select().from(vehicles).where(eq(vehicles.dealershipId, dealershipId)).limit(50);
 
     if (existingVehicles.length === 0) {
       return { success: false, vehiclesUpdated: 0, error: 'No existing inventory to refresh' };

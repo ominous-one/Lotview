@@ -1,8 +1,8 @@
 import { storage } from './storage';
 import { db } from './db';
 import { sql } from 'drizzle-orm';
-import { getMarketCheckService, getMarketCheckServiceForDealership } from './marketcheck-service';
-import { getApifyService, getApifyServiceForDealership } from './apify-service';
+import { getMarketCheckServiceForDealership } from './marketcheck-service';
+import { getApifyServiceForDealership } from './apify-service';
 import { getBrowserlessUnifiedService, getBrowserlessUnifiedServiceForDealership } from './browserless-unified';
 import { autoTraderScraper } from './autotrader-scraper';
 import { kijijiScraper } from './kijiji-scraper';
@@ -86,11 +86,9 @@ export class MarketAggregationService {
       console.log(`[MarketAggregation] Starting data collection for ${params.make} ${params.model}${params.dealershipId ? ` (dealership ${params.dealershipId})` : ''}`);
 
       // 1. Try MarketCheck API (highest priority - rank 1)
-    const marketCheckService = params.dealershipId 
-      ? await getMarketCheckServiceForDealership(params.dealershipId)
-      : getMarketCheckService();
-      
-    if (marketCheckService) {
+      const marketCheckService = await getMarketCheckServiceForDealership(dealershipId);
+
+      if (marketCheckService) {
       try {
         console.log('[MarketAggregation] Fetching from MarketCheck API...');
         const marketCheckListings = await marketCheckService.searchAndConvert(params);
@@ -201,10 +199,8 @@ export class MarketAggregationService {
     }
 
     // 4. Try Apify AutoTrader.ca actor (priority rank 4)
-    const apifyService = params.dealershipId 
-      ? await getApifyServiceForDealership(params.dealershipId)
-      : getApifyService();
-      
+    const apifyService = await getApifyServiceForDealership(dealershipId);
+
     if (apifyService) {
       try {
         console.log('[MarketAggregation] Fetching from Apify AutoTrader.ca...');
