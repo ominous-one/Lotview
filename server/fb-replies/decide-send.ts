@@ -1,5 +1,6 @@
 import type { FbInboxThread, FbReplySettings } from "@shared/schema";
 import type { IStorage } from "../storage";
+import { computeVehicleDataQualitySignals } from "../vehicle-data-quality";
 
 export type FbReplyDecision = "ALLOW" | "DENY";
 
@@ -288,6 +289,13 @@ export async function decideSendFbMarketplaceReply(storage: IStorage, params: De
 
   const candidateRisk = computeCandidateReplyRisk(params, inventoryVehicle);
   if (!candidateRisk.ok) reasonCodes.push(...candidateRisk.reasons);
+
+  if (inventoryVehicle) {
+    const vehicleSignals = computeVehicleDataQualitySignals(inventoryVehicle);
+    if (vehicleSignals.isSoldOrRemoved) reasonCodes.push("inventory_not_active");
+    if (!vehicleSignals.isFreshForAvailability) reasonCodes.push("inventory_stale");
+    if (!vehicleSignals.hasExactIdentity) reasonCodes.push("vehicle_identity_unverified");
+  }
 
   // 8) Anti-loop and freshness guards (based on DB)
   // If we don't have a thread row yet, create it so we can attach messages/audits later.

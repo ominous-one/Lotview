@@ -1,4 +1,5 @@
 import type { Dealership, Vehicle, AiSettings } from "@shared/schema";
+import { buildVehicleTruthfulnessContext } from "./vehicle-data-quality";
 
 /**
  * Build the system prompt for the AI sales agent.
@@ -191,6 +192,7 @@ export function buildVehicleContext(vehicle: Vehicle): string {
   if (vehicle.carfaxUrl) {
     lines.push(`Carfax URL Available: yes`);
   }
+  lines.push(...buildVehicleTruthfulnessContext(vehicle));
   if (vehicle.badges && vehicle.badges.length > 0) {
     lines.push(`Features: ${vehicle.badges.join(', ')}`);
   }

@@ -159,6 +159,14 @@ describe("decideSendFbMarketplaceReply (unit)", () => {
         make: 'Honda',
         model: 'Civic',
         trim: 'LX',
+        vin: '1HGCM82633A004352',
+        stockNumber: 'CIV-23',
+        normalizedStockNumber: 'CIV23',
+        dealerVdpUrl: 'https://dealer.example/civic',
+        lastScrapedAt: new Date(),
+        deletedAt: null,
+        lifecycleStatus: 'ACTIVE',
+        photoStatus: 'complete',
         carfaxUrl: 'https://carfax.example/report',
         carfaxBadges: ['One Owner'],
       },
@@ -179,5 +187,47 @@ describe("decideSendFbMarketplaceReply (unit)", () => {
 
     expect(out.allow).toBe(false);
     expect(out.reasonCodes).toContain('candidate:vehicle_identity_not_grounded');
+  });
+
+  test("denies availability auto-send for stale sold inventory", async () => {
+    const storage = makeMockStorage({
+      vehicle: {
+        id: 24,
+        year: 2019,
+        make: 'Honda',
+        model: 'Civic',
+        trim: 'LX',
+        vin: 'PENDING',
+        stockNumber: null,
+        normalizedStockNumber: null,
+        dealerVdpUrl: null,
+        lastScrapedAt: new Date(Date.now() - 72 * 60 * 60 * 1000),
+        deletedAt: new Date(),
+        lifecycleStatus: 'REMOVED_BY_SYNC',
+        photoStatus: 'no_vdp',
+        carfaxUrl: null,
+        carfaxBadges: [],
+      },
+    });
+
+    const out = await decideSendFbMarketplaceReply(storage, {
+      dealershipId: 1,
+      fbThreadId: "t_1",
+      participantName: "Alex Buyer",
+      leadNameConfidence: 0.92,
+      vehicleId: 24,
+      listingTitle: "2019 Honda Civic",
+      vehicleDisplayName: "2019 Honda Civic",
+      vehicleMappingConfidence: 0.95,
+      candidateReply: "Hey Alex — yes, the 2019 Honda Civic is still available.",
+      intent: { intent: "AVAILABILITY_CHECK", confidence: 0.95 },
+    });
+
+    expect(out.allow).toBe(false);
+    expect(out.reasonCodes).toEqual(expect.arrayContaining([
+      'inventory_not_active',
+      'inventory_stale',
+      'vehicle_identity_unverified',
+    ]));
   });
 });
