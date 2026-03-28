@@ -16,6 +16,7 @@ interface TenantContextType {
   isLoading: boolean;
   dealership: Dealership | null;
   subdomain: string | null;
+  routingStatus: 'marketing' | 'tenant' | 'unknown-tenant';
 }
 
 const TenantContext = createContext<TenantContextType>({
@@ -23,6 +24,7 @@ const TenantContext = createContext<TenantContextType>({
   isLoading: true,
   dealership: null,
   subdomain: null,
+  routingStatus: 'marketing',
 });
 
 export function useTenant() {
@@ -98,6 +100,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     isLoading: true,
     dealership: null,
     subdomain: null,
+    routingStatus: 'marketing',
   });
 
   useEffect(() => {
@@ -111,6 +114,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         isLoading: false,
         dealership: null,
         subdomain: null,
+        routingStatus: 'marketing',
       });
       return;
     }
@@ -118,6 +122,8 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     const url = new URL(window.location.href);
     const explicitDealershipId = url.searchParams.get('dealershipId');
     const explicitSubdomain = url.searchParams.get('subdomain');
+    const requestedTenantKey = explicitSubdomain || subdomain || explicitDealershipId;
+    const shouldFailClosed = Boolean(explicitSubdomain || subdomain || explicitDealershipId);
 
     const resolveUrl = explicitSubdomain
       ? `/api/tenancy/resolve?subdomain=${encodeURIComponent(explicitSubdomain)}`
@@ -133,35 +139,65 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         isLoading: false,
         dealership: null,
         subdomain: null,
+        routingStatus: 'marketing',
       });
       return;
     }
 
     fetch(resolveUrl)
-      .then(res => res.json())
-      .then(data => {
-        if (data.dealership) {
+      .then(async (res) => {
+        const data = await res.json().catch(() => null);
+        return { ok: res.ok, data };
+      })
+      .then(({ ok, data }) => {
+        if (ok && data?.dealership) {
           setState({
             isMarketingSite: false,
             isLoading: false,
             dealership: data.dealership,
             subdomain,
+            routingStatus: 'tenant',
           });
-        } else {
+          return;
+        }
+
+        if (shouldFailClosed && requestedTenantKey) {
           setState({
-            isMarketingSite: true,
+            isMarketingSite: false,
             isLoading: false,
             dealership: null,
-            subdomain: null,
+            subdomain: explicitSubdomain || subdomain,
+            routingStatus: 'unknown-tenant',
           });
+          return;
         }
-      })
-      .catch(() => {
+
         setState({
           isMarketingSite: true,
           isLoading: false,
           dealership: null,
           subdomain: null,
+          routingStatus: 'marketing',
+        });
+      })
+      .catch(() => {
+        if (shouldFailClosed && requestedTenantKey) {
+          setState({
+            isMarketingSite: false,
+            isLoading: false,
+            dealership: null,
+            subdomain: explicitSubdomain || subdomain,
+            routingStatus: 'unknown-tenant',
+          });
+          return;
+        }
+
+        setState({
+          isMarketingSite: true,
+          isLoading: false,
+          dealership: null,
+          subdomain: null,
+          routingStatus: 'marketing',
         });
       });
   }, []);
