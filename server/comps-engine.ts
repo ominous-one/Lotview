@@ -3,6 +3,7 @@ import { MarketAggregationService } from './market-aggregation-service';
 import { storage } from './storage';
 import { decodeVinCheapHybrid, type NormalizedVehicleSpec } from './vin-decode-router';
 import { conditionForDisplay, normalizeCondition } from './condition-normalization';
+import { extractDrivetrainFromText, scoreComp, sourceScore } from './comps-scoring';
 
 export type TrimMatchMode = 'exact' | 'near';
 
@@ -40,7 +41,9 @@ export interface CompScoreExplain {
     year: number;
     mileage: number;
     trim: number;
+    drivetrain: number;
     source: number;
+    freshness: number;
     dataQuality: number;
   };
   reasons: string[];
@@ -62,6 +65,8 @@ export interface CompsResult {
     p25Price?: number;
     p75Price?: number;
     suggestedRetailPrice?: number;
+    confidence: 'high' | 'medium' | 'low';
+    notes: string[];
   };
 }
 
@@ -97,16 +102,6 @@ function normalizeAccidentHistory(listing: MarketListing): NormalizedComp['accid
   }
 }
 
-function sourceScore(source?: string): number {
-  const s = (source || 'unknown').toLowerCase();
-  if (s.includes('marketcheck')) return 10;
-  if (s.includes('cargurus')) return 9;
-  if (s.includes('autotrader')) return 7;
-  if (s.includes('kijiji')) return 6;
-  if (s.includes('craigslist')) return 4;
-  return 5;
-}
-
 function dataQualityScore(listing: MarketListing): number {
   let score = 0;
   if (listing.trim) score += 2;
@@ -114,75 +109,9 @@ function dataQualityScore(listing: MarketListing): number {
   if (listing.daysOnLot && listing.daysOnLot > 0) score += 1;
   if (listing.exteriorColor || listing.interiorColor) score += 1;
   if (listing.vin) score += 1;
+  if (typeof listing.sourceConfidence === 'number') score += listing.sourceConfidence >= 80 ? 2 : listing.sourceConfidence >= 60 ? 1 : 0;
+  if (listing.historyBadges) score += 1;
   return Math.min(10, score);
-}
-
-export function scoreComp(params: {
-  subjectYear?: number;
-  subjectMileageKm?: number;
-  subjectTrim?: string;
-  trimMode: TrimMatchMode;
-  comp: NormalizedComp;
-}): CompScoreExplain {
-  const reasons: string[] = [];
-
-  // Year score (0-30)
-  let yearScore = 0;
-  if (params.subjectYear && params.comp.year) {
-    const dy = Math.abs(params.subjectYear - params.comp.year);
-    yearScore = dy === 0 ? 30 : dy === 1 ? 22 : dy === 2 ? 14 : 0;
-    reasons.push(`Year Δ=${dy}`);
-  }
-
-  // Mileage score (0-25)
-  let mileageScore = 0;
-  if (typeof params.subjectMileageKm === 'number' && typeof params.comp.mileageKm === 'number') {
-    const diff = Math.abs(params.subjectMileageKm - params.comp.mileageKm);
-    // 0-15k => 25, 15-40k => 18, 40-80k => 10 else 0
-    mileageScore = diff <= 15000 ? 25 : diff <= 40000 ? 18 : diff <= 80000 ? 10 : 0;
-    reasons.push(`Mileage Δ=${Math.round(diff/1000)}k`);
-  } else {
-    mileageScore = 8; // partial credit if missing
-    reasons.push('Mileage missing on one side');
-  }
-
-  // Trim score (0-25)
-  let trimScore = 0;
-  const subjTrim = (params.subjectTrim || '').trim().toLowerCase();
-  const compTrim = (params.comp.trim || '').trim().toLowerCase();
-  if (!subjTrim || !compTrim) {
-    trimScore = 8;
-    reasons.push('Trim missing on one side');
-  } else if (subjTrim === compTrim) {
-    trimScore = 25;
-    reasons.push('Exact trim match');
-  } else {
-    if (params.trimMode === 'near') {
-      // soft match: share tokens
-      const subjTokens = new Set(subjTrim.split(/\s+/g));
-      const compTokens = new Set(compTrim.split(/\s+/g));
-      const overlap = [...subjTokens].filter(t => compTokens.has(t)).length;
-      trimScore = overlap >= 2 ? 18 : overlap >= 1 ? 12 : 4;
-      reasons.push(`Near-trim overlap=${overlap}`);
-    } else {
-      trimScore = 0;
-      reasons.push('Trim mismatch (exact mode)');
-    }
-  }
-
-  // Source score (0-10)
-  const source = sourceScore(params.comp.source);
-
-  // Data quality (0-10)
-  const dq = 0; // set by caller if needed
-
-  const total = Math.round(yearScore + mileageScore + trimScore + source + dq);
-
-  return {
-    total,
-    components: { year: yearScore, mileage: mileageScore, trim: trimScore, source, dataQuality: dq },
-    reasons,
-  };
 }
 
 function extractRawConditionFromListing(listing: MarketListing): unknown {
@@ -209,9 +138,19 @@ function toNormalizedComp(listing: MarketListing): NormalizedComp {
     make: listing.make,
     model: listing.model,
     trim: listing.trim || undefined,
+    drivetrain: extractDrivetrainFromText((() => {
+      try {
+        const specs = listing.specsJson ? JSON.parse(listing.specsJson) : null;
+        return specs?.drivetrain ?? specs?.driveType ?? listing.trim ?? undefined;
+      } catch {
+        return listing.trim ?? undefined;
+      }
+    })()),
     price: listing.price,
     mileageKm: listing.mileage ?? undefined,
     daysOnLot: listing.daysOnLot ?? undefined,
+    scrapedAt: listing.scrapedAt ?? undefined,
+    sourceConfidence: listing.sourceConfidence ?? undefined,
     condition: (() => {
       const v = conditionForDisplay(condition);
       return v === "excellent" || v === "good" || v === "fair" || v === "poor" ? v : undefined;
@@ -335,6 +274,23 @@ export async function getAppraisalComps(query: CompsQuery): Promise<CompsResult>
   // Suggested retail: median minus small adjustment for accident-reported rate.
   const accidentRate = top.length === 0 ? 0 : top.filter(x => x.comp.accidentHistory === 'reported').length / top.length;
   const suggested = typeof med === 'number' ? Math.round(med * (1 - Math.min(0.03, accidentRate * 0.03))) : undefined;
+  const exactTrimMatches = top.filter((x) => x.score.reasons.includes('Exact trim match')).length;
+  const drivetrainMismatches = top.filter((x) => x.score.reasons.some((r) => r.startsWith('Drivetrain mismatch'))).length;
+  const staleComps = top.filter((x) => x.score.components.freshness <= 2).length;
+  const sourceDiversity = new Set(top.map((x) => x.comp.source)).size;
+  const avgScore = top.length ? Math.round(top.reduce((sum, item) => sum + item.score.total, 0) / top.length) : 0;
+  const notes: string[] = [];
+  if (top.length < 5) notes.push('Small comparable set; treat appraisal as directional.');
+  if (spec.trim && exactTrimMatches === 0) notes.push('No exact trim matches found in current comp set.');
+  if (drivetrainMismatches > 0) notes.push(`${drivetrainMismatches} top comps have drivetrain mismatches.`);
+  if (staleComps > Math.floor(top.length / 3)) notes.push('Several top comps are stale; refresh market scan before desking aggressively.');
+  if (sourceDiversity <= 1 && top.length > 0) notes.push('Most comps came from a single source/marketplace.');
+  const confidence: 'high' | 'medium' | 'low' =
+    top.length >= 8 && avgScore >= 75 && exactTrimMatches >= Math.max(1, Math.floor(top.length / 3)) && staleComps <= 2
+      ? 'high'
+      : top.length >= 4 && avgScore >= 60
+        ? 'medium'
+        : 'low';
 
   return {
     spec,
@@ -347,6 +303,8 @@ export async function getAppraisalComps(query: CompsQuery): Promise<CompsResult>
       p25Price: p25,
       p75Price: p75,
       suggestedRetailPrice: suggested,
+      confidence,
+      notes,
     },
   };
 }
