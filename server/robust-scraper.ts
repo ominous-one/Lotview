@@ -58,6 +58,73 @@ function isOlympicHyundaiDomain(hostname: string): boolean {
   return h === 'olympichyundaivancouver.com' || h.endsWith('.olympichyundaivancouver.com');
 }
 
+function parseListingPriceText(priceText: string | null | undefined): number | null {
+  if (!priceText) return null;
+  const match = priceText.match(/\$\s*(-?[\d,]+)/);
+  if (!match) return null;
+  const value = parseInt(match[1].replace(/,/g, ''), 10);
+  if (!Number.isFinite(value)) return null;
+  return value >= 5000 && value <= 500000 ? value : null;
+}
+
+function extractVehicleListingsFromSrp(html: string, sourceUrl: string): Array<{ vdpUrl: string; srpPrice: number | null }> {
+  const $ = cheerio.load(html);
+  const origin = new URL(sourceUrl).origin;
+  const listings: Array<{ vdpUrl: string; srpPrice: number | null }> = [];
+  const seen = new Set<string>();
+
+  const extractCardPrice = (card: cheerio.Cheerio<any>): number | null => {
+    const prioritizedSelectors = [
+      '.price-block__single:contains("Sale Price") .price-block__price',
+      '.price-block__single:contains("Selling Price") .price-block__price',
+      '.price-block__single:contains("Our Price") .price-block__price',
+      '.price-block__single:contains("Sale Price")',
+      '.price-block__single:contains("Selling Price")',
+      '.price-block__single:contains("Our Price")',
+      '.price-block__price--primary',
+      '.vehicle-card__price-wrap:contains("Sale Price")',
+      '.price-block',
+    ];
+
+    for (const selector of prioritizedSelectors) {
+      const text = card.find(selector).first().text().trim();
+      const parsed = parseListingPriceText(text);
+      if (parsed) return parsed;
+    }
+
+    const allPrices = card.find('.price-block__price, .vehicle-card__price-wrap, [class*="price"]')
+      .map((_, el) => parseListingPriceText($(el).text()))
+      .get()
+      .filter((value): value is number => typeof value === 'number' && value >= 5000);
+
+    return allPrices.length > 0 ? Math.min(...allPrices) : null;
+  };
+
+  $('.vehicle-card').each((_, element) => {
+    const card = $(element);
+    const href = card.find('a[href*="/vehicles/"]').first().attr('href');
+    if (!href) return;
+    const fullUrl = href.startsWith('http') ? href : `${origin}${href}`;
+    if (!/\/vehicles\/\d{4}\//i.test(fullUrl) || seen.has(fullUrl)) return;
+    seen.add(fullUrl);
+    listings.push({ vdpUrl: fullUrl, srpPrice: extractCardPrice(card) });
+  });
+
+  if (listings.length > 0) return listings;
+
+  $('a[href*="/vehicles/"]').each((_, element) => {
+    const href = $(element).attr('href');
+    if (!href) return;
+    const fullUrl = href.startsWith('http') ? href : `${origin}${href}`;
+    if (!/\/vehicles\/\d{4}\//i.test(fullUrl) || seen.has(fullUrl)) return;
+    seen.add(fullUrl);
+    const card = $(element).closest('.vehicle-card');
+    listings.push({ vdpUrl: fullUrl, srpPrice: extractCardPrice(card) });
+  });
+
+  return listings;
+}
+
 /**
  * Extract Carfax badge names from HTML using multiple trusted methods:
  * 1. Carfax CDN SVG URLs (most reliable)
@@ -1827,25 +1894,9 @@ async function attemptZenRowsScrape(dealershipId?: number): Promise<{
         }
 
         // Parse listing HTML to extract vehicle URLs
-        const $ = cheerio.load(listingResult.html);
-        const vehicleUrls: string[] = [];
-        
-        // Extract vehicle detail page URLs
-        $('a[href*="/vehicles/"]').each((_, elem) => {
-          const href = $(elem).attr('href');
-          if (href && /\/vehicles\/\d{4}\/[a-z-]+\/[a-z0-9-]+/i.test(href)) {
-            let fullUrl = href;
-            if (href.startsWith('/')) {
-              try {
-                const urlObj = new URL(source.sourceUrl);
-                fullUrl = `${urlObj.origin}${href}`;
-              } catch {}
-            }
-            if (!vehicleUrls.includes(fullUrl)) {
-              vehicleUrls.push(fullUrl);
-            }
-          }
-        });
+        const listingEntries = extractVehicleListingsFromSrp(listingResult.html, source.sourceUrl);
+        const srpPriceByUrl = new Map(listingEntries.map(entry => [entry.vdpUrl, entry.srpPrice]));
+        const vehicleUrls = listingEntries.map(entry => entry.vdpUrl);
 
         logInfo('[Robust Scraper] ZenRows found vehicle URLs', { service: 'scraper', method: 'zenrows', vehicleUrlCount: vehicleUrls.length, sourceName: source.sourceName });
 
@@ -1868,6 +1919,16 @@ async function attemptZenRowsScrape(dealershipId?: number): Promise<{
               .limit(1);
             
             if (existingComplete.length > 0 && existingComplete[0].images && existingComplete[0].images.length >= 12) {
+              const srpPrice = srpPriceByUrl.get(vdpUrl) ?? null;
+              if (srpPrice && existingComplete[0].price !== srpPrice) {
+                await updateVehiclePriceOnly(existingComplete[0].id, srpPrice);
+                totalUpdated++;
+                totalImported++;
+                logInfo('[Robust Scraper] SRP price refresh for image-complete vehicle', {
+                  service: 'scraper', method: 'zenrows', vdpUrl, vehicleId: existingComplete[0].id,
+                  oldPrice: existingComplete[0].price, newPrice: srpPrice,
+                });
+              }
               logInfo('[Robust Scraper] Skipping VDP scrape - vehicle has 12+ images (complete)', { 
                 service: 'scraper', method: 'zenrows', vdpUrl, 
                 vehicleId: existingComplete[0].id, 
@@ -2117,6 +2178,7 @@ async function attemptZenRowsScrape(dealershipId?: number): Promise<{
                   });
                 }
                 totalImported++;
+                foundVdpUrls.add(vdpUrl);
                 continue; // Skip full VDP parsing
               }
             }
@@ -2715,26 +2777,9 @@ async function attemptScrapingBeeScrape(dealershipId?: number): Promise<{
           continue;
         }
 
-        // Parse listing HTML to extract vehicle URLs
-        const $ = cheerio.load(listingResult.html);
-        const vehicleUrls: string[] = [];
-        
-        // Extract vehicle detail page URLs
-        $('a[href*="/vehicles/"]').each((_, elem) => {
-          const href = $(elem).attr('href');
-          if (href && /\/vehicles\/\d{4}\/[a-z-]+\/[a-z0-9-]+/i.test(href)) {
-            let fullUrl = href;
-            if (href.startsWith('/')) {
-              try {
-                const urlObj = new URL(source.sourceUrl);
-                fullUrl = `${urlObj.origin}${href}`;
-              } catch {}
-            }
-            if (!vehicleUrls.includes(fullUrl)) {
-              vehicleUrls.push(fullUrl);
-            }
-          }
-        });
+        const listingEntries = extractVehicleListingsFromSrp(listingResult.html, source.sourceUrl);
+        const srpPriceByUrl = new Map(listingEntries.map(entry => [entry.vdpUrl, entry.srpPrice]));
+        const vehicleUrls = listingEntries.map(entry => entry.vdpUrl);
 
         logInfo('[Robust Scraper] ScrapingBee found vehicle URLs', { service: 'scraper', method: 'scrapingbee', vehicleUrlCount: vehicleUrls.length, sourceName: source.sourceName });
 
@@ -2756,6 +2801,16 @@ async function attemptScrapingBeeScrape(dealershipId?: number): Promise<{
               .limit(1);
             
             if (existingComplete.length > 0 && existingComplete[0].images && existingComplete[0].images.length >= 12) {
+              const srpPrice = srpPriceByUrl.get(vdpUrl) ?? null;
+              if (srpPrice && existingComplete[0].price !== srpPrice) {
+                await updateVehiclePriceOnly(existingComplete[0].id, srpPrice);
+                totalUpdated++;
+                totalImported++;
+                logInfo('[Robust Scraper] SRP price refresh for image-complete vehicle', {
+                  service: 'scraper', method: 'scrapingbee', vdpUrl, vehicleId: existingComplete[0].id,
+                  oldPrice: existingComplete[0].price, newPrice: srpPrice,
+                });
+              }
               logInfo('[Robust Scraper] Skipping VDP scrape - vehicle has 12+ images (complete)', { 
                 service: 'scraper', method: 'scrapingbee', vdpUrl, 
                 vehicleId: existingComplete[0].id, 
