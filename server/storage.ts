@@ -1127,12 +1127,20 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getDealershipBySubdomain(subdomain: string): Promise<Dealership | undefined> {
+    const sanitized = subdomain.toLowerCase().replace(/[^a-z0-9-]/g, '');
+    const compact = sanitized.replace(/-/g, '');
+
     const result = await db
       .select()
       .from(dealerships)
       .where(
         and(
-          sql`LOWER(${dealerships.subdomain}) = LOWER(${subdomain})`,
+          sql`(
+            LOWER(${dealerships.subdomain}) = LOWER(${sanitized})
+            OR LOWER(${dealerships.slug}) = LOWER(${sanitized})
+            OR REPLACE(LOWER(${dealerships.slug}), '-', '') = LOWER(${compact})
+            OR REPLACE(LOWER(COALESCE(${dealerships.subdomain}, '')), '-', '') = LOWER(${compact})
+          )`,
           eq(dealerships.isActive, true)
         )
       )

@@ -92,7 +92,8 @@ function isDevOrPreviewHost(hostname: string): boolean {
 
 /**
  * Extract dealership ID from subdomain
- * Example: olympic.lotview.ai -> looks up dealership by subdomain "olympic"
+ * Example: olympichyundai.lotview.ai can resolve via canonical subdomain, slug,
+ * or normalized slug alias matching for the dealership tenant.
  * Ignores dev/preview URLs from Replit
  */
 function extractDealershipFromSubdomain(hostname: string): string | null {
