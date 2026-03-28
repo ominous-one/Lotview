@@ -135,6 +135,8 @@ export interface EnhancedMarketAnalysisResult {
     averageMileage: number;
     averageQualityScore?: number;
     highQualityListings?: number;
+    zeroPriceFiltered?: number;
+    outlierPriceFiltered?: number;
   };
   trimCoverage?: TrimCoverageStats;
   percentiles: PercentileBreakdown;
@@ -148,6 +150,14 @@ export interface EnhancedMarketAnalysisResult {
     marketPosition: 'below_market' | 'at_market' | 'above_market' | 'competitive';
     confidence: 'high' | 'medium' | 'low';
     reasoning: string;
+  };
+  analysisQuality?: {
+    confidence: 'high' | 'medium' | 'low';
+    sampleSize: number;
+    highQualityListings: number;
+    sourceDiversity: number;
+    trimMatchRate?: number;
+    notes: string[];
   };
   aiInsights?: string;
   sources: string[];
@@ -400,7 +410,9 @@ export class EnhancedMarketAnalysisService {
         ? Math.round(mileages.reduce((a, b) => a + b, 0) / mileages.length)
         : 0,
       averageQualityScore: avgQualityScore,
-      highQualityListings: highQualityCount
+      highQualityListings: highQualityCount,
+      zeroPriceFiltered: zeroCount,
+      outlierPriceFiltered: outlierCount
     };
 
     const percentiles = this.calculatePercentiles(prices);
@@ -411,12 +423,23 @@ export class EnhancedMarketAnalysisService {
 
     const priceTrends = await this.getPriceTrends(params.dealershipId, params.make, params.model);
 
+    const analysisQuality = this.buildAnalysisQuality(
+      summary.totalListings,
+      highQualityCount,
+      sourceBreakdown.length,
+      params.trims && params.trims.length > 0 && trimCoverage.totalListings > 0
+        ? trimCoverage.trimMatchedListings / trimCoverage.totalListings
+        : undefined,
+      errors
+    );
+
     const priceRecommendation = this.generatePriceRecommendation(
       summary,
       percentiles,
       params.targetPrice,
       params.mileage,
-      summary.averageMileage
+      summary.averageMileage,
+      analysisQuality.confidence
     );
 
     await this.recordPriceHistory(params.dealershipId, filteredListings);
@@ -460,6 +483,7 @@ export class EnhancedMarketAnalysisService {
       comparisons,
       priceTrends,
       priceRecommendation,
+      analysisQuality,
       sources,
       sourceBreakdown,
       scrapedAt: new Date().toISOString(),
@@ -623,12 +647,49 @@ export class EnhancedMarketAnalysisService {
     }
   }
 
+  private buildAnalysisQuality(
+    sampleSize: number,
+    highQualityListings: number,
+    sourceDiversity: number,
+    trimMatchRate: number | undefined,
+    errors: string[]
+  ): NonNullable<EnhancedMarketAnalysisResult['analysisQuality']> {
+    let confidence: 'high' | 'medium' | 'low' = 'low';
+
+    if (sampleSize >= 18 && highQualityListings >= Math.max(6, Math.round(sampleSize * 0.35)) && sourceDiversity >= 2) {
+      confidence = 'high';
+    } else if (sampleSize >= 8 && highQualityListings >= Math.max(2, Math.round(sampleSize * 0.2))) {
+      confidence = 'medium';
+    }
+
+    if (typeof trimMatchRate === 'number' && trimMatchRate < 0.35) {
+      confidence = confidence === 'high' ? 'medium' : 'low';
+    }
+
+    const notes: string[] = [];
+    if (sampleSize < 8) notes.push('Small comparable set; pricing should be treated as directional, not absolute.');
+    if (sourceDiversity <= 1) notes.push('Most comps came from a single marketplace/source.');
+    if (typeof trimMatchRate === 'number' && trimMatchRate < 0.5) notes.push(`Only ${Math.round(trimMatchRate * 100)}% of cached comps had a direct trim match.`);
+    if (errors.some(error => /outlier prices/i.test(error))) notes.push('Outlier prices were filtered from the result set.');
+    if (errors.some(error => /trim data/i.test(error))) notes.push('Trim coverage fallback was used for part of this analysis.');
+
+    return {
+      confidence,
+      sampleSize,
+      highQualityListings,
+      sourceDiversity,
+      trimMatchRate,
+      notes
+    };
+  }
+
   private generatePriceRecommendation(
     summary: { totalListings: number; averagePrice: number; medianPrice: number; minPrice: number; maxPrice: number },
     percentiles: PercentileBreakdown,
     targetPrice?: number,
     vehicleMileage?: number,
-    averageMileage?: number
+    averageMileage?: number,
+    analysisConfidence: 'high' | 'medium' | 'low' = 'low'
   ): EnhancedMarketAnalysisResult['priceRecommendation'] {
     let mileageAdjustment = 0;
     if (vehicleMileage && averageMileage && averageMileage > 0) {
@@ -664,7 +725,7 @@ export class EnhancedMarketAnalysisService {
       reasoning = `Based on ${summary.totalListings} comparable listings, we recommend pricing between $${priceRange.low.toLocaleString()} and $${priceRange.high.toLocaleString()}. The median market price is $${summary.medianPrice.toLocaleString()}.`;
     }
 
-    const confidence = summary.totalListings >= 20 ? 'high' : summary.totalListings >= 10 ? 'medium' : 'low';
+    const confidence = analysisConfidence;
 
     return {
       suggestedPrice,

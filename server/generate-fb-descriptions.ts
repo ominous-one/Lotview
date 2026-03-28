@@ -66,7 +66,7 @@ async function generateFBMarketplaceDescription(vehicle: {
     ).slice(0, 2),
   ].slice(0, 6);
 
-  const carfaxHighlights = vehicle.carfaxBadges?.join(', ') || 'Clean history available';
+  const carfaxHighlights = vehicle.carfaxBadges?.join(', ') || 'History report status not confirmed';
 
   const prompt = `You are a world-class car sales professional writing a Facebook Marketplace description. Write a compelling, mobile-optimized description for this vehicle that will grab attention and drive inquiries.
 

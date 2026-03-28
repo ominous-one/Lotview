@@ -264,10 +264,10 @@ export function tenantMiddleware(storage: any) {
             return res.status(400).json({ error: 'Could not determine dealership context from authentication' });
           }
         } else if (isDevOrPreviewHost(req.hostname)) {
-          // Development/preview environment - default to dealershipId=1 for testing
-          // This allows the marketing site and inventory to work in Replit dev mode
-          dealershipId = 1;
-          source = 'default';
+          // Development/preview environment must resolve dealership explicitly via
+          // subdomain, auth, or an endpoint-specific query param. Do not silently
+          // fall back to dealership 1, which breaks multi-tenant isolation.
+          source = 'none';
         }
         // Public request without subdomain on production - leave dealershipId undefined
         // Routes that need dealership context will return 400

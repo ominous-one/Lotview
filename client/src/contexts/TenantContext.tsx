@@ -115,9 +115,27 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const resolveUrl = subdomain 
-      ? `/api/tenancy/resolve?subdomain=${encodeURIComponent(subdomain)}`
-      : `/api/tenancy/resolve?dealershipId=1`;
+    const url = new URL(window.location.href);
+    const explicitDealershipId = url.searchParams.get('dealershipId');
+    const explicitSubdomain = url.searchParams.get('subdomain');
+
+    const resolveUrl = explicitSubdomain
+      ? `/api/tenancy/resolve?subdomain=${encodeURIComponent(explicitSubdomain)}`
+      : subdomain
+        ? `/api/tenancy/resolve?subdomain=${encodeURIComponent(subdomain)}`
+        : explicitDealershipId
+          ? `/api/tenancy/resolve?dealershipId=${encodeURIComponent(explicitDealershipId)}`
+          : null;
+
+    if (!resolveUrl) {
+      setState({
+        isMarketingSite: true,
+        isLoading: false,
+        dealership: null,
+        subdomain: null,
+      });
+      return;
+    }
 
     fetch(resolveUrl)
       .then(res => res.json())

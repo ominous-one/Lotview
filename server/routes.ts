@@ -2778,8 +2778,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all users (master only)
   app.get("/api/users", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
     try {
-      // Single-dealership mode: Master users see users from dealershipId=1
-      // Multi-tenant expansion: Add dealership switcher or query param to allow master users to view any dealership
+      // Tenant-scoped master users only see staff for the dealership resolved by
+      // the tenancy middleware / active subdomain.
       const dealershipId = req.dealershipId!;
       const users = await storage.getAllUsers(dealershipId);
       // Exclude password hashes
@@ -2815,9 +2815,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Hash password
       const passwordHash = await hashPassword(password);
       
-      // Single-dealership mode: Non-master users assigned to dealershipId=1, master users have null
-      // Multi-tenant expansion: Add dealershipId field to request body for master users to specify target dealership
-      const dealershipId = role === "master" ? null : req.dealershipId!;
+      // In multi-tenant mode, master users are tenant-scoped administrators for the
+      // current dealership selected by tenancy middleware. Creating a master user with
+      // null dealershipId would incorrectly create a cross-tenant privileged account.
+      const dealershipId = req.dealershipId!;
       
       // Create user
       const user = await storage.createUser({
@@ -2859,9 +2860,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         updates.passwordHash = await hashPassword(password);
       }
       
-      // Master users can update any user (dealershipId = undefined bypasses tenant filter)
-      // Multi-tenant expansion: Add dealership validation for non-master users
-      const user = await storage.updateUser(id, updates, undefined);
+      // Master users are scoped to their active dealership context here; keep updates
+      // tenant-bound so one dealership cannot mutate another dealership's staff.
+      const user = await storage.updateUser(id, updates, req.dealershipId!);
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
