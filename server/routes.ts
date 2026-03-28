@@ -165,6 +165,19 @@ function parseDealershipIdParam(value: unknown): number | null {
 }
 
 async function resolvePublicDealership(storageRef: typeof storage, req: any) {
+  const hostname = typeof req.query?.hostname === 'string'
+    ? req.query.hostname
+    : typeof req.hostname === 'string'
+      ? req.hostname
+      : null;
+
+  if (hostname) {
+    const hostnameDealership = await storageRef.getDealershipByHostname(hostname);
+    if (hostnameDealership) {
+      return hostnameDealership;
+    }
+  }
+
   if (req.query?.slug && typeof req.query.slug === 'string') {
     return storageRef.getDealershipBySlug(req.query.slug);
   }
@@ -273,16 +286,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Resolve subdomain to dealership for frontend routing
   app.get("/api/tenancy/resolve", async (req, res) => {
     try {
-      const { subdomain, dealershipId } = req.query;
+      const { subdomain, dealershipId, hostname } = req.query;
       
       let dealership = null;
       
-      if (subdomain && typeof subdomain === 'string') {
+      if (hostname && typeof hostname === 'string') {
+        dealership = await storage.getDealershipByHostname(hostname);
+      }
+
+      if (!dealership && subdomain && typeof subdomain === 'string') {
         const sanitizedSubdomain = subdomain.toLowerCase().replace(/[^a-z0-9-]/g, '');
         if (sanitizedSubdomain) {
           dealership = await storage.getDealershipBySubdomain(sanitizedSubdomain);
         }
-      } else if (dealershipId) {
+      } else if (!dealership && dealershipId) {
         const id = parseInt(dealershipId as string, 10);
         if (!isNaN(id) && id > 0) {
           dealership = await storage.getDealership(id);

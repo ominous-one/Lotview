@@ -57,4 +57,4 @@ Use this as the short-lived execution scratchpad for the current LotView run.
 - Scrape/import durability, onboarding completion, and autopost execution still lack fresh runtime proof against live accounts/data.
 
 ## Immediate next action
-- Push the latest repo hardening, then verify authenticated role flows and the intended live dealership subdomain mappings against production data.
+- Generate and execute the next SaaS-foundation implementation slice: add immutable tenant identity, add first-class tenant domain mapping, update routing to prefer exact hostname resolution with migration fallback, and clean up role/routing assumptions that make long-term tenant safety brittle.

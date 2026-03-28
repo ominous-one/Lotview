@@ -8,9 +8,10 @@ import { sql } from "drizzle-orm";
 // Dealerships table - Each dealership is a tenant
 export const dealerships = pgTable("dealerships", {
   id: serial("id").primaryKey(),
+  tenantKey: uuid("tenant_key").defaultRandom().notNull().unique(),
   name: text("name").notNull(), // e.g., "Olympic Auto Group"
   slug: text("slug").notNull().unique(), // URL-safe identifier (e.g., "olympic-auto")
-  subdomain: text("subdomain").unique(), // For subdomain routing (e.g., "olympic")
+  subdomain: text("subdomain").unique(), // Legacy/system subdomain routing field (e.g., "olympic")
   address: text("address"), // Street address
   city: text("city"), // City
   province: text("province"), // Province/State (e.g., "BC")
@@ -32,6 +33,30 @@ export const insertDealershipSchema = createInsertSchema(dealerships).omit({
 
 export type InsertDealership = z.infer<typeof insertDealershipSchema>;
 export type Dealership = typeof dealerships.$inferSelect;
+
+export const tenantDomains = pgTable("tenant_domains", {
+  id: uuid("id").default(sql`gen_random_uuid()`).primaryKey(),
+  tenantKey: uuid("tenant_key").notNull().references(() => dealerships.tenantKey, { onDelete: 'cascade' }),
+  dealershipId: integer("dealership_id").notNull().references(() => dealerships.id, { onDelete: 'cascade' }),
+  hostname: text("hostname").notNull().unique(),
+  kind: text("kind").notNull().default('system_subdomain'), // system_subdomain, custom_domain, redirect_alias, preview
+  isPrimary: boolean("is_primary").notNull().default(false),
+  status: text("status").notNull().default('active'), // pending_verification, active, disabled
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  tenantKeyIdx: index("tenant_domains_tenant_key_idx").on(table.tenantKey),
+  dealershipIdIdx: index("tenant_domains_dealership_id_idx").on(table.dealershipId),
+}));
+
+export const insertTenantDomainSchema = createInsertSchema(tenantDomains).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertTenantDomain = z.infer<typeof insertTenantDomainSchema>;
+export type TenantDomain = typeof tenantDomains.$inferSelect;
 
 // ====== MARKETING LEADS ======
 

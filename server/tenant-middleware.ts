@@ -22,7 +22,7 @@ if (!JWT_SECRET_ENV && process.env.NODE_ENV === "production") {
 const JWT_SECRET = JWT_SECRET_ENV || "olympic-auto-jwt-dev-secret-DO-NOT-USE-IN-PRODUCTION";
 
 // Tenant resolution sources for tracking and debugging
-type TenantResolutionSource = 'jwt' | 'subdomain' | 'header' | 'default' | 'none';
+type TenantResolutionSource = 'jwt' | 'hostname' | 'subdomain' | 'header' | 'default' | 'none';
 
 // Extend Express Request type to include dealership context and user
 declare global {
@@ -200,28 +200,44 @@ export function tenantMiddleware(storage: any) {
         }
       }
       
-      // Strategy 2: Extract from subdomain (if not already set)
+      // Strategy 2: Resolve by exact hostname/domain mapping first, then legacy subdomain fallback
+      if (!dealershipId) {
+        const normalizedHostname = req.hostname.split(':')[0].toLowerCase();
+        try {
+          const hostnameDealership = await storage.getDealershipByHostname(normalizedHostname);
+          if (hostnameDealership) {
+            dealershipId = hostnameDealership.id;
+            source = 'hostname';
+            req.dealership = hostnameDealership;
+            console.log(`[Tenant] Resolved dealership ${hostnameDealership.id} (${hostnameDealership.name}) from hostname ${normalizedHostname}`);
+          }
+        } catch (error: any) {
+          console.error('[Tenant] Hostname lookup error:', error?.message || error, 'Stack:', error?.stack);
+          return res.status(500).json({
+            error: 'Failed to resolve dealership from hostname',
+            hostname: normalizedHostname,
+            details: error?.message || 'Unknown error'
+          });
+        }
+      }
+
       if (!dealershipId) {
         const subdomain = extractDealershipFromSubdomain(req.hostname);
         
         if (subdomain) {
           try {
-            // Look up dealership by subdomain
-            console.log(`[Tenant] Looking up dealership by subdomain: ${subdomain}`);
+            console.log(`[Tenant] Looking up dealership by legacy subdomain fallback: ${subdomain}`);
             const dealership = await storage.getDealershipBySubdomain(subdomain);
             if (dealership) {
               dealershipId = dealership.id;
               source = 'subdomain';
               req.dealership = dealership;
-              console.log(`[Tenant] Resolved dealership ${dealership.id} (${dealership.name}) from subdomain ${subdomain}`);
+              console.log(`[Tenant] Resolved dealership ${dealership.id} (${dealership.name}) from legacy subdomain fallback ${subdomain}`);
             } else {
-              // SECURITY: Fail closed for unknown subdomains (prevents cross-tenant exposure)
-              // This applies to both authenticated and public requests
               console.warn(`[Tenant] No dealership found for subdomain: ${subdomain}`);
               return res.status(404).json({ error: `Dealership not found for subdomain: ${subdomain}` });
             }
           } catch (error: any) {
-            // Subdomain lookup failed - fail closed
             console.error('[Tenant] Subdomain lookup error:', error?.message || error, 'Stack:', error?.stack);
             return res.status(500).json({ 
               error: 'Failed to resolve dealership from subdomain',

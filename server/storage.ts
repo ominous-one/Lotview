@@ -1,8 +1,18 @@
 import { db } from "./db";
 import { hashPassword } from "./auth";
 import crypto from "crypto";
+
+const SYSTEM_BASE_DOMAIN = (process.env.SYSTEM_BASE_DOMAIN || process.env.APP_BASE_DOMAIN || 'lotview.ai').toLowerCase();
+
+function buildSystemTenantHostname(subdomain?: string | null): string | null {
+  const normalized = subdomain?.trim().toLowerCase();
+  if (!normalized) return null;
+  return `${normalized}.${SYSTEM_BASE_DOMAIN}`;
+}
+
 import { 
   dealerships,
+  tenantDomains,
   dealershipSubscriptions,
   dealershipApiKeys,
   vehicles, 
@@ -37,6 +47,8 @@ import {
   fbThreadVehicleMap,
   type Dealership,
   type InsertDealership,
+  type TenantDomain,
+  type InsertTenantDomain,
   type DealershipSubscription,
   type InsertDealershipSubscription,
   type DealershipApiKeys,
@@ -352,6 +364,9 @@ export interface IStorage {
   getDealership(id: number): Promise<Dealership | undefined>;
   getDealershipBySlug(slug: string): Promise<Dealership | undefined>;
   getDealershipBySubdomain(subdomain: string): Promise<Dealership | undefined>;
+  getDealershipByHostname(hostname: string): Promise<Dealership | undefined>;
+  createTenantDomain(domain: InsertTenantDomain): Promise<TenantDomain>;
+  listTenantDomains(dealershipId: number): Promise<TenantDomain[]>;
   getAllDealerships(): Promise<Dealership[]>;
   createDealership(dealership: InsertDealership): Promise<Dealership>;
   updateDealership(id: number, dealership: Partial<InsertDealership>): Promise<Dealership | undefined>;
@@ -1148,13 +1163,55 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
+  async getDealershipByHostname(hostname: string): Promise<Dealership | undefined> {
+    const normalizedHostname = hostname.split(':')[0].trim().toLowerCase();
+    if (!normalizedHostname) return undefined;
+
+    const result = await db
+      .select({ dealership: dealerships })
+      .from(tenantDomains)
+      .innerJoin(dealerships, eq(dealerships.tenantKey, tenantDomains.tenantKey))
+      .where(
+        and(
+          eq(tenantDomains.hostname, normalizedHostname),
+          eq(tenantDomains.status, 'active'),
+          eq(dealerships.isActive, true)
+        )
+      )
+      .limit(1);
+
+    return result[0]?.dealership;
+  }
+
+  async createTenantDomain(domain: InsertTenantDomain): Promise<TenantDomain> {
+    const [created] = await db.insert(tenantDomains).values(domain).returning();
+    return created;
+  }
+
+  async listTenantDomains(dealershipId: number): Promise<TenantDomain[]> {
+    return await db.select().from(tenantDomains).where(eq(tenantDomains.dealershipId, dealershipId)).orderBy(desc(tenantDomains.isPrimary), asc(tenantDomains.hostname));
+  }
+
   async getAllDealerships(): Promise<Dealership[]> {
     return await db.select().from(dealerships).orderBy(dealerships.name);
   }
 
   async createDealership(dealership: InsertDealership): Promise<Dealership> {
-    const result = await db.insert(dealerships).values(dealership).returning();
-    return result[0];
+    return await db.transaction(async (tx) => {
+      const [created] = await tx.insert(dealerships).values(dealership).returning();
+      const systemHostname = buildSystemTenantHostname(created.subdomain);
+      if (systemHostname) {
+        await tx.insert(tenantDomains).values({
+          tenantKey: created.tenantKey,
+          dealershipId: created.id,
+          hostname: systemHostname,
+          kind: 'system_subdomain',
+          isPrimary: true,
+          status: 'active',
+        }).onConflictDoNothing();
+      }
+      return created;
+    });
   }
 
   async updateDealership(id: number, dealership: Partial<InsertDealership>): Promise<Dealership | undefined> {
@@ -4198,6 +4255,18 @@ export class DatabaseStorage implements IStorage {
           isActive: true,
         })
         .returning();
+
+      const systemHostname = buildSystemTenantHostname(dealership.subdomain);
+      if (systemHostname) {
+        await tx.insert(tenantDomains).values({
+          tenantKey: dealership.tenantKey,
+          dealershipId: dealership.id,
+          hostname: systemHostname,
+          kind: 'system_subdomain',
+          isPrimary: true,
+          status: 'active',
+        }).onConflictDoNothing();
+      }
 
       // b) Create master admin user with hashed password
       const passwordHash = await hashPassword(params.masterAdminPassword);
