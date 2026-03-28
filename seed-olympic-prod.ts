@@ -14,7 +14,7 @@ async function seedOlympic() {
     const [d] = await db.insert(dealerships).values({
       name: "Olympic Hyundai Vancouver",
       slug: "olympic-hyundai",
-      subdomain: "olympic",
+      subdomain: "olympichyundai",
       address: "725 Marine Dr",
       city: "Vancouver",
       province: "BC",
@@ -26,6 +26,13 @@ async function seedOlympic() {
   }
 
   const dealership = (await db.select().from(dealerships).where(eq(dealerships.slug, "olympic-hyundai")))[0];
+
+  if (dealership.subdomain !== "olympichyundai") {
+    await db.update(dealerships)
+      .set({ subdomain: "olympichyundai", updatedAt: new Date() })
+      .where(eq(dealerships.id, dealership.id));
+    console.log("✅ Updated Olympic Hyundai subdomain to olympichyundai");
+  }
 
   // Create admin user
   const existingUser = await db.select().from(users).where(eq(users.email, "admin@olympichyundai.ca"));
@@ -77,7 +84,7 @@ async function seedOlympic() {
   }
 
   console.log("\n🎉 Done! Olympic Hyundai Vancouver is live.");
-  console.log("Access at: https://olympic.lotview.ai");
+  console.log("Access at: https://olympichyundai.lotview.ai");
   process.exit(0);
 }
 

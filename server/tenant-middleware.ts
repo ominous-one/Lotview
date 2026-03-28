@@ -11,6 +11,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { hasRole } from '@shared/authz';
 import { isSafeE2ERequest, seedE2E } from "./e2e-test-mode";
 
 // JWT_SECRET must be set in production for security (SESSION_SECRET accepted as alias)
@@ -116,6 +117,15 @@ function extractDealershipFromSubdomain(hostname: string): string | null {
   return null;
 }
 
+function acceptsHtml(req: Request): boolean {
+  const accept = req.headers.accept;
+  if (typeof accept !== 'string') {
+    return false;
+  }
+
+  return accept.includes('text/html') || accept.includes('*/*');
+}
+
 /**
  * Tenant context middleware - extracts and sets dealership ID
  */
@@ -204,8 +214,26 @@ export function tenantMiddleware(storage: any) {
       if (!dealershipId) {
         const normalizedHostname = req.hostname.split(':')[0].toLowerCase();
         try {
+          const tenantDomain = typeof storage.getTenantDomainByHostname === 'function'
+            ? await storage.getTenantDomainByHostname(normalizedHostname)
+            : undefined;
           const hostnameDealership = await storage.getDealershipByHostname(normalizedHostname);
           if (hostnameDealership) {
+            if (
+              tenantDomain?.kind === 'redirect_alias' &&
+              (req.method === 'GET' || req.method === 'HEAD') &&
+              acceptsHtml(req)
+            ) {
+              const primaryTenantDomain = typeof storage.getPrimaryTenantDomainForDealership === 'function'
+                ? await storage.getPrimaryTenantDomainForDealership(hostnameDealership.id)
+                : undefined;
+
+              if (primaryTenantDomain?.hostname && primaryTenantDomain.hostname !== normalizedHostname) {
+                const redirectUrl = `${req.protocol}://${primaryTenantDomain.hostname}${req.originalUrl || req.url || '/'} `;
+                return res.redirect(308, redirectUrl.trim());
+              }
+            }
+
             dealershipId = hostnameDealership.id;
             source = 'hostname';
             req.dealership = hostnameDealership;
@@ -255,7 +283,7 @@ export function tenantMiddleware(storage: any) {
         if (!isNaN(headerDealershipId)) {
           // Only allow super_admin or master users to switch dealership context via header
           const user = req.user;
-          if (user && (user.role === 'super_admin' || user.role === 'master')) {
+          if (user && hasRole(user.role, 'super_admin', 'master')) {
             dealershipId = headerDealershipId;
             source = 'header';
           }
@@ -272,7 +300,7 @@ export function tenantMiddleware(storage: any) {
           // Exception: super_admin and master users can proceed without dealership context
           // (they select dealership in their dashboard UI or via explicit header)
           const user = req.user;
-          if (user && (user.role === 'super_admin' || user.role === 'master')) {
+          if (user && hasRole(user.role, 'super_admin', 'master')) {
             // Allow super_admin/master to proceed - dealershipId stays undefined
             // Routes that need dealership context should handle this appropriately
             source = 'none';
@@ -344,7 +372,7 @@ export function superAdminOnly(req: Request, res: Response, next: NextFunction) 
   }
   
   const user = req.user as any;
-  if (user.role !== 'super_admin') {
+  if (!hasRole(user.role, 'super_admin')) {
     return res.status(403).json({ error: 'Super admin access required' });
   }
   
@@ -360,7 +388,7 @@ export function masterOnly(req: Request, res: Response, next: NextFunction) {
   }
   
   const user = req.user as any;
-  if (user.role !== 'master') {
+  if (!hasRole(user.role, 'master')) {
     return res.status(403).json({ error: 'Master user access required' });
   }
   
@@ -380,7 +408,7 @@ export function dealershipOwnerOrMaster(req: Request, res: Response, next: NextF
   const targetDealershipId = req.dealershipId || parseInt(req.params.dealershipId) || parseInt(req.query.dealershipId as string);
   
   // Super admins and master users can access all dealerships
-  if (user.role === 'super_admin' || user.role === 'master') {
+  if (hasRole(user.role, 'super_admin', 'master')) {
     return next();
   }
   

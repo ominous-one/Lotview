@@ -27,7 +27,7 @@ async function seedDealerships() {
       {
         name: "Olympic Hyundai Vancouver",
         slug: "olympic-hyundai",
-        subdomain: "olympic",
+        subdomain: "olympichyundai",
         isActive: true,
       },
       {

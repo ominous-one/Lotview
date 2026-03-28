@@ -392,6 +392,8 @@ export interface IStorage {
   getDealershipBySlug(slug: string): Promise<Dealership | undefined>;
   getDealershipBySubdomain(subdomain: string): Promise<Dealership | undefined>;
   getDealershipByHostname(hostname: string): Promise<Dealership | undefined>;
+  getTenantDomainByHostname(hostname: string): Promise<TenantDomain | undefined>;
+  getPrimaryTenantDomainForDealership(dealershipId: number): Promise<TenantDomain | undefined>;
   createTenantDomain(domain: InsertTenantDomain): Promise<TenantDomain>;
   listTenantDomains(dealershipId: number): Promise<TenantDomain[]>;
   getAllDealerships(): Promise<Dealership[]>;
@@ -1208,6 +1210,41 @@ export class DatabaseStorage implements IStorage {
       .limit(1);
 
     return result[0]?.dealership;
+  }
+
+  async getTenantDomainByHostname(hostname: string): Promise<TenantDomain | undefined> {
+    const normalizedHostname = hostname.split(':')[0].trim().toLowerCase();
+    if (!normalizedHostname) return undefined;
+
+    const result = await db
+      .select()
+      .from(tenantDomains)
+      .where(
+        and(
+          eq(tenantDomains.hostname, normalizedHostname),
+          eq(tenantDomains.status, 'active')
+        )
+      )
+      .limit(1);
+
+    return result[0];
+  }
+
+  async getPrimaryTenantDomainForDealership(dealershipId: number): Promise<TenantDomain | undefined> {
+    const result = await db
+      .select()
+      .from(tenantDomains)
+      .where(
+        and(
+          eq(tenantDomains.dealershipId, dealershipId),
+          eq(tenantDomains.status, 'active'),
+          eq(tenantDomains.isPrimary, true)
+        )
+      )
+      .orderBy(asc(tenantDomains.hostname))
+      .limit(1);
+
+    return result[0];
   }
 
   async createTenantDomain(domain: InsertTenantDomain): Promise<TenantDomain> {
