@@ -3,8 +3,9 @@ import { useLocation, Link } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Car, Lock, Mail, ArrowRight, Shield, Zap, BarChart3 } from "lucide-react";
+import { Car, Lock, Mail, ArrowRight, Shield, Zap, BarChart3, Building2, Users, UserCog, Briefcase } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { getDefaultRouteForRole } from "@shared/authz";
 import { useTenant } from "@/contexts/TenantContext";
 
 export default function Login() {
@@ -37,15 +38,7 @@ export default function Login() {
           description: `Signed in as ${data.user.name}`,
         });
 
-        if (data.user.role === 'super_admin') {
-          setLocation('/super-admin');
-        } else if (data.user.role === 'master') {
-          setLocation('/dashboard');
-        } else if (data.user.role === 'manager') {
-          setLocation('/manager');
-        } else if (data.user.role === 'salesperson') {
-          setLocation('/sales');
-        }
+        setLocation(getDefaultRouteForRole(data.user.role));
       } else {
         toast({
           title: "Sign in failed",
@@ -146,9 +139,37 @@ export default function Login() {
                 </div>
                 <h1 className="text-2xl font-bold text-[#022d60]">Welcome back</h1>
                 <p className="text-gray-500 mt-2">
-                  Sign in to access your dashboard
+                  {dealership
+                    ? `Sign in to ${dealership.name}'s workspace`
+                    : "Sign in to access your dashboard"}
                 </p>
               </div>
+
+              {dealership && (
+                <div className="mb-6 space-y-3 rounded-2xl border border-[#022d60]/10 bg-[#022d60]/[0.03] p-4">
+                  <div className="flex items-start gap-3">
+                    <Building2 className="mt-0.5 h-5 w-5 text-[#022d60]" />
+                    <div className="text-left">
+                      <p className="text-sm font-semibold text-[#022d60]">You&apos;re on the correct dealership domain</p>
+                      <p className="text-sm text-gray-600 break-all">{window.location.origin}/login</p>
+                    </div>
+                  </div>
+                  <div className="grid gap-2 text-left text-sm text-gray-600 md:grid-cols-3">
+                    <div className="rounded-xl bg-white/70 p-3">
+                      <div className="flex items-center gap-2 font-medium text-[#022d60]"><UserCog className="h-4 w-4" /> GM</div>
+                      <p className="mt-1">Settings, onboarding, and dealership-wide oversight.</p>
+                    </div>
+                    <div className="rounded-xl bg-white/70 p-3">
+                      <div className="flex items-center gap-2 font-medium text-[#022d60]"><Users className="h-4 w-4" /> Sales manager</div>
+                      <p className="mt-1">Conversations, appointments, and team workflow.</p>
+                    </div>
+                    <div className="rounded-xl bg-white/70 p-3">
+                      <div className="flex items-center gap-2 font-medium text-[#022d60]"><Briefcase className="h-4 w-4" /> Salesperson</div>
+                      <p className="mt-1">Daily lead follow-up and sales activity.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
               
               <form onSubmit={handleLogin} className="space-y-5">
                 <div>

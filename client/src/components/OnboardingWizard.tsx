@@ -30,6 +30,16 @@ interface OnboardingFormData {
     timezone: string;
     defaultCurrency: string;
   };
+  contacts: {
+    supportEmail?: string;
+    salesEmail?: string;
+    salesPhone?: string;
+    smsNumber?: string;
+    websiteUrl?: string;
+    privacyPolicyUrl?: string;
+    termsOfServiceUrl?: string;
+    businessHours?: string;
+  };
   branding: {
     primaryColor: string;
     secondaryColor: string;
@@ -153,6 +163,16 @@ const defaultFormData: OnboardingFormData = {
     phone: '',
     timezone: 'America/Vancouver',
     defaultCurrency: 'CAD',
+  },
+  contacts: {
+    supportEmail: '',
+    salesEmail: '',
+    salesPhone: '',
+    smsNumber: '',
+    websiteUrl: '',
+    privacyPolicyUrl: '',
+    termsOfServiceUrl: '',
+    businessHours: '',
   },
   branding: {
     primaryColor: '#022d60',
@@ -485,6 +505,28 @@ export default function OnboardingWizard({ onComplete }: { onComplete?: () => vo
               </div>
             </div>
 
+            <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+              <div>
+                <p className="font-medium">Canonical tenant setup</p>
+                <p className="text-sm text-muted-foreground">
+                  Use the dealership&apos;s permanent public identity here. The subdomain becomes the working LotView URL for staff,
+                  while the slug is the internal route-safe identifier.
+                </p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2 text-sm">
+                <div className="rounded-md border bg-background p-3">
+                  <p className="font-medium text-foreground">Staff sign-in URL</p>
+                  <p className="text-muted-foreground mt-1 break-all">
+                    https://{formData.dealership.subdomain || 'your-store'}.lotview.ai/login
+                  </p>
+                </div>
+                <div className="rounded-md border bg-background p-3">
+                  <p className="font-medium text-foreground">Canonical dealership slug</p>
+                  <p className="text-muted-foreground mt-1 break-all">/d/{formData.dealership.slug || 'your-store'}</p>
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="dealership-address">Street Address</Label>
               <Input
@@ -546,6 +588,104 @@ export default function OnboardingWizard({ onComplete }: { onComplete?: () => vo
                 </select>
               </div>
             </div>
+
+            <Card className="border-dashed">
+              <CardHeader className="py-3">
+                <CardTitle className="text-base">Trust signals & contact coverage</CardTitle>
+                <CardDescription>These details reduce launch-day confusion for shoppers and staff.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="contact-website">Primary Website URL</Label>
+                    <Input
+                      id="contact-website"
+                      data-testid="input-contact-website"
+                      value={formData.contacts.websiteUrl}
+                      onChange={(e) => updateField('contacts', 'websiteUrl', e.target.value)}
+                      placeholder="https://www.olympicauto.ca"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="contact-support-email">Support Email</Label>
+                    <Input
+                      id="contact-support-email"
+                      data-testid="input-contact-support-email"
+                      type="email"
+                      value={formData.contacts.supportEmail}
+                      onChange={(e) => updateField('contacts', 'supportEmail', e.target.value)}
+                      placeholder="support@dealership.com"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="contact-sales-email">Sales Email</Label>
+                    <Input
+                      id="contact-sales-email"
+                      data-testid="input-contact-sales-email"
+                      type="email"
+                      value={formData.contacts.salesEmail}
+                      onChange={(e) => updateField('contacts', 'salesEmail', e.target.value)}
+                      placeholder="sales@dealership.com"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="contact-sales-phone">Sales Phone</Label>
+                    <Input
+                      id="contact-sales-phone"
+                      data-testid="input-contact-sales-phone"
+                      value={formData.contacts.salesPhone}
+                      onChange={(e) => updateField('contacts', 'salesPhone', e.target.value)}
+                      placeholder="(604) 555-0199"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="contact-sms">SMS Number</Label>
+                    <Input
+                      id="contact-sms"
+                      data-testid="input-contact-sms"
+                      value={formData.contacts.smsNumber}
+                      onChange={(e) => updateField('contacts', 'smsNumber', e.target.value)}
+                      placeholder="(604) 555-0111"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="contact-privacy">Privacy Policy URL</Label>
+                    <Input
+                      id="contact-privacy"
+                      data-testid="input-contact-privacy"
+                      value={formData.contacts.privacyPolicyUrl}
+                      onChange={(e) => updateField('contacts', 'privacyPolicyUrl', e.target.value)}
+                      placeholder="https://www.olympicauto.ca/privacy"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="contact-terms">Terms of Service URL</Label>
+                    <Input
+                      id="contact-terms"
+                      data-testid="input-contact-terms"
+                      value={formData.contacts.termsOfServiceUrl}
+                      onChange={(e) => updateField('contacts', 'termsOfServiceUrl', e.target.value)}
+                      placeholder="https://www.olympicauto.ca/terms"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="contact-hours">Business Hours</Label>
+                  <Textarea
+                    id="contact-hours"
+                    data-testid="input-contact-hours"
+                    value={formData.contacts.businessHours}
+                    onChange={(e) => updateField('contacts', 'businessHours', e.target.value)}
+                    rows={3}
+                    placeholder={"Mon-Fri: 9am-7pm\nSat: 9am-6pm\nSun: Closed"}
+                  />
+                </div>
+              </CardContent>
+            </Card>
           </div>
         );
 
@@ -1167,6 +1307,35 @@ export default function OnboardingWizard({ onComplete }: { onComplete?: () => vo
 
             <Card className="border-dashed">
               <CardHeader className="py-3">
+                <CardTitle className="text-base">Role-aware first login flow</CardTitle>
+                <CardDescription>Set expectations before invites go out so every operator lands in the right workspace.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 md:grid-cols-3 text-sm">
+                  <div className="rounded-lg border bg-background p-4">
+                    <p className="font-medium">General Manager</p>
+                    <p className="text-muted-foreground mt-1">Owns dealership settings, users, launch readiness, and cross-team visibility.</p>
+                    <Badge variant="secondary" className="mt-3">Master admin</Badge>
+                  </div>
+                  <div className="rounded-lg border bg-background p-4">
+                    <p className="font-medium">Sales Manager</p>
+                    <p className="text-muted-foreground mt-1">Monitors conversations, appointments, and team follow-up quality.</p>
+                    <Badge variant="secondary" className="mt-3">Manager dashboard</Badge>
+                  </div>
+                  <div className="rounded-lg border bg-background p-4">
+                    <p className="font-medium">Salesperson</p>
+                    <p className="text-muted-foreground mt-1">Works their leads fast without getting buried in setup screens.</p>
+                    <Badge variant="secondary" className="mt-3">Sales workspace</Badge>
+                  </div>
+                </div>
+                <div className="mt-4 rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
+                  Share this URL with staff after launch: <span className="font-medium text-foreground">https://{formData.dealership.subdomain || 'your-store'}.lotview.ai/login</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-dashed">
+              <CardHeader className="py-3">
                 <div className="flex justify-between items-center">
                   <div>
                     <CardTitle className="text-base">Additional Staff (Optional)</CardTitle>
@@ -1289,6 +1458,18 @@ export default function OnboardingWizard({ onComplete }: { onComplete?: () => vo
                           ? `${formData.dealership.city}, ${formData.dealership.province}`
                           : '(Not set)'}
                       </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Public website:</span>
+                      <span className="font-medium">{formData.contacts.websiteUrl || '(Not set)'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Staff sign-in:</span>
+                      <span className="font-medium">https://{formData.dealership.subdomain || '(not-set)'}.lotview.ai/login</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Support coverage:</span>
+                      <span className="font-medium">{formData.contacts.supportEmail || formData.contacts.salesPhone || '(Not set)'}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Master Admin:</span>
