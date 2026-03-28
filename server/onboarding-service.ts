@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { 
-  dealerships, users, dealershipApiKeys, dealershipSubscriptions,
+  dealerships, tenantDomains, users, dealershipApiKeys, dealershipSubscriptions,
   creditScoreTiers, modelYearTerms, dealershipFees, scrapeSources,
   chatPrompts, aiPromptTemplates, adTemplates, postingSchedule,
   dealershipBranding, dealershipContacts, staffInvites,
@@ -10,6 +10,14 @@ import {
 import { eq, and } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
+
+const SYSTEM_BASE_DOMAIN = (process.env.SYSTEM_BASE_DOMAIN || process.env.APP_BASE_DOMAIN || 'lotview.ai').toLowerCase();
+
+function buildSystemTenantHostname(subdomain?: string | null): string | null {
+  const normalized = subdomain?.trim().toLowerCase();
+  if (!normalized) return null;
+  return `${normalized}.${SYSTEM_BASE_DOMAIN}`;
+}
 
 // Types for onboarding input data
 export interface OnboardingInput {
@@ -460,6 +468,18 @@ export class OnboardingService {
       defaultCurrency: data.defaultCurrency || 'CAD',
       isActive: true,
     }).returning();
+
+    const systemHostname = buildSystemTenantHostname(dealership.subdomain);
+    if (systemHostname) {
+      await db.insert(tenantDomains).values({
+        tenantKey: dealership.tenantKey,
+        dealershipId: dealership.id,
+        hostname: systemHostname,
+        kind: 'system_subdomain',
+        isPrimary: true,
+        status: 'active',
+      }).onConflictDoNothing();
+    }
     
     this.dealershipId = dealership.id;
   }

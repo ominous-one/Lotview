@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { db } from "./db";
 import { logError, logWarn, logInfo } from './error-utils';
 import { authLimiter, sensitiveLimiter } from "./app";
-import { 
+import {
   insertVehicleSchema, 
   insertVehicleViewSchema, 
   insertFacebookPageSchema,
@@ -36,6 +36,7 @@ import {
   requestAccessLeads,
   insertRequestAccessLeadSchema
 } from "@shared/schema";
+import { hasRole, isKnownRole, normalizeRole } from "@shared/authz";
 import { eq, desc, sql, and, gt, gte, lte, isNull, asc, or } from "drizzle-orm";
 import { fromZodError } from "zod-validation-error";
 import { z } from "zod";
@@ -116,6 +117,14 @@ interface OAuthSession {
 }
 const oauthSessionStore = new Map<string, OAuthSession>();
 
+const SYSTEM_BASE_DOMAIN = (process.env.SYSTEM_BASE_DOMAIN || process.env.APP_BASE_DOMAIN || 'lotview.ai').toLowerCase();
+
+function buildSystemTenantHostname(subdomain?: string | null): string | null {
+  const normalized = subdomain?.trim().toLowerCase();
+  if (!normalized) return null;
+  return `${normalized}.${SYSTEM_BASE_DOMAIN}`;
+}
+
 function requireResolvedDealershipId(req: AuthRequest): number | null {
   return resolveDealershipIdStrict(req);
 }
@@ -162,6 +171,38 @@ function parseDealershipIdParam(value: unknown): number | null {
 
   const parsed = typeof value === 'number' ? value : parseInt(value, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+async function validateTenantIdentityAvailability(options: {
+  slug?: string;
+  subdomain?: string;
+  dealershipIdToExclude?: number;
+}) {
+  const errors: string[] = [];
+
+  if (options.slug) {
+    const existing = await storage.getDealershipBySlug(options.slug);
+    if (existing && existing.id !== options.dealershipIdToExclude) {
+      errors.push(`Slug "${options.slug}" is already in use`);
+    }
+  }
+
+  if (options.subdomain) {
+    const existing = await storage.getDealershipBySubdomain(options.subdomain);
+    if (existing && existing.id !== options.dealershipIdToExclude) {
+      errors.push(`Subdomain "${options.subdomain}" is already in use`);
+    }
+
+    const hostname = buildSystemTenantHostname(options.subdomain);
+    if (hostname) {
+      const hostnameDealership = await storage.getDealershipByHostname(hostname);
+      if (hostnameDealership && hostnameDealership.id !== options.dealershipIdToExclude) {
+        errors.push(`Hostname "${hostname}" is already in use`);
+      }
+    }
+  }
+
+  return errors;
 }
 
 async function resolvePublicDealership(storageRef: typeof storage, req: any) {
@@ -832,9 +873,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Check if slug already exists
-      const existingDealership = await storage.getDealershipBySlug(slug);
-      if (existingDealership) {
-        return res.status(400).json({ error: "Slug already in use" });
+      const identityErrors = await validateTenantIdentityAvailability({ slug, subdomain });
+      if (identityErrors.length > 0) {
+        return res.status(400).json({ error: identityErrors[0], errors: identityErrors });
       }
       
       // Create dealership with full setup (transactional)
@@ -908,6 +949,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const dealership = await storage.getDealership(dealershipId);
       if (!dealership) {
         return res.status(404).json({ error: "Dealership not found" });
+      }
+
+      const identityErrors = await validateTenantIdentityAvailability({
+        slug: slug !== undefined ? slug : undefined,
+        subdomain: subdomain !== undefined ? subdomain : undefined,
+        dealershipIdToExclude: dealershipId,
+      });
+      if (identityErrors.length > 0) {
+        return res.status(400).json({ error: identityErrors[0], errors: identityErrors });
       }
       
       // Update dealership basic info
@@ -1224,6 +1274,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { email, name, password, role, dealershipId } = req.body;
       const authReq = req as AuthRequest;
+      const normalizedRole = normalizeRole(role);
       
       // Validate required fields
       if (!email || !name || !password || !role) {
@@ -1236,9 +1287,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Validate role
-      const validRoles = ['master', 'admin', 'manager', 'salesperson'];
-      if (!validRoles.includes(role)) {
-        return res.status(400).json({ error: "Invalid role. Must be master, admin, manager, or salesperson" });
+      if (!normalizedRole || normalizedRole === 'super_admin') {
+        return res.status(400).json({ error: "Invalid role. Must be master, manager, or salesperson" });
       }
       
       // Check if email already exists
@@ -1261,7 +1311,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         email,
         name,
         passwordHash,
-        role,
+        role: normalizedRole,
         dealershipId: dealershipId || null,
         isActive: true,
         createdBy: authReq.user!.id,
@@ -1274,7 +1324,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         action: 'user_created',
         resource: 'user',
         resourceId: String(newUser.id),
-        details: JSON.stringify({ email, name, role, dealershipId }),
+        details: JSON.stringify({ email, name, role: normalizedRole, dealershipId, requestedRole: role }),
       });
       
       res.status(201).json(newUser);
@@ -1431,8 +1481,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Cannot modify other super admin accounts" });
       }
       
+      const normalizedRole = role === undefined ? undefined : normalizeRole(role);
+
+      if (role !== undefined && !normalizedRole) {
+        return res.status(400).json({ error: "Invalid role" });
+      }
+
       // Prevent changing role to super_admin
-      if (role === 'super_admin' && user.role !== 'super_admin') {
+      if (normalizedRole === 'super_admin' && user.role !== 'super_admin') {
         return res.status(403).json({ error: "Cannot promote users to super admin" });
       }
       
@@ -1448,7 +1504,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updates: Partial<{ name: string; email: string; role: string; dealershipId: number | null; isActive: boolean }> = {};
       if (name !== undefined) updates.name = name;
       if (email !== undefined) updates.email = email;
-      if (role !== undefined) updates.role = role;
+      if (normalizedRole !== undefined) updates.role = normalizedRole;
       if (dealershipId !== undefined) updates.dealershipId = dealershipId;
       if (isActive !== undefined) updates.isActive = isActive;
       
@@ -2591,20 +2647,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Also check for duplicate slug/subdomain/email
       const errors = [...validation.errors];
-      
-      if (req.body.dealership?.slug) {
-        const existing = await storage.getDealershipBySlug(req.body.dealership.slug);
-        if (existing) {
-          errors.push(`Slug "${req.body.dealership.slug}" is already in use`);
-        }
-      }
-      
-      if (req.body.dealership?.subdomain) {
-        const existing = await storage.getDealershipBySubdomain(req.body.dealership.subdomain);
-        if (existing) {
-          errors.push(`Subdomain "${req.body.dealership.subdomain}" is already in use`);
-        }
-      }
+      errors.push(...await validateTenantIdentityAvailability({
+        slug: req.body.dealership?.slug,
+        subdomain: req.body.dealership?.subdomain,
+      }));
       
       if (req.body.masterAdmin?.email) {
         const existing = await storage.getUserByEmail(req.body.masterAdmin.email);
@@ -2632,19 +2678,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Validation failed", errors: validation.errors });
       }
       
-      // Check for duplicates
-      if (req.body.dealership?.slug) {
-        const existing = await storage.getDealershipBySlug(req.body.dealership.slug);
-        if (existing) {
-          return res.status(400).json({ error: `Slug "${req.body.dealership.slug}" is already in use` });
-        }
-      }
-      
-      if (req.body.dealership?.subdomain) {
-        const existing = await storage.getDealershipBySubdomain(req.body.dealership.subdomain);
-        if (existing) {
-          return res.status(400).json({ error: `Subdomain "${req.body.dealership.subdomain}" is already in use` });
-        }
+      const identityErrors = await validateTenantIdentityAvailability({
+        slug: req.body.dealership?.slug,
+        subdomain: req.body.dealership?.subdomain,
+      });
+      if (identityErrors.length > 0) {
+        return res.status(400).json({ error: identityErrors[0], errors: identityErrors });
       }
       
       if (req.body.masterAdmin?.email) {

@@ -4,12 +4,6 @@ import crypto from "crypto";
 
 const SYSTEM_BASE_DOMAIN = (process.env.SYSTEM_BASE_DOMAIN || process.env.APP_BASE_DOMAIN || 'lotview.ai').toLowerCase();
 
-function buildSystemTenantHostname(subdomain?: string | null): string | null {
-  const normalized = subdomain?.trim().toLowerCase();
-  if (!normalized) return null;
-  return `${normalized}.${SYSTEM_BASE_DOMAIN}`;
-}
-
 import { 
   dealerships,
   tenantDomains,
@@ -301,6 +295,37 @@ import {
   type InsertCarfaxReport
 } from "@shared/schema";
 import { eq, desc, asc, sql, and, gte, lte, lt, gt, inArray, or, ilike, isNotNull, isNull, type SQL } from "drizzle-orm";
+
+function buildSystemTenantHostname(subdomain?: string | null): string | null {
+  const normalized = subdomain?.trim().toLowerCase();
+  if (!normalized) return null;
+  return `${normalized}.${SYSTEM_BASE_DOMAIN}`;
+}
+
+async function syncSystemTenantDomain(tx: any, dealership: Pick<Dealership, 'id' | 'tenantKey' | 'subdomain'>) {
+  await tx
+    .delete(tenantDomains)
+    .where(
+      and(
+        eq(tenantDomains.dealershipId, dealership.id),
+        eq(tenantDomains.kind, 'system_subdomain')
+      )
+    );
+
+  const systemHostname = buildSystemTenantHostname(dealership.subdomain);
+  if (!systemHostname) {
+    return;
+  }
+
+  await tx.insert(tenantDomains).values({
+    tenantKey: dealership.tenantKey,
+    dealershipId: dealership.id,
+    hostname: systemHostname,
+    kind: 'system_subdomain',
+    isPrimary: true,
+    status: 'active',
+  }).onConflictDoNothing();
+}
 
 export interface PublicInventoryVehicle {
   id: number;
@@ -1199,24 +1224,29 @@ export class DatabaseStorage implements IStorage {
   async createDealership(dealership: InsertDealership): Promise<Dealership> {
     return await db.transaction(async (tx) => {
       const [created] = await tx.insert(dealerships).values(dealership).returning();
-      const systemHostname = buildSystemTenantHostname(created.subdomain);
-      if (systemHostname) {
-        await tx.insert(tenantDomains).values({
-          tenantKey: created.tenantKey,
-          dealershipId: created.id,
-          hostname: systemHostname,
-          kind: 'system_subdomain',
-          isPrimary: true,
-          status: 'active',
-        }).onConflictDoNothing();
-      }
+      await syncSystemTenantDomain(tx, created);
       return created;
     });
   }
 
   async updateDealership(id: number, dealership: Partial<InsertDealership>): Promise<Dealership | undefined> {
-    const result = await db.update(dealerships).set({ ...dealership, updatedAt: new Date() }).where(eq(dealerships.id, id)).returning();
-    return result[0];
+    return await db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(dealerships)
+        .set({ ...dealership, updatedAt: new Date() })
+        .where(eq(dealerships.id, id))
+        .returning();
+
+      if (!updated) {
+        return undefined;
+      }
+
+      if (Object.prototype.hasOwnProperty.call(dealership, 'subdomain')) {
+        await syncSystemTenantDomain(tx, updated);
+      }
+
+      return updated;
+    });
   }
 
   async deleteDealership(id: number): Promise<boolean> {
@@ -4256,17 +4286,7 @@ export class DatabaseStorage implements IStorage {
         })
         .returning();
 
-      const systemHostname = buildSystemTenantHostname(dealership.subdomain);
-      if (systemHostname) {
-        await tx.insert(tenantDomains).values({
-          tenantKey: dealership.tenantKey,
-          dealershipId: dealership.id,
-          hostname: systemHostname,
-          kind: 'system_subdomain',
-          isPrimary: true,
-          status: 'active',
-        }).onConflictDoNothing();
-      }
+      await syncSystemTenantDomain(tx, dealership);
 
       // b) Create master admin user with hashed password
       const passwordHash = await hashPassword(params.masterAdminPassword);
