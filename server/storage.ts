@@ -1,6 +1,7 @@
 import { db } from "./db";
 import { hashPassword } from "./auth";
 import crypto from "crypto";
+import { computeVehicleDataQualitySignals, type VehicleDataQualitySignals } from "./vehicle-data-quality";
 
 const SYSTEM_BASE_DOMAIN = (process.env.SYSTEM_BASE_DOMAIN || process.env.APP_BASE_DOMAIN || 'lotview.ai').toLowerCase();
 
@@ -351,6 +352,7 @@ export interface PublicInventoryVehicle {
   dealerVdpUrl?: string | null;
   videoUrl?: string | null;
   filterGroupId?: number | null;
+  dataQuality?: VehicleDataQualitySignals;
 }
 
 export interface IStorage {
@@ -1352,13 +1354,19 @@ export class DatabaseStorage implements IStorage {
         description: vehicles.description,
         vin: vehicles.vin,
         stockNumber: vehicles.stockNumber,
+        normalizedStockNumber: vehicles.normalizedStockNumber,
         cargurusPrice: vehicles.cargurusPrice,
         cargurusUrl: vehicles.cargurusUrl,
         dealRating: vehicles.dealRating,
         carfaxUrl: vehicles.carfaxUrl,
+        carfaxBadges: vehicles.carfaxBadges,
         dealerVdpUrl: vehicles.dealerVdpUrl,
         videoUrl: vehicles.videoUrl,
         filterGroupId: vehicles.filterGroupId,
+        lastScrapedAt: vehicles.lastScrapedAt,
+        deletedAt: vehicles.deletedAt,
+        lifecycleStatus: vehicles.lifecycleStatus,
+        photoStatus: vehicles.photoStatus,
       })
       .from(vehicles)
       .where(and(eq(vehicles.dealershipId, dealershipId), isNull(vehicles.deletedAt)))
@@ -1391,6 +1399,18 @@ export class DatabaseStorage implements IStorage {
         dealerVdpUrl: vehicle.dealerVdpUrl,
         videoUrl: vehicle.videoUrl,
         filterGroupId: vehicle.filterGroupId,
+        dataQuality: computeVehicleDataQualitySignals({
+          vin: vehicle.vin,
+          stockNumber: vehicle.stockNumber,
+          normalizedStockNumber: vehicle.normalizedStockNumber,
+          dealerVdpUrl: vehicle.dealerVdpUrl,
+          carfaxUrl: vehicle.carfaxUrl,
+          carfaxBadges: vehicle.carfaxBadges,
+          lastScrapedAt: vehicle.lastScrapedAt,
+          deletedAt: vehicle.deletedAt,
+          lifecycleStatus: vehicle.lifecycleStatus,
+          photoStatus: vehicle.photoStatus,
+        }),
       })),
       total: count,
     };
