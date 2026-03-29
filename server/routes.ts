@@ -36,8 +36,8 @@ import {
   requestAccessLeads,
   insertRequestAccessLeadSchema
 } from "@shared/schema";
-import { hasRole, isKnownRole, normalizeRole } from "@shared/authz";
-import { eq, desc, sql, and, gt, gte, lte, isNull, asc, or } from "drizzle-orm";
+import { hasCapability, hasRole, isKnownRole, normalizeRole } from "@shared/authz";
+import { eq, desc, sql, and, gt, gte, lte, isNull, asc, or, inArray } from "drizzle-orm";
 import { fromZodError } from "zod-validation-error";
 import { z } from "zod";
 import { triggerManualSync } from "./scheduler";
@@ -1504,7 +1504,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updates: Partial<{ name: string; email: string; role: string; dealershipId: number | null; isActive: boolean }> = {};
       if (name !== undefined) updates.name = name;
       if (email !== undefined) updates.email = email;
-      if (normalizedRole !== undefined) updates.role = normalizedRole;
+      if (normalizedRole !== undefined && normalizedRole !== null) updates.role = normalizedRole;
       if (dealershipId !== undefined) updates.dealershipId = dealershipId;
       if (isActive !== undefined) updates.isActive = isActive;
       
@@ -17312,11 +17312,11 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
       const ownerUserId = req.query.ownerUserId ? parseInt(req.query.ownerUserId as string, 10) : undefined;
       const status = req.query.status ? String(req.query.status) : undefined;
 
-      // RBAC: master + sales_manager can see all; salesperson only own.
+      // RBAC: GM/sales-manager tiers can see all; salesperson only sees own.
       const role = req.user?.role;
       const selfId = req.user?.id;
 
-      const effectiveOwnerFilter = role === 'salesperson' ? selfId : ownerUserId;
+      const effectiveOwnerFilter = hasCapability(role, 'appointments.manage_all') ? ownerUserId : selfId;
 
       const whereClauses: any[] = [eq(appointments.dealershipId, dealershipId)];
       if (effectiveOwnerFilter) whereClauses.push(eq(appointments.ownerUserId, effectiveOwnerFilter));
@@ -17381,7 +17381,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
       if (!appt) return res.status(404).json({ error: 'Not found' });
 
       // RBAC
-      if (req.user?.role === 'salesperson' && appt.ownerUserId !== req.user.id) {
+      if (!hasCapability(req.user?.role, 'appointments.manage_all') && appt.ownerUserId !== req.user?.id) {
         return res.status(403).json({ error: 'Insufficient permissions' });
       }
 
@@ -17574,7 +17574,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
 
       const whereClauses: any[] = [eq(followUpTasks.dealershipId, dealershipId)];
 
-      if (role === 'salesperson') {
+      if (!hasCapability(role, 'appointments.manage_all')) {
         whereClauses.push(eq(followUpTasks.ownerUserId, selfId));
       } else if (ownerUserId) {
         whereClauses.push(eq(followUpTasks.ownerUserId, ownerUserId));
@@ -17673,7 +17673,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
     try {
       const dealershipId = req.dealershipId!;
       const mgrs = await db.query.users.findMany({
-        where: and(eq(usersTable.dealershipId, dealershipId), eq(usersTable.role, 'sales_manager'), eq(usersTable.isActive, true)),
+        where: and(eq(usersTable.dealershipId, dealershipId), inArray(usersTable.role, ['manager', 'sales_manager']), eq(usersTable.isActive, true)),
         columns: {
           id: true,
           name: true,

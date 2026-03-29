@@ -177,9 +177,9 @@ export async function createAppointmentNotifications(
 
   const eventId = ev[0].id as string;
 
-  // Manager recipients: role=sales_manager (SalesManager). GM (role=master) receives ops escalations.
+  // Manager recipients: support both canonical manager and legacy sales_manager rows.
   const mgrs = await tx.query.users.findMany({
-    where: and(eq(users.dealershipId, params.dealershipId), eq(users.role, 'sales_manager'), eq(users.isActive, true)),
+    where: and(eq(users.dealershipId, params.dealershipId), inArray(users.role, ['manager', 'sales_manager']), eq(users.isActive, true)),
     columns: {
       id: true,
       email: true,
@@ -358,7 +358,7 @@ async function createOpsAlert(
   params: { dealershipId: number; eventId: string; appointmentId: string; summary: string; body: string; deepLink: string }
 ) {
   const masters = await tx.query.users.findMany({
-    where: and(eq(users.dealershipId, params.dealershipId), inArray(users.role, ['master', 'sales_manager']), eq(users.isActive, true)),
+    where: and(eq(users.dealershipId, params.dealershipId), inArray(users.role, ['master', 'manager', 'sales_manager']), eq(users.isActive, true)),
     columns: { id: true },
   });
 
@@ -423,7 +423,7 @@ export async function createInventoryOpsNotification(
   const eventId = ev[0].id as string;
 
   const recipients = await tx.query.users.findMany({
-    where: and(eq(users.dealershipId, params.dealershipId), inArray(users.role, ['master', 'sales_manager']), eq(users.isActive, true)),
+    where: and(eq(users.dealershipId, params.dealershipId), inArray(users.role, ['master', 'manager', 'sales_manager']), eq(users.isActive, true)),
     columns: {
       id: true,
       email: true,

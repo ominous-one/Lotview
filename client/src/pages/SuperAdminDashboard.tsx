@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
+import { getDefaultRouteForRole, hasRole } from "@shared/authz";
 import { Building2, Key, FileText, Plus, Eye, EyeOff, Trash2, LogOut, Settings2, CheckCircle2, XCircle, Loader2, Plug, Pencil, Webhook, Copy, AlertCircle, Clock, Link2, RefreshCw, Car, Rocket, Users, UserX, KeyRound, Search, Facebook, Bot, MessageSquare, Activity, Database, HardDrive, Shield, Server, UserCog, ArrowLeftRight, X } from "lucide-react";
 import OnboardingWizard from "@/components/OnboardingWizard";
 import { GhlIntegrationDialog } from "@/components/GhlIntegrationDialog";
@@ -337,14 +338,10 @@ export default function SuperAdminDashboard() {
       });
       
       // Redirect to appropriate dashboard based on role
-      if (data.targetUser.role === 'admin' || data.targetUser.role === 'master') {
+      if (hasRole(data.targetUser.role, 'master')) {
         setLocation('/admin');
-      } else if (data.targetUser.role === 'manager' || data.targetUser.role === 'general_manager') {
-        setLocation('/manager');
-      } else if (data.targetUser.role === 'salesperson') {
-        setLocation('/sales');
       } else {
-        setLocation('/dashboard');
+        setLocation(getDefaultRouteForRole(data.targetUser.role));
       }
       
     } catch (error) {

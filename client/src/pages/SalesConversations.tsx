@@ -55,6 +55,7 @@ import {
 } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { hasCapability, isKnownRole } from "@shared/authz";
 
 type Conversation = {
   id: number;
@@ -802,7 +803,7 @@ export default function SalesConversations() {
     try {
       const parsedUser = JSON.parse(storedUser);
       
-      if (!['salesperson', 'manager', 'admin', 'master', 'super_admin'].includes(parsedUser.role)) {
+      if (!isKnownRole(parsedUser.role)) {
         toast({
           title: "Access Denied",
           description: "You don't have permission to access this page",
@@ -821,7 +822,7 @@ export default function SalesConversations() {
     }
   };
 
-  const isManager = user?.role === 'manager' || user?.role === 'admin' || user?.role === 'master' || user?.role === 'super_admin';
+  const isManager = hasCapability(user?.role, 'conversations.view_all');
 
   const { data: conversations = [], isLoading: conversationsLoading } = useQuery<Conversation[]>({
     queryKey: ['messenger-conversations'],

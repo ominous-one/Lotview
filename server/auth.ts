@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import type { Request, Response, NextFunction } from "express";
 import type { User } from "@shared/schema";
+import { hasRole } from "@shared/authz";
 import { getE2EUserFromToken, isSafeE2ERequest, seedE2E } from "./e2e-test-mode";
 
 // JWT_SECRET must be set in production for security (SESSION_SECRET accepted as alias)
@@ -152,7 +153,7 @@ export function requireRole(...roles: string[]) {
       return res.status(401).json({ error: "Not authenticated" });
     }
 
-    if (!roles.includes(req.user.role)) {
+    if (!hasRole(req.user.role, ...(roles as Parameters<typeof hasRole>[1][]))) {
       return res.status(403).json({ error: "Insufficient permissions" });
     }
 

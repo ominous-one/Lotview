@@ -66,6 +66,7 @@ import {
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { hasCapability, isKnownRole } from "@shared/authz";
 
 type Contact = {
   id: number;
@@ -983,11 +984,7 @@ export default function ContactsPage() {
 
     try {
       const parsedUser = JSON.parse(storedUser);
-      if (
-        !["salesperson", "manager", "admin", "master", "super_admin"].includes(
-          parsedUser.role
-        )
-      ) {
+      if (!isKnownRole(parsedUser.role)) {
         toast({
           title: "Access Denied",
           description: "You don't have permission to access this page",
@@ -1005,11 +1002,7 @@ export default function ContactsPage() {
     }
   };
 
-  const isManager =
-    user?.role === "manager" ||
-    user?.role === "admin" ||
-    user?.role === "master" ||
-    user?.role === "super_admin";
+  const isManager = hasCapability(user?.role, "conversations.view_all");
 
   const buildQueryParams = () => {
     const params = new URLSearchParams();

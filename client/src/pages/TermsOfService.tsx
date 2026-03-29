@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
+import { useTenant } from "@/contexts/TenantContext";
 
 interface DealershipInfo {
   name: string;
@@ -21,8 +22,15 @@ export default function TermsOfService() {
   const platformEmail = "legal@lotview.ai";
   const platformWebsite = "https://lotview.ai";
 
+  const { dealership: tenantDealership, subdomain } = useTenant();
+  const dealershipInfoUrl = tenantDealership?.id
+    ? `/api/public/dealership-info?dealershipId=${tenantDealership.id}`
+    : subdomain
+      ? `/api/public/dealership-info?subdomain=${encodeURIComponent(subdomain)}`
+      : "/api/public/dealership-info";
+
   const { data: dealership, isLoading } = useQuery<DealershipInfo>({
-    queryKey: ["/api/public/dealership-info"],
+    queryKey: [dealershipInfoUrl],
   });
 
   const dealershipName = dealership?.name || "the dealership";
