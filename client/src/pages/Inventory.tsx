@@ -51,6 +51,16 @@ export default function Inventory() {
   const vehicles = vehiclesResponse?.data ?? [];
   const pagination = vehiclesResponse?.pagination;
 
+  const hasActiveFilters =
+    filters.type !== 'all' ||
+    filters.priceMax !== 100000 ||
+    filters.location !== 'all' ||
+    filters.dealership !== 'all' ||
+    filters.search.trim() !== '' ||
+    filters.make !== 'all' ||
+    filters.sortBy !== 'default' ||
+    filters.filterGroup !== 'all';
+
   // Debug logging
   useEffect(() => {
     console.log('[Inventory] Query status:', status, 'vehicles:', vehicles?.length ?? 0, 'isLoading:', isLoading, 'error:', error);
@@ -103,6 +113,10 @@ export default function Inventory() {
       }
     });
 
+  const displayVehicleCount = hasActiveFilters
+    ? filteredInventory.length
+    : (pagination?.total ?? vehicles.length);
+
   const handleRefresh = () => {
     toast({ title: "Checking for updates...", description: "Syncing with dealer networks." });
     refetch().then(() => {
@@ -143,9 +157,16 @@ export default function Inventory() {
           
           <main className="flex-1">
             <div className="mb-4 flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-foreground">
-                Inventory <span className="text-muted-foreground font-normal text-lg ml-2">{filteredInventory.length} Vehicles</span>
-              </h2>
+              <div>
+                <h2 className="text-2xl font-bold text-foreground">
+                  Inventory <span className="text-muted-foreground font-normal text-lg ml-2">{displayVehicleCount} Vehicles</span>
+                </h2>
+                {!hasActiveFilters && pagination && pagination.total > vehicles.length && (
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Showing {vehicles.length} on this page
+                  </p>
+                )}
+              </div>
               <button 
                 onClick={() => setIsFilterOpen(true)}
                 className="lg:hidden flex text-xs font-bold text-primary bg-primary/10 px-3 py-1.5 rounded-full hover:bg-primary/20 transition items-center gap-2"
