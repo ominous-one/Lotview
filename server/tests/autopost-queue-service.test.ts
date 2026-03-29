@@ -268,4 +268,82 @@ describe('autopost-queue-service', () => {
     const vv = await db.query.vehicles.findMany({ where: eq(vehicles.dealershipId, dealer.id) });
     expect(vv.some((x) => x.id === v1.id && x.id !== v2.id && x.id !== v3.id)).toBe(true);
   }, 30000);
+
+  test('record result rejects unclaimed status transitions to keep claim/result history truthful', async () => {
+    const slug = `apq-result-guard-${Date.now()}`;
+    const dealer = await seedTestDealership('Autopost Result Guard Dealer', slug);
+    const mgr = await seedTestUser(dealer.id, `${slug}@test.com`, 'master', 'Test Master');
+
+    const vehicle = await insertVehicleReturningId(buildVehicle({
+      dealershipId: dealer.id,
+      vin: `VINGUARD-${Date.now()}`,
+      stock: `SGUARD-${Date.now()}`,
+      createdAt: new Date(Date.now() - 5000),
+      images: Array.from({ length: 12 }, (_, i) => `https://img-guard/${i}.jpg`),
+      odometer: 18000,
+      year: new Date().getFullYear(),
+    }));
+
+    await evaluateAndEnqueueAutopostQueue({ dealershipId: dealer.id, actorUserId: mgr.id });
+    const queue = await listAutopostQueue({ dealershipId: dealer.id, platform: 'all' });
+    const item = queue.find((x: any) => x.vehicleId === vehicle.id);
+    expect(item).toBeTruthy();
+
+    await expect(recordAutopostResult({
+      dealershipId: dealer.id,
+      queueItemId: item.queueItemId,
+      platform: 'facebook_marketplace',
+      status: 'posted',
+      postedUrl: 'https://facebook.example/listing/123',
+      actorUserId: mgr.id,
+    })).rejects.toThrow(/claimed or posting/i);
+
+    const statusRow = await db.query.autopostPlatformStatuses.findFirst({
+      where: and(eq(autopostPlatformStatuses.queueItemId, item.queueItemId), eq(autopostPlatformStatuses.platform, 'facebook_marketplace')),
+    });
+    expect(statusRow?.status).toBe('queued');
+  }, 30000);
+
+  test('record result cannot cross dealership boundaries', async () => {
+    const slugA = `apq-tenant-a-${Date.now()}`;
+    const dealerA = await seedTestDealership('Autopost Tenant A', slugA);
+    const mgrA = await seedTestUser(dealerA.id, `${slugA}@test.com`, 'master', 'Tenant A Master');
+
+    const slugB = `apq-tenant-b-${Date.now()}`;
+    const dealerB = await seedTestDealership('Autopost Tenant B', slugB);
+    const mgrB = await seedTestUser(dealerB.id, `${slugB}@test.com`, 'master', 'Tenant B Master');
+
+    const vehicleB = await insertVehicleReturningId(buildVehicle({
+      dealershipId: dealerB.id,
+      vin: `VINB-${Date.now()}`,
+      stock: `SB-${Date.now()}`,
+      createdAt: new Date(Date.now() - 8000),
+      images: Array.from({ length: 12 }, (_, i) => `https://img-b/${i}.jpg`),
+      odometer: 22000,
+      year: new Date().getFullYear(),
+    }));
+
+    await evaluateAndEnqueueAutopostQueue({ dealershipId: dealerB.id, actorUserId: mgrB.id });
+    const queueB = await listAutopostQueue({ dealershipId: dealerB.id, platform: 'all' });
+    const itemB = queueB.find((x: any) => x.vehicleId === vehicleB.id);
+    expect(itemB).toBeTruthy();
+
+    const claimB = await claimNextAutopostItem({ dealershipId: dealerB.id, platform: 'facebook_marketplace', actorUserId: mgrB.id });
+    expect(claimB?.queueItemId).toBe(itemB.queueItemId);
+
+    await expect(recordAutopostResult({
+      dealershipId: dealerA.id,
+      queueItemId: itemB.queueItemId,
+      platform: 'facebook_marketplace',
+      status: 'failed',
+      error: 'spoofed wrong tenant',
+      actorUserId: mgrA.id,
+    })).rejects.toThrow(/not found for dealership\/platform/i);
+
+    const statusRow = await db.query.autopostPlatformStatuses.findFirst({
+      where: and(eq(autopostPlatformStatuses.queueItemId, itemB.queueItemId), eq(autopostPlatformStatuses.platform, 'facebook_marketplace')),
+    });
+    expect(statusRow?.status).toBe('claimed');
+    expect(statusRow?.lastError).toBeNull();
+  }, 30000);
 });

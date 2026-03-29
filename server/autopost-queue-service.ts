@@ -661,6 +661,36 @@ export async function recordAutopostResult(params: {
   await db.transaction(async (tx) => {
     const now = new Date();
 
+    const currentStatusRow = await tx
+      .select({
+        status: autopostPlatformStatuses.status,
+        queueDealershipId: autopostQueueItems.dealershipId,
+        isActive: autopostQueueItems.isActive,
+      })
+      .from(autopostPlatformStatuses)
+      .innerJoin(autopostQueueItems, eq(autopostQueueItems.id, autopostPlatformStatuses.queueItemId))
+      .where(
+        and(
+          eq(autopostPlatformStatuses.queueItemId, params.queueItemId),
+          eq(autopostPlatformStatuses.platform, params.platform),
+          eq(autopostPlatformStatuses.dealershipId, params.dealershipId)
+        )
+      )
+      .limit(1);
+
+    const currentStatus = currentStatusRow[0];
+    if (!currentStatus || currentStatus.queueDealershipId !== params.dealershipId) {
+      throw new Error('Queue item not found for dealership/platform');
+    }
+
+    if (!currentStatus.isActive && params.status !== 'skipped') {
+      throw new Error('Cannot record a non-skipped result for an inactive queue item');
+    }
+
+    if (!['claimed', 'posting'].includes(currentStatus.status)) {
+      throw new Error(`Cannot record result from status ${currentStatus.status}; item must be claimed or posting first`);
+    }
+
     const nextStatus: AutopostPlatformStatus = params.status;
     await tx
       .update(autopostPlatformStatuses)
@@ -674,7 +704,8 @@ export async function recordAutopostResult(params: {
       .where(
         and(
           eq(autopostPlatformStatuses.queueItemId, params.queueItemId),
-          eq(autopostPlatformStatuses.platform, params.platform)
+          eq(autopostPlatformStatuses.platform, params.platform),
+          eq(autopostPlatformStatuses.dealershipId, params.dealershipId)
         )
       );
 
