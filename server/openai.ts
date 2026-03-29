@@ -39,9 +39,50 @@ export async function generateChatResponse(
   messages: ChatMessage[],
   dealershipId: number,
   scenario: string = 'general',
-  vehicleContext?: string
+  vehicleContext?: string,
+  vehicleId?: number
 ): Promise<string> {
   try {
+    let enrichedVehicleContext = vehicleContext || '';
+
+    if (vehicleId) {
+      try {
+        const vehicle = await storage.getVehicleById(vehicleId, dealershipId);
+        const carfaxReport = vehicle ? await storage.getCarfaxReport(vehicleId, dealershipId) : undefined;
+
+        if (vehicle) {
+          const mileage = typeof vehicle.odometer === 'number' ? vehicle.odometer.toLocaleString() : 'unknown';
+          const lines = [
+            `Vehicle ID: ${vehicle.id}`,
+            `Vehicle: ${vehicle.year} ${vehicle.make} ${vehicle.model}${vehicle.trim ? ` ${vehicle.trim}` : ''}`,
+            `Price: $${vehicle.price.toLocaleString()}`,
+            `Mileage: ${mileage} km`,
+            `VIN: ${vehicle.vin || 'unknown'}`,
+          ];
+
+          if (carfaxReport) {
+            lines.push('Structured CARFAX fields:');
+            lines.push(`- accidentCount: ${carfaxReport.accidentCount ?? 'unknown'}`);
+            lines.push(`- ownerCount: ${carfaxReport.ownerCount ?? 'unknown'}`);
+            lines.push(`- serviceRecordCount: ${carfaxReport.serviceRecordCount ?? 'unknown'}`);
+            lines.push(`- damageReported: ${carfaxReport.damageReported ?? 'unknown'}`);
+            lines.push(`- lienReported: ${carfaxReport.lienReported ?? 'unknown'}`);
+            lines.push(`- lastReportedOdometer: ${carfaxReport.lastReportedOdometer ?? 'unknown'}`);
+            if (carfaxReport.badges?.length) lines.push(`- badges: ${carfaxReport.badges.join(', ')}`);
+            if (Array.isArray(carfaxReport.accidentHistory) && carfaxReport.accidentHistory.length > 0) {
+              lines.push(`- accidentHistory: ${carfaxReport.accidentHistory.map((entry: any) => [entry.date, entry.description, entry.severity].filter(Boolean).join(' | ')).join(' || ')}`);
+            }
+          } else {
+            lines.push('Structured CARFAX fields: unavailable for this vehicle. Do not invent accident or owner history.');
+          }
+
+          enrichedVehicleContext = [enrichedVehicleContext, ...lines].filter(Boolean).join('\n');
+        }
+      } catch (error) {
+        console.error('Failed to enrich vehicle chat context:', error);
+      }
+    }
+
     // Load the active prompt for this dealership and scenario
     const promptData = await storage.getActivePromptForScenario(dealershipId, scenario);
     
@@ -69,7 +110,7 @@ Use this exact date/time when customers ask about the current date, time, or whe
 
 ${dateTimeContext}
 
-${vehicleContext ? `Current vehicle being discussed: ${vehicleContext}` : ""}
+${enrichedVehicleContext ? `Current vehicle being discussed: ${enrichedVehicleContext}` : ""}
 
 IMPORTANT RULES:
 1. Keep responses to 2-3 sentences maximum - be concise
@@ -90,8 +131,8 @@ Be helpful and action-oriented. If you don't have specific information, offer to
     if (promptData) {
       // Use the database prompt with date/time and vehicle context - put date/time at the TOP
       systemContent = `${dateTimeContext}\n\n${promptData.systemPrompt}\n\nIMPORTANT: When customers ask about the date or time, use the ACTUAL date/time provided at the start of this prompt. NEVER use placeholder text like "[insert date]" or "[current time]".`;
-      if (vehicleContext) {
-        systemContent += `\n\nCurrent vehicle being discussed: ${vehicleContext}`;
+      if (enrichedVehicleContext) {
+        systemContent += `\n\nCurrent vehicle being discussed: ${enrichedVehicleContext}`;
       }
     }
 

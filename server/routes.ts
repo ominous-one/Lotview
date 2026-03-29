@@ -4383,7 +4383,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Chat endpoint for AI responses
   app.post("/api/chat", async (req, res) => {
     try {
-      const { messages, vehicleContext, scenario } = req.body;
+      const { messages, vehicleContext, scenario, vehicleId } = req.body;
 
       if (!Array.isArray(messages) || messages.length === 0) {
         return res.status(400).json({ error: "Messages array is required" });
@@ -4407,7 +4407,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         messages as ChatMessage[], 
         finalDealershipId,
         finalScenario,
-        vehicleContext
+        vehicleContext,
+        typeof vehicleId === 'number' ? vehicleId : undefined
       );
       res.json({ message: response });
     } catch (error) {

@@ -4,6 +4,42 @@ export interface VehicleWithViews extends Vehicle {
   views: number;
 }
 
+export interface CarfaxTimelineEvent {
+  date?: string | null;
+  description?: string | null;
+  severity?: string | null;
+  location?: string | null;
+  event?: string | null;
+  odometer?: number | null;
+  reading?: number | null;
+  source?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  type?: string | null;
+}
+
+export interface CarfaxReportResponse {
+  id: number;
+  vehicleId: number | null;
+  dealershipId: number;
+  vin: string;
+  reportUrl?: string | null;
+  accidentCount?: number | null;
+  ownerCount?: number | null;
+  serviceRecordCount?: number | null;
+  lastReportedOdometer?: number | null;
+  lastReportedDate?: string | null;
+  damageReported?: boolean | null;
+  lienReported?: boolean | null;
+  badges?: string[] | null;
+  accidentHistory?: CarfaxTimelineEvent[] | null;
+  registrationHistory?: CarfaxTimelineEvent[] | null;
+  serviceHistory?: CarfaxTimelineEvent[] | null;
+  ownershipHistory?: CarfaxTimelineEvent[] | null;
+  odometerHistory?: CarfaxTimelineEvent[] | null;
+  scrapedAt?: string | null;
+}
+
 export interface ApiError {
   error: string;
   code?: string;
@@ -173,6 +209,22 @@ export async function getVehicleById(id: number): Promise<VehicleWithViews> {
   return response.json();
 }
 
+export async function getVehicleCarfaxReport(id: number): Promise<CarfaxReportResponse | null> {
+  const response = await fetch(`/api/vehicles/${id}/carfax`, {
+    credentials: 'include',
+  });
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch vehicle Carfax report: ${response.status}`);
+  }
+
+  return response.json();
+}
+
 export function trackVehicleView(vehicleId: number, sessionId: string): Promise<void> {
   return apiPost(`/api/vehicles/${vehicleId}/view`, { sessionId });
 }
@@ -191,9 +243,10 @@ export async function sendChatMessage(
   messages: ChatMessage[],
   vehicleContext?: string,
   scenario?: string,
-  dealershipId?: number
+  dealershipId?: number,
+  vehicleId?: number
 ): Promise<string> {
-  const data = await apiPost<{ message: string }>("/api/chat", { messages, vehicleContext, scenario, dealershipId });
+  const data = await apiPost<{ message: string }>("/api/chat", { messages, vehicleContext, scenario, dealershipId, vehicleId });
   return data.message;
 }
 

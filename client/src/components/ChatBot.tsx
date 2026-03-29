@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { X, MessageSquare, Send, Loader2 } from "lucide-react";
-import { sendChatMessage, saveConversation, type ChatMessage } from "@/lib/api";
+import { getVehicleCarfaxReport, sendChatMessage, saveConversation, type ChatMessage } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useChat } from "@/contexts/ChatContext";
 import { useTenant } from "@/contexts/TenantContext";
@@ -37,9 +37,64 @@ export function ChatBot({ vehicleName, action, vehicle }: ChatBotProps) {
   const [awaitingPhone, setAwaitingPhone] = useState(false);
   const [leadSyncedToGHL, setLeadSyncedToGHL] = useState(false);
   const [capturedContact, setCapturedContact] = useState<{ phone?: string; email?: string; name?: string }>({});
+  const [vehicleContext, setVehicleContext] = useState<string>("");
   const ctaAutoSentRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast} = useToast();
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function buildVehicleContext() {
+      if (!vehicle) {
+        setVehicleContext("");
+        return;
+      }
+
+      const lines = [
+        `Vehicle ID: ${vehicle.id}`,
+        `Vehicle: ${vehicle.year} ${vehicle.make} ${vehicle.model}`,
+        `Price: $${vehicle.price.toLocaleString()}`,
+        `Dealership: ${vehicle.dealership}`,
+        `Body Type: ${vehicle.type}`,
+      ];
+
+      if (vehicle.vin) {
+        lines.push(`VIN: ${vehicle.vin}`);
+      }
+
+      try {
+        const carfax = await getVehicleCarfaxReport(vehicle.id);
+
+        if (cancelled) return;
+
+        if (carfax) {
+          lines.push("CARFAX summary:");
+          lines.push(`- Accidents reported: ${carfax.accidentCount ?? 'unknown'}`);
+          lines.push(`- Owners reported: ${carfax.ownerCount ?? 'unknown'}`);
+          lines.push(`- Service records: ${carfax.serviceRecordCount ?? 'unknown'}`);
+          lines.push(`- Damage reported: ${carfax.damageReported === true ? 'yes' : carfax.damageReported === false ? 'no' : 'unknown'}`);
+          lines.push(`- Liens reported: ${carfax.lienReported === true ? 'yes' : carfax.lienReported === false ? 'no' : 'unknown'}`);
+          if (carfax.badges?.length) {
+            lines.push(`- Badges: ${carfax.badges.join(', ')}`);
+          }
+          if (carfax.accidentHistory?.length) {
+            lines.push(`- Accident history: ${carfax.accidentHistory.map((entry) => [entry.date, entry.description, entry.severity].filter(Boolean).join(' — ')).join(' | ')}`);
+          }
+        } else {
+          lines.push("CARFAX summary: no structured CARFAX report is currently available for this vehicle.");
+        }
+      } catch {
+        if (cancelled) return;
+        lines.push("CARFAX summary: unavailable right now; do not guess accident or history details.");
+      }
+
+      setVehicleContext(lines.join("\n"));
+    }
+
+    buildVehicleContext();
+    return () => { cancelled = true; };
+  }, [vehicle]);
 
   // Handle closing chat and saving conversation
   const handleCloseChat = async () => {
@@ -486,14 +541,16 @@ export function ChatBot({ vehicleName, action, vehicle }: ChatBotProps) {
       }
 
       const vehicleContextWithAction = vehicleName 
-        ? `${contextPrefix}Vehicle: ${vehicleName}`
-        : contextPrefix;
+        ? `${contextPrefix}${vehicleContext || `Vehicle: ${vehicleName}`}`
+        : `${contextPrefix}${vehicleContext}`;
 
       // DealershipId is now resolved by backend from tenant middleware (subdomain/header)
       const response = await sendChatMessage(
         [...messages, userMessage],
         vehicleContextWithAction,
-        scenario
+        scenario,
+        undefined,
+        vehicle?.id
       );
 
       const updatedMessages = [...messages, userMessage, { role: "assistant" as const, content: response }];

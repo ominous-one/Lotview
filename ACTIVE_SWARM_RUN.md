@@ -1,1 +1,6 @@
-# ACTIVE_SWARM_RUN\n\n- Run: olympic canonical host fix\n- Date: 2026-03-28\n- Goal: make olympichyundai.lotview.ai the canonical Olympic Hyundai tenant host and validate live behavior\n- Status: investigating repo/runtime mapping and live deploy state\n
+# ACTIVE_SWARM_RUN
+
+- Run: VDP CARFAX trust section
+- Date: 2026-03-28
+- Goal: add structured CARFAX/history UI to the VDP and ground page chat answers in stored vehicle history fields
+- Status: implemented VDP history accordion + chat-context grounding; production build validated

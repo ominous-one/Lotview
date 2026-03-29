@@ -1,1 +1,6 @@
-# WORKING_BUFFER\n\n- Check tenant/domain seed + runtime host resolution for Olympic Hyundai\n- Fix canonical/alias behavior for olympichyundai.lotview.ai\n- Validate locally and with live HTTP checks\n- Commit validated progress only\n
+# WORKING_BUFFER
+
+- Pull stored CARFAX report data into the public VDP
+- Render a truthful structured history accordion with unknowns preserved as unknowns
+- Feed the same structured CARFAX fields into page chat context so accident/history answers stay grounded
+- Validate with production build and commit only the scoped slice
