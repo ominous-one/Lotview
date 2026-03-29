@@ -4,8 +4,7 @@ import { storage } from './storage';
 import { decodeVinCheapHybrid, type NormalizedVehicleSpec } from './vin-decode-router';
 import { conditionForDisplay, normalizeCondition } from './condition-normalization';
 import { extractDrivetrainFromText, scoreComp, sourceScore } from './comps-scoring';
-
-export type TrimMatchMode = 'exact' | 'near';
+import type { NormalizedComp, CompScoreExplain, TrimMatchMode } from './comps-types';
 
 export interface CompsQuery {
   dealershipId: number;
@@ -16,37 +15,6 @@ export interface CompsQuery {
   trimMode: TrimMatchMode;
   maxComps?: number;
   disableExternalFetches?: boolean;
-}
-
-export interface NormalizedComp {
-  listingUrl: string;
-  source: string;
-  sellerName?: string;
-  year: number;
-  make: string;
-  model: string;
-  trim?: string;
-  price: number;
-  mileageKm?: number;
-  daysOnLot?: number;
-  condition?: Exclude<import('./condition-normalization').NormalizedCondition, 'unknown'>;
-  accidentHistory: 'accident_free' | 'reported' | 'unknown';
-  exteriorColor?: string;
-  interiorColor?: string;
-}
-
-export interface CompScoreExplain {
-  total: number;
-  components: {
-    year: number;
-    mileage: number;
-    trim: number;
-    drivetrain: number;
-    source: number;
-    freshness: number;
-    dataQuality: number;
-  };
-  reasons: string[];
 }
 
 export interface ScoredComp {
@@ -215,7 +183,11 @@ export async function getAppraisalComps(query: CompsQuery): Promise<CompsResult>
       radiusKm: query.radiusKm,
       trimMode: query.trimMode,
       comps: [],
-      summary: { count: 0 },
+      summary: {
+        count: 0,
+        confidence: 'low',
+        notes: ['VIN decode did not yield enough vehicle identity for comparable matching.'],
+      },
     };
   }
 
@@ -246,6 +218,7 @@ export async function getAppraisalComps(query: CompsQuery): Promise<CompsResult>
       subjectYear: spec.year,
       subjectMileageKm: query.mileageKm,
       subjectTrim: spec.trim,
+      subjectDrivetrain: spec.drivetrain,
       trimMode: query.trimMode,
       comp: c,
     });
@@ -282,13 +255,24 @@ export async function getAppraisalComps(query: CompsQuery): Promise<CompsResult>
   const notes: string[] = [];
   if (top.length < 5) notes.push('Small comparable set; treat appraisal as directional.');
   if (spec.trim && exactTrimMatches === 0) notes.push('No exact trim matches found in current comp set.');
+  if (!spec.trim || spec.trimConfidence === 'low' || spec.trimConfidence === 'unknown') notes.push('VIN trim decode confidence is limited; verify trim/options before hard pricing decisions.');
+  if (spec.drivetrain && drivetrainMismatches === top.length && top.length > 0) notes.push('All top comps disagree on drivetrain with the decoded VIN spec.');
   if (drivetrainMismatches > 0) notes.push(`${drivetrainMismatches} top comps have drivetrain mismatches.`);
   if (staleComps > Math.floor(top.length / 3)) notes.push('Several top comps are stale; refresh market scan before desking aggressively.');
   if (sourceDiversity <= 1 && top.length > 0) notes.push('Most comps came from a single source/marketplace.');
   const confidence: 'high' | 'medium' | 'low' =
-    top.length >= 8 && avgScore >= 75 && exactTrimMatches >= Math.max(1, Math.floor(top.length / 3)) && staleComps <= 2
+    top.length >= 8
+      && avgScore >= 75
+      && exactTrimMatches >= Math.max(1, Math.floor(top.length / 3))
+      && staleComps <= 2
+      && drivetrainMismatches <= Math.floor(top.length / 4)
+      && sourceDiversity >= 2
+      && spec.trimConfidence !== 'low'
+      && spec.trimConfidence !== 'unknown'
       ? 'high'
-      : top.length >= 4 && avgScore >= 60
+      : top.length >= 4
+          && avgScore >= 60
+          && drivetrainMismatches < top.length
         ? 'medium'
         : 'low';
 

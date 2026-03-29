@@ -78,10 +78,11 @@ jest.mock('../storage', () => {
 });
 
 jest.mock('../comps-engine', () => ({
-  getAppraisalComps: jest.fn().mockResolvedValue({ spec: {}, comps: [], summary: { count: 0 } }),
+  getAppraisalComps: jest.fn().mockResolvedValue({ spec: {}, comps: [], summary: { count: 0, confidence: 'medium' } }),
 }));
 
 import { CompetitiveReportService } from '../competitive-report-service';
+import { storage } from '../storage';
 
 describe('competitive report snapshot job (integration-ish)', () => {
   test('creates a run and unit rows deterministically', async () => {
@@ -97,5 +98,6 @@ describe('competitive report snapshot job (integration-ish)', () => {
     expect(result.unitsCreated).toBe(1);
     expect(result.errors).toEqual([]);
     expect(result.run.status).toBe('success');
+    expect((storage.createCompetitiveReportUnits as jest.Mock).mock.calls[0][0][0].confidence).toBe('medium');
   });
 });

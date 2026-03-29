@@ -190,7 +190,8 @@ export class CompetitiveReportService {
           compMedianPrice: typeof compMedian === 'number' ? compMedian : null,
           deltaToMedian: typeof delta === 'number' ? delta : null,
           position: position,
-          confidence: normalizedComps.length >= 10 ? 'high' : normalizedComps.length >= 4 ? 'medium' : 'low',
+          confidence: comps?.summary?.confidence
+            ?? (normalizedComps.length >= 10 ? 'high' : normalizedComps.length >= 4 ? 'medium' : 'low'),
           comps: normalizedComps.map((comp) => ({
             ...comp,
             priceDeltaFromOurVehicle: typeof ourPrice === 'number' ? comp.price - ourPrice : null,

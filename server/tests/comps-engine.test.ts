@@ -76,4 +76,29 @@ describe('comps-engine scoring', () => {
     expect(scored.reasons.join(' ')).toContain('Drivetrain mismatch');
     expect(scored.reasons.join(' ')).toContain('Scrape age 45d');
   });
+
+  test('subject drivetrain wins over trim text when scoring drivetrain', () => {
+    const scored = scoreComp({
+      subjectYear: 2024,
+      subjectMileageKm: 15000,
+      subjectTrim: 'Preferred',
+      subjectDrivetrain: 'AWD',
+      trimMode: 'near',
+      comp: {
+        listingUrl: 'x',
+        source: 'autotrader',
+        year: 2024,
+        make: 'Hyundai',
+        model: 'Tucson',
+        trim: 'Preferred FWD',
+        drivetrain: 'FWD',
+        price: 32995,
+        scrapedAt: new Date(),
+        accidentHistory: 'unknown',
+      },
+    });
+
+    expect(scored.components.drivetrain).toBe(0);
+    expect(scored.reasons.join(' ')).toContain('Drivetrain mismatch (AWD vs FWD)');
+  });
 });
