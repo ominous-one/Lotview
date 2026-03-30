@@ -1,6 +1,6 @@
 # WORKING_BUFFER
 
-- Pull stored CARFAX report data into the public VDP
-- Render a truthful structured history accordion with unknowns preserved as unknowns
-- Feed the same structured CARFAX fields into page chat context so accident/history answers stay grounded
-- Validate with production build and commit only the scoped slice
+- Reproduce current-head release truth with build, typecheck, and targeted Jest coverage
+- Harden auth role normalization/inheritance behavior under test execution
+- Enforce onboarding input validation at service entry to prevent invalid tenant bootstrap runs
+- Re-run validations, capture proof, and score release readiness from fresh evidence

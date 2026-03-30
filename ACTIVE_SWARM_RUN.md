@@ -1,6 +1,6 @@
 # ACTIVE_SWARM_RUN
 
-- Run: VDP CARFAX trust section
-- Date: 2026-03-28
-- Goal: add structured CARFAX/history UI to the VDP and ground page chat answers in stored vehicle history fields
-- Status: implemented VDP history accordion + chat-context grounding; production build validated
+- Run: release truth restoration
+- Date: 2026-03-29
+- Goal: eliminate current-head typecheck/build/test drift, fix repo-level release blockers, and leave evidence-backed release readiness scoring
+- Status: validating onboarding/authz hardening, build green, targeted server test suite rerunning after fixes
