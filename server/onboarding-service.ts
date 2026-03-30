@@ -10,6 +10,7 @@ import {
 import { eq, and } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
+import { validateOnboardingInput } from "./onboarding-validation";
 
 const SYSTEM_BASE_DOMAIN = (process.env.SYSTEM_BASE_DOMAIN || process.env.APP_BASE_DOMAIN || 'lotview.ai').toLowerCase();
 
@@ -302,6 +303,11 @@ export class OnboardingService {
   private dealershipId: number | null = null;
   
   async startOnboarding(input: OnboardingInput, initiatedBy: number): Promise<{ runId: number; dealershipId: number }> {
+    const validation = validateOnboardingInput(input);
+    if (!validation.valid) {
+      throw new Error(`Invalid onboarding input: ${validation.errors.join('; ')}`);
+    }
+
     // Create onboarding run record
     const [run] = await db.insert(onboardingRuns).values({
       status: 'pending',
@@ -790,45 +796,7 @@ export class OnboardingService {
   
   // Validate onboarding input
   static validateInput(input: Partial<OnboardingInput>): { valid: boolean; errors: string[] } {
-    const errors: string[] = [];
-    
-    if (!input.dealership?.name) errors.push('Dealership name is required');
-    if (!input.dealership?.slug) errors.push('Dealership slug is required');
-    if (!input.dealership?.subdomain) errors.push('Dealership subdomain is required');
-    if (!input.masterAdmin?.email) errors.push('Master admin email is required');
-    if (!input.masterAdmin?.name) errors.push('Master admin name is required');
-    if (!input.masterAdmin?.password) errors.push('Master admin password is required');
-    if (input.masterAdmin?.password && input.masterAdmin.password.length < 8) {
-      errors.push('Password must be at least 8 characters');
-    }
-    
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (input.masterAdmin?.email && !emailRegex.test(input.masterAdmin.email)) {
-      errors.push('Invalid master admin email format');
-    }
-    
-    // Validate slug format (lowercase, alphanumeric, hyphens only)
-    const slugRegex = /^[a-z0-9-]+$/;
-    if (input.dealership?.slug && !slugRegex.test(input.dealership.slug)) {
-      errors.push('Slug must be lowercase letters, numbers, and hyphens only');
-    }
-    
-    // Validate subdomain format
-    if (input.dealership?.subdomain && !slugRegex.test(input.dealership.subdomain)) {
-      errors.push('Subdomain must be lowercase letters, numbers, and hyphens only');
-    }
-    
-    // Validate staff emails
-    if (input.additionalStaff) {
-      for (const staff of input.additionalStaff) {
-        if (!emailRegex.test(staff.email)) {
-          errors.push(`Invalid email format for staff member: ${staff.name}`);
-        }
-      }
-    }
-    
-    return { valid: errors.length === 0, errors };
+    return validateOnboardingInput(input);
   }
 }
 

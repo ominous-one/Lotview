@@ -13,6 +13,14 @@ describe('shared authz role normalization', () => {
     expect(hasRole('gm', 'master')).toBe(true);
   });
 
+  test('allows higher-trust operator roles onto lower-trust workflow surfaces without expanding salesperson access', () => {
+    expect(hasRole('master', 'manager')).toBe(true);
+    expect(hasRole('super_admin', 'manager')).toBe(true);
+    expect(hasRole('manager', 'salesperson')).toBe(true);
+    expect(hasRole('salesperson', 'manager')).toBe(false);
+    expect(hasRole('salesperson', 'master')).toBe(false);
+  });
+
   test('keeps GM/sales manager/salesperson capability boundaries intact', () => {
     expect(hasCapability('master', 'appointments.manage_all')).toBe(true);
     expect(hasCapability('sales_manager', 'appointments.manage_all')).toBe(true);
