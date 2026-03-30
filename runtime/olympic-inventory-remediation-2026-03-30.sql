@@ -1,0 +1,46 @@
+-- Olympic Hyundai Vancouver inventory-truth remediation
+-- Evidence timestamp: 2026-03-30 16:46 PDT
+-- Source of truth: https://www.olympichyundaivancouver.com/vehicles/used/?st=price,desc&view=grid&sc=used
+-- LotView public API: https://olympichyundai.lotview.ai/api/vehicles?limit=48
+-- Safety: scope to dealership_id = 1 and exact normalized dealer_vdp_url matches only.
+
+-- 1) Correct sale prices for still-live VDPs.
+UPDATE vehicles SET price = 51888, last_scraped_at = NOW() WHERE dealership_id = 1 AND deleted_at IS NULL AND dealer_vdp_url ILIKE 'https://www.olympichyundaivancouver.com/vehicles/2025/kia/ev6/vancouver/bc/69299603/%';
+UPDATE vehicles SET price = 49888, last_scraped_at = NOW() WHERE dealership_id = 1 AND deleted_at IS NULL AND dealer_vdp_url ILIKE 'https://www.olympichyundaivancouver.com/vehicles/2024/acura/zdx/vancouver/bc/67357906/%';
+UPDATE vehicles SET price = 47388, last_scraped_at = NOW() WHERE dealership_id = 1 AND deleted_at IS NULL AND dealer_vdp_url ILIKE 'https://www.olympichyundaivancouver.com/vehicles/2025/hyundai/santa-fe/vancouver/bc/68980125/%';
+UPDATE vehicles SET price = 41888, last_scraped_at = NOW() WHERE dealership_id = 1 AND deleted_at IS NULL AND dealer_vdp_url ILIKE 'https://www.olympichyundaivancouver.com/vehicles/2023/jeep/wrangler-4xe/vancouver/bc/67570155/%';
+UPDATE vehicles SET price = 40388, last_scraped_at = NOW() WHERE dealership_id = 1 AND deleted_at IS NULL AND dealer_vdp_url ILIKE 'https://www.olympichyundaivancouver.com/vehicles/2022/volvo/xc60-recharge/vancouver/bc/68446524/%';
+UPDATE vehicles SET price = 39888, last_scraped_at = NOW() WHERE dealership_id = 1 AND deleted_at IS NULL AND dealer_vdp_url ILIKE 'https://www.olympichyundaivancouver.com/vehicles/2024/honda/cr-v-hybrid/vancouver/bc/69240262/%';
+UPDATE vehicles SET price = 35388, last_scraped_at = NOW() WHERE dealership_id = 1 AND deleted_at IS NULL AND dealer_vdp_url ILIKE 'https://www.olympichyundaivancouver.com/vehicles/2025/hyundai/kona/vancouver/bc/65956907/%';
+UPDATE vehicles SET price = 33388, last_scraped_at = NOW() WHERE dealership_id = 1 AND deleted_at IS NULL AND dealer_vdp_url ILIKE 'https://www.olympichyundaivancouver.com/vehicles/2025/hyundai/kona/vancouver/bc/64981288/%';
+UPDATE vehicles SET price = 33388, last_scraped_at = NOW() WHERE dealership_id = 1 AND deleted_at IS NULL AND dealer_vdp_url ILIKE 'https://www.olympichyundaivancouver.com/vehicles/2025/hyundai/kona/vancouver/bc/69240263/%';
+UPDATE vehicles SET price = 32388, last_scraped_at = NOW() WHERE dealership_id = 1 AND deleted_at IS NULL AND dealer_vdp_url ILIKE 'https://www.olympichyundaivancouver.com/vehicles/2025/hyundai/kona/vancouver/bc/65760579/%';
+UPDATE vehicles SET price = 32388, last_scraped_at = NOW() WHERE dealership_id = 1 AND deleted_at IS NULL AND dealer_vdp_url ILIKE 'https://www.olympichyundaivancouver.com/vehicles/2025/hyundai/kona/vancouver/bc/68483614/%';
+UPDATE vehicles SET price = 30888, last_scraped_at = NOW() WHERE dealership_id = 1 AND deleted_at IS NULL AND dealer_vdp_url ILIKE 'https://www.olympichyundaivancouver.com/vehicles/2022/hyundai/ioniq-5/vancouver/bc/69188186/%';
+
+-- 2) Soft-delete extraneous/stale vehicles absent from the live source listing.
+UPDATE vehicles SET deleted_at = NOW(), deleted_reason = 'REMOVED_BY_SYNC', lifecycle_status = 'REMOVED_BY_SYNC' WHERE dealership_id = 1 AND deleted_at IS NULL AND dealer_vdp_url ILIKE 'https://www.olympichyundaivancouver.com/vehicles/2018/hyundai/accent/vancouver/bc/69415922/%';
+UPDATE vehicles SET deleted_at = NOW(), deleted_reason = 'REMOVED_BY_SYNC', lifecycle_status = 'REMOVED_BY_SYNC' WHERE dealership_id = 1 AND deleted_at IS NULL AND dealer_vdp_url ILIKE 'https://www.olympichyundaivancouver.com/vehicles/2020/honda/civic-sedan/vancouver/bc/69363422/%';
+UPDATE vehicles SET deleted_at = NOW(), deleted_reason = 'REMOVED_BY_SYNC', lifecycle_status = 'REMOVED_BY_SYNC' WHERE dealership_id = 1 AND deleted_at IS NULL AND dealer_vdp_url ILIKE 'https://www.olympichyundaivancouver.com/vehicles/2020/hyundai/kona-electric/vancouver/bc/69188187/%';
+UPDATE vehicles SET deleted_at = NOW(), deleted_reason = 'REMOVED_BY_SYNC', lifecycle_status = 'REMOVED_BY_SYNC' WHERE dealership_id = 1 AND deleted_at IS NULL AND dealer_vdp_url ILIKE 'https://www.olympichyundaivancouver.com/vehicles/2024/honda/civic-sedan/vancouver/bc/69245100/%';
+UPDATE vehicles SET deleted_at = NOW(), deleted_reason = 'REMOVED_BY_SYNC', lifecycle_status = 'REMOVED_BY_SYNC' WHERE dealership_id = 1 AND deleted_at IS NULL AND dealer_vdp_url ILIKE 'https://www.olympichyundaivancouver.com/vehicles/2025/hyundai/kona/vancouver/bc/65993963/%';
+UPDATE vehicles SET deleted_at = NOW(), deleted_reason = 'REMOVED_BY_SYNC', lifecycle_status = 'REMOVED_BY_SYNC' WHERE dealership_id = 1 AND deleted_at IS NULL AND dealer_vdp_url ILIKE 'https://www.olympichyundaivancouver.com/vehicles/2014/hyundai/elantra-gt/vancouver/bc/69433852/%';
+UPDATE vehicles SET deleted_at = NOW(), deleted_reason = 'REMOVED_BY_SYNC', lifecycle_status = 'REMOVED_BY_SYNC' WHERE dealership_id = 1 AND deleted_at IS NULL AND dealer_vdp_url ILIKE 'https://www.olympichyundaivancouver.com/vehicles/2018/hyundai/kona/vancouver/bc/67936756/%';
+UPDATE vehicles SET deleted_at = NOW(), deleted_reason = 'REMOVED_BY_SYNC', lifecycle_status = 'REMOVED_BY_SYNC' WHERE dealership_id = 1 AND deleted_at IS NULL AND dealer_vdp_url ILIKE 'https://www.olympichyundaivancouver.com/vehicles/2022/kia/soul/vancouver/bc/68904631/%';
+UPDATE vehicles SET deleted_at = NOW(), deleted_reason = 'REMOVED_BY_SYNC', lifecycle_status = 'REMOVED_BY_SYNC' WHERE dealership_id = 1 AND deleted_at IS NULL AND dealer_vdp_url ILIKE 'https://www.olympichyundaivancouver.com/vehicles/2020/hyundai/venue/vancouver/bc/68849687/%';
+UPDATE vehicles SET deleted_at = NOW(), deleted_reason = 'REMOVED_BY_SYNC', lifecycle_status = 'REMOVED_BY_SYNC' WHERE dealership_id = 1 AND deleted_at IS NULL AND dealer_vdp_url ILIKE 'https://www.olympichyundaivancouver.com/vehicles/2022/kia/seltos/vancouver/bc/69023725/%';
+UPDATE vehicles SET deleted_at = NOW(), deleted_reason = 'REMOVED_BY_SYNC', lifecycle_status = 'REMOVED_BY_SYNC' WHERE dealership_id = 1 AND deleted_at IS NULL AND dealer_vdp_url ILIKE 'https://www.olympichyundaivancouver.com/vehicles/2021/hyundai/kona-electric/vancouver/bc/69426805/%';
+UPDATE vehicles SET deleted_at = NOW(), deleted_reason = 'REMOVED_BY_SYNC', lifecycle_status = 'REMOVED_BY_SYNC' WHERE dealership_id = 1 AND deleted_at IS NULL AND dealer_vdp_url ILIKE 'https://www.olympichyundaivancouver.com/vehicles/2024/hyundai/kona/vancouver/bc/69363432/%';
+UPDATE vehicles SET deleted_at = NOW(), deleted_reason = 'REMOVED_BY_SYNC', lifecycle_status = 'REMOVED_BY_SYNC' WHERE dealership_id = 1 AND deleted_at IS NULL AND dealer_vdp_url ILIKE 'https://www.olympichyundaivancouver.com/vehicles/2020/subaru/crosstrek/vancouver/bc/68949631/%';
+UPDATE vehicles SET deleted_at = NOW(), deleted_reason = 'REMOVED_BY_SYNC', lifecycle_status = 'REMOVED_BY_SYNC' WHERE dealership_id = 1 AND deleted_at IS NULL AND dealer_vdp_url ILIKE 'https://www.olympichyundaivancouver.com/vehicles/2017/lexus/nx-200t/vancouver/bc/68120414/%';
+UPDATE vehicles SET deleted_at = NOW(), deleted_reason = 'REMOVED_BY_SYNC', lifecycle_status = 'REMOVED_BY_SYNC' WHERE dealership_id = 1 AND deleted_at IS NULL AND dealer_vdp_url ILIKE 'https://www.olympichyundaivancouver.com/vehicles/2018/toyota/rav4/vancouver/bc/69249194/%';
+UPDATE vehicles SET deleted_at = NOW(), deleted_reason = 'REMOVED_BY_SYNC', lifecycle_status = 'REMOVED_BY_SYNC' WHERE dealership_id = 1 AND deleted_at IS NULL AND dealer_vdp_url ILIKE 'https://www.olympichyundaivancouver.com/vehicles/2019/bmw/5-series/vancouver/bc/69086787/%';
+UPDATE vehicles SET deleted_at = NOW(), deleted_reason = 'REMOVED_BY_SYNC', lifecycle_status = 'REMOVED_BY_SYNC' WHERE dealership_id = 1 AND deleted_at IS NULL AND dealer_vdp_url ILIKE 'https://www.olympichyundaivancouver.com/vehicles/2019/mercedes-benz/c-class/vancouver/bc/68167449/%';
+UPDATE vehicles SET deleted_at = NOW(), deleted_reason = 'REMOVED_BY_SYNC', lifecycle_status = 'REMOVED_BY_SYNC' WHERE dealership_id = 1 AND deleted_at IS NULL AND dealer_vdp_url ILIKE 'https://www.olympichyundaivancouver.com/vehicles/2025/hyundai/kona-electric/vancouver/bc/65698411/%';
+UPDATE vehicles SET deleted_at = NOW(), deleted_reason = 'REMOVED_BY_SYNC', lifecycle_status = 'REMOVED_BY_SYNC' WHERE dealership_id = 1 AND deleted_at IS NULL AND dealer_vdp_url ILIKE 'https://www.olympichyundaivancouver.com/vehicles/2024/hyundai/tucson-plug-in-hybrid/vancouver/bc/69240264/%';
+UPDATE vehicles SET deleted_at = NOW(), deleted_reason = 'REMOVED_BY_SYNC', lifecycle_status = 'REMOVED_BY_SYNC' WHERE dealership_id = 1 AND deleted_at IS NULL AND dealer_vdp_url ILIKE 'https://www.olympichyundaivancouver.com/vehicles/2025/hyundai/tucson-plug-in-hybrid/vancouver/bc/69149758/%';
+
+-- 3) Missing live VDPs that must be imported/upserted by scraper after DB/env access is fixed.
+-- https://www.olympichyundaivancouver.com/vehicles/2025/audi/q3/vancouver/bc/69684447/?sale_class=used
+-- https://www.olympichyundaivancouver.com/vehicles/2026/nissan/leaf/vancouver/bc/69514072/?sale_class=used
+-- https://www.olympichyundaivancouver.com/vehicles/2023/subaru/wrx/vancouver/bc/69370454/?sale_class=used
