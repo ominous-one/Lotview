@@ -1,6 +1,8 @@
 # LotView
 
-LotView is being built as a **production-grade multi-tenant dealership SaaS** on `*.lotview.ai`.
+> Status note (2026-03-30): LotView is still in active hardening. Fresh current-head proof exists for `npm run check`, targeted root Jest coverage, additional scraper/image-folder coverage, and a production build (`qa/proofs/20260330-164439-*.log`, `qa/proofs/20260330-164852-build.log`), but end-to-end release readiness is **not yet proven** in this repo. Treat older "production ready" claims in historical docs as stale until re-validated.
+
+LotView is being built toward a **production-grade multi-tenant dealership SaaS** on `*.lotview.ai`.
 
 The end goal is not "a dealer website." The end goal is a platform that can be sold to **hundreds of dealerships**, each with:
 - its own tenant

@@ -6,9 +6,9 @@
 
 ---
 
-## Verdict: PRODUCTION READY (with noted recommendations)
+## Verdict: HISTORICAL REVIEW ONLY — STALE FOR CURRENT HEAD
 
-All critical and high-severity issues are fixed. All automated checks pass. The codebase is ready for production deployment.
+This document reflects a point-in-time review on 2026-02-23. It must not be treated as current-head evidence. Fresh 2026-03-29 validation in this repo confirmed `npm run check` passes and a production build emits current `dist/index.js` / `dist/index-worker.js`, but current-head full Jest proof was **not re-established** in this review turn. The codebase should be treated as **progress toward release readiness**, not proven production-ready.
 
 ---
 
@@ -214,4 +214,9 @@ No evidence of cross-tenant data leakage.
 - [x] CI/CD workflows present
 - [x] Environment variable documentation present
 
-**Production deployment is approved.**
+**Current-head production deployment is not approved by this historical review.**
+
+Fresh proof now lives in `qa/proofs/20260330-164439-jest-root.log`,
+`qa/proofs/20260330-164439-jest-extra.log`, and `qa/proofs/20260330-164852-build.log`.
+Treat this file as historical background only until a clean release-candidate commit and
+database-backed validation run are captured on current head.
