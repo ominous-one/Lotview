@@ -1,6 +1,6 @@
 # ACTIVE_SWARM_RUN
 
-- Run: release truth restoration
-- Date: 2026-03-30
-- Goal: eliminate current-head release-proof drift, reduce repo hygiene noise, and leave evidence-backed readiness scoring
-- Status: current-head typecheck proven, root Jest release-safety suite green, extra scraper/image-folder proof captured, DB-dependent autopost suite skipping cleanly when DATABASE_URL is absent, fresh build artifact proof captured, release snapshot refreshed, dirty-worktree cleanup still blocked by broad pre-existing modifications/untracked workspace files
+- Run: 10-dealership launch hardening plan + Phase 1 scraping truth foundation
+- Date: 2026-03-31
+- Goal: turn the launch plan into an execution-grade milestone system, incorporate engineer/QA swarm outputs, and start implementing the scraping truth gate that blocks downstream posting/messaging until inventory fidelity is proven
+- Status: engineer plan received, QA proof received, reviewer correctly blocked premature approval, hard milestone plan written, Phase 1 utility + Jest coverage added for scrape reconciliation and dealership launch-gate scoring, current proof artifact captured at `tmp/swarm-launch10/jest-scrape-truth.json`

@@ -1,9 +1,11 @@
 # WORKING_BUFFER
 
-- Proven on current head: `npm run check` exit 0
-- Proven on current head: targeted Jest `--no-cache --runInBand` green for runtime-readiness, workflow guardrails, VIN decode, vehicle data quality, and robust scraper coverage
-- Proven on current head: autopost queue suite no longer crashes at import time when DATABASE_URL is missing; it skips cleanly
-- Proven on current head: `robust-scraper-image-folders.test.ts` passes and fresh proof logs now live under `qa/proofs/20260330-164439-*.log`
-- Proven on current head: `npm run build` exit 0 with fresh artifact log at `qa/proofs/20260330-164852-build.log`
-- Hygiene improvement landed: `.gitignore` now absorbs obvious local runtime/log noise
-- Remaining blocker: repo still has a large pre-existing dirty worktree, so there is no clean release-candidate commit story yet
+- Swarm outputs now materialized:
+  - `tmp/swarm-launch10/engineer-plan.md`
+  - `tmp/swarm-launch10/qa-proof.md`
+  - `tmp/swarm-launch10/reviewer-signoff.md` (rejected correctly because engineer/QA artifacts were missing at that moment)
+- New hard execution plan written at `LOTVIEW_LAUNCH10_HARD_MILESTONE_PLAN.md`
+- Phase 1 implementation started with `server/scrape-truth-foundation.ts`
+- Jest proof added for Phase 1 at `server/tests/scrape-truth-foundation.test.ts`
+- Fresh proof captured at `tmp/swarm-launch10/jest-scrape-truth.json`
+- Next implementation target: wire the scrape gate into downstream posting eligibility and generate a real reconciliation artifact for sampled dealerships
