@@ -1,0 +1,108 @@
+{
+  "generatedAt": "2026-03-31T18:20:00Z",
+  "artifactType": "launch10-live-dealership-reconciliation",
+  "truthBoundary": "actual live dealership pages via browser extraction; VDP truth baseline only — not yet reconciled against stored DB inventory",
+  "dealership": {
+    "name": "Olympic Hyundai Vancouver",
+    "listingUrl": "https://www.olympichyundaivancouver.com/vehicles/used/?st=price,desc&view=grid&sc=used",
+    "listingPageSignals": {
+      "title": "Pre-owned vehicles for sale in Vancouver, BC",
+      "visibleVehicleLinkCount": 59,
+      "bodySummary": "Pre-Owned vehicles for sale in Vancouver, BC; Price $10,888 to $51,888; Year 2013 to 2026; Kilometres 12KM to 147,593KM"
+    }
+  },
+  "sampledVehicles": [
+    {
+      "source": {
+        "title": "2025 Kia EV6 in Vancouver | Olympic Hyundai Vancouver - 5XYC3DJC7SG005262",
+        "h1": "2025 Kia EV6 Land AWD | HEATED SEATS | 2200 LB TOWING CAPACITY",
+        "vin": "5XYC3DJC7SG005262",
+        "stockNumber": "OHV397013A",
+        "year": 2025,
+        "make": "Kia",
+        "model": "EV6",
+        "trim": "Land AWD",
+        "price": 51888,
+        "odometer": 182,
+        "photoCountObservedInDom": 13,
+        "primaryPhoto": "https://1s-photomanager-prd.autotradercdn.ca/photos/import/202602/1101/5904/43c11836-fff6-416e-92d0-5b0394689bf5.jpg-1024x786",
+        "transmission": "Automatic",
+        "drivetrain": "AWD",
+        "fuelType": "Electric",
+        "exteriorColor": "White",
+        "carfaxSignalsPresent": true,
+        "vdpUrl": "https://www.olympichyundaivancouver.com/vehicles/2025/kia/ev6/vancouver/bc/69299603/?sale_class=used"
+      },
+      "observed": {
+        "vin": "5XYC3DJC7SG005262",
+        "stockNumber": "OHV397013A",
+        "year": 2025,
+        "make": "Kia",
+        "model": "EV6",
+        "trim": "Land AWD",
+        "price": 51888,
+        "odometer": 182,
+        "photoCount": 13,
+        "primaryPhoto": "https://1s-photomanager-prd.autotradercdn.ca/photos/import/202602/1101/5904/43c11836-fff6-416e-92d0-5b0394689bf5.jpg-1024x786",
+        "transmission": "Automatic",
+        "drivetrain": "AWD",
+        "fuelType": "Electric",
+        "exteriorColor": "White"
+      },
+      "reconciliationSummary": {
+        "status": "provisional_match",
+        "blockingMismatches": []
+      }
+    },
+    {
+      "source": {
+        "title": "2024 Acura ZDX in Vancouver | Olympic Hyundai Vancouver - 4W5XHPRL4RZ506780",
+        "h1": "2024 Acura ZDX Type S AWD | NO ACCIDENTS | LEAHER SEATS",
+        "vin": "4W5XHPRL4RZ506780",
+        "stockNumber": "IC506780",
+        "year": 2024,
+        "make": "Acura",
+        "model": "ZDX",
+        "trim": "Type S AWD",
+        "price": 49888,
+        "odometer": 11978,
+        "photoCountObservedInDom": 17,
+        "primaryPhoto": "https://1s-photomanager-prd.autotradercdn.ca/photos/import/202508/0100/1953/44a765b2-8961-421b-b42c-444777b5147d.jpg-1024x786",
+        "transmission": "Automatic",
+        "drivetrain": "AWD",
+        "fuelType": "Electric",
+        "exteriorColor": "Blue",
+        "carfaxSignalsPresent": true,
+        "vdpUrl": "https://www.olympichyundaivancouver.com/vehicles/2024/acura/zdx/vancouver/bc/67357906/?sale_class=used"
+      },
+      "observed": {
+        "vin": "4W5XHPRL4RZ506780",
+        "stockNumber": "IC506780",
+        "year": 2024,
+        "make": "Acura",
+        "model": "ZDX",
+        "trim": "Type S AWD",
+        "price": 49888,
+        "odometer": 11978,
+        "photoCount": 17,
+        "primaryPhoto": "https://1s-photomanager-prd.autotradercdn.ca/photos/import/202508/0100/1953/44a765b2-8961-421b-b42c-444777b5147d.jpg-1024x786",
+        "transmission": "Automatic",
+        "drivetrain": "AWD",
+        "fuelType": "Electric",
+        "exteriorColor": "Blue"
+      },
+      "reconciliationSummary": {
+        "status": "provisional_match",
+        "blockingMismatches": []
+      }
+    }
+  ],
+  "gate": {
+    "score": 100,
+    "passed": false,
+    "blockers": [
+      "insufficient_consecutive_green_days"
+    ],
+    "reason": "Live VDP samples look clean, but launch gate remains red because this is only a first real-data artifact, not a 7-day dealership certification run."
+  }
+}

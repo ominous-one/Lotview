@@ -1,12 +1,14 @@
 # WORKING_BUFFER
 
-- Swarm outputs materialized:
-  - `tmp/swarm-launch10/engineer-plan.md`
-  - `tmp/swarm-launch10/qa-proof.md`
-  - `tmp/swarm-launch10/reviewer-signoff.md` (initial rejection was truthful)
-- Hard execution plan written at `lotview_launch10_hard_milestone_plan.md`
-- Phase 1 implementation in `server/scrape-truth-foundation.ts`
-- Autopost queue wired to accept dealership scrape-gate status in `server/autopost-queue-service.ts`
-- Sample reconciliation artifact generated at `tmp/swarm-launch10/scrape-reconciliation-sample.json`
-- Fresh Jest proof at `tmp/swarm-launch10/jest-scrape-truth.json` now covers 6 tests including the autopost scrape-gate block-reason path
-- Next implementation target: source a real dealership reconciliation input set and use the scrape gate to reject non-certified queue runs in the actual caller path
+- Real autopost entrypoints found and wired:
+  - manager evaluate route in `server/routes.ts`
+  - worker claim-next route in `server/routes.ts`
+  - scheduler cron path in `server/scheduler.ts`
+- New gate service created at `server/scrape-gate-service.ts`
+- Gate service currently computes a conservative stored-inventory internal-consistency gate (explicitly not full source-of-truth certification)
+- Live dealership artifact captured from actual Olympic Hyundai pages using browser extraction:
+  - `tmp/swarm-launch10/scrape-reconciliation-olympic-live.json`
+- Fresh proofs:
+  - `tmp/swarm-launch10/jest-scrape-truth.json` (6/6 passing)
+  - `npx tsc --noEmit` passed
+- Remaining hard gap: DB-backed real dealership reconciliation against source truth still needs executable runtime access to stored inventory + scrape runs in this session for a true live certification artifact

@@ -55,6 +55,7 @@ import {
   reorderAutopostQueue,
   setPhotoGateOverride,
 } from './autopost-queue-service';
+import { computeStoredInventoryScrapeGate } from './scrape-gate-service';
 
 import { authMiddleware, requireRole, generateToken, generateImpersonationToken, comparePassword, hashPassword, verifyToken, extensionHmacMiddleware, generatePostingToken, validatePostingToken, type AuthRequest } from "./auth";
 import { requireDealership, superAdminOnly } from "./tenant-middleware";
@@ -80,6 +81,7 @@ import { reassignAppointmentOwner } from "./appointments/appointment-reassign";
 import { appointments, appointmentAuditEvents, notifications, emailOutbox, users as usersTable, followUpTasks } from "@shared/schema";
 import { startNotificationEmailVerification, verifyNotificationEmailToken } from "./notifications/email-verification";
 import { createFollowUpTasksForAppointmentEvent } from "./follow-ups/follow-up-service";
+import { collectRuntimeReadiness } from "./runtime-readiness";
 
 // Configure multer for in-memory logo uploads (for object storage)
 const logoUpload = multer({
@@ -118,11 +120,35 @@ interface OAuthSession {
 const oauthSessionStore = new Map<string, OAuthSession>();
 
 const SYSTEM_BASE_DOMAIN = (process.env.SYSTEM_BASE_DOMAIN || process.env.APP_BASE_DOMAIN || 'lotview.ai').toLowerCase();
+const APP_PUBLIC_BASE_URL = process.env.APP_URL?.trim().replace(/\/$/, '') || `https://${SYSTEM_BASE_DOMAIN}`;
 
 function buildSystemTenantHostname(subdomain?: string | null): string | null {
   const normalized = subdomain?.trim().toLowerCase();
   if (!normalized) return null;
   return `${normalized}.${SYSTEM_BASE_DOMAIN}`;
+}
+
+async function buildDealershipBaseUrl(dealershipId: number): Promise<string> {
+  const primaryTenantDomain = typeof storage.getPrimaryTenantDomainForDealership === 'function'
+    ? await storage.getPrimaryTenantDomainForDealership(dealershipId)
+    : undefined;
+
+  if (primaryTenantDomain?.hostname) {
+    return `https://${primaryTenantDomain.hostname}`;
+  }
+
+  const dealership = await storage.getDealership(dealershipId);
+  const systemHostname = buildSystemTenantHostname(dealership?.subdomain);
+  if (systemHostname) {
+    return `https://${systemHostname}`;
+  }
+
+  return APP_PUBLIC_BASE_URL;
+}
+
+async function buildDealershipWebhookUrl(dealershipId: number): Promise<string> {
+  const baseUrl = await buildDealershipBaseUrl(dealershipId);
+  return `${baseUrl}/api/webhooks/trigger-scrape`;
 }
 
 function requireResolvedDealershipId(req: AuthRequest): number | null {
@@ -240,13 +266,15 @@ async function resolvePublicDealership(storageRef: typeof storage, req: any) {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  
+  const processType = process.argv.some((arg) => arg.includes("index-worker")) ? "worker" : "web";
+
   // ===== HEALTH CHECK ENDPOINTS (Enterprise Monitoring) =====
   
   // Basic health check - server is running (supports both /health and /api/health)
   const healthHandler = (_req: any, res: any) => {
     res.status(200).json({
       status: "healthy",
+      processType,
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       version: process.env.npm_package_version || "1.0.0",
@@ -257,25 +285,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Ready check - server and all dependencies are ready to accept traffic
   app.get("/ready", async (_req, res) => {
-    const checks: Record<string, { status: string; latency?: number; error?: string }> = {};
-    
-    // Check database connectivity
+    const readiness = collectRuntimeReadiness(processType);
+    const checks: Record<string, { status: string; latency?: number; error?: string; detail?: string }> = Object.fromEntries(
+      Object.entries(readiness.checks).map(([name, check]) => [
+        name,
+        {
+          status: check.status,
+          detail: check.detail,
+        },
+      ]),
+    );
+
     const dbStart = Date.now();
     try {
       await db.execute(sql`SELECT 1`);
-      checks.database = { status: "healthy", latency: Date.now() - dbStart };
+      checks.database = { status: "healthy", latency: Date.now() - dbStart, detail: "Database query succeeded." };
     } catch (error) {
-      checks.database = { 
-        status: "unhealthy", 
+      checks.database = {
+        status: "unhealthy",
         latency: Date.now() - dbStart,
-        error: error instanceof Error ? error.message : "Database connection failed"
+        error: error instanceof Error ? error.message : "Database connection failed",
       };
     }
-    
-    const allHealthy = Object.values(checks).every(c => c.status === "healthy");
-    
-    res.status(allHealthy ? 200 : 503).json({
-      status: allHealthy ? "ready" : "not_ready",
+
+    const blockingFailure = Object.values(checks).some((check) => check.status === "unhealthy");
+
+    res.status(blockingFailure ? 503 : 200).json({
+      status: blockingFailure ? "not_ready" : "ready",
+      processType,
       timestamp: new Date().toISOString(),
       checks,
     });
@@ -6164,13 +6201,14 @@ Format your response in clear sections with actionable recommendations.`;
       
       // Get dealership info for the response
       const dealership = await storage.getDealershipById(dealershipId);
+      const webhookUrl = await buildDealershipWebhookUrl(dealershipId);
       
       res.json({ 
         success: true,
         secret,
         dealershipId,
         dealershipName: dealership?.name,
-        webhookUrl: `https://hyundaivancouver.lotview.ai/api/webhooks/trigger-scrape`,
+        webhookUrl,
         instructions: {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -6196,10 +6234,12 @@ Format your response in clear sections with actionable recommendations.`;
         });
       }
       
+      const webhookUrl = await buildDealershipWebhookUrl(dealershipId);
+
       res.json({ 
         configured: true,
         secretPreview: `${apiKeys.scrapeWebhookSecret.slice(0, 8)}...${apiKeys.scrapeWebhookSecret.slice(-4)}`,
-        webhookUrl: `https://hyundaivancouver.lotview.ai/api/webhooks/trigger-scrape`,
+        webhookUrl,
         instructions: {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -17740,8 +17780,18 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
   app.post('/api/manager/autopost/queue/evaluate', authMiddleware, requireDealership, requireRole('master', 'sales_manager'), async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const result = await evaluateAndEnqueueAutopostQueue({ dealershipId, actorUserId: req.user?.id ?? null });
-      res.json({ success: true, ...result });
+      const scrapeGateComputation = await computeStoredInventoryScrapeGate(dealershipId);
+      const result = await evaluateAndEnqueueAutopostQueue({
+        dealershipId,
+        actorUserId: req.user?.id ?? null,
+        scrapeGate: scrapeGateComputation?.gate ?? null,
+      });
+      res.json({
+        success: true,
+        ...result,
+        scrapeGate: scrapeGateComputation?.gate ?? null,
+        scrapeGateTruthBoundary: scrapeGateComputation?.truthBoundary ?? null,
+      });
     } catch (error: any) {
       logError('Evaluate autopost queue failed', error, { route: 'api-manager-autopost-queue-evaluate' });
       res.status(500).json({ error: error.message || 'Failed' });
@@ -17806,7 +17856,13 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
         return res.status(403).json({ error: 'Token does not have autopost:write permission' });
       }
 
-      const item = await claimNextAutopostItem({ dealershipId, platform, actorUserId: null });
+      const scrapeGateComputation = await computeStoredInventoryScrapeGate(dealershipId);
+      const item = await claimNextAutopostItem({
+        dealershipId,
+        platform,
+        actorUserId: null,
+        scrapeGate: scrapeGateComputation?.gate ?? null,
+      });
       res.json({ item });
     } catch (error: any) {
       logError('Claim next failed', error, { route: 'api-autopost-claim-next' });
