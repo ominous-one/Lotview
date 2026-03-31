@@ -11,11 +11,22 @@ import {
 } from '@shared/schema';
 import { uniquePhotoCount } from './vehicle-photo-utils';
 import { createInventoryOpsNotification } from './notifications/notification-service';
+import type { DealershipScrapeGateResult } from './scrape-truth-foundation';
 
 const PHOTO_GATE_MIN_UNIQUE = 10;
 const MAX_ATTEMPTS_PER_PLATFORM = 3;
 
 export type QueueListPlatformFilter = AutopostPlatform | 'all';
+
+export function summarizeDealershipScrapeGateBlockReason(scrapeGate?: DealershipScrapeGateResult | null): string | null {
+  if (!scrapeGate || scrapeGate.passed) return null;
+
+  const blockerSummary = scrapeGate.blockers.length > 0
+    ? scrapeGate.blockers.slice(0, 3).join(', ')
+    : 'dealership scrape gate failed';
+
+  return `SCRAPE_GATE_FAILED:${Math.round(scrapeGate.score)}:${blockerSummary}`;
+}
 
 export function classifyInventoryIsUsed(v: { year?: number | null; odometer?: number | null }): boolean {
   // Repo lacks an explicit used/new flag.
@@ -48,7 +59,13 @@ function platformBlockedReason(params: {
   photoGateOverride: boolean;
   vehicleAutopostEligible: boolean;
   vehicleAutopostBlockReason: string | null;
+  dealershipScrapeGate?: DealershipScrapeGateResult | null;
 }): { blocked: boolean; reason: string | null } {
+  const dealershipGateReason = summarizeDealershipScrapeGateBlockReason(params.dealershipScrapeGate);
+  if (dealershipGateReason) {
+    return { blocked: true, reason: dealershipGateReason };
+  }
+
   const uCount = uniquePhotoCount(params.vehicleImages || []);
 
   // Photo gate override only overrides the photo gate, not other block reasons.
@@ -85,6 +102,7 @@ function summarizeQueueBlockedReason(statuses: Array<{ status: string; lastError
 export async function evaluateAndEnqueueAutopostQueue(params: {
   dealershipId: number;
   actorUserId?: number | null;
+  scrapeGate?: DealershipScrapeGateResult | null;
 }): Promise<{ enqueued: number; updated: number; skipped: number }> {
   const actorUserId = params.actorUserId ?? null;
 
@@ -211,7 +229,11 @@ export async function evaluateAndEnqueueAutopostQueue(params: {
   });
 
   // After ensuring items exist, reconcile block/queued statuses based on photo gate and upstream signals.
-  await reconcileAutopostPlatformBlocks({ dealershipId: params.dealershipId, actorUserId });
+  await reconcileAutopostPlatformBlocks({
+    dealershipId: params.dealershipId,
+    actorUserId,
+    scrapeGate: params.scrapeGate ?? null,
+  });
 
   return { enqueued, updated, skipped };
 }
@@ -219,6 +241,7 @@ export async function evaluateAndEnqueueAutopostQueue(params: {
 export async function reconcileAutopostPlatformBlocks(params: {
   dealershipId: number;
   actorUserId?: number | null;
+  scrapeGate?: DealershipScrapeGateResult | null;
 }): Promise<{ updated: number }> {
   const actorUserId = params.actorUserId ?? null;
 
@@ -286,6 +309,7 @@ export async function reconcileAutopostPlatformBlocks(params: {
       photoGateOverride: base.photoGateOverride,
       vehicleAutopostEligible: base.autopostEligible,
       vehicleAutopostBlockReason: base.autopostBlockReason,
+      dealershipScrapeGate: params.scrapeGate ?? null,
     });
 
     const nextStatus: AutopostPlatformStatus = gate.blocked ? 'blocked' : 'queued';
@@ -385,8 +409,14 @@ export async function listAutopostQueue(params: {
     : [];
 
   const latestEventByQueue = new Map<string, (typeof recentEvents)[number]>();
+  const recentEventsByQueue = new Map<string, (typeof recentEvents)>();
   for (const ev of recentEvents) {
     if (!latestEventByQueue.has(ev.queueItemId)) latestEventByQueue.set(ev.queueItemId, ev);
+    const bucket = recentEventsByQueue.get(ev.queueItemId) || [];
+    if (bucket.length < 5) {
+      bucket.push(ev);
+      recentEventsByQueue.set(ev.queueItemId, bucket);
+    }
   }
 
   return filtered.map((i) => {
@@ -395,6 +425,7 @@ export async function listAutopostQueue(params: {
       { platform: 'craigslist', status: i.clStatus, lastError: i.clLastError },
     ];
     const latestEvent = latestEventByQueue.get(i.queueItemId) || null;
+    const recentHistory = recentEventsByQueue.get(i.queueItemId) || [];
     const queueBlockedReason = summarizeQueueBlockedReason(platformStatuses as any);
 
     return {
@@ -409,6 +440,7 @@ export async function listAutopostQueue(params: {
         postedPlatforms: platformStatuses.filter((s) => s.status === 'posted').map((s) => s.platform),
       },
       latestEvent,
+      recentHistory,
     };
   });
 }
@@ -540,6 +572,7 @@ export async function claimNextAutopostItem(params: {
   dealershipId: number;
   platform: AutopostPlatform;
   actorUserId?: number | null;
+  scrapeGate?: DealershipScrapeGateResult | null;
 }): Promise<null | {
   queueItemId: string;
   vehicle: any;
@@ -584,6 +617,7 @@ export async function claimNextAutopostItem(params: {
       photoGateOverride: !!row.photo_gate_override,
       vehicleAutopostEligible: !!row.autopost_eligible,
       vehicleAutopostBlockReason: row.autopost_block_reason,
+      dealershipScrapeGate: params.scrapeGate ?? null,
     });
 
     if (gate.blocked) {

@@ -1,4 +1,5 @@
 import { evaluateDealershipScrapeGate, reconcileVehicleTruth } from '../scrape-truth-foundation';
+import { summarizeDealershipScrapeGateBlockReason } from '../autopost-queue-service';
 
 describe('scrape truth foundation', () => {
   test('reconciliation reports exact mismatches and blocking reasons', () => {
@@ -182,5 +183,25 @@ describe('scrape truth foundation', () => {
 
     expect(gate.passed).toBe(false);
     expect(gate.blockers).toContain('carfax_truthfulness_failed');
+  });
+
+  test('autopost layer gets a dealership-level scrape gate block reason', () => {
+    const reason = summarizeDealershipScrapeGateBlockReason({
+      dealershipId: 5,
+      score: 91.2,
+      passed: false,
+      blockers: ['overall_score_below_launch_gate', 'price_accuracy_below_threshold'],
+      categoryBreakdown: {
+        identity: 100,
+        price: 90,
+        media: 100,
+        details: 100,
+        freshness: 100,
+        history: 100,
+      },
+    });
+
+    expect(reason).toContain('SCRAPE_GATE_FAILED:91');
+    expect(reason).toContain('overall_score_below_launch_gate');
   });
 });

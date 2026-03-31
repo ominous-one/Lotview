@@ -1,0 +1,101 @@
+{
+  "generatedAt": "2026-03-31T17:51:33.126Z",
+  "artifactType": "launch10-scrape-reconciliation-sample",
+  "truthBoundary": "schema/sample artifact only — not live 10-dealership launch proof",
+  "dealershipId": 101,
+  "sampledVehicleCount": 2,
+  "sampledVehicles": [
+    {
+      "dealershipId": 101,
+      "matches": [
+        "vin",
+        "stockNumber",
+        "year",
+        "make",
+        "model",
+        "trim",
+        "price",
+        "odometer",
+        "photoCount",
+        "primaryPhoto",
+        "transmission",
+        "drivetrain",
+        "fuelType",
+        "exteriorColor",
+        "interiorColor",
+        "carfaxUrl",
+        "carfaxBadges"
+      ],
+      "mismatches": [],
+      "criticalMismatchCount": 0,
+      "blockingReasons": []
+    },
+    {
+      "dealershipId": 101,
+      "matches": [
+        "vin",
+        "stockNumber",
+        "year",
+        "make",
+        "model",
+        "trim",
+        "odometer",
+        "transmission",
+        "drivetrain",
+        "fuelType",
+        "exteriorColor",
+        "interiorColor",
+        "carfaxUrl",
+        "carfaxBadges"
+      ],
+      "mismatches": [
+        {
+          "field": "price",
+          "sourceValue": 28995,
+          "observedValue": 28495,
+          "reason": "Price mismatch",
+          "blocking": true
+        },
+        {
+          "field": "photoCount",
+          "sourceValue": 16,
+          "observedValue": 14,
+          "reason": "Photo count mismatch",
+          "blocking": true
+        },
+        {
+          "field": "primaryPhoto",
+          "sourceValue": "https://dealer.example/vehicle-2-primary.jpg",
+          "observedValue": "https://dealer.example/vehicle-2-other.jpg",
+          "reason": "Primary photo mismatch",
+          "blocking": true
+        }
+      ],
+      "criticalMismatchCount": 3,
+      "blockingReasons": [
+        "price:Price mismatch",
+        "photoCount:Photo count mismatch",
+        "primaryPhoto:Primary photo mismatch"
+      ]
+    }
+  ],
+  "gate": {
+    "dealershipId": 101,
+    "score": 77.42,
+    "passed": false,
+    "blockers": [
+      "price_accuracy_below_threshold",
+      "media_accuracy_below_threshold",
+      "insufficient_consecutive_green_days",
+      "overall_score_below_launch_gate"
+    ],
+    "categoryBreakdown": {
+      "identity": 100,
+      "price": 50,
+      "media": 50,
+      "details": 100,
+      "freshness": 99.2,
+      "history": 100
+    }
+  }
+}
