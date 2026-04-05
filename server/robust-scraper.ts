@@ -1,5 +1,6 @@
 import { storage } from './storage';
 import { scrapeAllDealershipsIncremental, upsertVehicleByVin, checkVehicleNeedsEnrichment, updateVehiclePriceOnly, type ScrapedVehicle } from './scraper';
+import { scrapeCarfaxReport } from './carfax-scraper';
 import { getApifyServiceForDealership } from './apify-service';
 import { 
   getBrowserlessServiceForDealership, 
@@ -17,6 +18,83 @@ import { maximizeImageUrl } from './precision-image-extractor';
 
 const MAX_RETRIES = 3;
 const RETRY_DELAYS = [5000, 15000, 30000]; // 5s, 15s, 30s exponential backoff
+
+/**
+ * Fire-and-forget Carfax report enrichment.
+ * Triggered after a vehicle is saved if it has a carfaxUrl.
+ * Runs async so it never blocks the scrape loop.
+ * Skips if report was already scraped within the last 24 hours.
+ */
+async function triggerCarfaxEnrichment(vehicleId: number, dealershipId: number, vin: string | null | undefined, carfaxUrl: string): Promise<void> {
+  try {
+    // Skip if recently scraped
+    if (vin) {
+      const existing = await storage.getCarfaxReportByVin(vin, dealershipId);
+      if (existing && existing.scrapedAt) {
+        const hoursSince = (Date.now() - existing.scrapedAt.getTime()) / (1000 * 60 * 60);
+        if (hoursSince < 24) {
+          // Re-link to this vehicle if needed
+          if (existing.vehicleId !== vehicleId) {
+            await storage.upsertCarfaxReport({
+              dealershipId: existing.dealershipId,
+              vin: existing.vin,
+              vehicleId,
+              reportUrl: existing.reportUrl,
+              accidentCount: existing.accidentCount,
+              ownerCount: existing.ownerCount,
+              serviceRecordCount: existing.serviceRecordCount,
+              lastReportedOdometer: existing.lastReportedOdometer,
+              lastReportedDate: existing.lastReportedDate,
+              damageReported: existing.damageReported,
+              lienReported: existing.lienReported,
+              registrationHistory: existing.registrationHistory as any,
+              serviceHistory: existing.serviceHistory as any,
+              accidentHistory: existing.accidentHistory as any,
+              ownershipHistory: existing.ownershipHistory as any,
+              odometerHistory: existing.odometerHistory as any,
+              fullReportData: existing.fullReportData as any,
+              badges: existing.badges,
+              scrapedAt: existing.scrapedAt ?? new Date(),
+            });
+          }
+          return;
+        }
+      }
+    }
+
+    const reportData = await scrapeCarfaxReport(carfaxUrl);
+    if (!reportData) return;
+
+    await storage.upsertCarfaxReport({
+      vehicleId,
+      dealershipId,
+      vin: reportData.vin || vin || '',
+      reportUrl: carfaxUrl,
+      accidentCount: reportData.accidentCount,
+      ownerCount: reportData.ownerCount,
+      serviceRecordCount: reportData.serviceRecordCount,
+      lastReportedOdometer: reportData.lastReportedOdometer,
+      lastReportedDate: reportData.lastReportedDate,
+      damageReported: reportData.damageReported,
+      lienReported: reportData.lienReported,
+      registrationHistory: reportData.registrationHistory as any,
+      serviceHistory: reportData.serviceHistory as any,
+      accidentHistory: reportData.accidentHistory as any,
+      ownershipHistory: reportData.ownershipHistory as any,
+      odometerHistory: reportData.odometerHistory as any,
+      fullReportData: reportData.fullReportData as any,
+      badges: reportData.badges,
+      scrapedAt: new Date(),
+    });
+
+    logInfo('[Robust Scraper] Carfax report saved', { service: 'scraper', vehicleId, ownerCount: reportData.ownerCount, accidentCount: reportData.accidentCount });
+  } catch (err) {
+    logWarn('[Robust Scraper] Carfax enrichment failed (non-blocking)', { service: 'scraper', vehicleId, error: err instanceof Error ? err.message : String(err) });
+  }
+}
+
+// Type alias to fix spread assignment of CarfaxReport to upsert input
+type CarfaxUpsertInput = Parameters<typeof storage.upsertCarfaxReport>[0];
 
 /**
  * Detect if HTML is a Cloudflare block/challenge page instead of real content.
@@ -2308,6 +2386,11 @@ async function attemptZenRowsScrape(dealershipId?: number): Promise<{
                 totalUpdated++;
               }
               logInfo('[Robust Scraper] ZenRows imported vehicle', { service: 'scraper', method: 'zenrows', year, make, model, vin: vehicle.vin, action: upsertResult.action });
+
+              // Async Carfax report enrichment (fire-and-forget, never blocks scrape loop)
+              if (vdpContent.carfaxUrl) {
+                triggerCarfaxEnrichment(upsertResult.id, source.dealershipId, vehicle.vin, vdpContent.carfaxUrl).catch(() => {});
+              }
               
               // CLEANUP: Delete any PENDING placeholder records with the same VDP URL
               // This ensures we don't have duplicates when a vehicle is successfully scraped
@@ -3051,6 +3134,11 @@ async function attemptScrapingBeeScrape(dealershipId?: number): Promise<{
               totalUpdated++;
             }
             logInfo('[Robust Scraper] ScrapingBee imported vehicle', { service: 'scraper', method: 'scrapingbee', year, make, model, vin: vehicle.vin, action: upsertResult.action });
+
+            // Async Carfax report enrichment (fire-and-forget)
+            if (scrapingBeeVdpContent.carfaxUrl) {
+              triggerCarfaxEnrichment(upsertResult.id, source.dealershipId, vehicle.vin, scrapingBeeVdpContent.carfaxUrl).catch(() => {});
+            }
             
             // CLEANUP: Soft-delete any PENDING placeholder records with the same VDP URL
             const deletedAt = new Date();
@@ -3404,7 +3492,13 @@ async function attemptBrowserlessScrape(dealershipId?: number): Promise<{
             }
             
             const saved = await upsertVehicleByVin(vehicleData);
-            if (saved) totalImported++;
+            if (saved) {
+              totalImported++;
+              // Async Carfax report enrichment (fire-and-forget)
+              if (vehicleData.carfaxUrl) {
+                triggerCarfaxEnrichment(saved.id, source.dealershipId, vehicleData.vin, vehicleData.carfaxUrl).catch(() => {});
+              }
+            }
           }
         } else if (!result.success) {
           logWarn('[Robust Scraper] Browserless failed for source', { service: 'scraper', method: 'browserless', sourceName: source.sourceName, error: result.error });
