@@ -69,7 +69,7 @@ Use this exact date/time when customers ask about the current date, time, or whe
 
 ${dateTimeContext}
 
-${vehicleContext ? `Current vehicle being discussed: ${vehicleContext}` : ""}
+${vehicleContext ? `=== VEHICLE BEING DISCUSSED ===\n${vehicleContext}\n==============================` : ""}
 
 IMPORTANT RULES:
 1. Keep responses to 2-3 sentences maximum - be concise
@@ -78,20 +78,23 @@ IMPORTANT RULES:
 4. Don't repeat information the customer already gave you
 5. Never confirm an appointment without having: date/time, full name, and phone number
 6. When asked about the date or time, use the ACTUAL date/time provided above - never use placeholder text
+7. When asked about accidents, owners, or vehicle history: answer DIRECTLY using the CARFAX data in the vehicle context above. State the exact number of accidents and owners from that data. Never say you don't have the information if it is present in the vehicle context.
+8. If the vehicle context shows "No reported accidents" — state that confidently. If it shows accidents, give the exact count.
 
 Your goals:
 - Answer questions directly and briefly
 - Help schedule test drives and appointments (but always get name + contact first)
-- Explain vehicle features when asked
+- Explain vehicle features and history when asked
 - Guide customers efficiently through their purchase journey
 
-Be helpful and action-oriented. If you don't have specific information, offer to connect them with a sales representative.`;
+Be helpful and action-oriented. If you genuinely don't have specific information, offer to connect them with a sales representative.`;
 
     if (promptData) {
       // Use the database prompt with date/time and vehicle context - put date/time at the TOP
-      systemContent = `${dateTimeContext}\n\n${promptData.systemPrompt}\n\nIMPORTANT: When customers ask about the date or time, use the ACTUAL date/time provided at the start of this prompt. NEVER use placeholder text like "[insert date]" or "[current time]".`;
+      systemContent = `${dateTimeContext}\n\n${promptData.systemPrompt}\n\nIMPORTANT: When customers ask about the date or time, use the ACTUAL date/time provided at the start of this prompt. NEVER use placeholder text like "[insert date]" or "[current time]".
+When asked about accidents, owners, or vehicle history: answer directly from the vehicle context below. Never say you lack the info if it is present.`;
       if (vehicleContext) {
-        systemContent += `\n\nCurrent vehicle being discussed: ${vehicleContext}`;
+        systemContent += `\n\n=== VEHICLE BEING DISCUSSED ===\n${vehicleContext}\n==============================`;
       }
     }
 

@@ -982,7 +982,53 @@ export default function VehicleDetail() {
       </div>
 
       <ChatBot 
-        vehicleName={`${car.year} ${car.make} ${car.model}`} 
+        vehicleName={(() => {
+          // Build a rich context string so the AI knows everything about this vehicle
+          const lines: string[] = [
+            `${car.year} ${car.make} ${car.model}${car.trim ? ` ${car.trim}` : ''}`,
+            `Price: $${car.price > 0 ? car.price.toLocaleString() + ' CAD' : 'Contact for Price'}`,
+            `Odometer: ${car.odometer.toLocaleString()} km`,
+            `VIN: ${car.vin || 'Not available'}`,
+            `Stock #: ${car.stockNumber || 'N/A'}`,
+            `Fuel: ${car.fuelType || 'N/A'}`,
+            `Location: ${car.dealership}, ${car.location}`,
+          ];
+
+          // Carfax / vehicle history
+          if (carfaxSummary) {
+            lines.push(`--- Vehicle History (CARFAX) ---`);
+            if (typeof carfaxSummary.ownerCount === 'number') {
+              lines.push(`Owners: ${carfaxSummary.ownerCount} previous owner${carfaxSummary.ownerCount === 1 ? '' : 's'}`);
+            }
+            if (typeof carfaxSummary.accidentCount === 'number') {
+              lines.push(`Accidents: ${carfaxSummary.accidentCount === 0 ? 'No reported accidents' : `${carfaxSummary.accidentCount} reported accident${carfaxSummary.accidentCount === 1 ? '' : 's'}`}`);
+            }
+            if (typeof carfaxSummary.serviceRecordCount === 'number' && carfaxSummary.serviceRecordCount > 0) {
+              lines.push(`Service records on file: ${carfaxSummary.serviceRecordCount}`);
+            }
+            if (carfaxSummary.lastReportedDate) {
+              lines.push(`Last reported: ${carfaxSummary.lastReportedDate}`);
+            }
+            if (carfaxSummary.lastReportedOdometer && carfaxSummary.lastReportedOdometer > 0) {
+              lines.push(`Last reported odometer: ${carfaxSummary.lastReportedOdometer.toLocaleString()} km`);
+            }
+            if (carfaxSummary.damageReported) lines.push(`Damage: reported`);
+            if (carfaxSummary.lienReported) lines.push(`Lien: reported`);
+          } else if (car.carfaxBadges && car.carfaxBadges.length > 0) {
+            lines.push(`Vehicle history badges: ${car.carfaxBadges.join(', ')}`);
+          }
+
+          if (car.carfaxUrl) {
+            lines.push(`Full CARFAX report: ${car.carfaxUrl}`);
+          }
+
+          // Key features from carfax badges and dealer badges
+          if (car.badges && car.badges.length > 0) {
+            lines.push(`Features/badges: ${car.badges.join(', ')}`);
+          }
+
+          return lines.join(' | ');
+        })()}
         action={action}
         vehicle={{
           id: car.id,
