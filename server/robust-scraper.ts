@@ -1885,9 +1885,13 @@ async function attemptZenRowsScrape(dealershipId?: number): Promise<{
           sourceHostname = '';
         }
 
-        // Scrape the listing page with scroll-to-bottom enabled for lazy-loading
+        // Scrape the listing page. NOTE: scrollToBottom uses js_instructions which
+        // conflicts with the wait= param in ZenRows — use a plain wait instead.
         const listingResult = await zenrowsService.zenRowsScrape(source.sourceUrl, {
-          scrollToBottom: true  // Enable scrolling for lazy-loaded inventory pages
+          jsRender: true,
+          premiumProxy: true,
+          waitMs: 5000,
+          scrollToBottom: false,
         });
         
         if (!listingResult.success || !listingResult.html) {
@@ -1952,9 +1956,13 @@ async function attemptZenRowsScrape(dealershipId?: number): Promise<{
               continue; // Skip to next vehicle
             }
             
-            await sleep(5000); // Rate limit: 5 seconds between VDP requests to avoid Cloudflare blocks
+            await sleep(2000); // 2s between VDP requests (was 5s — reduces total job time)
             
-            const vdpResult = await zenrowsService.zenRowsScrape(vdpUrl);
+            const vdpResult = await zenrowsService.zenRowsScrape(vdpUrl, {
+              jsRender: true,
+              premiumProxy: true,
+              waitMs: 6000, // Wait for Carfax widget to load
+            });
             
             if (!vdpResult.success || !vdpResult.html) {
               logWarn('[Robust Scraper] ZenRows failed to get VDP', { service: 'scraper', method: 'zenrows', vdpUrl, error: vdpResult.error });
