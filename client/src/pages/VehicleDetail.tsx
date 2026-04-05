@@ -97,7 +97,7 @@ export default function VehicleDetail() {
       const timer = setTimeout(() => {
         trackViewMutation.mutate();
         trackGTMVehicleView(car); // GTM tracking
-        console.log(`Tracked view for vehicle ${car.id} for remarketing.`);
+
       }, 2000);
       
       // Check if vehicle is liked

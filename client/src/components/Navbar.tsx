@@ -15,6 +15,8 @@ export function Navbar() {
 
   const logoUrl = dealership?.logo || DEFAULT_LOGO;
   const dealershipName = dealership?.name || "LotView";
+  const dealershipPhone = dealership?.phone || null;
+  const phoneHref = dealershipPhone ? `tel:${dealershipPhone.replace(/\D/g, '')}` : null;
 
   return (
     <nav className="fixed top-0 w-full z-50 bg-background border-b border-border shadow-sm">
@@ -60,12 +62,13 @@ export function Navbar() {
             Chat Now
           </button>
           <a 
-            href="tel:+16041234567"
+            href={phoneHref || '#'}
             className="bg-secondary text-secondary-foreground px-4 py-2 rounded-lg text-sm font-bold hover:bg-secondary/90 transition flex items-center gap-2"
             data-testid="button-phone-desktop"
+            onClick={!phoneHref ? (e) => e.preventDefault() : undefined}
           >
             <Phone className="w-4 h-4" />
-            Contact Sales
+            {dealershipPhone ? `Call: ${dealershipPhone}` : "Contact Sales"}
           </a>
           <Sheet>
             <SheetTrigger asChild>
@@ -113,13 +116,13 @@ export function Navbar() {
             <SheetContent side="right" className="w-[280px] p-6">
               <div className="flex flex-col gap-4 mt-8">
                 <a
-                  href="tel:+16041234567"
+                  href={phoneHref || '#'}
                   className="w-full bg-secondary text-secondary-foreground py-3 rounded-lg text-sm font-bold hover:bg-secondary/90 transition flex items-center justify-center gap-2"
-                  onClick={() => setIsMenuOpen(false)}
+                  onClick={(e) => { if (!phoneHref) e.preventDefault(); setIsMenuOpen(false); }}
                   data-testid="link-phone-menu"
                 >
                   <Phone className="w-4 h-4" />
-                  Call: (604) 123-4567
+                  {dealershipPhone ? `Call: ${dealershipPhone}` : "Contact Sales"}
                 </a>
                 <Link href="/">
                   <button

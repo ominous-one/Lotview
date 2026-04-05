@@ -213,20 +213,25 @@ export default async function runApp(
   // Global error handler
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
+    // Never leak internal error details to clients in production
+    const isProduction = process.env.NODE_ENV === 'production';
+    const message = isProduction && status >= 500
+      ? 'An unexpected error occurred. Please try again.'
+      : (err.message || 'Internal Server Error');
 
     if (status >= 500) {
       console.error(JSON.stringify({
         timestamp: new Date().toISOString(),
         level: "error",
         source: "unhandled",
-        message,
+        message: err.message,
         stack: err.stack,
       }));
     }
 
     if (!res.headersSent) {
-      res.status(status).json({ message });
+      // Use { error } consistently with the rest of the API
+      res.status(status).json({ error: message });
     }
   });
 

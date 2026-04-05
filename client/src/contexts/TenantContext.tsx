@@ -4,11 +4,13 @@ interface Dealership {
   id: number;
   name: string;
   subdomain: string;
-  city?: string;
-  province?: string;
-  logo?: string;
-  primaryColor?: string;
-  secondaryColor?: string;
+  address?: string | null;
+  city?: string | null;
+  province?: string | null;
+  phone?: string | null;
+  logo?: string | null;
+  primaryColor?: string | null;
+  secondaryColor?: string | null;
 }
 
 interface TenantContextType {

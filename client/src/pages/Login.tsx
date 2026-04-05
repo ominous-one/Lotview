@@ -208,13 +208,13 @@ export default function Login() {
               </form>
               
               <div className="mt-6 text-center">
-                <a 
-                  href="mailto:support@lotview.ai?subject=Password%20Reset%20Request&body=Hi%2C%0A%0AI%20need%20to%20reset%20my%20password%20for%20my%20account.%0A%0AMy%20email%3A%20%0A%0AThank%20you!"
+                <Link
+                  href="/forgot-password"
                   className="text-sm text-[#00aad2] hover:text-[#022d60] transition-colors font-medium"
                   data-testid="link-forgot-password"
                 >
                   Forgot your password?
-                </a>
+                </Link>
               </div>
             </CardContent>
           </Card>
