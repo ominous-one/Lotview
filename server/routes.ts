@@ -3023,6 +3023,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         lastReportedDate: report.lastReportedDate,
         reportUrl: report.reportUrl,
         scrapedAt: report.scrapedAt,
+        // Per-incident history arrays for VDP display and AI context
+        accidentHistory: report.accidentHistory ?? [],
+        ownershipHistory: report.ownershipHistory ?? [],
+        registrationHistory: report.registrationHistory ?? [],
       });
     } catch (error) {
       logError('Error fetching Carfax summary:', error instanceof Error ? error : new Error(String(error)), { route: 'api-vehicles-carfax-summary' });

@@ -578,6 +578,59 @@ export default function VehicleDetail() {
                           <span>Last reported odometer: <strong className="text-foreground">{carfaxSummary.lastReportedOdometer.toLocaleString()} km</strong></span>
                         </div>
                       )}
+
+                      {/* Per-accident detail rows */}
+                      {Array.isArray(carfaxSummary.accidentHistory) && carfaxSummary.accidentHistory.length > 0 && (
+                        <div className="border border-red-100 rounded-xl overflow-hidden" data-testid="carfax-accident-history">
+                          <div className="bg-red-50 px-4 py-2.5 flex items-center gap-2">
+                            <AlertTriangle className="w-4 h-4 text-red-500" />
+                            <span className="text-sm font-bold text-red-700">Accident / Damage Records</span>
+                          </div>
+                          <div className="divide-y divide-red-50">
+                            {carfaxSummary.accidentHistory.map((incident: { date: string; description: string; severity: string }, idx: number) => (
+                              <div key={idx} className="px-4 py-3" data-testid={`carfax-accident-${idx}`}>
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-xs font-bold text-red-600">{incident.date || 'Date not available'}</span>
+                                  {incident.severity && incident.severity !== 'Unknown' && (
+                                    <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-medium">{incident.severity}</span>
+                                  )}
+                                </div>
+                                <p className="text-sm text-foreground">{incident.description || 'Accident reported'}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Ownership timeline */}
+                      {Array.isArray(carfaxSummary.ownershipHistory) && carfaxSummary.ownershipHistory.length > 0 && (
+                        <div className="border border-border rounded-xl overflow-hidden" data-testid="carfax-ownership-history">
+                          <div className="bg-muted/50 px-4 py-2.5 flex items-center gap-2">
+                            <Users className="w-4 h-4 text-primary" />
+                            <span className="text-sm font-bold text-foreground">Ownership History</span>
+                          </div>
+                          <div className="divide-y divide-border">
+                            {carfaxSummary.ownershipHistory.map((owner: { startDate: string; endDate: string | null; location: string; type: string }, idx: number) => (
+                              <div key={idx} className="px-4 py-3 flex items-start gap-3" data-testid={`carfax-owner-${idx}`}>
+                                <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                  <span className="text-xs font-black text-primary">{idx + 1}</span>
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium text-foreground">
+                                    {owner.type || 'Owner'}
+                                    {owner.location ? ` — ${owner.location}` : ''}
+                                  </p>
+                                  {(owner.startDate || owner.endDate) && (
+                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                      {owner.startDate}{owner.endDate ? ` – ${owner.endDate}` : owner.startDate ? ' – present' : ''}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -1002,6 +1055,18 @@ export default function VehicleDetail() {
             }
             if (typeof carfaxSummary.accidentCount === 'number') {
               lines.push(`Accidents: ${carfaxSummary.accidentCount === 0 ? 'No reported accidents' : `${carfaxSummary.accidentCount} reported accident${carfaxSummary.accidentCount === 1 ? '' : 's'}`}`);
+            }
+            // Per-accident detail with dates
+            if (Array.isArray(carfaxSummary.accidentHistory) && carfaxSummary.accidentHistory.length > 0) {
+              carfaxSummary.accidentHistory.forEach((incident: { date: string; description: string; severity: string }, i: number) => {
+                lines.push(`Accident ${i + 1}: date=${incident.date || 'unknown'}, description=${incident.description || 'damage reported'}${incident.severity && incident.severity !== 'Unknown' ? `, severity=${incident.severity}` : ''}`);
+              });
+            }
+            // Ownership timeline
+            if (Array.isArray(carfaxSummary.ownershipHistory) && carfaxSummary.ownershipHistory.length > 0) {
+              carfaxSummary.ownershipHistory.forEach((owner: { startDate: string; endDate: string | null; location: string; type: string }, i: number) => {
+                lines.push(`Owner ${i + 1}: ${owner.type || 'Personal'}, ${owner.location || ''}${owner.startDate ? `, from ${owner.startDate}` : ''}${owner.endDate ? ` to ${owner.endDate}` : ''}`);
+              });
             }
             if (typeof carfaxSummary.serviceRecordCount === 'number' && carfaxSummary.serviceRecordCount > 0) {
               lines.push(`Service records on file: ${carfaxSummary.serviceRecordCount}`);

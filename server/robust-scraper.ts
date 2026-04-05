@@ -27,38 +27,35 @@ const RETRY_DELAYS = [5000, 15000, 30000]; // 5s, 15s, 30s exponential backoff
  */
 async function triggerCarfaxEnrichment(vehicleId: number, dealershipId: number, vin: string | null | undefined, carfaxUrl: string): Promise<void> {
   try {
-    // Skip if recently scraped
+    // Carfax history facts never change for a given VIN — skip entirely if already on file.
     if (vin) {
       const existing = await storage.getCarfaxReportByVin(vin, dealershipId);
-      if (existing && existing.scrapedAt) {
-        const hoursSince = (Date.now() - existing.scrapedAt.getTime()) / (1000 * 60 * 60);
-        if (hoursSince < 24) {
-          // Re-link to this vehicle if needed
-          if (existing.vehicleId !== vehicleId) {
-            await storage.upsertCarfaxReport({
-              dealershipId: existing.dealershipId,
-              vin: existing.vin,
-              vehicleId,
-              reportUrl: existing.reportUrl,
-              accidentCount: existing.accidentCount,
-              ownerCount: existing.ownerCount,
-              serviceRecordCount: existing.serviceRecordCount,
-              lastReportedOdometer: existing.lastReportedOdometer,
-              lastReportedDate: existing.lastReportedDate,
-              damageReported: existing.damageReported,
-              lienReported: existing.lienReported,
-              registrationHistory: existing.registrationHistory as any,
-              serviceHistory: existing.serviceHistory as any,
-              accidentHistory: existing.accidentHistory as any,
-              ownershipHistory: existing.ownershipHistory as any,
-              odometerHistory: existing.odometerHistory as any,
-              fullReportData: existing.fullReportData as any,
-              badges: existing.badges,
-              scrapedAt: existing.scrapedAt ?? new Date(),
-            });
-          }
-          return;
+      if (existing) {
+        // Re-link vehicleId if it shifted (e.g. re-insert after sync)
+        if (existing.vehicleId !== vehicleId) {
+          await storage.upsertCarfaxReport({
+            dealershipId: existing.dealershipId,
+            vin: existing.vin,
+            vehicleId,
+            reportUrl: existing.reportUrl,
+            accidentCount: existing.accidentCount,
+            ownerCount: existing.ownerCount,
+            serviceRecordCount: existing.serviceRecordCount,
+            lastReportedOdometer: existing.lastReportedOdometer,
+            lastReportedDate: existing.lastReportedDate,
+            damageReported: existing.damageReported,
+            lienReported: existing.lienReported,
+            registrationHistory: existing.registrationHistory as any,
+            serviceHistory: existing.serviceHistory as any,
+            accidentHistory: existing.accidentHistory as any,
+            ownershipHistory: existing.ownershipHistory as any,
+            odometerHistory: existing.odometerHistory as any,
+            fullReportData: existing.fullReportData as any,
+            badges: existing.badges,
+            scrapedAt: existing.scrapedAt ?? new Date(),
+          });
         }
+        return; // Already have the report — nothing to do
       }
     }
 

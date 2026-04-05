@@ -377,20 +377,18 @@ export async function scrapeAndStoreCarfaxReport(
   if (!carfaxUrl || !carfaxUrl.includes('carfax')) return;
 
   try {
-    // Check if we already have a recent report for this VIN
+    // Carfax history facts (owners, accidents, registration) NEVER change for a given VIN.
+    // Only scrape once — skip entirely if we already have any report on file.
     const existing = await storage.getCarfaxReportByVin(vin, dealershipId);
-    if (existing && existing.scrapedAt) {
-      const hoursSince = (Date.now() - existing.scrapedAt.getTime()) / (1000 * 60 * 60);
-      if (hoursSince < 24) {
-        // Link to vehicle if not already linked
-        if (existing.vehicleId !== vehicleId) {
-          await db.update(carfaxReports)
-            .set({ vehicleId })
-            .where(eq(carfaxReports.id, existing.id));
-        }
-        console.log(`  ⏭ Carfax report for VIN ${vin} already scraped ${hoursSince.toFixed(1)}h ago`);
-        return;
+    if (existing) {
+      // Re-link to this vehicle ID if it changed (e.g. re-inserted after sync)
+      if (existing.vehicleId !== vehicleId) {
+        await db.update(carfaxReports)
+          .set({ vehicleId })
+          .where(eq(carfaxReports.id, existing.id));
       }
+      console.log(`  ⏭ Carfax report for VIN ${vin} already on file — skipping re-scrape (history is immutable)`);
+      return;
     }
 
     const reportData = await scrapeCarfaxReportPage(carfaxUrl);
