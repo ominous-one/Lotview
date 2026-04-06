@@ -271,7 +271,14 @@ function parseAccidentHistory($: cheerio.CheerioAPI): { date: string; descriptio
     } catch { /* selector not found, try next */ }
   }
 
-  return accidents;
+  // Deduplicate by date+description (same DOM-doubling issue as ownership)
+  const seen = new Set<string>();
+  return accidents.filter(a => {
+    const key = `${a.date}|${a.description}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 /**
@@ -317,7 +324,18 @@ function parseOwnershipHistory($: cheerio.CheerioAPI): { startDate: string; endD
     } catch { /* selector not found, try next */ }
   }
 
-  return owners;
+  // Deduplicate: remove entries with identical startDate+type+location combination.
+  // CARFAX HTML sometimes has the same section rendered in multiple DOM containers
+  // (e.g. desktop + mobile views), causing each owner to appear 2× or 4×.
+  const seen = new Set<string>();
+  const deduped = owners.filter(o => {
+    const key = `${o.startDate}|${o.endDate ?? ''}|${o.type}|${o.location}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  return deduped;
 }
 
 /**
