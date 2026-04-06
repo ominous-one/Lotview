@@ -132,7 +132,7 @@ When asked about accidents, owners, or vehicle history: answer directly from the
         .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
 
       const response = await anthropic.messages.create({
-        model: 'claude-3-5-haiku-20241022',
+        model: 'claude-3-haiku-20240307',
         system: systemContent,
         messages: anthropicMessages,
         max_tokens: 500,

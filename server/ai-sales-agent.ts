@@ -16,7 +16,7 @@ function getAnthropicClient(): Anthropic {
   return new Anthropic({ apiKey });
 }
 
-const SALES_MODEL = "claude-3-5-haiku-20241022";
+const SALES_MODEL = "claude-3-haiku-20240307";
 
 export interface AiSalesRequest {
   dealershipId: number;
