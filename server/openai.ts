@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 import { db } from "./db";
 import { aiPromptTemplates, dealershipApiKeys } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
@@ -24,7 +25,7 @@ async function getOpenAIClient(dealershipId: number): Promise<{ client: OpenAI; 
     };
   }
   
-  // Fallback to Replit's AI Integrations service
+  // Fallback to Replit's AI Integrations service (for Replit deployments only)
   console.log(`Using Replit AI Integrations fallback for dealership ${dealershipId}`);
   return {
     client: new OpenAI({
@@ -34,6 +35,8 @@ async function getOpenAIClient(dealershipId: number): Promise<{ client: OpenAI; 
     source: 'replit'
   };
 }
+
+const fallbackMessage = "I'm having a little trouble right now — please call or text us directly and we'll be happy to help!";
 
 export async function generateChatResponse(
   messages: ChatMessage[],
@@ -103,24 +106,59 @@ When asked about accidents, owners, or vehicle history: answer directly from the
       content: systemContent
     };
 
-    // Get the appropriate OpenAI client (dealership-specific or fallback)
-    const { client: openai, source } = await getOpenAIClient(dealershipId);
-    
-    // Use gpt-4o-mini for dealership keys (better compatibility), gpt-5 for Replit AI Integrations
-    const model = source === 'dealership' ? 'gpt-4o-mini' : 'gpt-4o';
+    // Try OpenAI first (if dealership has a key), then fall back to Anthropic
+    const apiKeys = await storage.getDealershipApiKeys(dealershipId);
+    const hasOpenAI = apiKeys?.openaiApiKey && apiKeys.openaiApiKey.length > 20;
+    const hasAnthropic = !!process.env.ANTHROPIC_API_KEY;
 
+    if (hasOpenAI) {
+      // Use dealership's OpenAI key
+      const openai = new OpenAI({ apiKey: apiKeys!.openaiApiKey! });
+      const response = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [systemMessage, ...messages],
+        max_completion_tokens: 500,
+        temperature: 0.8,
+      });
+      return response.choices[0]?.message?.content || fallbackMessage;
+    }
+
+    if (hasAnthropic) {
+      // Use Anthropic Claude (production default when no OpenAI key)
+      const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+      // Convert messages: separate system from user/assistant
+      const anthropicMessages = messages
+        .filter(m => m.role !== 'system')
+        .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+
+      const response = await anthropic.messages.create({
+        model: 'claude-3-5-haiku-20241022',
+        system: systemContent,
+        messages: anthropicMessages,
+        max_tokens: 500,
+        temperature: 0.8,
+      });
+
+      const textBlock = response.content.find(b => b.type === 'text');
+      return textBlock?.text || fallbackMessage;
+    }
+
+    // Last resort: try Replit AI Integrations
+    const openai = new OpenAI({
+      baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+      apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+    });
     const response = await openai.chat.completions.create({
-      model: model,
+      model: 'gpt-4o',
       messages: [systemMessage, ...messages],
       max_completion_tokens: 500,
-      temperature: 1,
+      temperature: 0.8,
     });
-
-    return response.choices[0]?.message?.content || "I apologize, but I'm having trouble responding right now. Please try again or contact our sales team directly.";
+    return response.choices[0]?.message?.content || fallbackMessage;
   } catch (error: any) {
-    console.error("OpenAI API error:", error?.message || error);
-    console.error("Full error:", JSON.stringify(error, null, 2));
-    throw new Error("Failed to generate chat response");
+    console.error("Chat API error:", error?.message || error);
+    // Return a graceful response instead of crashing
+    return fallbackMessage;
   }
 }
 
