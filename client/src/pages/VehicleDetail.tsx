@@ -947,18 +947,24 @@ export default function VehicleDetail() {
                   )}
                 </div>
 
-                {/* Damage / Lien flags */}
+                {/* Damage / Lien flags — contextualize damage when no accidents */}
                 {(carfaxSummary.damageReported || carfaxSummary.lienReported) && (
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-3">
                     {carfaxSummary.damageReported && (
-                      <span className="inline-flex items-center gap-1.5 bg-red-50 text-red-700 border border-red-200 px-4 py-2 rounded-full text-sm font-semibold" data-testid="carfax-damage">
-                        <AlertTriangle className="w-4 h-4" /> Damage Reported
-                      </span>
+                      <div className="inline-flex items-start gap-2 bg-amber-50 border border-amber-200 px-4 py-2.5 rounded-xl" data-testid="carfax-damage">
+                        <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <span className="text-sm font-semibold text-amber-700">Minor Damage Reported</span>
+                          {carfaxSummary.accidentCount === 0 && (
+                            <p className="text-xs text-amber-600 mt-0.5">Non-collision damage (e.g. hail, minor cosmetic). No accidents on record.</p>
+                          )}
+                        </div>
+                      </div>
                     )}
                     {carfaxSummary.lienReported && (
-                      <span className="inline-flex items-center gap-1.5 bg-amber-50 text-amber-700 border border-amber-200 px-4 py-2 rounded-full text-sm font-semibold" data-testid="carfax-lien">
+                      <div className="inline-flex items-center gap-1.5 bg-amber-50 text-amber-700 border border-amber-200 px-4 py-2 rounded-xl text-sm font-semibold" data-testid="carfax-lien">
                         <AlertTriangle className="w-4 h-4" /> Lien Reported
-                      </span>
+                      </div>
                     )}
                   </div>
                 )}
@@ -1040,8 +1046,9 @@ export default function VehicleDetail() {
       )}
 
       <ChatBot 
-        vehicleName={(() => {
-          // Build a rich context string so the AI knows everything about this vehicle
+        vehicleName={`${car.year} ${car.make} ${car.model}${car.trim ? ` ${car.trim}` : ''}`}
+        vehicleContext={(() => {
+          // Build a rich context string — this is HIDDEN from the customer, only the AI reads it
           const lines: string[] = [
             `${car.year} ${car.make} ${car.model}${car.trim ? ` ${car.trim}` : ''}`,
             `Price: $${car.price > 0 ? car.price.toLocaleString() + ' CAD' : 'Contact for Price'}`,

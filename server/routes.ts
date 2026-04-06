@@ -5366,6 +5366,22 @@ Provide a single, concise, friendly message that continues the conversation natu
   });
 
   // Get chat prompt by scenario - Manager and above
+  // Public endpoint: returns only the greeting field for the active prompt (no auth required)
+  app.get("/api/chat-prompts/:scenario/active", async (req, res) => {
+    try {
+      const dealershipId = req.dealershipId!;
+      const { scenario } = req.params;
+      const prompt = await storage.getActivePromptForScenario(dealershipId, scenario);
+      if (!prompt) {
+        return res.status(404).json({ error: "No active prompt for this scenario" });
+      }
+      // Only expose the greeting — never the system prompt (that's internal)
+      res.json({ greeting: prompt.greeting, scenario: prompt.scenario });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch prompt" });
+    }
+  });
+
   app.get("/api/chat-prompts/:scenario", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
