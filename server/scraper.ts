@@ -270,7 +270,10 @@ export async function upsertVehicleByVin(vehicleData: ScrapedVehicle): Promise<{
       cargurusPrice: preserveField(vehicleData.cargurusPrice, existingVehicle?.cargurusPrice),
       cargurusUrl: preserveField(vehicleData.cargurusUrl, existingVehicle?.cargurusUrl),
       dealRating: preserveField(vehicleData.dealRating, existingVehicle?.dealRating),
-      carfaxUrl: preserveField(vehicleData.carfaxUrl, existingVehicle?.carfaxUrl),
+      // Always ensure a CARFAX URL exists if we have a valid VIN (Canadian CARFAX)
+      carfaxUrl: preserveField(vehicleData.carfaxUrl, existingVehicle?.carfaxUrl)
+        || (vehicleData.vin && vehicleData.vin.length >= 17 && !vehicleData.vin.startsWith('PENDING')
+            ? `https://vhr.carfax.ca/?vin=${vehicleData.vin}` : undefined),
       carfaxBadges: vehicleData.carfaxBadges && vehicleData.carfaxBadges.length > 0 
         ? vehicleData.carfaxBadges 
         : (existingVehicle?.carfaxBadges || null),
@@ -327,7 +330,10 @@ export async function upsertVehicleByVin(vehicleData: ScrapedVehicle): Promise<{
       cargurusPrice: vehicleData.cargurusPrice || null,
       cargurusUrl: vehicleData.cargurusUrl || null,
       dealRating: vehicleData.dealRating || null,
-      carfaxUrl: vehicleData.carfaxUrl || null,
+      // Generate CARFAX URL from VIN if dealer page didn't have one
+      carfaxUrl: vehicleData.carfaxUrl
+        || (vehicleData.vin && vehicleData.vin.length >= 17 && !vehicleData.vin.startsWith('PENDING')
+            ? `https://vhr.carfax.ca/?vin=${vehicleData.vin}` : null),
       carfaxBadges: vehicleData.carfaxBadges && vehicleData.carfaxBadges.length > 0 ? vehicleData.carfaxBadges : null,
       dealerVdpUrl: vehicleData.dealerVdpUrl || null,
       lastScrapedAt: now,
