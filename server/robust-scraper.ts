@@ -1,4 +1,5 @@
 import { storage } from './storage';
+import puppeteer from 'puppeteer';
 import { scrapeAllDealershipsIncremental, upsertVehicleByVin, checkVehicleNeedsEnrichment, updateVehiclePriceOnly, type ScrapedVehicle } from './scraper';
 import { scrapeCarfaxReport } from './carfax-scraper';
 import { getApifyServiceForDealership } from './apify-service';
@@ -2397,10 +2398,64 @@ async function attemptZenRowsScrape(dealershipId?: number): Promise<{
                 fuelType,
               };
 
+              // If ZenRows got badges but no carfaxUrl, try Browserless to render the CARFAX widget JS
+              if (!vdpContent.carfaxUrl && vin && vin.length >= 17) {
+                try {
+                  const apiKey = process.env.BROWSERLESS_API_KEY;
+                  if (apiKey) {
+                    logInfo('[Robust Scraper] ZenRows missed carfaxUrl — trying Browserless for CARFAX widget', { service: 'scraper', method: 'browserless-carfax', vdpUrl });
+                    const browser = await puppeteer.connect({
+                      browserWSEndpoint: `wss://chrome.browserless.io?token=${apiKey}`,
+                    });
+                    const page = await browser.newPage();
+                    try {
+                      await page.goto(vdpUrl, { waitUntil: 'networkidle2', timeout: 25000 });
+                      // Wait for the CARFAX badge widget to load and render
+                      await page.waitForSelector('.carfax-badge, .carfax-section, [data-vin]', { timeout: 10000 }).catch(() => {});
+                      // Click the carfax badge to trigger the report URL fetch
+                      await page.click('.carfax-badge__trigger, a[data-target*="carfax"], .carfax__cta').catch(() => {});
+                      await new Promise(r => setTimeout(r, 4000)); // Wait for AJAX to complete
+                      // Extract the rendered carfax URL from the page
+                      const carfaxUrl = await page.evaluate(() => {
+                        // Check iframes first
+                        const iframes = document.querySelectorAll('iframe[src*="carfax"]');
+                        for (const iframe of iframes) {
+                          const src = iframe.getAttribute('src');
+                          if (src && src.includes('vhr.carfax')) return src;
+                        }
+                        // Check any links with vhr.carfax
+                        const links = document.querySelectorAll('a[href*="vhr.carfax"]');
+                        for (const link of links) {
+                          const href = link.getAttribute('href');
+                          if (href && href.includes('vhr.carfax')) return href;
+                        }
+                        // Check modal content
+                        const modals = document.querySelectorAll('[class*="carfax-modal"] iframe, [class*="carfax"] iframe, [id*="carfax"] iframe');
+                        for (const modal of modals) {
+                          const src = modal.getAttribute('src');
+                          if (src && src.includes('carfax')) return src;
+                        }
+                        return null;
+                      });
+                      if (carfaxUrl) {
+                        vdpContent.carfaxUrl = carfaxUrl;
+                        vehicle.carfaxUrl = carfaxUrl;
+                        logInfo('[Robust Scraper] Browserless extracted CARFAX URL from widget', { service: 'scraper', method: 'browserless-carfax', carfaxUrl, vdpUrl });
+                      }
+                    } finally {
+                      await page.close().catch(() => {});
+                      await browser.disconnect().catch(() => {});
+                    }
+                  }
+                } catch (err) {
+                  logWarn('[Robust Scraper] Browserless CARFAX fallback failed (non-blocking)', { service: 'scraper', method: 'browserless-carfax', error: err instanceof Error ? err.message : String(err) });
+                }
+              }
+
               // Log Carfax data extraction
               if (vdpContent.carfaxUrl || vdpContent.carfaxBadges.length > 0) {
-                logInfo('[Robust Scraper] Carfax data extracted (ZenRows)', { 
-                  service: 'scraper', method: 'zenrows', year, make, model, 
+                logInfo('[Robust Scraper] Carfax data extracted', { 
+                  service: 'scraper', method: 'zenrows+browserless', year, make, model, 
                   hasCarfaxUrl: !!vdpContent.carfaxUrl,
                   carfaxBadges: vdpContent.carfaxBadges 
                 });
