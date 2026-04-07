@@ -1885,48 +1885,83 @@ async function attemptZenRowsScrape(dealershipId?: number): Promise<{
           sourceHostname = '';
         }
 
-        // Scrape the listing page. NOTE: scrollToBottom uses js_instructions which
-        // conflicts with the wait= param in ZenRows — use a plain wait instead.
-        const listingResult = await zenrowsService.zenRowsScrape(source.sourceUrl, {
-          jsRender: true,
-          premiumProxy: true,
-          waitMs: 5000,
-          scrollToBottom: false,
-        });
-        
-        if (!listingResult.success || !listingResult.html) {
-          logWarn('[Robust Scraper] ZenRows failed to get listing page', { service: 'scraper', method: 'zenrows', sourceName: source.sourceName, error: listingResult.error });
-          continue;
-        }
-
-        // CRITICAL: Detect Cloudflare block pages on listing page
-        if (isCloudflareBlockPage(listingResult.html)) {
-          logWarn('[Robust Scraper] ZenRows received Cloudflare block page on listing page', { service: 'scraper', method: 'zenrows', sourceName: source.sourceName });
-          continue;
-        }
-
-        // Parse listing HTML to extract vehicle URLs
-        const $ = cheerio.load(listingResult.html);
+        // Scrape listing pages with pagination support.
+        // Many dealer sites paginate with ?pg=1, ?pg=2, etc. We fetch up to 5 pages
+        // or until a page returns 0 new vehicle URLs.
+        const MAX_LISTING_PAGES = 5;
         const vehicleUrls: string[] = [];
-        
-        // Extract vehicle detail page URLs
-        $('a[href*="/vehicles/"]').each((_, elem) => {
-          const href = $(elem).attr('href');
-          if (href && /\/vehicles\/\d{4}\/[a-z-]+\/[a-z0-9-]+/i.test(href)) {
-            let fullUrl = href;
-            if (href.startsWith('/')) {
-              try {
-                const urlObj = new URL(source.sourceUrl);
-                fullUrl = `${urlObj.origin}${href}`;
-              } catch {}
-            }
-            if (!vehicleUrls.includes(fullUrl)) {
-              vehicleUrls.push(fullUrl);
-            }
-          }
-        });
+        const seenVdpPaths = new Set<string>();
 
-        logInfo('[Robust Scraper] ZenRows found vehicle URLs', { service: 'scraper', method: 'zenrows', vehicleUrlCount: vehicleUrls.length, sourceName: source.sourceName });
+        for (let pageNum = 1; pageNum <= MAX_LISTING_PAGES; pageNum++) {
+          // Build paginated URL
+          let pageUrl = source.sourceUrl;
+          if (pageNum > 1) {
+            const sep = pageUrl.includes('?') ? '&' : '?';
+            pageUrl = `${pageUrl}${sep}pg=${pageNum}`;
+          }
+
+          logInfo(`[Robust Scraper] Fetching listing page ${pageNum}`, { service: 'scraper', method: 'zenrows', pageUrl });
+
+          const listingResult = await zenrowsService.zenRowsScrape(pageUrl, {
+            jsRender: true,
+            premiumProxy: true,
+            waitMs: 5000,
+            scrollToBottom: false,
+          });
+
+          if (!listingResult.success || !listingResult.html) {
+            if (pageNum === 1) {
+              logWarn('[Robust Scraper] ZenRows failed to get listing page 1', { service: 'scraper', method: 'zenrows', sourceName: source.sourceName, error: listingResult.error });
+            }
+            break; // No more pages
+          }
+
+          if (isCloudflareBlockPage(listingResult.html)) {
+            if (pageNum === 1) {
+              logWarn('[Robust Scraper] ZenRows received Cloudflare block page', { service: 'scraper', method: 'zenrows', sourceName: source.sourceName });
+            }
+            break;
+          }
+
+          // Parse this page's HTML
+          const $page = cheerio.load(listingResult.html);
+          let newUrlsThisPage = 0;
+
+          $page('a[href*="/vehicles/"]').each((_, elem) => {
+            const href = $page(elem).attr('href');
+            if (href && /\/vehicles\/\d{4}\/[a-z-]+\/[a-z0-9-]+/i.test(href)) {
+              // Normalize: strip query params for dedup, keep full URL for fetching
+              const pathOnly = href.split('?')[0];
+              if (seenVdpPaths.has(pathOnly)) return;
+              seenVdpPaths.add(pathOnly);
+
+              let fullUrl = href;
+              if (href.startsWith('/')) {
+                try {
+                  const urlObj = new URL(source.sourceUrl);
+                  fullUrl = `${urlObj.origin}${href}`;
+                } catch {}
+              }
+              vehicleUrls.push(fullUrl);
+              newUrlsThisPage++;
+            }
+          });
+
+          logInfo(`[Robust Scraper] Page ${pageNum}: found ${newUrlsThisPage} new VDP URLs (total: ${vehicleUrls.length})`, { service: 'scraper', method: 'zenrows' });
+
+          // Stop if this page added no new URLs (we've seen them all)
+          if (newUrlsThisPage === 0) break;
+
+          // Brief delay between page fetches to be polite
+          if (pageNum < MAX_LISTING_PAGES) await sleep(1500);
+        }
+
+        if (vehicleUrls.length === 0) {
+          logWarn('[Robust Scraper] ZenRows found 0 vehicle URLs across all pages', { service: 'scraper', method: 'zenrows', sourceName: source.sourceName });
+          continue;
+        }
+
+        logInfo('[Robust Scraper] ZenRows total vehicle URLs', { service: 'scraper', method: 'zenrows', vehicleUrlCount: vehicleUrls.length, sourceName: source.sourceName });
 
         // Process each VDP (with rate limiting)
         for (const vdpUrl of vehicleUrls) {
