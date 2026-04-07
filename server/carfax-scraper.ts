@@ -38,6 +38,30 @@ export async function scrapeCarfaxReport(carfaxUrl: string): Promise<CarfaxRepor
 
   console.log(`  🔍 Scraping Carfax report: ${carfaxUrl}`);
 
+  // STRATEGY 1: Use ZenRows (preferred — renders JS, no Cloudflare issues)
+  const zenrowsKey = process.env.ZENROWS_API_KEY;
+  if (zenrowsKey) {
+    try {
+      const encoded = encodeURIComponent(carfaxUrl);
+      const zenrowsUrl = `https://api.zenrows.com/v1/?apikey=${zenrowsKey}&url=${encoded}&js_render=true&wait=5000`;
+      const zenResp = await fetch(zenrowsUrl, { signal: AbortSignal.timeout(60000) });
+      if (zenResp.ok) {
+        const html = await zenResp.text();
+        if (html.length > 5000 && !html.includes('"code":"RESP001"')) {
+          console.log(`  ✅ ZenRows fetched CARFAX report (${html.length} bytes)`);
+          const reportData = parseCarfaxHtml(html, carfaxUrl);
+          if (reportData && (reportData.ownerCount > 0 || reportData.accidentCount >= 0)) {
+            return reportData;
+          }
+          console.log('  ⚠ ZenRows HTML parsed but no owner/accident data found, falling back...');
+        }
+      }
+    } catch (err) {
+      console.log(`  ⚠ ZenRows CARFAX fetch failed: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+
+  // STRATEGY 2: Puppeteer (for local/dev environments with Chrome)
   const proxy = proxyManager.getNext();
 
   const launchOptions: any = {
