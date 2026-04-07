@@ -180,24 +180,89 @@ function parseCarfaxHtml(html: string, reportUrl: string): CarfaxReportData {
     addBadge(badges, 'One Owner');
   }
 
-  // Extract accident info
-  const accidentHistory = parseAccidentHistory($);
-  const accidentCount = accidentHistory.length;
-  const damageReported = accidentCount > 0 || textContent.includes('damage reported');
+  // Extract accident info (try structured DOM first, then text-based fallback)
+  let accidentHistory = parseAccidentHistory($);
+  let damageReported = false;
 
-  // Extract ownership history
-  const ownershipHistory = parseOwnershipHistory($);
-  const ownerCount = ownershipHistory.length || extractNumberNear($, textContent, 'owner');
+  // Text-based accident extraction for ZenRows-rendered CARFAX pages
+  if (accidentHistory.length === 0) {
+    const bodyText = $('body').text();
+    const accidentTypes = bodyText.match(/(COLLISION[A-Z\s]*|NON-COLLISION[A-Z\s]*|VANDALISM[A-Z\s]*)/g);
+    if (accidentTypes) {
+      const seen = new Set<string>();
+      accidentTypes.forEach(type => {
+        const normalized = type.trim();
+        if (!seen.has(normalized)) {
+          seen.add(normalized);
+          accidentHistory.push({
+            date: '',
+            description: normalized,
+            severity: normalized.includes('NON-COLLISION') ? 'Non-Collision' : 'Collision',
+          });
+        }
+      });
+    }
+    if (textContent.includes('accident/damage records found')) damageReported = true;
+  }
+
+  const accidentCount = accidentHistory.length;
+  damageReported = damageReported || accidentCount > 0 || textContent.includes('damage reported') || textContent.includes('damage records found');
+
+  // Extract ownership history (try structured DOM first, then text-based)
+  let ownershipHistory = parseOwnershipHistory($);
+  let ownerCount = ownershipHistory.length;
+
+  // Text-based owner extraction for ZenRows-rendered pages
+  if (ownerCount === 0) {
+    const bodyText = $('body').text();
+    // Count "First Owner Reported" or "Registration Issued or Renewed" with "First Owner"
+    const firstOwner = bodyText.match(/First Owner Reported/gi);
+    if (firstOwner) {
+      // Deduplicate (appears twice in desktop+mobile)
+      ownerCount = Math.max(1, Math.ceil(firstOwner.length / 2));
+    }
+    // Check badge for "One Owner"
+    if (textContent.includes('one owner') && ownerCount === 0) ownerCount = 1;
+    // Count registrations as a proxy for owner count
+    const regEvents = bodyText.match(/Registration Issued or Renewed/g);
+    if (regEvents && ownerCount === 0) {
+      ownerCount = Math.max(1, Math.ceil(regEvents.length / 4)); // ~4 renewals per owner on avg
+    }
+    // Extract via number near 'owner' in text
+    if (ownerCount === 0) {
+      ownerCount = extractNumberNear($, textContent, 'owner');
+    }
+  }
 
   // Extract service history
-  const serviceHistory = parseServiceHistory($);
-  const serviceRecordCount = serviceHistory.length;
+  let serviceHistory = parseServiceHistory($);
+  let serviceRecordCount = serviceHistory.length;
+
+  // Text-based service record count
+  if (serviceRecordCount === 0) {
+    if (textContent.includes('service records found')) {
+      // Count service-related entries
+      const bodyText = $('body').text();
+      const serviceEntries = bodyText.match(/Vehicle Serviced|Maintenance|Oil Change|Tire Rotation|Brake Service|Repair/gi);
+      serviceRecordCount = serviceEntries ? new Set(serviceEntries.map(s => s.toLowerCase())).size : 0;
+    }
+  }
 
   // Extract odometer history
   const odometerHistory = parseOdometerHistory($);
   const lastOdometer = odometerHistory.length > 0
     ? odometerHistory[odometerHistory.length - 1]
     : null;
+
+  // Text-based odometer extraction
+  let lastReportedOdometerFromText: number | null = null;
+  if (!lastOdometer) {
+    const bodyText = $('body').text();
+    const odomMatch = bodyText.match(/Last Reported Odometer:\s*([\d,]+)/i);
+    if (odomMatch) {
+      lastReportedOdometerFromText = parseInt(odomMatch[1].replace(/,/g, ''), 10);
+    }
+  }
 
   // Extract registration history
   const registrationHistory = parseRegistrationHistory($);
@@ -211,7 +276,7 @@ function parseCarfaxHtml(html: string, reportUrl: string): CarfaxReportData {
     accidentCount,
     ownerCount: ownerCount || 0,
     serviceRecordCount,
-    lastReportedOdometer: lastOdometer?.reading ?? null,
+    lastReportedOdometer: lastOdometer?.reading ?? lastReportedOdometerFromText ?? null,
     lastReportedDate: lastOdometer?.date ?? null,
     damageReported,
     lienReported,
