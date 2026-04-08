@@ -230,4 +230,54 @@ describe("decideSendFbMarketplaceReply (unit)", () => {
       'vehicle_identity_unverified',
     ]));
   });
+
+  test("denies auto-send when dealership scrape certification is missing or failed", async () => {
+    const storage = makeMockStorage({
+      vehicle: {
+        id: 25,
+        year: 2021,
+        make: 'Toyota',
+        model: 'RAV4',
+        trim: 'XLE',
+        vin: '2T3R1RFV0NW123456',
+        stockNumber: 'RV-25',
+        normalizedStockNumber: 'RV25',
+        dealerVdpUrl: 'https://dealer.example/rav4',
+        lastScrapedAt: new Date(),
+        deletedAt: null,
+        lifecycleStatus: 'ACTIVE',
+        photoStatus: 'complete',
+        carfaxUrl: 'https://carfax.example/report',
+        carfaxBadges: ['One Owner'],
+      },
+    });
+
+    const out = await decideSendFbMarketplaceReply(storage, {
+      dealershipId: 1,
+      fbThreadId: "t_1",
+      dealershipScrapeGate: {
+        passed: false,
+        score: 82,
+        blockers: ['certification_artifact_missing', 'truth_boundary_not_source_reconciled'],
+        truthBoundary: 'stored_inventory_diagnostic',
+      },
+      participantName: "Alex Buyer",
+      leadNameConfidence: 0.92,
+      vehicleId: 25,
+      listingTitle: "2021 Toyota RAV4",
+      vehicleDisplayName: "2021 Toyota RAV4",
+      vehicleMappingConfidence: 0.95,
+      candidateReply: "Hey Alex — yes, the 2021 Toyota RAV4 is still available.",
+      intent: { intent: "AVAILABILITY_CHECK", confidence: 0.95 },
+    });
+
+    expect(out.allow).toBe(false);
+    expect(out.reasonCodes).toEqual(expect.arrayContaining([
+      'dealership_scrape_gate_failed',
+      'dealership_scrape_gate_score:82',
+      'dealership_scrape_gate_truth_boundary:stored_inventory_diagnostic',
+      'dealership_scrape_gate_blocker:certification_artifact_missing',
+      'dealership_scrape_gate_blocker:truth_boundary_not_source_reconciled',
+    ]));
+  });
 });

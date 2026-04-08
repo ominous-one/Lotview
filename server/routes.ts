@@ -55,7 +55,7 @@ import {
   reorderAutopostQueue,
   setPhotoGateOverride,
 } from './autopost-queue-service';
-import { computeStoredInventoryScrapeGate } from './scrape-gate-service';
+import { resolveDealershipScrapeGateForPosting } from './scrape-gate-service';
 
 import { authMiddleware, requireRole, generateToken, generateImpersonationToken, comparePassword, hashPassword, verifyToken, extensionHmacMiddleware, generatePostingToken, validatePostingToken, type AuthRequest } from "./auth";
 import { requireDealership, superAdminOnly } from "./tenant-middleware";
@@ -175,7 +175,7 @@ async function resolveLoginUser(email: string, dealershipId?: number) {
 }
 
 // Clean up expired states every hour
-setInterval(() => {
+const oauthStateCleanupInterval = setInterval(() => {
   const now = Date.now();
   for (const [state, data] of Array.from(oauthStateStore.entries())) {
     if (data.expiresAt < now) {
@@ -189,6 +189,7 @@ setInterval(() => {
     }
   }
 }, 3600000);
+oauthStateCleanupInterval.unref?.();
 
 function parseDealershipIdParam(value: unknown): number | null {
   if (typeof value !== 'string' && typeof value !== 'number') {
@@ -15923,9 +15924,17 @@ Return ONLY the enhanced description, nothing else.`;
       if (!fbThreadId || typeof fbThreadId !== "string") return res.status(400).json({ error: "fbThreadId required" });
       if (!candidateReply || typeof candidateReply !== "string") return res.status(400).json({ error: "candidateReply required" });
 
+      const scrapeGateResolution = await resolveDealershipScrapeGateForPosting(dealershipId);
+
       const decision = await decideSendFbMarketplaceReply(storage, {
         dealershipId,
         fbThreadId,
+        dealershipScrapeGate: {
+          passed: scrapeGateResolution.launchEligible,
+          score: scrapeGateResolution.gate.score,
+          blockers: scrapeGateResolution.gate.blockers,
+          truthBoundary: scrapeGateResolution.truthBoundary,
+        },
         participantName: typeof participantName === "string" ? participantName : null,
         leadNameConfidence: typeof leadNameConfidence === "number" ? leadNameConfidence : null,
         listingUrl: typeof listingUrl === "string" ? listingUrl : null,
@@ -17780,17 +17789,21 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
   app.post('/api/manager/autopost/queue/evaluate', authMiddleware, requireDealership, requireRole('master', 'sales_manager'), async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const scrapeGateComputation = await computeStoredInventoryScrapeGate(dealershipId);
+      const scrapeGateResolution = await resolveDealershipScrapeGateForPosting(dealershipId);
       const result = await evaluateAndEnqueueAutopostQueue({
         dealershipId,
         actorUserId: req.user?.id ?? null,
-        scrapeGate: scrapeGateComputation?.gate ?? null,
+        scrapeGate: scrapeGateResolution.gate,
       });
       res.json({
         success: true,
         ...result,
-        scrapeGate: scrapeGateComputation?.gate ?? null,
-        scrapeGateTruthBoundary: scrapeGateComputation?.truthBoundary ?? null,
+        scrapeGate: scrapeGateResolution.gate,
+        scrapeGateTruthBoundary: scrapeGateResolution.truthBoundary,
+        scrapeGateSource: scrapeGateResolution.source,
+        scrapeGateLaunchEligible: scrapeGateResolution.launchEligible,
+        scrapeGateCertificationBlockers: scrapeGateResolution.certificationBlockers,
+        scrapeGateArtifactGeneratedAt: scrapeGateResolution.artifact?.generatedAt ?? null,
       });
     } catch (error: any) {
       logError('Evaluate autopost queue failed', error, { route: 'api-manager-autopost-queue-evaluate' });
@@ -17856,12 +17869,12 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
         return res.status(403).json({ error: 'Token does not have autopost:write permission' });
       }
 
-      const scrapeGateComputation = await computeStoredInventoryScrapeGate(dealershipId);
+      const scrapeGateResolution = await resolveDealershipScrapeGateForPosting(dealershipId);
       const item = await claimNextAutopostItem({
         dealershipId,
         platform,
         actorUserId: null,
-        scrapeGate: scrapeGateComputation?.gate ?? null,
+        scrapeGate: scrapeGateResolution.gate,
       });
       res.json({ item });
     } catch (error: any) {

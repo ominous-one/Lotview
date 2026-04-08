@@ -4,9 +4,17 @@ import { computeVehicleDataQualitySignals } from "../vehicle-data-quality";
 
 export type FbReplyDecision = "ALLOW" | "DENY";
 
+export interface DealershipScrapeGatePolicy {
+  passed: boolean;
+  score?: number | null;
+  blockers?: string[] | null;
+  truthBoundary?: string | null;
+}
+
 export interface DecideSendInput {
   dealershipId: number;
   fbThreadId: string;
+  dealershipScrapeGate?: DealershipScrapeGatePolicy | null;
 
   participantName?: string | null;
   leadNameConfidence?: number | null;
@@ -247,6 +255,24 @@ export async function decideSendFbMarketplaceReply(storage: IStorage, params: De
 
   const dnc = !!thread?.doNotContact;
   const escalated = !!thread?.escalated;
+
+  const dealershipScrapeGate = params.dealershipScrapeGate;
+  if (dealershipScrapeGate && dealershipScrapeGate.passed === false) {
+    reasonCodes.push('dealership_scrape_gate_failed');
+    if (typeof dealershipScrapeGate.score === 'number') {
+      reasonCodes.push(`dealership_scrape_gate_score:${Math.round(dealershipScrapeGate.score)}`);
+    }
+    if (dealershipScrapeGate.truthBoundary) {
+      reasonCodes.push(`dealership_scrape_gate_truth_boundary:${dealershipScrapeGate.truthBoundary}`);
+    }
+    if (Array.isArray(dealershipScrapeGate.blockers)) {
+      for (const blocker of dealershipScrapeGate.blockers) {
+        if (typeof blocker === 'string' && blocker.trim()) {
+          reasonCodes.push(`dealership_scrape_gate_blocker:${blocker.trim()}`);
+        }
+      }
+    }
+  }
 
   // 1) Global + per-thread kill switches
   if (globalKillSwitch) reasonCodes.push("global_kill_switch");

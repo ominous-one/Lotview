@@ -18,3 +18,7 @@
   - `PGPASSWORD=`
   - `PGDATABASE=`
 - This means a truthful DB-backed certification artifact still requires DB credentials or a provisioned local connection in this session
+- New live fix: Facebook Marketplace auto-reply decide-send now receives dealership scrape certification state from `resolveDealershipScrapeGateForPosting(dealershipId)` in `server/routes.ts`
+- New policy enforcement: `server/fb-replies/decide-send.ts` denies auto-send when certification is missing/failed and records exact blocker reason codes (`dealership_scrape_gate_failed`, score, truth boundary, blockers)
+- New proof: `npm run test:server -- server/tests/fb-replies-decide-send.unit.test.ts` passed with 7/7 tests, including the new dealership certification gate case
+- Fresh blocker after verification: `npm run check` currently fails at `server/scraper.ts(416,7): error TS2322: Type 'null' is not assignable to type 'string'.`
