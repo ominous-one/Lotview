@@ -8,7 +8,8 @@ import { useTenant } from "@/contexts/TenantContext";
 import { trackCTAClick, trackChatMessage, trackChatOpen, getSessionId } from "@/lib/tracking";
 
 interface ChatBotProps {
-  vehicleName?: string;
+  vehicleName?: string;       // Short display name: "2022 Hyundai Tucson XLE"
+  vehicleContext?: string;    // Full AI context string (hidden, never shown to customer)
   action?: string | null;
   vehicle?: {
     id: number;
@@ -22,7 +23,7 @@ interface ChatBotProps {
   };
 }
 
-export function ChatBot({ vehicleName, action, vehicle }: ChatBotProps) {
+export function ChatBot({ vehicleName, vehicleContext: initialVehicleContext, action, vehicle }: ChatBotProps) {
   const chatContext = useChat();
   const { dealership } = useTenant();
   const [isOpen, setIsOpen] = useState(false);
@@ -37,7 +38,7 @@ export function ChatBot({ vehicleName, action, vehicle }: ChatBotProps) {
   const [awaitingPhone, setAwaitingPhone] = useState(false);
   const [leadSyncedToGHL, setLeadSyncedToGHL] = useState(false);
   const [capturedContact, setCapturedContact] = useState<{ phone?: string; email?: string; name?: string }>({});
-  const [vehicleContext, setVehicleContext] = useState<string>("");
+  const [resolvedVehicleContext, setResolvedVehicleContext] = useState<string>(initialVehicleContext || "");
   const ctaAutoSentRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast} = useToast();
@@ -47,7 +48,7 @@ export function ChatBot({ vehicleName, action, vehicle }: ChatBotProps) {
 
     async function buildVehicleContext() {
       if (!vehicle) {
-        setVehicleContext("");
+        setResolvedVehicleContext(initialVehicleContext || "");
         return;
       }
 
@@ -89,12 +90,12 @@ export function ChatBot({ vehicleName, action, vehicle }: ChatBotProps) {
         lines.push("CARFAX summary: unavailable right now; do not guess accident or history details.");
       }
 
-      setVehicleContext(lines.join("\n"));
+      setResolvedVehicleContext(lines.join("\n"));
     }
 
     buildVehicleContext();
     return () => { cancelled = true; };
-  }, [vehicle]);
+  }, [vehicle, initialVehicleContext]);
 
   // Handle closing chat and saving conversation
   const handleCloseChat = async () => {
@@ -252,7 +253,7 @@ export function ChatBot({ vehicleName, action, vehicle }: ChatBotProps) {
         : 'general';
 
       // Send full conversation including assistant greeting for context (dealershipId resolved by backend from tenant middleware)
-      sendChatMessage(conversationWithUser, vehicleName || "", scenario).then(response => {
+      sendChatMessage(conversationWithUser, resolvedVehicleContext || vehicleName || "", scenario).then(response => {
         setMessages(prev => {
           const updated = [...prev, { role: "assistant" as const, content: response }];
           trackChatMessage(vehicle, updated.length);
@@ -322,7 +323,7 @@ export function ChatBot({ vehicleName, action, vehicle }: ChatBotProps) {
           const fullConversation = [...currentMessages, userMessage];
           
           // Send full conversation to backend from within setState (dealershipId resolved by backend from tenant middleware)
-          sendChatMessage(fullConversation, vehicleName, scenario).then(response => {
+          sendChatMessage(fullConversation, resolvedVehicleContext || vehicleName, scenario).then(response => {
             setMessages(prevMessages => {
               const updated = [...prevMessages, { role: "assistant" as const, content: response }];
               trackChatMessage(vehicle, updated.length);
@@ -353,29 +354,53 @@ export function ChatBot({ vehicleName, action, vehicle }: ChatBotProps) {
     }
   }, [vehicleName, hasOpened, action]);
 
-  // Generate initial message based on action
+  // Fetch the dealership's custom greeting from the manager template (if configured)
+  const [dbGreeting, setDbGreeting] = useState<string | null>(null);
+  useEffect(() => {
+    const scenario = action || 'general';
+    fetch(`/api/chat-prompts/${scenario}/active`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data?.greeting) setDbGreeting(data.greeting);
+      })
+      .catch(() => {});
+  }, [action]);
+
+  // Generate initial message — uses manager template if configured, otherwise smart defaults
   const getInitialMessage = () => {
+    const name = vehicleName || 'this vehicle';
+    const dealerName = dealership?.name || 'our dealership';
+
+    // If the manager set a custom greeting template, use it (with placeholder substitution)
+    if (dbGreeting) {
+      return dbGreeting
+        .replace(/\{vehicle\}/gi, name)
+        .replace(/\{vehicleName\}/gi, name)
+        .replace(/\{dealership\}/gi, dealerName)
+        .replace(/\{dealer\}/gi, dealerName);
+    }
+
     if (!vehicleName) {
-      return "Welcome to Olympic Auto Group! Can I help you find your dream car today?";
+      return `Welcome to ${dealerName}! How can I help you find the right vehicle today?`;
     }
 
     if (action === 'test-drive') {
-      return `Perfect! You want to book a test drive for the ${vehicleName}. I can help you schedule that right away. What day works best for you this week?`;
+      return `I'd love to help you test drive the ${name}. What day and time works best for you?`;
     }
     
     if (action === 'reserve') {
-      return `Great choice! You're interested in reserving the ${vehicleName}. To secure this vehicle, I'll need a few quick details. Would you like to proceed with a $500 refundable deposit?`;
+      return `Great pick! Let's get the ${name} reserved for you. Would you like to proceed with a refundable deposit?`;
     }
 
     if (action === 'get-approved') {
-      return `Excellent! Let's get you pre-approved for financing on the ${vehicleName}. This usually takes just a few minutes. May I start by getting your full name and email address?`;
+      return `Let's get you pre-approved for the ${name}. This only takes a few minutes — can I start with your name?`;
     }
 
     if (action === 'value-trade') {
-      return `I'd be happy to help you value your trade-in toward the ${vehicleName}. To give you an accurate estimate, could you tell me the year, make, and model of your current vehicle?`;
+      return `I can help you value your trade-in toward the ${name}. What's the year, make, and model of your current vehicle?`;
     }
 
-    return `Hi there! I see you're looking at the ${vehicleName}. It's a great choice! Would you like to see the CarFax report or schedule a test drive?`;
+    return `Hi there! I see you're looking at the ${name}. Great choice — what questions can I answer for you?`;
   };
 
   // Handle SMS handoff
@@ -540,9 +565,11 @@ export function ChatBot({ vehicleName, action, vehicle }: ChatBotProps) {
         contextPrefix = "The customer clicked 'Value Trade-in' and wants to get a trade-in value. ";
       }
 
-      const vehicleContextWithAction = vehicleName 
-        ? `${contextPrefix}${vehicleContext || `Vehicle: ${vehicleName}`}`
-        : `${contextPrefix}${vehicleContext}`;
+      const vehicleContextWithAction = resolvedVehicleContext
+        ? `${contextPrefix}${resolvedVehicleContext}`
+        : vehicleName
+          ? `${contextPrefix}Vehicle: ${vehicleName}`
+          : contextPrefix;
 
       // DealershipId is now resolved by backend from tenant middleware (subdomain/header)
       const response = await sendChatMessage(

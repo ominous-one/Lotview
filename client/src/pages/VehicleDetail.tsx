@@ -3,9 +3,9 @@ import { useRoute, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Navbar } from "@/components/Navbar";
 import { ChatBot } from "@/components/ChatBot";
-import { getVehicleById, getVehicleCarfaxReport, trackVehicleView } from "@/lib/api";
+import { getVehicleById, trackVehicleView } from "@/lib/api";
 import { calculateMonthlyPayment } from "@/lib/types";
-import { ArrowLeft, Calendar, CheckCircle2, MapPin, Gauge, Flame, Share2, Heart, ChevronLeft, ChevronRight, DollarSign, Car, FileText, ExternalLink, Settings, Fuel, ShieldCheck, ChevronDown, Wrench, Sparkles, Music, Armchair, AlertTriangle, Clock3, UserRound, ScrollText } from "lucide-react";
+import { ArrowLeft, Calendar, CheckCircle2, MapPin, Gauge, Flame, Share2, Heart, ChevronLeft, ChevronRight, DollarSign, Car, FileText, ExternalLink, Settings, Fuel, ShieldCheck, ChevronDown, Wrench, Sparkles, Music, Armchair, Users, AlertTriangle, ClipboardList, Clock, BadgeCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { usePayment, type FinanceTerm } from "@/contexts/PaymentContext";
@@ -66,10 +66,16 @@ export default function VehicleDetail() {
     enabled: !!vehicleId,
   });
 
-  const { data: carfaxReport } = useQuery({
-    queryKey: ["vehicle-carfax", vehicleId],
-    queryFn: () => getVehicleCarfaxReport(vehicleId),
-    enabled: !!vehicleId,
+  // Fetch Carfax history summary when vehicle is loaded and has a report
+  const { data: carfaxSummary } = useQuery({
+    queryKey: ["carfax-summary", vehicleId],
+    queryFn: async () => {
+      const res = await fetch(`/api/vehicles/${vehicleId}/carfax/summary`);
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!vehicleId && !!car,
+    staleTime: 10 * 60 * 1000, // 10 minutes
     retry: false,
   });
 
@@ -104,7 +110,7 @@ export default function VehicleDetail() {
       const timer = setTimeout(() => {
         trackViewMutation.mutate();
         trackGTMVehicleView(car); // GTM tracking
-        console.log(`Tracked view for vehicle ${car.id} for remarketing.`);
+
       }, 2000);
       
       // Check if vehicle is liked
@@ -223,37 +229,6 @@ export default function VehicleDetail() {
   
   // Use local term if set, otherwise use effective term
   const selectedTerm = localTerm ?? effectiveTerm;
-
-  const carfaxSummaryItems = useMemo(() => {
-    if (!carfaxReport) return [];
-
-    return [
-      {
-        label: 'Accident history',
-        value: carfaxReport.accidentCount === 0
-          ? 'No accidents reported on the stored CARFAX snapshot'
-          : carfaxReport.accidentCount != null
-            ? `${carfaxReport.accidentCount} reported accident(s)`
-            : 'Not available',
-        icon: AlertTriangle,
-      },
-      {
-        label: 'Ownership',
-        value: carfaxReport.ownerCount != null ? `${carfaxReport.ownerCount} owner(s) reported` : 'Not available',
-        icon: UserRound,
-      },
-      {
-        label: 'Service history',
-        value: carfaxReport.serviceRecordCount != null ? `${carfaxReport.serviceRecordCount} service record(s)` : 'Not available',
-        icon: Clock3,
-      },
-      {
-        label: 'Liens',
-        value: carfaxReport.lienReported === true ? 'Lien reported' : carfaxReport.lienReported === false ? 'No liens reported' : 'Not available',
-        icon: ScrollText,
-      },
-    ];
-  }, [carfaxReport]);
 
   // Calculate monthly payment (handles null car)
   const monthlyPayment = useMemo(() => {
@@ -503,134 +478,6 @@ export default function VehicleDetail() {
                     Overview
                   </h3>
                   <p className="text-muted-foreground leading-relaxed whitespace-pre-line">{car.vdpDescription}</p>
-                </div>
-              )}
-              
-              {/* Carfax Badges */}
-              {car.carfaxBadges && car.carfaxBadges.length > 0 && (
-                <div className="border-t border-border pt-6">
-                  <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                    <ShieldCheck className="w-5 h-5 text-green-600" />
-                    Vehicle History
-                  </h3>
-                  <div className="flex flex-wrap gap-3">
-                    {car.carfaxBadges.map((badge: string, idx: number) => (
-                      <span 
-                        key={idx}
-                        className="inline-flex items-center gap-2 bg-green-50 text-green-700 px-4 py-2 rounded-full text-sm font-medium border border-green-200"
-                        data-testid={`carfax-badge-${idx}`}
-                      >
-                        <CheckCircle2 className="w-4 h-4" />
-                        {badge}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {(carfaxReport || car.carfaxUrl || (car.carfaxBadges && car.carfaxBadges.length > 0)) && (
-                <div className="border-t border-border pt-6">
-                  <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                    <ShieldCheck className="w-5 h-5 text-green-600" />
-                    CARFAX & History Details
-                  </h3>
-
-                  <div className="rounded-2xl border border-green-200/70 bg-gradient-to-br from-green-50 via-white to-emerald-50 overflow-hidden">
-                    <button
-                      onClick={() => toggleSpecSection('carfax-history')}
-                      className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left hover:bg-green-50/70 transition"
-                      data-testid="accordion-carfax-history"
-                    >
-                      <div>
-                        <div className="text-sm font-semibold text-green-800 uppercase tracking-wide">Structured trust snapshot</div>
-                        <div className="text-sm text-slate-600 mt-1">
-                          {carfaxReport
-                            ? `Using the stored CARFAX snapshot${carfaxReport.scrapedAt ? ` from ${new Date(carfaxReport.scrapedAt).toLocaleDateString()}` : ''}.`
-                            : car.carfaxUrl
-                              ? 'CARFAX link available. Detailed structured history has not been stored yet.'
-                              : 'Dealer-supplied history signals only. Ask for the live report to confirm details.'}
-                        </div>
-                      </div>
-                      <ChevronDown className={`w-5 h-5 text-muted-foreground transition-transform ${expandedSpecs.includes('carfax-history') ? 'rotate-180' : ''}`} />
-                    </button>
-
-                    {expandedSpecs.includes('carfax-history') && (
-                      <div className="px-5 pb-5 space-y-5 border-t border-green-100 bg-white/70">
-                        {carfaxSummaryItems.length > 0 && (
-                          <div className="grid gap-3 pt-5 md:grid-cols-2">
-                            {carfaxSummaryItems.map((item) => {
-                              const Icon = item.icon;
-                              return (
-                                <div key={item.label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                                    <Icon className="w-4 h-4 text-green-700" />
-                                    {item.label}
-                                  </div>
-                                  <p className="mt-2 text-sm text-slate-600">{item.value}</p>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-
-                        {!!carfaxReport?.accidentHistory?.length && (
-                          <div>
-                            <h4 className="font-semibold text-slate-900 mb-2">Reported accident timeline</h4>
-                            <div className="space-y-2">
-                              {carfaxReport.accidentHistory.map((entry, idx) => (
-                                <div key={`${entry.date || 'unknown'}-${idx}`} className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 text-sm text-slate-700">
-                                  <div className="font-medium text-slate-900">{entry.date || 'Date unavailable'}</div>
-                                  <div>{entry.description || 'Incident details unavailable'}</div>
-                                  {entry.severity && <div className="text-xs uppercase tracking-wide text-amber-700 mt-1">Severity: {entry.severity}</div>}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {!!carfaxReport?.ownershipHistory?.length && (
-                          <div>
-                            <h4 className="font-semibold text-slate-900 mb-2">Ownership history</h4>
-                            <div className="space-y-2">
-                              {carfaxReport.ownershipHistory.map((entry, idx) => (
-                                <div key={`${entry.startDate || 'owner'}-${idx}`} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                                  <div className="font-medium text-slate-900">{entry.type || 'Owner record'}</div>
-                                  <div>{[entry.startDate, entry.endDate].filter(Boolean).join(' → ') || 'Date range unavailable'}</div>
-                                  {entry.location && <div>{entry.location}</div>}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {!!carfaxReport?.serviceHistory?.length && (
-                          <div>
-                            <h4 className="font-semibold text-slate-900 mb-2">Service records</h4>
-                            <div className="space-y-2 max-h-72 overflow-auto pr-1">
-                              {carfaxReport.serviceHistory.slice(0, 12).map((entry, idx) => (
-                                <div key={`${entry.date || 'service'}-${idx}`} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                                  <div className="font-medium text-slate-900">{entry.date || 'Date unavailable'}</div>
-                                  <div>{entry.description || entry.event || 'Service entry available'}</div>
-                                  {(entry.location || entry.odometer != null) && (
-                                    <div className="text-xs text-slate-500 mt-1">
-                                      {[entry.location, entry.odometer != null ? `${entry.odometer.toLocaleString()} km` : null].filter(Boolean).join(' • ')}
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        <div className="rounded-xl bg-slate-900 text-slate-100 p-4 text-sm">
-                          <p className="font-semibold">Trust note</p>
-                          <p className="mt-1 text-slate-300">
-                            History details shown here come from the exact structured fields we have stored for this vehicle. If a field is missing, we leave it unknown rather than guessing.
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
                 </div>
               )}
               
@@ -1025,8 +872,240 @@ export default function VehicleDetail() {
         </div>
       </div>
 
+      {/* ═══ Full-width Vehicle History section at the bottom of the page ═══ */}
+      {(car.carfaxUrl || (car.carfaxBadges && car.carfaxBadges.length > 0) || carfaxSummary) && (
+        <div className="max-w-7xl mx-auto px-4 pb-8" data-testid="vehicle-history-panel">
+          <div className="bg-card rounded-2xl border border-border shadow-sm p-6 md:p-8">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-black flex items-center gap-2 text-foreground">
+                <ShieldCheck className="w-6 h-6 text-green-600" />
+                Vehicle History
+              </h2>
+              {car.carfaxUrl && (
+                <a
+                  href={car.carfaxUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-sm font-bold text-green-700 bg-green-50 border border-green-200 px-4 py-2 rounded-full hover:bg-green-100 transition"
+                  data-testid="link-carfax-full-report"
+                >
+                  <ExternalLink className="w-4 h-4" /> Full CARFAX Report
+                </a>
+              )}
+            </div>
+
+            {/* Carfax Badges */}
+            {car.carfaxBadges && car.carfaxBadges.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-6">
+                {car.carfaxBadges.map((badge: string, idx: number) => (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center gap-2 bg-green-50 text-green-700 px-4 py-2 rounded-full text-sm font-semibold border border-green-200"
+                    data-testid={`carfax-badge-${idx}`}
+                  >
+                    <BadgeCheck className="w-4 h-4" />
+                    {badge}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Rich Carfax Summary Stats */}
+            {carfaxSummary && (
+              <div className="space-y-6">
+                {/* Key stats grid */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {typeof carfaxSummary.ownerCount === 'number' && (
+                    <div className="bg-muted/50 rounded-xl p-5 text-center" data-testid="carfax-owner-count">
+                      <Users className="w-6 h-6 mx-auto mb-2 text-primary" />
+                      <p className="text-3xl font-black text-foreground">{carfaxSummary.ownerCount}</p>
+                      <p className="text-sm text-muted-foreground font-medium mt-1">{carfaxSummary.ownerCount === 1 ? 'Previous Owner' : 'Previous Owners'}</p>
+                    </div>
+                  )}
+                  {typeof carfaxSummary.accidentCount === 'number' && (
+                    <div className={`rounded-xl p-5 text-center ${carfaxSummary.accidentCount === 0 ? 'bg-green-50' : 'bg-red-50'}`} data-testid="carfax-accident-count">
+                      <AlertTriangle className={`w-6 h-6 mx-auto mb-2 ${carfaxSummary.accidentCount === 0 ? 'text-green-600' : 'text-red-500'}`} />
+                      <p className={`text-3xl font-black ${carfaxSummary.accidentCount === 0 ? 'text-green-700' : 'text-red-600'}`}>{carfaxSummary.accidentCount}</p>
+                      <p className={`text-sm font-medium mt-1 ${carfaxSummary.accidentCount === 0 ? 'text-green-600' : 'text-red-500'}`}>
+                        {carfaxSummary.accidentCount === 0 ? 'No Accidents' : carfaxSummary.accidentCount === 1 ? 'Reported Accident' : 'Reported Accidents'}
+                      </p>
+                    </div>
+                  )}
+                  {typeof carfaxSummary.serviceRecordCount === 'number' && carfaxSummary.serviceRecordCount > 0 && (
+                    <div className="bg-muted/50 rounded-xl p-5 text-center" data-testid="carfax-service-count">
+                      <ClipboardList className="w-6 h-6 mx-auto mb-2 text-primary" />
+                      <p className="text-3xl font-black text-foreground">{carfaxSummary.serviceRecordCount}</p>
+                      <p className="text-sm text-muted-foreground font-medium mt-1">Service Records</p>
+                    </div>
+                  )}
+                  {carfaxSummary.lastReportedDate && (
+                    <div className="bg-muted/50 rounded-xl p-5 text-center" data-testid="carfax-last-reported">
+                      <Clock className="w-6 h-6 mx-auto mb-2 text-primary" />
+                      <p className="text-base font-black text-foreground leading-tight">{carfaxSummary.lastReportedDate}</p>
+                      <p className="text-sm text-muted-foreground font-medium mt-1">Last Reported</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Damage / Lien flags — contextualize damage when no accidents */}
+                {(carfaxSummary.damageReported || carfaxSummary.lienReported) && (
+                  <div className="flex flex-wrap gap-3">
+                    {carfaxSummary.damageReported && (
+                      <div className="inline-flex items-start gap-2 bg-amber-50 border border-amber-200 px-4 py-2.5 rounded-xl" data-testid="carfax-damage">
+                        <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <span className="text-sm font-semibold text-amber-700">Minor Damage Reported</span>
+                          {carfaxSummary.accidentCount === 0 && (
+                            <p className="text-xs text-amber-600 mt-0.5">Non-collision damage (e.g. hail, minor cosmetic). No accidents on record.</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {carfaxSummary.lienReported && (
+                      <div className="inline-flex items-center gap-1.5 bg-amber-50 text-amber-700 border border-amber-200 px-4 py-2 rounded-xl text-sm font-semibold" data-testid="carfax-lien">
+                        <AlertTriangle className="w-4 h-4" /> Lien Reported
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Last reported odometer */}
+                {carfaxSummary.lastReportedOdometer && carfaxSummary.lastReportedOdometer > 0 && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="carfax-last-odometer">
+                    <Gauge className="w-4 h-4" />
+                    <span>Last reported odometer: <strong className="text-foreground">{carfaxSummary.lastReportedOdometer.toLocaleString()} km</strong></span>
+                  </div>
+                )}
+
+                {/* Two-column layout for accident + ownership history on desktop */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Per-accident detail rows */}
+                  {Array.isArray(carfaxSummary.accidentHistory) && carfaxSummary.accidentHistory.length > 0 && (
+                    <div className="border border-red-100 rounded-xl overflow-hidden" data-testid="carfax-accident-history">
+                      <div className="bg-red-50 px-4 py-3 flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 text-red-500" />
+                        <span className="text-sm font-bold text-red-700">Accident / Damage Records</span>
+                      </div>
+                      <div className="divide-y divide-red-50">
+                        {carfaxSummary.accidentHistory.map((incident: { date: string; description: string; severity: string }, idx: number) => (
+                          <div key={idx} className="px-4 py-3" data-testid={`carfax-accident-${idx}`}>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-bold text-red-600">{incident.date || 'Date not available'}</span>
+                              {incident.severity && incident.severity !== 'Unknown' && (
+                                <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-medium">{incident.severity}</span>
+                              )}
+                            </div>
+                            <p className="text-sm text-foreground">{incident.description || 'Accident reported'}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Ownership timeline */}
+                  {Array.isArray(carfaxSummary.ownershipHistory) && carfaxSummary.ownershipHistory.length > 0 && (
+                    <div className="border border-border rounded-xl overflow-hidden" data-testid="carfax-ownership-history">
+                      <div className="bg-muted/50 px-4 py-3 flex items-center gap-2">
+                        <Users className="w-4 h-4 text-primary" />
+                        <span className="text-sm font-bold text-foreground">Ownership History</span>
+                      </div>
+                      <div className="divide-y divide-border">
+                        {carfaxSummary.ownershipHistory.map((owner: { startDate: string; endDate: string | null; location: string; type: string }, idx: number) => (
+                          <div key={idx} className="px-4 py-3 flex items-start gap-3" data-testid={`carfax-owner-${idx}`}>
+                            <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                              <span className="text-xs font-black text-primary">{idx + 1}</span>
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-foreground">
+                                {owner.type || 'Owner'}
+                                {owner.location ? ` — ${owner.location}` : ''}
+                              </p>
+                              {(owner.startDate || owner.endDate) && (
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                  {owner.startDate}{owner.endDate ? ` – ${owner.endDate}` : owner.startDate ? ' – present' : ''}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* No full report yet — show only what we have from badges */}
+            {!carfaxSummary && car.carfaxUrl && (
+              <p className="text-sm text-muted-foreground mt-2">
+                Full history details available on the CARFAX report.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
       <ChatBot 
-        vehicleName={`${car.year} ${car.make} ${car.model}`} 
+        vehicleName={`${car.year} ${car.make} ${car.model}${car.trim ? ` ${car.trim}` : ''}`}
+        vehicleContext={(() => {
+          // Build a rich context string — this is HIDDEN from the customer, only the AI reads it
+          const lines: string[] = [
+            `${car.year} ${car.make} ${car.model}${car.trim ? ` ${car.trim}` : ''}`,
+            `Price: $${car.price > 0 ? car.price.toLocaleString() + ' CAD' : 'Contact for Price'}`,
+            `Odometer: ${car.odometer.toLocaleString()} km`,
+            `VIN: ${car.vin || 'Not available'}`,
+            `Stock #: ${car.stockNumber || 'N/A'}`,
+            `Fuel: ${car.fuelType || 'N/A'}`,
+            `Location: ${car.dealership}, ${car.location}`,
+          ];
+
+          // Carfax / vehicle history
+          if (carfaxSummary) {
+            lines.push(`--- Vehicle History (CARFAX) ---`);
+            if (typeof carfaxSummary.ownerCount === 'number') {
+              lines.push(`Owners: ${carfaxSummary.ownerCount} previous owner${carfaxSummary.ownerCount === 1 ? '' : 's'}`);
+            }
+            if (typeof carfaxSummary.accidentCount === 'number') {
+              lines.push(`Accidents: ${carfaxSummary.accidentCount === 0 ? 'No reported accidents' : `${carfaxSummary.accidentCount} reported accident${carfaxSummary.accidentCount === 1 ? '' : 's'}`}`);
+            }
+            // Per-accident detail with dates
+            if (Array.isArray(carfaxSummary.accidentHistory) && carfaxSummary.accidentHistory.length > 0) {
+              carfaxSummary.accidentHistory.forEach((incident: { date: string; description: string; severity: string }, i: number) => {
+                lines.push(`Accident ${i + 1}: date=${incident.date || 'unknown'}, description=${incident.description || 'damage reported'}${incident.severity && incident.severity !== 'Unknown' ? `, severity=${incident.severity}` : ''}`);
+              });
+            }
+            // Ownership timeline
+            if (Array.isArray(carfaxSummary.ownershipHistory) && carfaxSummary.ownershipHistory.length > 0) {
+              carfaxSummary.ownershipHistory.forEach((owner: { startDate: string; endDate: string | null; location: string; type: string }, i: number) => {
+                lines.push(`Owner ${i + 1}: ${owner.type || 'Personal'}, ${owner.location || ''}${owner.startDate ? `, from ${owner.startDate}` : ''}${owner.endDate ? ` to ${owner.endDate}` : ''}`);
+              });
+            }
+            if (typeof carfaxSummary.serviceRecordCount === 'number' && carfaxSummary.serviceRecordCount > 0) {
+              lines.push(`Service records on file: ${carfaxSummary.serviceRecordCount}`);
+            }
+            if (carfaxSummary.lastReportedDate) {
+              lines.push(`Last reported: ${carfaxSummary.lastReportedDate}`);
+            }
+            if (carfaxSummary.lastReportedOdometer && carfaxSummary.lastReportedOdometer > 0) {
+              lines.push(`Last reported odometer: ${carfaxSummary.lastReportedOdometer.toLocaleString()} km`);
+            }
+            if (carfaxSummary.damageReported) lines.push(`Damage: reported`);
+            if (carfaxSummary.lienReported) lines.push(`Lien: reported`);
+          } else if (car.carfaxBadges && car.carfaxBadges.length > 0) {
+            lines.push(`Vehicle history badges: ${car.carfaxBadges.join(', ')}`);
+          }
+
+          if (car.carfaxUrl) {
+            lines.push(`Full CARFAX report: ${car.carfaxUrl}`);
+          }
+
+          // Key features from carfax badges and dealer badges
+          if (car.badges && car.badges.length > 0) {
+            lines.push(`Features/badges: ${car.badges.join(', ')}`);
+          }
+
+          return lines.join(' | ');
+        })()}
         action={action}
         vehicle={{
           id: car.id,

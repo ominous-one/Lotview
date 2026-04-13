@@ -39,3 +39,62 @@ chrome-extension/*.zip
 
 # OS
 Thumbs.db
+
+# Cloudflare session cookies (contain real session tokens)
+.cloudflare-cookies/
+
+# Dev/debug scripts at root level (not part of the deployable app)
+add-scrape-source.ts
+batch-gen-desc.ts
+cache-images*.ts
+check-*.ts
+cleanup-demo.ts
+fetch-*.ts
+find-vdp*.ts
+fix-*.ts
+inspect-dom*.ts
+inspect-valid-vdp.ts
+parse-ohv-html.ts
+push-*.ts
+run-*.ts
+run-scraper.ts
+run-sync.ts
+run-browserless-scraper.ts
+run-scrapingbee-scraper.ts
+run-zenrows-scraper.ts
+run-batch-carfax.ts
+scrape-carfax-real.ts
+scrape-prod.bat
+seed-olympic-prod.ts
+seed-prod.bat
+test-*.ts
+test-*.bat
+update-source.ts
+*.bat
+vite-plugin-meta-images.ts
+
+# Attached assets (Replit upload artifacts)
+attached_assets/
+
+# Design exports
+design/
+
+# Internal task/status markdown files
+ACTIVE_SWARM_RUN.md
+BUILD_EXECUTION_PLAN.md
+CLOUDFLARE_BYPASS_SUCCESS.md
+COMPLETE_BUILD_SPEC.md
+DIAGNOSIS_AND_BUILD_PLAN.md
+ENTERPRISE_AUDIT_RESULTS.md
+FINAL_REVIEW.md
+HYBRID_AI_TASK_SUMMARY.txt
+MULTI_TENANT_MIGRATION_GUIDE.md
+MULTI_TENANT_STATUS.md
+MULTI_TENANT_TODO.md
+README_NEXT_STEPS.md
+SCRAPER_LOGIC.md
+SECURITY_AUDIT.md
+STATUS_AND_NEXT_STEPS.md
+TASK_*.md
+TEST_RESULTS.md
+WORKING_BUFFER.md

@@ -17,6 +17,8 @@ import VehicleDetail from "@/pages/VehicleDetail";
 import EmbedWidget from "@/pages/EmbedWidget";
 import Login from "@/pages/Login";
 import InviteAccept from "@/pages/InviteAccept";
+import ForgotPassword from "@/pages/ForgotPassword";
+import ResetPassword from "@/pages/ResetPassword";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import TermsOfService from "@/pages/TermsOfService";
 import { ImpersonationBanner } from "@/components/ImpersonationBanner";
@@ -141,6 +143,9 @@ function MarketingRouter() {
       <Route path="/call-analysis" component={CallAnalysisRoute} />
       <Route path="/sequence-analytics" component={SequenceAnalyticsRoute} />
       <Route path="/invite/:token" component={InviteAccept} />
+      <Route path="/forgot-password" component={ForgotPassword} />
+      <Route path="/reset-password/:token" component={ResetPassword} />
+      <Route path="/reset-password" component={ResetPassword} />
       <Route path="/privacy-policy" component={PrivacyPolicy} />
       <Route path="/terms-of-service" component={TermsOfService} />
       <Route component={NotFound} />
@@ -185,6 +190,9 @@ function DealershipRouter() {
       <Route path="/call-analysis" component={CallAnalysisRoute} />
       <Route path="/sequence-analytics" component={SequenceAnalyticsRoute} />
       <Route path="/invite/:token" component={InviteAccept} />
+      <Route path="/forgot-password" component={ForgotPassword} />
+      <Route path="/reset-password/:token" component={ResetPassword} />
+      <Route path="/reset-password" component={ResetPassword} />
       <Route path="/embed" component={EmbedWidget} />
       <Route path="/privacy-policy" component={PrivacyPolicy} />
       <Route path="/terms-of-service" component={TermsOfService} />
@@ -243,6 +251,15 @@ function AppRouter() {
   }
 
   return isMarketingSite ? <MarketingRouter /> : <DealershipRouter />;
+}
+
+// Wrap the whole app for unexpected crashes
+function AppWithBoundary() {
+  return (
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+  );
 }
 
 function App() {

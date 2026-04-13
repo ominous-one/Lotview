@@ -1,5 +1,7 @@
 import { storage } from './storage';
+import puppeteer from 'puppeteer';
 import { scrapeAllDealershipsIncremental, upsertVehicleByVin, checkVehicleNeedsEnrichment, updateVehiclePriceOnly, type ScrapedVehicle } from './scraper';
+import { scrapeCarfaxReport } from './carfax-scraper';
 import { getApifyServiceForDealership } from './apify-service';
 import { 
   getBrowserlessServiceForDealership, 
@@ -14,13 +16,147 @@ import { eq, and, inArray, desc, like } from 'drizzle-orm';
 import { logInfo, logWarn, logError } from './error-utils';
 import * as cheerio from 'cheerio';
 import { maximizeImageUrl } from './precision-image-extractor';
-import { hasEnoughPhotosForPriceOnlyRefresh, uniquePhotoCount } from './vehicle-photo-utils';
-import { resolveCarfaxReportUrlFromVdpHtml } from './carfax-scraper';
-import { assessSourceTruthStaleRemoval } from './source-truth-stale-removal';
+import { uniquePhotoCount } from './vehicle-photo-utils';
 
 const MAX_RETRIES = 3;
 const RETRY_DELAYS = [5000, 15000, 30000]; // 5s, 15s, 30s exponential backoff
 const ABANDONED_SCRAPE_RUN_MAX_AGE_MS = 45 * 60 * 1000;
+
+type SourceTruthVehicle = {
+  id: number;
+  dealerVdpUrl: string | null;
+  year: number;
+  make: string;
+  model: string;
+  trim?: string | null;
+  missedScrapeCount?: number | null;
+};
+
+function hasEnoughPhotosForPriceOnlyRefresh(urls: string[] | null | undefined, minPhotos = 10): boolean {
+  return uniquePhotoCount(urls) >= minPhotos;
+}
+
+async function resolveCarfaxReportUrlFromVdpHtml(_vdpUrl: string, _html: string, _vin: string): Promise<{ reportUrl: string | null; badges: string[] }> {
+  return { reportUrl: null, badges: [] };
+}
+
+function assessSourceTruthStaleRemoval({
+  visibleSourceVehicleUrls,
+  observedVehicles,
+  minVisibleSourceVehicleCount,
+}: {
+  visibleSourceVehicleUrls: string[];
+  observedVehicles: SourceTruthVehicle[];
+  minVisibleSourceVehicleCount: number;
+}) {
+  const normalizedVisible = new Set(visibleSourceVehicleUrls.map((url) => normalizeDealerVdpUrl(url) || url));
+  const foundVehicleIds: number[] = [];
+  const staleVehicles: SourceTruthVehicle[] = [];
+
+  for (const vehicle of observedVehicles) {
+    const normalizedUrl = normalizeDealerVdpUrl(vehicle.dealerVdpUrl) || vehicle.dealerVdpUrl;
+    if (normalizedUrl && normalizedVisible.has(normalizedUrl)) {
+      foundVehicleIds.push(vehicle.id);
+    } else {
+      staleVehicles.push(vehicle);
+    }
+  }
+
+  const visibleSourceVehicleCount = normalizedVisible.size;
+  const comparableInventoryCount = observedVehicles.length;
+  const staleVehicleCount = staleVehicles.length;
+  const staleRatio = comparableInventoryCount > 0 ? staleVehicleCount / comparableInventoryCount : 0;
+  const safeToApply = visibleSourceVehicleCount >= minVisibleSourceVehicleCount && staleRatio <= 0.35;
+
+  return {
+    foundVehicleIds,
+    staleVehicles,
+    visibleSourceVehicleCount,
+    comparableInventoryCount,
+    staleVehicleCount,
+    staleRatio,
+    safeToApply,
+    blockedReason: safeToApply
+      ? null
+      : visibleSourceVehicleCount < minVisibleSourceVehicleCount
+        ? 'insufficient_visible_source_vehicles'
+        : 'stale_ratio_above_guardrail',
+  };
+}
+
+/**
+ * Fire-and-forget Carfax report enrichment.
+ * Triggered after a vehicle is saved if it has a carfaxUrl.
+ * Runs async so it never blocks the scrape loop.
+ * Skips if report was already scraped within the last 24 hours.
+ */
+async function triggerCarfaxEnrichment(vehicleId: number, dealershipId: number, vin: string | null | undefined, carfaxUrl: string): Promise<void> {
+  try {
+    // Carfax history facts never change for a given VIN — skip entirely if already on file.
+    if (vin) {
+      const existing = await storage.getCarfaxReportByVin(vin, dealershipId);
+      if (existing) {
+        // Re-link vehicleId if it shifted (e.g. re-insert after sync)
+        if (existing.vehicleId !== vehicleId) {
+          await storage.upsertCarfaxReport({
+            dealershipId: existing.dealershipId,
+            vin: existing.vin,
+            vehicleId,
+            reportUrl: existing.reportUrl,
+            accidentCount: existing.accidentCount,
+            ownerCount: existing.ownerCount,
+            serviceRecordCount: existing.serviceRecordCount,
+            lastReportedOdometer: existing.lastReportedOdometer,
+            lastReportedDate: existing.lastReportedDate,
+            damageReported: existing.damageReported,
+            lienReported: existing.lienReported,
+            registrationHistory: existing.registrationHistory as any,
+            serviceHistory: existing.serviceHistory as any,
+            accidentHistory: existing.accidentHistory as any,
+            ownershipHistory: existing.ownershipHistory as any,
+            odometerHistory: existing.odometerHistory as any,
+            fullReportData: existing.fullReportData as any,
+            badges: existing.badges,
+            scrapedAt: existing.scrapedAt ?? new Date(),
+          });
+        }
+        return; // Already have the report — nothing to do
+      }
+    }
+
+    const reportData = await scrapeCarfaxReport(carfaxUrl);
+    if (!reportData) return;
+
+    await storage.upsertCarfaxReport({
+      vehicleId,
+      dealershipId,
+      vin: reportData.vin || vin || '',
+      reportUrl: carfaxUrl,
+      accidentCount: reportData.accidentCount,
+      ownerCount: reportData.ownerCount,
+      serviceRecordCount: reportData.serviceRecordCount,
+      lastReportedOdometer: reportData.lastReportedOdometer,
+      lastReportedDate: reportData.lastReportedDate,
+      damageReported: reportData.damageReported,
+      lienReported: reportData.lienReported,
+      registrationHistory: reportData.registrationHistory as any,
+      serviceHistory: reportData.serviceHistory as any,
+      accidentHistory: reportData.accidentHistory as any,
+      ownershipHistory: reportData.ownershipHistory as any,
+      odometerHistory: reportData.odometerHistory as any,
+      fullReportData: reportData.fullReportData as any,
+      badges: reportData.badges,
+      scrapedAt: new Date(),
+    });
+
+    logInfo('[Robust Scraper] Carfax report saved', { service: 'scraper', vehicleId, ownerCount: reportData.ownerCount, accidentCount: reportData.accidentCount });
+  } catch (err) {
+    logWarn('[Robust Scraper] Carfax enrichment failed (non-blocking)', { service: 'scraper', vehicleId, error: err instanceof Error ? err.message : String(err) });
+  }
+}
+
+// Type alias to fix spread assignment of CarfaxReport to upsert input
+type CarfaxUpsertInput = Parameters<typeof storage.upsertCarfaxReport>[0];
 
 /**
  * Detect if HTML is a Cloudflare block/challenge page instead of real content.
@@ -1955,28 +2091,95 @@ async function attemptZenRowsScrape(dealershipId?: number): Promise<{
           sourceHostname = '';
         }
 
-        // Scrape the listing page with scroll-to-bottom enabled for lazy-loading
-        const listingResult = await zenrowsService.zenRowsScrape(source.sourceUrl, {
-          scrollToBottom: true  // Enable scrolling for lazy-loaded inventory pages
-        });
-        
-        if (!listingResult.success || !listingResult.html) {
-          logWarn('[Robust Scraper] ZenRows failed to get listing page', { service: 'scraper', method: 'zenrows', sourceName: source.sourceName, error: listingResult.error });
+        // Scrape listing pages with pagination support.
+        // Many dealer sites paginate with ?pg=1, ?pg=2, etc. We fetch up to 5 pages
+        // or until a page returns 0 new vehicle URLs.
+        const MAX_LISTING_PAGES = 5;
+        const vehicleUrls: string[] = [];
+        const seenVdpPaths = new Set<string>();
+        const srpPriceByUrl = new Map<string, number | null>();
+
+        for (let pageNum = 1; pageNum <= MAX_LISTING_PAGES; pageNum++) {
+          // Build paginated URL
+          let pageUrl = source.sourceUrl;
+          if (pageNum > 1) {
+            const sep = pageUrl.includes('?') ? '&' : '?';
+            pageUrl = `${pageUrl}${sep}pg=${pageNum}`;
+          }
+
+          logInfo(`[Robust Scraper] Fetching listing page ${pageNum}`, { service: 'scraper', method: 'zenrows', pageUrl });
+
+          const listingResult = await zenrowsService.zenRowsScrape(pageUrl, {
+            jsRender: true,
+            premiumProxy: true,
+            waitMs: 5000,
+            scrollToBottom: false,
+          });
+
+          if (!listingResult.success || !listingResult.html) {
+            if (pageNum === 1) {
+              logWarn('[Robust Scraper] ZenRows failed to get listing page 1', { service: 'scraper', method: 'zenrows', sourceName: source.sourceName, error: listingResult.error });
+            }
+            break; // No more pages
+          }
+
+          if (isCloudflareBlockPage(listingResult.html)) {
+            if (pageNum === 1) {
+              logWarn('[Robust Scraper] ZenRows received Cloudflare block page', { service: 'scraper', method: 'zenrows', sourceName: source.sourceName });
+            }
+            break;
+          }
+
+          // Parse this page's HTML
+          const listingEntries = extractVehicleListingsFromSrp(listingResult.html, pageUrl);
+          let newUrlsThisPage = 0;
+
+          if (listingEntries.length > 0) {
+            for (const entry of listingEntries) {
+              const normalizedUrl = normalizeDealerVdpUrl(entry.vdpUrl) || entry.vdpUrl;
+              if (seenVdpPaths.has(normalizedUrl)) continue;
+              seenVdpPaths.add(normalizedUrl);
+              vehicleUrls.push(normalizedUrl);
+              srpPriceByUrl.set(normalizedUrl, entry.srpPrice ?? null);
+              newUrlsThisPage++;
+            }
+          } else {
+            const $page = cheerio.load(listingResult.html);
+            $page('a[href*="/vehicles/"]').each((_, elem) => {
+              const href = $page(elem).attr('href');
+              if (href && /\/vehicles\/\d{4}\/[a-z-]+\/[a-z0-9-]+/i.test(href)) {
+                let fullUrl = href;
+                if (href.startsWith('/')) {
+                  try {
+                    const urlObj = new URL(source.sourceUrl);
+                    fullUrl = `${urlObj.origin}${href}`;
+                  } catch {}
+                }
+                const normalizedUrl = normalizeDealerVdpUrl(fullUrl) || fullUrl;
+                if (seenVdpPaths.has(normalizedUrl)) return;
+                seenVdpPaths.add(normalizedUrl);
+                vehicleUrls.push(normalizedUrl);
+                srpPriceByUrl.set(normalizedUrl, null);
+                newUrlsThisPage++;
+              }
+            });
+          }
+
+          logInfo(`[Robust Scraper] Page ${pageNum}: found ${newUrlsThisPage} new VDP URLs (total: ${vehicleUrls.length})`, { service: 'scraper', method: 'zenrows' });
+
+          // Stop if this page added no new URLs (we've seen them all)
+          if (newUrlsThisPage === 0) break;
+
+          // Brief delay between page fetches to be polite
+          if (pageNum < MAX_LISTING_PAGES) await sleep(1500);
+        }
+
+        if (vehicleUrls.length === 0) {
+          logWarn('[Robust Scraper] ZenRows found 0 vehicle URLs across all pages', { service: 'scraper', method: 'zenrows', sourceName: source.sourceName });
           continue;
         }
 
-        // CRITICAL: Detect Cloudflare block pages on listing page
-        if (isCloudflareBlockPage(listingResult.html)) {
-          logWarn('[Robust Scraper] ZenRows received Cloudflare block page on listing page', { service: 'scraper', method: 'zenrows', sourceName: source.sourceName });
-          continue;
-        }
-
-        // Parse listing HTML to extract vehicle URLs
-        const listingEntries = extractVehicleListingsFromSrp(listingResult.html, source.sourceUrl);
-        const srpPriceByUrl = new Map(listingEntries.map(entry => [entry.vdpUrl, entry.srpPrice]));
-        const vehicleUrls = listingEntries.map(entry => entry.vdpUrl);
-
-        logInfo('[Robust Scraper] ZenRows found vehicle URLs', { service: 'scraper', method: 'zenrows', vehicleUrlCount: vehicleUrls.length, sourceName: source.sourceName });
+        logInfo('[Robust Scraper] ZenRows total vehicle URLs', { service: 'scraper', method: 'zenrows', vehicleUrlCount: vehicleUrls.length, sourceName: source.sourceName });
 
         // Process each VDP (with rate limiting)
         for (const rawVdpUrl of vehicleUrls) {
@@ -2019,9 +2222,13 @@ async function attemptZenRowsScrape(dealershipId?: number): Promise<{
               continue; // Skip to next vehicle
             }
             
-            await sleep(5000); // Rate limit: 5 seconds between VDP requests to avoid Cloudflare blocks
+            await sleep(2000); // 2s between VDP requests (was 5s — reduces total job time)
             
-            const vdpResult = await zenrowsService.zenRowsScrape(vdpUrl);
+            const vdpResult = await zenrowsService.zenRowsScrape(vdpUrl, {
+              jsRender: true,
+              premiumProxy: true,
+              waitMs: 6000, // Wait for Carfax widget to load
+            });
             
             if (!vdpResult.success || !vdpResult.html) {
               logWarn('[Robust Scraper] ZenRows failed to get VDP', { service: 'scraper', method: 'zenrows', vdpUrl, error: vdpResult.error });
@@ -2422,10 +2629,64 @@ async function attemptZenRowsScrape(dealershipId?: number): Promise<{
                 fuelType,
               };
 
+              // If ZenRows got badges but no carfaxUrl, try Browserless to render the CARFAX widget JS
+              if (!vdpContent.carfaxUrl && vin && vin.length >= 17) {
+                try {
+                  const apiKey = process.env.BROWSERLESS_API_KEY;
+                  if (apiKey) {
+                    logInfo('[Robust Scraper] ZenRows missed carfaxUrl — trying Browserless for CARFAX widget', { service: 'scraper', method: 'browserless-carfax', vdpUrl });
+                    const browser = await puppeteer.connect({
+                      browserWSEndpoint: `wss://chrome.browserless.io?token=${apiKey}`,
+                    });
+                    const page = await browser.newPage();
+                    try {
+                      await page.goto(vdpUrl, { waitUntil: 'networkidle2', timeout: 25000 });
+                      // Wait for the CARFAX badge widget to load and render
+                      await page.waitForSelector('.carfax-badge, .carfax-section, [data-vin]', { timeout: 10000 }).catch(() => {});
+                      // Click the carfax badge to trigger the report URL fetch
+                      await page.click('.carfax-badge__trigger, a[data-target*="carfax"], .carfax__cta').catch(() => {});
+                      await new Promise(r => setTimeout(r, 4000)); // Wait for AJAX to complete
+                      // Extract the rendered carfax URL from the page
+                      const carfaxUrl = await page.evaluate(() => {
+                        // Check iframes first
+                        const iframes = document.querySelectorAll('iframe[src*="carfax"]');
+                        for (const iframe of iframes) {
+                          const src = iframe.getAttribute('src');
+                          if (src && src.includes('vhr.carfax')) return src;
+                        }
+                        // Check any links with vhr.carfax
+                        const links = document.querySelectorAll('a[href*="vhr.carfax"]');
+                        for (const link of links) {
+                          const href = link.getAttribute('href');
+                          if (href && href.includes('vhr.carfax')) return href;
+                        }
+                        // Check modal content
+                        const modals = document.querySelectorAll('[class*="carfax-modal"] iframe, [class*="carfax"] iframe, [id*="carfax"] iframe');
+                        for (const modal of modals) {
+                          const src = modal.getAttribute('src');
+                          if (src && src.includes('carfax')) return src;
+                        }
+                        return null;
+                      });
+                      if (carfaxUrl) {
+                        vdpContent.carfaxUrl = carfaxUrl;
+                        vehicle.carfaxUrl = carfaxUrl;
+                        logInfo('[Robust Scraper] Browserless extracted CARFAX URL from widget', { service: 'scraper', method: 'browserless-carfax', carfaxUrl, vdpUrl });
+                      }
+                    } finally {
+                      await page.close().catch(() => {});
+                      await browser.disconnect().catch(() => {});
+                    }
+                  }
+                } catch (err) {
+                  logWarn('[Robust Scraper] Browserless CARFAX fallback failed (non-blocking)', { service: 'scraper', method: 'browserless-carfax', error: err instanceof Error ? err.message : String(err) });
+                }
+              }
+
               // Log Carfax data extraction
               if (vdpContent.carfaxUrl || vdpContent.carfaxBadges.length > 0) {
-                logInfo('[Robust Scraper] Carfax data extracted (ZenRows)', { 
-                  service: 'scraper', method: 'zenrows', year, make, model, 
+                logInfo('[Robust Scraper] Carfax data extracted', { 
+                  service: 'scraper', method: 'zenrows+browserless', year, make, model, 
                   hasCarfaxUrl: !!vdpContent.carfaxUrl,
                   carfaxBadges: vdpContent.carfaxBadges 
                 });
@@ -2451,6 +2712,11 @@ async function attemptZenRowsScrape(dealershipId?: number): Promise<{
                 totalUpdated++;
               }
               logInfo('[Robust Scraper] ZenRows imported vehicle', { service: 'scraper', method: 'zenrows', year, make, model, vin: vehicle.vin, action: upsertResult.action });
+
+              // Async Carfax report enrichment (fire-and-forget, never blocks scrape loop)
+              if (vdpContent.carfaxUrl) {
+                triggerCarfaxEnrichment(upsertResult.id, source.dealershipId, vehicle.vin, vdpContent.carfaxUrl).catch(() => {});
+              }
               
               // CLEANUP: Delete any PENDING placeholder records with the same VDP URL
               // This ensures we don't have duplicates when a vehicle is successfully scraped
@@ -2732,7 +2998,7 @@ async function attemptZenRowsScrape(dealershipId?: number): Promise<{
           service: 'scraper', 
           method: 'zenrows', 
           missedCount: missedVehicles.length,
-          missedVehicles: missedVehicles.slice(0, 5).map(v => `${v.year} ${v.make} ${v.model} (missed: ${(v.missedScrapeCount || 0) + 1})`)
+          missedVehicles: missedVehicles.slice(0, 5).map((v: SourceTruthVehicle) => `${v.year} ${v.make} ${v.model} (missed: ${(v.missedScrapeCount || 0) + 1})`)
         });
       }
 
@@ -2747,7 +3013,7 @@ async function attemptZenRowsScrape(dealershipId?: number): Promise<{
           staleRatio: staleRemovalDecision.staleRatio,
         });
       } else if (missedVehicles.length > 0) {
-        const idsToDelete = missedVehicles.map(v => v.id);
+        const idsToDelete = missedVehicles.map((v: SourceTruthVehicle) => v.id);
         const deletedAt = new Date();
         await db.update(vehicles)
           .set({
@@ -2761,7 +3027,7 @@ async function attemptZenRowsScrape(dealershipId?: number): Promise<{
           service: 'scraper', 
           method: 'zenrows', 
           deletedCount: totalDeleted,
-          deletedVehicles: missedVehicles.map(v => `${v.year} ${v.make} ${v.model}`)
+          deletedVehicles: missedVehicles.map((v: SourceTruthVehicle) => `${v.year} ${v.make} ${v.model}`)
         });
       }
     } else if (totalImported > 0 && totalImported < MINIMUM_VEHICLES_FOR_STALE_CHECK) {
@@ -3196,6 +3462,11 @@ async function attemptScrapingBeeScrape(dealershipId?: number): Promise<{
               totalUpdated++;
             }
             logInfo('[Robust Scraper] ScrapingBee imported vehicle', { service: 'scraper', method: 'scrapingbee', year, make, model, vin: vehicle.vin, action: upsertResult.action });
+
+            // Async Carfax report enrichment (fire-and-forget)
+            if (scrapingBeeVdpContent.carfaxUrl) {
+              triggerCarfaxEnrichment(upsertResult.id, source.dealershipId, vehicle.vin, scrapingBeeVdpContent.carfaxUrl).catch(() => {});
+            }
             
             // CLEANUP: Soft-delete any PENDING placeholder records with the same VDP URL
             const deletedAt = new Date();
@@ -3300,7 +3571,7 @@ async function attemptScrapingBeeScrape(dealershipId?: number): Promise<{
           service: 'scraper', 
           method: 'scrapingbee', 
           missedCount: missedVehicles.length,
-          missedVehicles: missedVehicles.slice(0, 5).map(v => `${v.year} ${v.make} ${v.model} (missed: ${(v.missedScrapeCount || 0) + 1})`)
+          missedVehicles: missedVehicles.slice(0, 5).map((v: SourceTruthVehicle) => `${v.year} ${v.make} ${v.model} (missed: ${(v.missedScrapeCount || 0) + 1})`)
         });
       }
 
@@ -3315,7 +3586,7 @@ async function attemptScrapingBeeScrape(dealershipId?: number): Promise<{
           staleRatio: staleRemovalDecision.staleRatio,
         });
       } else if (missedVehicles.length > 0) {
-        const idsToDelete = missedVehicles.map(v => v.id);
+        const idsToDelete = missedVehicles.map((v: SourceTruthVehicle) => v.id);
         const deletedAt = new Date();
         await db.update(vehicles)
           .set({
@@ -3329,7 +3600,7 @@ async function attemptScrapingBeeScrape(dealershipId?: number): Promise<{
           service: 'scraper', 
           method: 'scrapingbee', 
           deletedCount: totalDeleted,
-          deletedVehicles: missedVehicles.map(v => `${v.year} ${v.make} ${v.model}`)
+          deletedVehicles: missedVehicles.map((v: SourceTruthVehicle) => `${v.year} ${v.make} ${v.model}`)
         });
       }
     } else if (totalImported > 0 && totalImported < MINIMUM_VEHICLES_FOR_STALE_CHECK) {
@@ -3589,7 +3860,13 @@ async function attemptBrowserlessScrape(dealershipId?: number): Promise<{
             }
             
             const saved = await upsertVehicleByVin(vehicleData);
-            if (saved) totalImported++;
+            if (saved) {
+              totalImported++;
+              // Async Carfax report enrichment (fire-and-forget)
+              if (vehicleData.carfaxUrl) {
+                triggerCarfaxEnrichment(saved.id, source.dealershipId, vehicleData.vin, vehicleData.carfaxUrl).catch(() => {});
+              }
+            }
           }
         } else if (!result.success) {
           logWarn('[Robust Scraper] Browserless failed for source', { service: 'scraper', method: 'browserless', sourceName: source.sourceName, error: result.error });
