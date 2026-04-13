@@ -1,4 +1,4 @@
-import { buildVehicleTruthfulnessContext, computeVehicleDataQualitySignals } from '../vehicle-data-quality';
+import { buildVehicleTruthfulnessContext, computeVehicleDataQualitySignals, DEFAULT_AVAILABILITY_FRESHNESS_HOURS } from '../vehicle-data-quality';
 
 describe('vehicle-data-quality', () => {
   test('marks active fresh vehicle with VIN + stock as availability-safe', () => {
@@ -59,9 +59,34 @@ describe('vehicle-data-quality', () => {
       deletedAt: null,
       lifecycleStatus: 'ACTIVE',
       photoStatus: 'pending',
+      verificationStatus: 'UNVERIFIED',
     });
 
     expect(lines.join('\n')).toContain('Inventory Freshness: unknown');
     expect(lines.join('\n')).toContain('Truthfulness Guardrails: freshness_unknown, identity_incomplete, inventory_stale');
+  });
+
+  test('treats fresh placeholder VIN inventory as identity-incomplete but still availability-fresh', () => {
+    const now = new Date(Date.now() - 30 * 60 * 1000);
+    const signals = computeVehicleDataQualitySignals({
+      vin: 'PENDING-123',
+      stockNumber: 'OLY-42',
+      normalizedStockNumber: null,
+      dealerVdpUrl: 'https://dealer.example/vehicle/oly-42',
+      carfaxUrl: null,
+      carfaxBadges: [],
+      lastScrapedAt: now,
+      deletedAt: null,
+      lifecycleStatus: 'ACTIVE',
+      photoStatus: 'complete',
+    });
+
+    expect(signals.isFreshForAvailability).toBe(true);
+    expect(signals.isSoldOrRemoved).toBe(false);
+    expect(signals.hasExactIdentity).toBe(false);
+    expect(signals.blockers).toEqual(expect.arrayContaining(['identity_incomplete']));
+    expect(signals.blockers).not.toContain('inventory_stale');
+    expect(signals.freshnessHours).not.toBeNull();
+    expect(signals.freshnessHours!).toBeLessThan(DEFAULT_AVAILABILITY_FRESHNESS_HOURS);
   });
 });
