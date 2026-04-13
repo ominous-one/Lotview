@@ -1,7 +1,14 @@
 import { type Server } from "node:http";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 
-import express, { type Express, type Request, Response, NextFunction } from "express";
+import express, {
+  type Express,
+  type NextFunction,
+  type Request,
+  type RequestHandler,
+  type Response,
+} from "express";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { registerRoutes } from "./routes";
@@ -11,13 +18,25 @@ import { storage } from "./storage";
 const isProduction = process.env.NODE_ENV === "production";
 const useJsonLogs = isProduction || process.env.LOG_FORMAT === "json";
 
-export function log(message: string, source = "express") {
+const ASYNC_HANDLER_METHODS = ["use", "all", "get", "post", "put", "patch", "delete", "options", "head"] as const;
+const LOCALHOST_ORIGIN_PATTERN = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/i;
+const DEFAULT_ALLOWED_HEADERS = ["Content-Type", "Authorization", "X-Requested-With", "X-Request-Id"];
+const DEFAULT_ALLOWED_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"];
+
+function serializeLog(payload: Record<string, unknown>) {
+  return JSON.stringify({
+    timestamp: new Date().toISOString(),
+    ...payload,
+  });
+}
+
+export function log(message: string, source = "express", details?: Record<string, unknown>) {
   if (useJsonLogs) {
-    console.log(JSON.stringify({
-      timestamp: new Date().toISOString(),
+    console.log(serializeLog({
       level: "info",
       source,
       message,
+      ...details,
     }));
     return;
   }
@@ -34,10 +53,124 @@ export function log(message: string, source = "express") {
 
 export const app = express();
 
+declare module 'http' {
+  interface IncomingMessage {
+    rawBody: unknown
+  }
+}
+
+declare global {
+  namespace Express {
+    interface Request {
+      requestId: string;
+    }
+  }
+}
+
+function wrapAsyncHandler<T extends Function>(handler: T): T {
+  if (typeof handler !== "function") {
+    return handler;
+  }
+
+  if ((handler as Function).length === 4) {
+    return ((err: unknown, req: Request, res: Response, next: NextFunction) => {
+      try {
+        const result = (handler as unknown as (err: unknown, req: Request, res: Response, next: NextFunction) => unknown)(err, req, res, next);
+        Promise.resolve(result).catch(next);
+      } catch (wrappedError) {
+        next(wrappedError);
+      }
+    }) as unknown as T;
+  }
+
+  return ((req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = (handler as unknown as (req: Request, res: Response, next: NextFunction) => unknown)(req, res, next);
+      Promise.resolve(result).catch(next);
+    } catch (wrappedError) {
+      next(wrappedError);
+    }
+  }) as unknown as T;
+}
+
+function wrapAsyncHandlers(args: unknown[]): unknown[] {
+  return args.map((arg) => {
+    if (Array.isArray(arg)) {
+      return wrapAsyncHandlers(arg);
+    }
+
+    return typeof arg === "function"
+      ? wrapAsyncHandler(arg)
+      : arg;
+  });
+}
+
+function patchAsyncErrorHandling(target: Express) {
+  for (const method of ASYNC_HANDLER_METHODS) {
+    const original = target[method].bind(target) as (...args: unknown[]) => unknown;
+    target[method] = ((...args: unknown[]) => original(...wrapAsyncHandlers(args))) as Express[typeof method];
+  }
+}
+
+function parseConfiguredCorsOrigins() {
+  return (process.env.CORS_ORIGIN || "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+}
+
+function isSameOriginRequest(req: Request, origin: string) {
+  const host = req.get("host");
+  if (!host) {
+    return false;
+  }
+
+  const forwardedProto = req.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const protocol = forwardedProto || req.protocol;
+
+  return origin === `${protocol}://${host}`;
+}
+
+function isCorsOriginAllowed(req: Request, origin: string) {
+  if (!origin) {
+    return true;
+  }
+
+  if (!isProduction) {
+    return LOCALHOST_ORIGIN_PATTERN.test(origin);
+  }
+
+  const configuredOrigins = parseConfiguredCorsOrigins();
+  if (configuredOrigins.length > 0) {
+    return configuredOrigins.includes(origin);
+  }
+
+  return isSameOriginRequest(req, origin);
+}
+
+function getAllowedRequestHeaders(req: Request) {
+  const requestHeaders = req.get("access-control-request-headers");
+  return requestHeaders || DEFAULT_ALLOWED_HEADERS.join(", ");
+}
+
+function getSafeErrorMessage(status: number, error: unknown) {
+  if (status >= 500 && isProduction) {
+    return "Internal Server Error";
+  }
+
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return status >= 500 ? "Internal Server Error" : "Request failed";
+}
+
 // Trust proxy when behind reverse proxy / load balancer
 if (isProduction) {
   app.set("trust proxy", 1);
 }
+
+patchAsyncErrorHandling(app);
 
 const SENSITIVE_RESPONSE_KEYS = new Set([
   'token',
@@ -92,18 +225,54 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com"],
-      imgSrc: ["'self'", "data:", "blob:", "https:", "http:"],
+      baseUri: ["'self'"],
+      objectSrc: ["'none'"],
+      frameAncestors: ["'self'"],
       scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com", "data:"],
+      imgSrc: ["'self'", "data:", "blob:", "https:", "http:"],
       connectSrc: ["'self'", "https:", "wss:"],
       frameSrc: ["'self'", "https://www.facebook.com"],
       workerSrc: ["'self'", "blob:"],
+      manifestSrc: ["'self'"],
+      upgradeInsecureRequests: isProduction ? [] : null,
     },
   },
-  crossOriginEmbedderPolicy: false, // Required for cross-origin images
+  crossOriginEmbedderPolicy: false,
   crossOriginResourcePolicy: { policy: "cross-origin" },
+  referrerPolicy: { policy: "no-referrer" },
+  noSniff: true,
 }));
+
+app.use((req, res, next) => {
+  const origin = req.get("origin");
+
+  if (!origin) {
+    return next();
+  }
+
+  if (!isCorsOriginAllowed(req, origin)) {
+    if (req.method === "OPTIONS") {
+      return res.status(403).json({ error: "CORS origin denied" });
+    }
+
+    return next();
+  }
+
+  res.setHeader("Access-Control-Allow-Origin", origin);
+  res.setHeader("Vary", "Origin");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  res.setHeader("Access-Control-Allow-Methods", DEFAULT_ALLOWED_METHODS.join(", "));
+  res.setHeader("Access-Control-Allow-Headers", getAllowedRequestHeaders(req));
+  res.setHeader("Access-Control-Expose-Headers", "X-Request-Id");
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+
+  next();
+});
 
 // Global rate limiter - 1000 requests per 15 minutes per IP
 const globalLimiter = rateLimit({
@@ -138,11 +307,12 @@ export const sensitiveLimiter = rateLimit({
   message: { error: "Too many requests for this sensitive operation, please try again later" },
 });
 
-declare module 'http' {
-  interface IncomingMessage {
-    rawBody: unknown
-  }
-}
+app.use((req, res, next) => {
+  req.requestId = randomUUID();
+  res.setHeader("X-Request-Id", req.requestId);
+  next();
+});
+
 app.use(express.json({
   verify: (req, _res, buf) => {
     req.rawBody = buf;
@@ -177,8 +347,7 @@ app.use((req, res, next) => {
         : undefined;
 
       if (useJsonLogs) {
-        console.log(JSON.stringify({
-          timestamp: new Date().toISOString(),
+        console.log(serializeLog({
           level: res.statusCode >= 500 ? "error" : res.statusCode >= 400 ? "warn" : "info",
           source: "http",
           method: req.method,
@@ -187,10 +356,11 @@ app.use((req, res, next) => {
           duration_ms: duration,
           ip: req.ip,
           user_agent: req.get("user-agent"),
+          request_id: req.requestId,
           response: redactedResponse,
         }));
       } else {
-        let logLine = `${req.method} ${reqPath} ${res.statusCode} in ${duration}ms`;
+        let logLine = `${req.method} ${reqPath} ${res.statusCode} in ${duration}ms [${req.requestId}]`;
         if (redactedResponse) {
           logLine += ` :: ${JSON.stringify(redactedResponse)}`;
         }
@@ -210,56 +380,72 @@ export default async function runApp(
 ) {
   const server = await registerRoutes(app);
 
-  // Global error handler
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    if (status >= 500) {
-      console.error(JSON.stringify({
-        timestamp: new Date().toISOString(),
-        level: "error",
-        source: "unhandled",
-        message,
-        stack: err.stack,
-      }));
-    }
-
-    if (!res.headersSent) {
-      res.status(status).json({ message });
-    }
-  });
-
   // importantly run the final setup after setting up all the other routes so
   // the catch-all route doesn't interfere with the other routes
   await setup(app, server);
 
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen({
-    port,
-    host: "0.0.0.0",
-  }, () => {
-    log(`serving on port ${port}`);
+  // Global error handler - must be last middleware registered
+  app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
+    const status = typeof err === "object" && err !== null && "status" in err
+      ? Number((err as { status?: number }).status) || 500
+      : typeof err === "object" && err !== null && "statusCode" in err
+        ? Number((err as { statusCode?: number }).statusCode) || 500
+        : 500;
+
+    const safeMessage = getSafeErrorMessage(status, err);
+
+    if (status >= 500) {
+      const errorPayload: Record<string, unknown> = {
+        level: "error",
+        source: "express-error",
+        message: err instanceof Error ? err.message : "Unhandled error",
+        status,
+        method: req.method,
+        path: req.originalUrl,
+        request_id: req.requestId,
+        ip: req.ip,
+      };
+
+      if (err instanceof Error && !isProduction) {
+        errorPayload.stack = err.stack;
+      }
+
+      console.error(serializeLog(errorPayload));
+    }
+
+    if (res.headersSent) {
+      return;
+    }
+
+    const body: Record<string, unknown> = {
+      message: safeMessage,
+      requestId: req.requestId,
+    };
+
+    if (!isProduction && err instanceof Error && err.stack) {
+      body.stack = err.stack;
+    }
+
+    res.status(status).json(body);
   });
 
-  // Graceful shutdown
-  const shutdown = (signal: string) => {
-    log(`${signal} received, shutting down gracefully...`);
-    server.close(() => {
-      log("HTTP server closed");
-      process.exit(0);
-    });
-    // Force exit after 10s if graceful shutdown fails
-    setTimeout(() => {
-      console.error("Forceful shutdown after timeout");
-      process.exit(1);
-    }, 10_000);
-  };
+  const port = parseInt(process.env.PORT || '5000', 10);
+  await new Promise<void>((resolve, reject) => {
+    const onError = (error: Error) => {
+      server.off("error", onError);
+      reject(error);
+    };
 
-  process.on("SIGTERM", () => shutdown("SIGTERM"));
-  process.on("SIGINT", () => shutdown("SIGINT"));
+    server.once("error", onError);
+    server.listen({
+      port,
+      host: "0.0.0.0",
+    }, () => {
+      server.off("error", onError);
+      log(`serving on port ${port}`);
+      resolve();
+    });
+  });
+
+  return server;
 }
