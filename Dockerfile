@@ -70,6 +70,6 @@ EXPOSE 5000
 ENTRYPOINT ["dumb-init", "--"]
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD curl -f http://localhost:5000/health || exit 1
+    CMD curl -f http://localhost:5000/ready || exit 1
 
 CMD ["node", "dist/index.js"]
