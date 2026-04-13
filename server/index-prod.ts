@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import { type Server } from "node:http";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import express, { type Express } from "express";
 
@@ -24,7 +25,8 @@ import { ensureProductionRuntimeRequirements, logRuntimeReadinessSummary } from 
 const SHUTDOWN_TIMEOUT_MS = 30_000;
 
 export async function serveStatic(app: Express, server: Server) {
-  const distPath = path.resolve(import.meta.dirname, "public");
+  const distDir = path.dirname(fileURLToPath(import.meta.url));
+  const distPath = path.resolve(distDir, "public");
 
   if (!fs.existsSync(distPath)) {
     throw new Error(
