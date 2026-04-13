@@ -20,6 +20,7 @@ export interface Car {
   cargurusUrl?: string | null;
   dealRating?: string | null;
   carfaxUrl?: string | null;
+  carfaxBadges?: string[] | null;
   dealerVdpUrl?: string | null;
   videoUrl?: string | null;
   filterGroupId?: number | null;

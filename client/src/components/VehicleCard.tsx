@@ -80,18 +80,24 @@ export function VehicleCard({ car }: VehicleCardProps) {
     setCurrentImageIndex((prev) => (prev - 1 + car.images.length) % car.images.length);
   };
 
+  const combinedBadges = useMemo(
+    () => Array.from(new Set([...(car.badges ?? []), ...(car.carfaxBadges ?? [])])),
+    [car.badges, car.carfaxBadges]
+  );
+
   // Parse badges to identify special badges
-  const hasNoAccidents = car.badges.some(b => 
+  const hasNoAccidents = combinedBadges.some(b => 
     b.toLowerCase().includes('no accident') || 
+    b.toLowerCase().includes('no reported accident') ||
     b.toLowerCase().includes('clean history') ||
     b.toLowerCase().includes('accident-free')
   );
-  const isOneOwner = car.badges.some(b => 
+  const isOneOwner = combinedBadges.some(b => 
     b.toLowerCase().includes('one owner') || 
     b.toLowerCase().includes('1 owner') ||
     b.toLowerCase().includes('single owner')
   );
-  const otherBadges = car.badges.filter(b => 
+  const otherBadges = combinedBadges.filter(b => 
     !b.toLowerCase().includes('accident') && 
     !b.toLowerCase().includes('owner') &&
     !b.toLowerCase().includes('clean history')

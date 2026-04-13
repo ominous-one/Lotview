@@ -1,7 +1,7 @@
-import { db } from "./db";
-import { hashPassword } from "./auth";
+import { db } from "./db.ts";
+import { hashPassword } from "./auth.ts";
 import crypto from "crypto";
-import { computeVehicleDataQualitySignals, type VehicleDataQualitySignals } from "./vehicle-data-quality";
+import { computeVehicleDataQualitySignals, type VehicleDataQualitySignals } from "./vehicle-data-quality.ts";
 
 const SYSTEM_BASE_DOMAIN = (process.env.SYSTEM_BASE_DOMAIN || process.env.APP_BASE_DOMAIN || 'lotview.ai').toLowerCase();
 
@@ -349,6 +349,7 @@ export interface PublicInventoryVehicle {
   cargurusUrl?: string | null;
   dealRating?: string | null;
   carfaxUrl?: string | null;
+  carfaxBadges?: string[] | null;
   dealerVdpUrl?: string | null;
   videoUrl?: string | null;
   filterGroupId?: number | null;
@@ -1423,7 +1424,7 @@ export class DatabaseStorage implements IStorage {
         price: vehicle.price ?? 0,
         odometer: vehicle.odometer ?? 0,
         images: (vehicle.primaryImages && vehicle.primaryImages.length > 0) ? vehicle.primaryImages : (vehicle.fallbackImages ?? []),
-        badges: vehicle.badges ?? [],
+        badges: Array.from(new Set([...(vehicle.badges ?? []), ...(vehicle.carfaxBadges ?? [])])),
         location: vehicle.location ?? '',
         dealership: vehicle.dealership ?? '',
         description: vehicle.description ?? '',
@@ -1433,6 +1434,7 @@ export class DatabaseStorage implements IStorage {
         cargurusUrl: vehicle.cargurusUrl,
         dealRating: vehicle.dealRating,
         carfaxUrl: vehicle.carfaxUrl,
+        carfaxBadges: vehicle.carfaxBadges ?? [],
         dealerVdpUrl: vehicle.dealerVdpUrl,
         videoUrl: vehicle.videoUrl,
         filterGroupId: vehicle.filterGroupId,
