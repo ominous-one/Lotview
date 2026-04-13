@@ -1,5 +1,5 @@
+import { lazy, Suspense, useEffect, type ComponentType } from "react";
 import { Switch, Route, useLocation } from "wouter";
-import { useEffect } from "react";
 import { AlertCircle } from "lucide-react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -15,37 +15,85 @@ import RequestAccessPage from "@/pages/RequestAccessPage";
 import Inventory from "@/pages/Inventory";
 import VehicleDetail from "@/pages/VehicleDetail";
 import EmbedWidget from "@/pages/EmbedWidget";
-import Admin from "@/pages/Admin";
 import Login from "@/pages/Login";
-import Dashboard from "@/pages/Dashboard";
-import Manager from "@/pages/Manager";
-import Sales from "@/pages/Sales";
-import SuperAdminDashboard from "@/pages/SuperAdminDashboard";
-import N8nIntegration from "@/pages/N8nIntegration";
 import InviteAccept from "@/pages/InviteAccept";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import TermsOfService from "@/pages/TermsOfService";
-import CallAnalysis from "@/pages/CallAnalysis";
-import SequenceAnalytics from "@/pages/SequenceAnalytics";
-import SalesAutoPosting from "@/pages/SalesAutoPosting";
-import SalesConversations from "@/pages/SalesConversations";
-import ContactsPage from "@/pages/ContactsPage";
-import FbInbox from "@/pages/FbInbox";
-import FbAutomationSettings from "@/pages/FbAutomationSettings";
-import FbAuditConsole from "@/pages/FbAuditConsole";
-import MarketplaceBlast from "@/pages/MarketplaceBlast";
-import MarketplaceBlastVehicle from "@/pages/MarketplaceBlastVehicle";
-import SavedAppraisals from "@/pages/SavedAppraisals";
-import AppointmentsPage from "@/pages/AppointmentsPage";
-import AppointmentDetailPage from "@/pages/AppointmentDetailPage";
-import NotificationsPage from "@/pages/NotificationsPage";
-import ManagerEmailSettingsPage from "@/pages/ManagerEmailSettingsPage";
-import AppointmentCalendarPage from "@/pages/AppointmentCalendarPage";
-import FollowUpTasksPage from "@/pages/FollowUpTasksPage";
-import AutopostQueue from "@/pages/AutopostQueue";
-import AutopostQueueManager from "@/pages/AutopostQueueManager";
 import { ImpersonationBanner } from "@/components/ImpersonationBanner";
 import ErrorBoundary from "@/components/ErrorBoundary";
+
+const Dashboard = lazy(() => import("@/pages/Dashboard"));
+const Manager = lazy(() => import("@/pages/Manager"));
+const Sales = lazy(() => import("@/pages/Sales"));
+const SuperAdminDashboard = lazy(() => import("@/pages/SuperAdminDashboard"));
+const N8nIntegration = lazy(() => import("@/pages/N8nIntegration"));
+const CallAnalysis = lazy(() => import("@/pages/CallAnalysis"));
+const SequenceAnalytics = lazy(() => import("@/pages/SequenceAnalytics"));
+const SalesAutoPosting = lazy(() => import("@/pages/SalesAutoPosting"));
+const SalesConversations = lazy(() => import("@/pages/SalesConversations"));
+const ContactsPage = lazy(() => import("@/pages/ContactsPage"));
+const FbInbox = lazy(() => import("@/pages/FbInbox"));
+const FbAutomationSettings = lazy(() => import("@/pages/FbAutomationSettings"));
+const FbAuditConsole = lazy(() => import("@/pages/FbAuditConsole"));
+const MarketplaceBlast = lazy(() => import("@/pages/MarketplaceBlast"));
+const MarketplaceBlastVehicle = lazy(() => import("@/pages/MarketplaceBlastVehicle"));
+const SavedAppraisals = lazy(() => import("@/pages/SavedAppraisals"));
+const AppointmentsPage = lazy(() => import("@/pages/AppointmentsPage"));
+const AppointmentDetailPage = lazy(() => import("@/pages/AppointmentDetailPage"));
+const NotificationsPage = lazy(() => import("@/pages/NotificationsPage"));
+const ManagerEmailSettingsPage = lazy(() => import("@/pages/ManagerEmailSettingsPage"));
+const AppointmentCalendarPage = lazy(() => import("@/pages/AppointmentCalendarPage"));
+const FollowUpTasksPage = lazy(() => import("@/pages/FollowUpTasksPage"));
+const AutopostQueue = lazy(() => import("@/pages/AutopostQueue"));
+const AutopostQueueManager = lazy(() => import("@/pages/AutopostQueueManager"));
+const Admin = lazy(() => import("@/pages/Admin"));
+
+function PageLoadingFallback() {
+  return (
+    <div className="min-h-[40vh] flex items-center justify-center px-4">
+      <div className="flex flex-col items-center gap-3 text-muted-foreground">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary/20 border-t-primary" />
+        <span className="text-sm font-medium">Loading...</span>
+      </div>
+    </div>
+  );
+}
+
+function withSuspense(Component: ComponentType) {
+  return function SuspendedRouteComponent() {
+    return (
+      <Suspense fallback={<PageLoadingFallback />}>
+        <Component />
+      </Suspense>
+    );
+  };
+}
+
+const DashboardRoute = withSuspense(Dashboard);
+const ManagerRoute = withSuspense(Manager);
+const SalesRoute = withSuspense(Sales);
+const SuperAdminDashboardRoute = withSuspense(SuperAdminDashboard);
+const N8nIntegrationRoute = withSuspense(N8nIntegration);
+const CallAnalysisRoute = withSuspense(CallAnalysis);
+const SequenceAnalyticsRoute = withSuspense(SequenceAnalytics);
+const SalesAutoPostingRoute = withSuspense(SalesAutoPosting);
+const SalesConversationsRoute = withSuspense(SalesConversations);
+const ContactsPageRoute = withSuspense(ContactsPage);
+const FbInboxRoute = withSuspense(FbInbox);
+const FbAutomationSettingsRoute = withSuspense(FbAutomationSettings);
+const FbAuditConsoleRoute = withSuspense(FbAuditConsole);
+const MarketplaceBlastRoute = withSuspense(MarketplaceBlast);
+const MarketplaceBlastVehicleRoute = withSuspense(MarketplaceBlastVehicle);
+const SavedAppraisalsRoute = withSuspense(SavedAppraisals);
+const AppointmentsPageRoute = withSuspense(AppointmentsPage);
+const AppointmentDetailPageRoute = withSuspense(AppointmentDetailPage);
+const NotificationsPageRoute = withSuspense(NotificationsPage);
+const ManagerEmailSettingsPageRoute = withSuspense(ManagerEmailSettingsPage);
+const AppointmentCalendarPageRoute = withSuspense(AppointmentCalendarPage);
+const FollowUpTasksPageRoute = withSuspense(FollowUpTasksPage);
+const AutopostQueueRoute = withSuspense(AutopostQueue);
+const AutopostQueueManagerRoute = withSuspense(AutopostQueueManager);
+const AdminRoute = withSuspense(Admin);
 
 function RedirectToRequestAccess() {
   const [, setLocation] = useLocation();
@@ -66,32 +114,32 @@ function MarketingRouter() {
       <Route path="/demo" component={RedirectToRequestAccess} />
       <Route path="/get-demo" component={RedirectToRequestAccess} />
       <Route path="/login" component={Login} />
-      <Route path="/dashboard" component={Dashboard} />
-      <Route path="/n8n-integration" component={N8nIntegration} />
-      <Route path="/manager">{() => <ErrorBoundary><Manager /></ErrorBoundary>}</Route>
-      <Route path="/manager/appraisals" component={SavedAppraisals} />
-      <Route path="/manager/appointments" component={AppointmentsPage} />
-      <Route path="/manager/calendar" component={AppointmentCalendarPage} />
-      <Route path="/manager/follow-up-tasks" component={FollowUpTasksPage} />
-      <Route path="/manager/autopost-queue" component={AutopostQueueManager} />
-      <Route path="/manager/autopost/queue" component={AutopostQueue} />
-      <Route path="/manager/appointments/:id" component={AppointmentDetailPage} />
-      <Route path="/manager/notifications" component={NotificationsPage} />
-      <Route path="/manager/notifications/settings" component={ManagerEmailSettingsPage} />
-      <Route path="/sales" component={Sales} />
-      <Route path="/sales/auto-posting" component={SalesAutoPosting} />
-      <Route path="/sales/conversations" component={SalesConversations} />
-      <Route path="/sales/fb-inbox" component={FbInbox} />
-      <Route path="/sales/fb-automation" component={FbAutomationSettings} />
-      <Route path="/sales/fb-audit" component={FbAuditConsole} />
-      <Route path="/sales/marketplace-blast" component={MarketplaceBlast} />
-      <Route path="/marketplace-blast" component={MarketplaceBlast} />
-      <Route path="/marketplace-blast/vehicle/:id" component={MarketplaceBlastVehicle} />
-      <Route path="/contacts" component={ContactsPage} />
-      <Route path="/admin" component={Admin} />
-      <Route path="/super-admin" component={SuperAdminDashboard} />
-      <Route path="/call-analysis" component={CallAnalysis} />
-      <Route path="/sequence-analytics" component={SequenceAnalytics} />
+      <Route path="/dashboard" component={DashboardRoute} />
+      <Route path="/n8n-integration" component={N8nIntegrationRoute} />
+      <Route path="/manager">{() => <ErrorBoundary><ManagerRoute /></ErrorBoundary>}</Route>
+      <Route path="/manager/appraisals" component={SavedAppraisalsRoute} />
+      <Route path="/manager/appointments" component={AppointmentsPageRoute} />
+      <Route path="/manager/calendar" component={AppointmentCalendarPageRoute} />
+      <Route path="/manager/follow-up-tasks" component={FollowUpTasksPageRoute} />
+      <Route path="/manager/autopost-queue" component={AutopostQueueManagerRoute} />
+      <Route path="/manager/autopost/queue" component={AutopostQueueRoute} />
+      <Route path="/manager/appointments/:id" component={AppointmentDetailPageRoute} />
+      <Route path="/manager/notifications" component={NotificationsPageRoute} />
+      <Route path="/manager/notifications/settings" component={ManagerEmailSettingsPageRoute} />
+      <Route path="/sales" component={SalesRoute} />
+      <Route path="/sales/auto-posting" component={SalesAutoPostingRoute} />
+      <Route path="/sales/conversations" component={SalesConversationsRoute} />
+      <Route path="/sales/fb-inbox" component={FbInboxRoute} />
+      <Route path="/sales/fb-automation" component={FbAutomationSettingsRoute} />
+      <Route path="/sales/fb-audit" component={FbAuditConsoleRoute} />
+      <Route path="/sales/marketplace-blast" component={MarketplaceBlastRoute} />
+      <Route path="/marketplace-blast" component={MarketplaceBlastRoute} />
+      <Route path="/marketplace-blast/vehicle/:id" component={MarketplaceBlastVehicleRoute} />
+      <Route path="/contacts" component={ContactsPageRoute} />
+      <Route path="/admin" component={AdminRoute} />
+      <Route path="/super-admin" component={SuperAdminDashboardRoute} />
+      <Route path="/call-analysis" component={CallAnalysisRoute} />
+      <Route path="/sequence-analytics" component={SequenceAnalyticsRoute} />
       <Route path="/invite/:token" component={InviteAccept} />
       <Route path="/privacy-policy" component={PrivacyPolicy} />
       <Route path="/terms-of-service" component={TermsOfService} />
@@ -110,32 +158,32 @@ function DealershipRouter() {
       <Route path="/demo" component={RedirectToRequestAccess} />
       <Route path="/get-demo" component={RedirectToRequestAccess} />
       <Route path="/login" component={Login} />
-      <Route path="/dashboard" component={Dashboard} />
-      <Route path="/n8n-integration" component={N8nIntegration} />
-      <Route path="/manager">{() => <ErrorBoundary><Manager /></ErrorBoundary>}</Route>
-      <Route path="/manager/appraisals" component={SavedAppraisals} />
-      <Route path="/manager/appointments" component={AppointmentsPage} />
-      <Route path="/manager/calendar" component={AppointmentCalendarPage} />
-      <Route path="/manager/follow-up-tasks" component={FollowUpTasksPage} />
-      <Route path="/manager/autopost-queue" component={AutopostQueueManager} />
-      <Route path="/manager/autopost/queue" component={AutopostQueue} />
-      <Route path="/manager/appointments/:id" component={AppointmentDetailPage} />
-      <Route path="/manager/notifications" component={NotificationsPage} />
-      <Route path="/manager/notifications/settings" component={ManagerEmailSettingsPage} />
-      <Route path="/sales" component={Sales} />
-      <Route path="/sales/auto-posting" component={SalesAutoPosting} />
-      <Route path="/sales/conversations" component={SalesConversations} />
-      <Route path="/sales/fb-inbox" component={FbInbox} />
-      <Route path="/sales/fb-automation" component={FbAutomationSettings} />
-      <Route path="/sales/fb-audit" component={FbAuditConsole} />
-      <Route path="/sales/marketplace-blast" component={MarketplaceBlast} />
-      <Route path="/marketplace-blast" component={MarketplaceBlast} />
-      <Route path="/marketplace-blast/vehicle/:id" component={MarketplaceBlastVehicle} />
-      <Route path="/contacts" component={ContactsPage} />
-      <Route path="/admin" component={Admin} />
-      <Route path="/super-admin" component={SuperAdminDashboard} />
-      <Route path="/call-analysis" component={CallAnalysis} />
-      <Route path="/sequence-analytics" component={SequenceAnalytics} />
+      <Route path="/dashboard" component={DashboardRoute} />
+      <Route path="/n8n-integration" component={N8nIntegrationRoute} />
+      <Route path="/manager">{() => <ErrorBoundary><ManagerRoute /></ErrorBoundary>}</Route>
+      <Route path="/manager/appraisals" component={SavedAppraisalsRoute} />
+      <Route path="/manager/appointments" component={AppointmentsPageRoute} />
+      <Route path="/manager/calendar" component={AppointmentCalendarPageRoute} />
+      <Route path="/manager/follow-up-tasks" component={FollowUpTasksPageRoute} />
+      <Route path="/manager/autopost-queue" component={AutopostQueueManagerRoute} />
+      <Route path="/manager/autopost/queue" component={AutopostQueueRoute} />
+      <Route path="/manager/appointments/:id" component={AppointmentDetailPageRoute} />
+      <Route path="/manager/notifications" component={NotificationsPageRoute} />
+      <Route path="/manager/notifications/settings" component={ManagerEmailSettingsPageRoute} />
+      <Route path="/sales" component={SalesRoute} />
+      <Route path="/sales/auto-posting" component={SalesAutoPostingRoute} />
+      <Route path="/sales/conversations" component={SalesConversationsRoute} />
+      <Route path="/sales/fb-inbox" component={FbInboxRoute} />
+      <Route path="/sales/fb-automation" component={FbAutomationSettingsRoute} />
+      <Route path="/sales/fb-audit" component={FbAuditConsoleRoute} />
+      <Route path="/sales/marketplace-blast" component={MarketplaceBlastRoute} />
+      <Route path="/marketplace-blast" component={MarketplaceBlastRoute} />
+      <Route path="/marketplace-blast/vehicle/:id" component={MarketplaceBlastVehicleRoute} />
+      <Route path="/contacts" component={ContactsPageRoute} />
+      <Route path="/admin" component={AdminRoute} />
+      <Route path="/super-admin" component={SuperAdminDashboardRoute} />
+      <Route path="/call-analysis" component={CallAnalysisRoute} />
+      <Route path="/sequence-analytics" component={SequenceAnalyticsRoute} />
       <Route path="/invite/:token" component={InviteAccept} />
       <Route path="/embed" component={EmbedWidget} />
       <Route path="/privacy-policy" component={PrivacyPolicy} />
@@ -218,4 +266,3 @@ function App() {
 }
 
 export default App;
-

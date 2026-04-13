@@ -5,6 +5,54 @@ import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 import { metaImagesPlugin } from "./vite-plugin-meta-images";
 
+function manualChunks(id: string) {
+  const normalizedId = id.replace(/\\/g, "/");
+
+  if (!normalizedId.includes("/node_modules/")) {
+    return undefined;
+  }
+
+  if (
+    normalizedId.includes("/node_modules/react/") ||
+    normalizedId.includes("/node_modules/react-dom/") ||
+    normalizedId.includes("/node_modules/react-router/") ||
+    normalizedId.includes("/node_modules/react-router-dom/") ||
+    normalizedId.includes("/node_modules/wouter/")
+  ) {
+    return "vendor-react";
+  }
+
+  if (normalizedId.includes("/node_modules/@radix-ui/")) {
+    return "vendor-ui";
+  }
+
+  if (normalizedId.includes("/node_modules/@tanstack/react-query/")) {
+    return "vendor-query";
+  }
+
+  if (normalizedId.includes("/node_modules/recharts/")) {
+    return "vendor-charts";
+  }
+
+  if (normalizedId.includes("/node_modules/lucide-react/")) {
+    return "vendor-icons";
+  }
+
+  if (
+    normalizedId.includes("/node_modules/date-fns/") ||
+    normalizedId.includes("/node_modules/dompurify/") ||
+    normalizedId.includes("/node_modules/embla-carousel-react/") ||
+    normalizedId.includes("/node_modules/react-day-picker/") ||
+    normalizedId.includes("/node_modules/cmdk/") ||
+    normalizedId.includes("/node_modules/vaul/") ||
+    normalizedId.includes("/node_modules/sonner/")
+  ) {
+    return "vendor-misc";
+  }
+
+  return undefined;
+}
+
 export default defineConfig({
   plugins: [
     react(),
@@ -39,6 +87,11 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks,
+      },
+    },
   },
   server: {
     host: "0.0.0.0",
