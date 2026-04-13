@@ -18,12 +18,125 @@ interface VDPDetails {
   vdpDescription: string | null;
   carfaxBadges: string[];
   techSpecs: TechSpecs | null;
+  carfaxUrl: string | null;
+  exteriorColor: string | null;
+  interiorColor: string | null;
+  transmission: string | null;
+  drivetrain: string | null;
+  fuelType: string | null;
+  engine: string | null;
+}
+
+function decodeHtmlEntitiesForScraper(value: string): string {
+  return value
+    .replace(/&amp;/g, '&')
+    .replace(/&#x2F;/gi, '/')
+    .replace(/&#x3A;/gi, ':')
+    .replace(/&#x3D;/gi, '=')
+    .replace(/&#x26;/gi, '&')
+    .replace(/\\\//g, '/')
+    .replace(/\\u0026/gi, '&')
+    .replace(/\\u002f/gi, '/')
+    .replace(/\\u003a/gi, ':')
+    .replace(/\\u003d/gi, '=')
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, num) => String.fromCharCode(parseInt(num, 10)));
+}
+
+function extractCarfaxUrl($: cheerio.CheerioAPI): string | null {
+  const html = decodeHtmlEntitiesForScraper($.html());
+  const vhrPattern = /https?:\/\/vhr\.carfax\.ca\/\?id=[A-Za-z0-9%\/=+_-]+/gi;
+  const vhrMatch = html.match(vhrPattern)?.[0];
+  if (vhrMatch) return vhrMatch;
+
+  const structuredPatterns = [
+    /"(?:carfaxUrl|carfaxURL|carfax_report_url|carfaxReportUrl|vehicleHistoryUrl)"\s*:\s*"([^"]+)"/gi,
+    /"(?:href|url)"\s*:\s*"(https?:\\\/\\\/(?:vhr\\\.)?carfax\\\.(?:ca|com)[^"]+)"/gi,
+    /(?:carfaxUrl|carfaxURL|carfaxReportUrl|vehicleHistoryUrl)\s*[:=]\s*['"]([^'"]+)['"]/gi,
+  ];
+
+  for (const pattern of structuredPatterns) {
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(html))) {
+      const candidate = decodeHtmlEntitiesForScraper(match[1]);
+      if (/https?:\/\/(?:vhr\.)?carfax\.(?:ca|com)/i.test(candidate)) {
+        return candidate;
+      }
+    }
+  }
+
+  const selectors = 'a[href*="carfax"], a[data-href*="carfax"], a[data-url*="carfax"], a[data-link*="carfax"], [data-carfax-url], [data-carfax], [data-href*="carfax"], [data-link*="carfax"]';
+  const attrNames = ['href', 'data-href', 'data-url', 'data-link', 'data-carfax-url', 'data-carfax'];
+  let fallback: string | null = null;
+
+  $(selectors).each((_, el) => {
+    for (const attr of attrNames) {
+      const raw = $(el).attr(attr);
+      if (!raw) continue;
+      const candidate = decodeHtmlEntitiesForScraper(raw.trim());
+      if (/https?:\/\/vhr\.carfax\.(?:ca|com)/i.test(candidate)) {
+        fallback = candidate;
+        return false;
+      }
+      if (!fallback && /https?:\/\/(?:www\.)?carfax\.(?:ca|com)/i.test(candidate) && !/^https?:\/\/(?:www\.)?carfax\.(?:ca|com)\/?$/i.test(candidate)) {
+        fallback = candidate;
+      }
+    }
+  });
+
+  return fallback;
+}
+
+function extractLabeledValue($: cheerio.CheerioAPI, labels: string[], html: string): string | null {
+  const selectors = ['.techspecs-tab.mb-md', '.techspecs-tab', '.description-tab.mb-md', '.description-tab', 'body'];
+
+  for (const label of labels) {
+    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\ /g, '\\s*');
+    const regexes = [
+      new RegExp(`${escaped}[:\\s]+([^<\\n|,;]+)`, 'i'),
+      new RegExp(`<dt[^>]*>\\s*${escaped}\\s*</dt>\\s*<dd[^>]*>\\s*([^<]+)`, 'i'),
+      new RegExp(`<th[^>]*>\\s*${escaped}\\s*</th>\\s*<td[^>]*>\\s*([^<]+)`, 'i'),
+      new RegExp(`"${escaped}"\\s*[:=]\\s*"([^"]+)"`, 'i'),
+    ];
+
+    for (const selector of selectors) {
+      const text = $(selector).text();
+      for (const regex of regexes) {
+        const match = text.match(regex) || html.match(regex);
+        if (match?.[1]) {
+          const candidate = match[1].replace(/\s+/g, ' ').trim();
+          if (candidate && candidate.length <= 120) return candidate;
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+function extractFuelType($: cheerio.CheerioAPI, html: string): string | null {
+  const candidate = extractLabeledValue($, ['Fuel Type', 'Fuel', 'Powertrain'], html);
+  if (!candidate) return null;
+  const lower = candidate.toLowerCase();
+  if (lower.includes('electric')) return 'Electric';
+  if (lower.includes('hybrid') || lower.includes('plug-in')) return 'Hybrid';
+  if (lower.includes('diesel')) return 'Diesel';
+  if (lower.includes('gas') || lower.includes('gasoline') || lower.includes('petrol') || lower.includes('unleaded')) return 'Gasoline';
+  return candidate;
 }
 
 function extractVDPDetails($: cheerio.CheerioAPI): VDPDetails {
+  const pageHtml = $.html();
   let vdpDescription: string | null = null;
   const carfaxBadges: string[] = [];
   let techSpecs: TechSpecs | null = null;
+  const carfaxUrl = extractCarfaxUrl($);
+  const exteriorColor = extractLabeledValue($, ['Exterior Colour', 'Exterior Color', 'Colour (Exterior)', 'Color (Exterior)'], pageHtml);
+  const interiorColor = extractLabeledValue($, ['Interior Colour', 'Interior Color', 'Colour (Interior)', 'Color (Interior)'], pageHtml);
+  const transmission = extractLabeledValue($, ['Transmission'], pageHtml);
+  const drivetrain = extractLabeledValue($, ['Drive Train', 'Drivetrain', 'Drive Type'], pageHtml);
+  const fuelType = extractFuelType($, pageHtml);
+  const engine = extractLabeledValue($, ['Engine Type', 'Engine'], pageHtml);
 
   // Extract VDP Description from .description-tab.mb-md
   const descriptionTab = $('.description-tab.mb-md');
@@ -47,7 +160,7 @@ function extractVDPDetails($: cheerio.CheerioAPI): VDPDetails {
 
   // Extract Carfax badges by looking for specific text patterns only
   // This avoids picking up modal/popup content
-  const pageHtml = $.html().toLowerCase();
+  const normalizedPageHtml = pageHtml.toLowerCase();
   
   // Known Carfax badge patterns (only match these specific phrases)
   const knownBadges = [
@@ -60,7 +173,7 @@ function extractVDPDetails($: cheerio.CheerioAPI): VDPDetails {
   ];
   
   for (const { pattern, badge } of knownBadges) {
-    if (pageHtml.includes(pattern) && !carfaxBadges.includes(badge)) {
+    if (normalizedPageHtml.includes(pattern) && !carfaxBadges.includes(badge)) {
       carfaxBadges.push(badge);
     }
   }
@@ -119,7 +232,7 @@ function extractVDPDetails($: cheerio.CheerioAPI): VDPDetails {
     }
   }
 
-  return { vdpDescription, carfaxBadges, techSpecs };
+  return { vdpDescription, carfaxBadges, techSpecs, carfaxUrl, exteriorColor, interiorColor, transmission, drivetrain, fuelType, engine };
 }
 
 async function scrapeAndUpdateVehicle(vehicleId: number, vdpUrl: string) {
@@ -148,11 +261,24 @@ async function scrapeAndUpdateVehicle(vehicleId: number, vdpUrl: string) {
   } : 'None');
   
   // Update the vehicle in the database
+  const [existingVehicle] = await db.select().from(vehicles).where(eq(vehicles.id, vehicleId)).limit(1);
+  if (!existingVehicle) {
+    console.log(`Vehicle ID ${vehicleId} not found`);
+    return false;
+  }
+
   await db.update(vehicles)
     .set({
-      vdpDescription: details.vdpDescription,
-      carfaxBadges: details.carfaxBadges.length > 0 ? details.carfaxBadges : null,
-      techSpecs: details.techSpecs ? JSON.stringify(details.techSpecs) : null
+      vdpDescription: existingVehicle.vdpDescription ?? details.vdpDescription,
+      carfaxBadges: existingVehicle.carfaxBadges ?? (details.carfaxBadges.length > 0 ? details.carfaxBadges : null),
+      techSpecs: existingVehicle.techSpecs ?? (details.techSpecs ? JSON.stringify(details.techSpecs) : null),
+      carfaxUrl: existingVehicle.carfaxUrl ?? details.carfaxUrl,
+      exteriorColor: existingVehicle.exteriorColor ?? details.exteriorColor,
+      interiorColor: existingVehicle.interiorColor ?? details.interiorColor,
+      transmission: existingVehicle.transmission ?? details.transmission,
+      drivetrain: existingVehicle.drivetrain ?? details.drivetrain,
+      fuelType: existingVehicle.fuelType ?? details.fuelType,
+      engine: existingVehicle.engine ?? details.engine,
     })
     .where(eq(vehicles.id, vehicleId));
   
@@ -165,7 +291,7 @@ function sleep(ms: number) {
 }
 
 async function enrichAllVehicles() {
-  // Get all vehicles that need VDP enrichment (missing techSpecs or vdpDescription)
+  // Get all vehicles that need VDP enrichment (missing any supported VDP-backed field)
   const allVehicles = await db.select().from(vehicles);
   
   console.log(`\n=== VDP ENRICHMENT ===`);
@@ -173,7 +299,17 @@ async function enrichAllVehicles() {
   
   // Filter to vehicles that have VDP URLs and need enrichment
   const vehiclesToEnrich = allVehicles.filter(v => 
-    v.dealerVdpUrl && (!v.techSpecs || !v.vdpDescription)
+    v.dealerVdpUrl && (
+      !v.techSpecs ||
+      !v.vdpDescription ||
+      !v.carfaxUrl ||
+      !v.exteriorColor ||
+      !v.interiorColor ||
+      !v.transmission ||
+      !v.drivetrain ||
+      !v.fuelType ||
+      !v.engine
+    )
   );
   
   // Also include vehicles that already have data (for re-enrichment if needed)

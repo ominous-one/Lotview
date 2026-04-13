@@ -14,9 +14,13 @@ import { eq, and, inArray, desc, like } from 'drizzle-orm';
 import { logInfo, logWarn, logError } from './error-utils';
 import * as cheerio from 'cheerio';
 import { maximizeImageUrl } from './precision-image-extractor';
+import { hasEnoughPhotosForPriceOnlyRefresh, uniquePhotoCount } from './vehicle-photo-utils';
+import { resolveCarfaxReportUrlFromVdpHtml } from './carfax-scraper';
+import { assessSourceTruthStaleRemoval } from './source-truth-stale-removal';
 
 const MAX_RETRIES = 3;
 const RETRY_DELAYS = [5000, 15000, 30000]; // 5s, 15s, 30s exponential backoff
+const ABANDONED_SCRAPE_RUN_MAX_AGE_MS = 45 * 60 * 1000;
 
 /**
  * Detect if HTML is a Cloudflare block/challenge page instead of real content.
@@ -46,8 +50,10 @@ function normalizeAutoTraderPhotoUrl(rawUrl: string): string {
   }
 
   if (/autotradercdn\.ca/i.test(url)) {
-    url = url.replace(/-\d+x\d+(\b|$)/i, '-2048x1536');
-    url = url.replace(/-\d+x\d+(\.(?:jpg|jpeg|png|webp))(?:$|\?)/i, '-2048x1536$1');
+    // AutoTrader emits both `foo-1024x786.jpg?...` and `foo.jpg-1024x786?...`.
+    // The latter 404s if we preserve the size suffix after the extension.
+    url = url.replace(/(\.(?:jpg|jpeg|png|webp))-\d+x\d+(?=(?:\?|$))/i, '$1');
+    url = url.replace(/-\d+x\d+(?=\.(?:jpg|jpeg|png|webp)(?:$|\?))/i, '-2048x1536');
   }
 
   return maximizeImageUrl(url);
@@ -67,6 +73,17 @@ function parseListingPriceText(priceText: string | null | undefined): number | n
   return value >= 5000 && value <= 500000 ? value : null;
 }
 
+function normalizeDealerVdpUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    const normalizedPath = parsed.pathname.replace(/\/+$/, '') || '/';
+    return `${parsed.protocol}//${parsed.host}${normalizedPath}`.toLowerCase();
+  } catch {
+    return url.toLowerCase().replace(/[?#].*$/, '').replace(/\/+$/, '');
+  }
+}
+
 function extractVehicleListingsFromSrp(html: string, sourceUrl: string): Array<{ vdpUrl: string; srpPrice: number | null }> {
   const $ = cheerio.load(html);
   const origin = new URL(sourceUrl).origin;
@@ -74,14 +91,31 @@ function extractVehicleListingsFromSrp(html: string, sourceUrl: string): Array<{
   const seen = new Set<string>();
 
   const extractCardPrice = (card: cheerio.Cheerio<any>): number | null => {
+    const priceBlocks = card.find('[class*="price-block"]');
+    const salePriceBlock = priceBlocks.filter((_, el) => /sale\s*price/i.test($(el).text())).first();
+
+    if (salePriceBlock.length > 0) {
+      const salePriceCandidates = [
+        salePriceBlock.find('.price-block__price--primary, .price-block__price, [class*="price"]').first().text().trim(),
+        salePriceBlock.text().trim(),
+      ];
+
+      for (const text of salePriceCandidates) {
+        const parsed = parseListingPriceText(text);
+        if (parsed) return parsed;
+      }
+    }
+
     const prioritizedSelectors = [
       '.price-block__single:contains("Sale Price") .price-block__price',
+      '.price-block__single:contains("Sale Price") .price-block__price--primary',
       '.price-block__single:contains("Selling Price") .price-block__price',
       '.price-block__single:contains("Our Price") .price-block__price',
       '.price-block__single:contains("Sale Price")',
       '.price-block__single:contains("Selling Price")',
       '.price-block__single:contains("Our Price")',
       '.price-block__price--primary',
+      '[class*="price-block"] [class*="price"]',
       '.vehicle-card__price-wrap:contains("Sale Price")',
       '.price-block',
     ];
@@ -105,9 +139,10 @@ function extractVehicleListingsFromSrp(html: string, sourceUrl: string): Array<{
     const href = card.find('a[href*="/vehicles/"]').first().attr('href');
     if (!href) return;
     const fullUrl = href.startsWith('http') ? href : `${origin}${href}`;
-    if (!/\/vehicles\/\d{4}\//i.test(fullUrl) || seen.has(fullUrl)) return;
-    seen.add(fullUrl);
-    listings.push({ vdpUrl: fullUrl, srpPrice: extractCardPrice(card) });
+    const normalizedUrl = normalizeDealerVdpUrl(fullUrl);
+    if (!normalizedUrl || !/\/vehicles\/\d{4}\//i.test(normalizedUrl) || seen.has(normalizedUrl)) return;
+    seen.add(normalizedUrl);
+    listings.push({ vdpUrl: normalizedUrl, srpPrice: extractCardPrice(card) });
   });
 
   if (listings.length > 0) return listings;
@@ -116,10 +151,11 @@ function extractVehicleListingsFromSrp(html: string, sourceUrl: string): Array<{
     const href = $(element).attr('href');
     if (!href) return;
     const fullUrl = href.startsWith('http') ? href : `${origin}${href}`;
-    if (!/\/vehicles\/\d{4}\//i.test(fullUrl) || seen.has(fullUrl)) return;
-    seen.add(fullUrl);
+    const normalizedUrl = normalizeDealerVdpUrl(fullUrl);
+    if (!normalizedUrl || !/\/vehicles\/\d{4}\//i.test(normalizedUrl) || seen.has(normalizedUrl)) return;
+    seen.add(normalizedUrl);
     const card = $(element).closest('.vehicle-card');
-    listings.push({ vdpUrl: fullUrl, srpPrice: extractCardPrice(card) });
+    listings.push({ vdpUrl: normalizedUrl, srpPrice: extractCardPrice(card) });
   });
 
   return listings;
@@ -539,6 +575,48 @@ interface VdpContent {
   engine: string | null;
 }
 
+async function enrichVdpContentWithDynamicCarfax(
+  vdpUrl: string,
+  html: string,
+  vin?: string | null,
+  extractedContent?: VdpContent,
+): Promise<VdpContent> {
+  const content = extractedContent ?? extractVdpContent(html);
+  const normalizedVin = vin?.trim().toUpperCase();
+  if (!normalizedVin || !/^[A-HJ-NPR-Z0-9]{17}$/.test(normalizedVin)) {
+    return content;
+  }
+
+  const hasResolvedVhrUrl = !!content.carfaxUrl && /https?:\/\/vhr\.carfax\.(ca|com)\//i.test(content.carfaxUrl);
+  const hasDealerCarfaxFlow = /carfaxAccountId|carfaxNonce|carfax-badge__trigger|carfax-modal|carfax-iframe/i.test(html);
+  if (hasResolvedVhrUrl || !hasDealerCarfaxFlow) {
+    return content;
+  }
+
+  try {
+    const resolved = await resolveCarfaxReportUrlFromVdpHtml(vdpUrl, html, normalizedVin);
+    if (!resolved.reportUrl && resolved.badges.length === 0) {
+      return content;
+    }
+
+    const mergedBadges = Array.from(new Set([...(content.carfaxBadges || []), ...resolved.badges]));
+    return {
+      ...content,
+      carfaxUrl: resolved.reportUrl || content.carfaxUrl,
+      carfaxBadges: mergedBadges,
+    };
+  } catch (error) {
+    logWarn('[VDP Scraper] Dynamic Carfax resolution failed', {
+      service: 'scraper',
+      method: 'vdp',
+      vdpUrl,
+      vin: normalizedVin,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return content;
+  }
+}
+
 /**
  * Extract VDP description and tech specs from a vehicle detail page HTML
  * Uses Cheerio to parse the HTML and extract structured content
@@ -767,7 +845,7 @@ function extractVdpContent(html: string): VdpContent {
  * Fetch VDP page and extract description and tech specs
  * Uses multiple fallbacks: ZenRows -> ScrapingBee -> Direct fetch
  */
-async function fetchVdpContent(vdpUrl: string): Promise<VdpContent> {
+async function fetchVdpContent(vdpUrl: string, vin?: string | null): Promise<VdpContent> {
   // Try each scraping service in order until one succeeds
   const scrapers = [
     { name: 'ZenRows', fn: fetchWithZenRows },
@@ -779,7 +857,7 @@ async function fetchVdpContent(vdpUrl: string): Promise<VdpContent> {
     try {
       const html = await scraper.fn(vdpUrl);
       if (html && html.length > 1000 && !isCloudflareBlockPage(html)) {
-        const content = extractVdpContent(html);
+        const content = await enrichVdpContentWithDynamicCarfax(vdpUrl, html, vin, extractVdpContent(html));
         if (content.vdpDescription || content.techSpecs || content.carfaxUrl || content.carfaxBadges.length > 0 || content.stockNumber) {
           logInfo(`[VDP Scraper] Successfully extracted content using ${scraper.name}`, { 
             service: 'scraper', method: 'vdp', 
@@ -1746,8 +1824,8 @@ function validateSameFolderImages(images: string[]): string[] {
       rejectedCounts: rejectedFolders.map(f => folderCounts.get(f)?.length || 0)
     });
     
-    // Return only images from the primary (most common) folder
-    return folderCounts.get(maxFolder) || [];
+    // Return images from the primary (most common) folder plus non-CDN images
+    return [...(folderCounts.get(maxFolder) || []), ...nonCdnImages];
   }
   
   // Single folder or no CDN images - return all
@@ -1901,10 +1979,12 @@ async function attemptZenRowsScrape(dealershipId?: number): Promise<{
         logInfo('[Robust Scraper] ZenRows found vehicle URLs', { service: 'scraper', method: 'zenrows', vehicleUrlCount: vehicleUrls.length, sourceName: source.sourceName });
 
         // Process each VDP (with rate limiting)
-        for (const vdpUrl of vehicleUrls) {
+        for (const rawVdpUrl of vehicleUrls) {
+          const vdpUrl = normalizeDealerVdpUrl(rawVdpUrl) || rawVdpUrl;
           try {
-            // OPTIMIZATION: Skip VDP re-scraping if vehicle already has 12+ images (complete data)
-            // Only price updates needed - those happen via SRP or force re-scrape
+            // OPTIMIZATION: Skip VDP re-scraping only after the vehicle has
+            // more than 10 uploaded photos. At that point, reruns should only
+            // refresh the price if SRP data changed.
             const existingComplete = await db.select({ 
               id: vehicles.id, 
               vin: vehicles.vin, 
@@ -1918,21 +1998,22 @@ async function attemptZenRowsScrape(dealershipId?: number): Promise<{
               ))
               .limit(1);
             
-            if (existingComplete.length > 0 && existingComplete[0].images && existingComplete[0].images.length >= 12) {
+            if (existingComplete.length > 0 && hasEnoughPhotosForPriceOnlyRefresh(existingComplete[0].images)) {
               const srpPrice = srpPriceByUrl.get(vdpUrl) ?? null;
               if (srpPrice && existingComplete[0].price !== srpPrice) {
                 await updateVehiclePriceOnly(existingComplete[0].id, srpPrice);
                 totalUpdated++;
-                totalImported++;
                 logInfo('[Robust Scraper] SRP price refresh for image-complete vehicle', {
                   service: 'scraper', method: 'zenrows', vdpUrl, vehicleId: existingComplete[0].id,
                   oldPrice: existingComplete[0].price, newPrice: srpPrice,
                 });
               }
-              logInfo('[Robust Scraper] Skipping VDP scrape - vehicle has 12+ images (complete)', { 
+              totalImported++;
+              logInfo('[Robust Scraper] Skipping VDP scrape - vehicle already has >10 uploaded photos', { 
                 service: 'scraper', method: 'zenrows', vdpUrl, 
                 vehicleId: existingComplete[0].id, 
-                imageCount: existingComplete[0].images.length 
+                imageCount: uniquePhotoCount(existingComplete[0].images),
+                countedAsSeen: true,
               });
               foundVdpUrls.add(vdpUrl); // Mark as found to prevent deletion
               continue; // Skip to next vehicle
@@ -2303,7 +2384,7 @@ async function attemptZenRowsScrape(dealershipId?: number): Promise<{
               const dealershipName = dealershipInfo?.name || source.sourceName;
 
               // Extract VDP description and tech specs from the HTML we already have
-              const vdpContent = extractVdpContent(vdpResult.html);
+              const vdpContent = await enrichVdpContentWithDynamicCarfax(vdpUrl, vdpResult.html, vin, extractVdpContent(vdpResult.html));
               if (vdpContent.vdpDescription) {
                 logInfo('[Robust Scraper] VDP description extracted (ZenRows)', { service: 'scraper', method: 'zenrows', year, make, model, descLength: vdpContent.vdpDescription.length });
               }
@@ -2600,12 +2681,12 @@ async function attemptZenRowsScrape(dealershipId?: number): Promise<{
       };
     }
 
-    // SAFE STALE VEHICLE HANDLING: Use missed_scrape_count instead of immediate deletion
+    // SAFE STALE VEHICLE HANDLING:
     // - Vehicles found in scrape: reset missed_scrape_count to 0
     // - Vehicles NOT found in scrape: increment missed_scrape_count
-    // - Only delete after 3 consecutive misses AND if scrape found minimum vehicles
+    // - Soft-delete missing vehicles immediately only when source coverage is strong
+    //   and the stale ratio is below the deletion guardrail
     const MINIMUM_VEHICLES_FOR_STALE_CHECK = 15;
-    const CONSECUTIVE_MISSES_FOR_DELETION = 3;
     
     if (totalImported >= MINIMUM_VEHICLES_FOR_STALE_CHECK && foundVdpUrls.size > 0) {
       const dealershipIds = sources.map(s => s.dealershipId);
@@ -2615,15 +2696,22 @@ async function attemptZenRowsScrape(dealershipId?: number): Promise<{
         year: vehicles.year, 
         make: vehicles.make, 
         model: vehicles.model,
+        trim: vehicles.trim,
         missedScrapeCount: vehicles.missedScrapeCount 
       })
         .from(vehicles)
-        .where(inArray(vehicles.dealershipId, dealershipIds));
-      
-      // Find vehicles that ARE in the scraped results - reset their missed count
-      const foundVehicleIds = existingVehicles
-        .filter(v => v.dealerVdpUrl && foundVdpUrls.has(v.dealerVdpUrl))
-        .map(v => v.id);
+        .where(and(
+          inArray(vehicles.dealershipId, dealershipIds),
+          eq(vehicles.lifecycleStatus, 'ACTIVE')
+        ));
+
+      const staleRemovalDecision = assessSourceTruthStaleRemoval({
+        visibleSourceVehicleUrls: [...foundVdpUrls],
+        observedVehicles: existingVehicles,
+        minVisibleSourceVehicleCount: MINIMUM_VEHICLES_FOR_STALE_CHECK,
+      });
+
+      const foundVehicleIds = staleRemovalDecision.foundVehicleIds;
       
       if (foundVehicleIds.length > 0) {
         await db.update(vehicles)
@@ -2631,11 +2719,7 @@ async function attemptZenRowsScrape(dealershipId?: number): Promise<{
           .where(inArray(vehicles.id, foundVehicleIds));
       }
       
-      // Find vehicles NOT in scraped results - increment missed count
-      const missedVehicles = existingVehicles.filter(v => {
-        if (!v.dealerVdpUrl) return false;
-        return !foundVdpUrls.has(v.dealerVdpUrl);
-      });
+      const missedVehicles = staleRemovalDecision.staleVehicles;
       
       for (const missed of missedVehicles) {
         await db.update(vehicles)
@@ -2651,16 +2735,19 @@ async function attemptZenRowsScrape(dealershipId?: number): Promise<{
           missedVehicles: missedVehicles.slice(0, 5).map(v => `${v.year} ${v.make} ${v.model} (missed: ${(v.missedScrapeCount || 0) + 1})`)
         });
       }
-      
-      // Only delete vehicles that have been missed for CONSECUTIVE_MISSES_FOR_DELETION consecutive scrapes
-      const vehiclesToDelete = existingVehicles.filter(v => {
-        if (!v.dealerVdpUrl) return false;
-        if (foundVdpUrls.has(v.dealerVdpUrl)) return false;
-        return (v.missedScrapeCount || 0) >= CONSECUTIVE_MISSES_FOR_DELETION - 1; // -1 because we just incremented
-      });
 
-      if (vehiclesToDelete.length > 0) {
-        const idsToDelete = vehiclesToDelete.map(v => v.id);
+      if (!staleRemovalDecision.safeToApply) {
+        logWarn('[Robust Scraper] ZenRows stale deletion blocked by guardrail', {
+          service: 'scraper',
+          method: 'zenrows',
+          blockedReason: staleRemovalDecision.blockedReason,
+          visibleSourceVehicleCount: staleRemovalDecision.visibleSourceVehicleCount,
+          comparableInventoryCount: staleRemovalDecision.comparableInventoryCount,
+          staleVehicleCount: staleRemovalDecision.staleVehicleCount,
+          staleRatio: staleRemovalDecision.staleRatio,
+        });
+      } else if (missedVehicles.length > 0) {
+        const idsToDelete = missedVehicles.map(v => v.id);
         const deletedAt = new Date();
         await db.update(vehicles)
           .set({
@@ -2669,12 +2756,12 @@ async function attemptZenRowsScrape(dealershipId?: number): Promise<{
             lifecycleStatus: 'REMOVED_BY_SYNC',
           })
           .where(inArray(vehicles.id, idsToDelete));
-        totalDeleted = vehiclesToDelete.length;
-        logInfo('[Robust Scraper] ZenRows soft-deleted vehicles missing for 3+ consecutive scrapes', { 
+        totalDeleted = missedVehicles.length;
+        logInfo('[Robust Scraper] ZenRows soft-deleted vehicles missing from current source truth', { 
           service: 'scraper', 
           method: 'zenrows', 
           deletedCount: totalDeleted,
-          deletedVehicles: vehiclesToDelete.map(v => `${v.year} ${v.make} ${v.model}`)
+          deletedVehicles: missedVehicles.map(v => `${v.year} ${v.make} ${v.model}`)
         });
       }
     } else if (totalImported > 0 && totalImported < MINIMUM_VEHICLES_FOR_STALE_CHECK) {
@@ -2786,7 +2873,9 @@ async function attemptScrapingBeeScrape(dealershipId?: number): Promise<{
         // Process each VDP (with rate limiting)
         for (const vdpUrl of vehicleUrls) {
           try {
-            // OPTIMIZATION: Skip VDP re-scraping if vehicle already has 12+ images (complete data)
+            // OPTIMIZATION: Skip VDP re-scraping only after the vehicle has
+            // more than 10 uploaded photos. At that point, reruns should only
+            // refresh the price if SRP data changed.
             const existingComplete = await db.select({ 
               id: vehicles.id, 
               vin: vehicles.vin, 
@@ -2800,21 +2889,22 @@ async function attemptScrapingBeeScrape(dealershipId?: number): Promise<{
               ))
               .limit(1);
             
-            if (existingComplete.length > 0 && existingComplete[0].images && existingComplete[0].images.length >= 12) {
+            if (existingComplete.length > 0 && hasEnoughPhotosForPriceOnlyRefresh(existingComplete[0].images)) {
               const srpPrice = srpPriceByUrl.get(vdpUrl) ?? null;
               if (srpPrice && existingComplete[0].price !== srpPrice) {
                 await updateVehiclePriceOnly(existingComplete[0].id, srpPrice);
                 totalUpdated++;
-                totalImported++;
                 logInfo('[Robust Scraper] SRP price refresh for image-complete vehicle', {
                   service: 'scraper', method: 'scrapingbee', vdpUrl, vehicleId: existingComplete[0].id,
                   oldPrice: existingComplete[0].price, newPrice: srpPrice,
                 });
               }
-              logInfo('[Robust Scraper] Skipping VDP scrape - vehicle has 12+ images (complete)', { 
+              totalImported++;
+              logInfo('[Robust Scraper] Skipping VDP scrape - vehicle already has >10 uploaded photos', { 
                 service: 'scraper', method: 'scrapingbee', vdpUrl, 
                 vehicleId: existingComplete[0].id, 
-                imageCount: existingComplete[0].images.length 
+                imageCount: uniquePhotoCount(existingComplete[0].images),
+                countedAsSeen: true,
               });
               foundVdpUrls.add(vdpUrl); // Mark as found to prevent deletion
               continue; // Skip to next vehicle
@@ -3045,7 +3135,7 @@ async function attemptScrapingBeeScrape(dealershipId?: number): Promise<{
             const location = dealershipInfo?.city || 'Vancouver';
             const dealershipName = dealershipInfo?.name || source.sourceName;
 
-            const scrapingBeeVdpContent = extractVdpContent(vdpResult.html);
+            const scrapingBeeVdpContent = await enrichVdpContentWithDynamicCarfax(vdpUrl, vdpResult.html, vin, extractVdpContent(vdpResult.html));
             
             if (scrapingBeeVdpContent.carfaxUrl || scrapingBeeVdpContent.carfaxBadges.length > 0) {
               logInfo('[Robust Scraper] Carfax data extracted (ScrapingBee)', { 
@@ -3166,8 +3256,6 @@ async function attemptScrapingBeeScrape(dealershipId?: number): Promise<{
     }
 
     const MINIMUM_VEHICLES_FOR_STALE_CHECK = 15;
-    const CONSECUTIVE_MISSES_FOR_DELETION = 3;
-    
     if (totalImported >= MINIMUM_VEHICLES_FOR_STALE_CHECK && foundVdpUrls.size > 0) {
       const dealershipIds = sources.map(s => s.dealershipId);
       const existingVehicles = await db.select({ 
@@ -3176,15 +3264,22 @@ async function attemptScrapingBeeScrape(dealershipId?: number): Promise<{
         year: vehicles.year, 
         make: vehicles.make, 
         model: vehicles.model,
+        trim: vehicles.trim,
         missedScrapeCount: vehicles.missedScrapeCount 
       })
         .from(vehicles)
-        .where(inArray(vehicles.dealershipId, dealershipIds));
-      
-      // Find vehicles that ARE in the scraped results - reset their missed count
-      const foundVehicleIds = existingVehicles
-        .filter(v => v.dealerVdpUrl && foundVdpUrls.has(v.dealerVdpUrl))
-        .map(v => v.id);
+        .where(and(
+          inArray(vehicles.dealershipId, dealershipIds),
+          eq(vehicles.lifecycleStatus, 'ACTIVE')
+        ));
+
+      const staleRemovalDecision = assessSourceTruthStaleRemoval({
+        visibleSourceVehicleUrls: [...foundVdpUrls],
+        observedVehicles: existingVehicles,
+        minVisibleSourceVehicleCount: MINIMUM_VEHICLES_FOR_STALE_CHECK,
+      });
+
+      const foundVehicleIds = staleRemovalDecision.foundVehicleIds;
       
       if (foundVehicleIds.length > 0) {
         await db.update(vehicles)
@@ -3192,11 +3287,7 @@ async function attemptScrapingBeeScrape(dealershipId?: number): Promise<{
           .where(inArray(vehicles.id, foundVehicleIds));
       }
       
-      // Find vehicles NOT in scraped results - increment missed count
-      const missedVehicles = existingVehicles.filter(v => {
-        if (!v.dealerVdpUrl) return false;
-        return !foundVdpUrls.has(v.dealerVdpUrl);
-      });
+      const missedVehicles = staleRemovalDecision.staleVehicles;
       
       for (const missed of missedVehicles) {
         await db.update(vehicles)
@@ -3212,16 +3303,19 @@ async function attemptScrapingBeeScrape(dealershipId?: number): Promise<{
           missedVehicles: missedVehicles.slice(0, 5).map(v => `${v.year} ${v.make} ${v.model} (missed: ${(v.missedScrapeCount || 0) + 1})`)
         });
       }
-      
-      // Only delete vehicles that have been missed for CONSECUTIVE_MISSES_FOR_DELETION consecutive scrapes
-      const vehiclesToDelete = existingVehicles.filter(v => {
-        if (!v.dealerVdpUrl) return false;
-        if (foundVdpUrls.has(v.dealerVdpUrl)) return false;
-        return (v.missedScrapeCount || 0) >= CONSECUTIVE_MISSES_FOR_DELETION - 1;
-      });
 
-      if (vehiclesToDelete.length > 0) {
-        const idsToDelete = vehiclesToDelete.map(v => v.id);
+      if (!staleRemovalDecision.safeToApply) {
+        logWarn('[Robust Scraper] ScrapingBee stale deletion blocked by guardrail', {
+          service: 'scraper',
+          method: 'scrapingbee',
+          blockedReason: staleRemovalDecision.blockedReason,
+          visibleSourceVehicleCount: staleRemovalDecision.visibleSourceVehicleCount,
+          comparableInventoryCount: staleRemovalDecision.comparableInventoryCount,
+          staleVehicleCount: staleRemovalDecision.staleVehicleCount,
+          staleRatio: staleRemovalDecision.staleRatio,
+        });
+      } else if (missedVehicles.length > 0) {
+        const idsToDelete = missedVehicles.map(v => v.id);
         const deletedAt = new Date();
         await db.update(vehicles)
           .set({
@@ -3230,12 +3324,12 @@ async function attemptScrapingBeeScrape(dealershipId?: number): Promise<{
             lifecycleStatus: 'REMOVED_BY_SYNC',
           })
           .where(inArray(vehicles.id, idsToDelete));
-        totalDeleted = vehiclesToDelete.length;
-        logInfo('[Robust Scraper] ScrapingBee soft-deleted vehicles missing for 3+ consecutive scrapes', { 
+        totalDeleted = missedVehicles.length;
+        logInfo('[Robust Scraper] ScrapingBee soft-deleted vehicles missing from current source truth', { 
           service: 'scraper', 
           method: 'scrapingbee', 
           deletedCount: totalDeleted,
-          deletedVehicles: vehiclesToDelete.map(v => `${v.year} ${v.make} ${v.model}`)
+          deletedVehicles: missedVehicles.map(v => `${v.year} ${v.make} ${v.model}`)
         });
       }
     } else if (totalImported > 0 && totalImported < MINIMUM_VEHICLES_FOR_STALE_CHECK) {
@@ -3268,6 +3362,13 @@ async function attemptScrapingBeeScrape(dealershipId?: number): Promise<{
 async function attemptPuppeteerScrape(dealershipId?: number): Promise<{ success: boolean; total: number; error?: string }> {
   try {
     const total = await scrapeAllDealershipsIncremental(dealershipId);
+    if (!Number.isFinite(total) || total <= 0) {
+      return {
+        success: false,
+        total: 0,
+        error: 'Puppeteer scrape returned 0 vehicles',
+      };
+    }
     return { success: true, total };
   } catch (error) {
     return { 
@@ -3276,6 +3377,35 @@ async function attemptPuppeteerScrape(dealershipId?: number): Promise<{ success:
       error: error instanceof Error ? error.message : String(error) 
     };
   }
+}
+
+async function closeAbandonedScrapeRuns(
+  dealershipId?: number,
+  now = new Date(),
+): Promise<number> {
+  const recentRuns = await storage.getScrapeRuns(dealershipId, 10);
+  let cleaned = 0;
+
+  for (const run of recentRuns) {
+    if (run.status !== 'running' || !run.startedAt) continue;
+
+    const startedAt = run.startedAt instanceof Date ? run.startedAt : new Date(run.startedAt);
+    if (Number.isNaN(startedAt.getTime())) continue;
+    if (now.getTime() - startedAt.getTime() < ABANDONED_SCRAPE_RUN_MAX_AGE_MS) continue;
+
+    const staleMessage = run.errorMessage
+      ? `${run.errorMessage} | abandoned_before_new_run`
+      : 'abandoned_before_new_run';
+
+    await storage.updateScrapeRun(run.id, {
+      status: 'failed',
+      errorMessage: staleMessage,
+      completedAt: now,
+    });
+    cleaned++;
+  }
+
+  return cleaned;
 }
 
 /**
@@ -3389,7 +3519,7 @@ async function attemptBrowserlessScrape(dealershipId?: number): Promise<{
             if (v.detailUrl) {
               try {
                 logInfo('[Robust Scraper] Fetching VDP content', { service: 'scraper', method: 'vdp', vehicle: `${v.year} ${v.make} ${v.model}`, vdpUrl: v.detailUrl });
-                const vdpContent = await fetchVdpContent(v.detailUrl);
+                const vdpContent = await fetchVdpContent(v.detailUrl, vin);
                 vdpDescription = vdpContent.vdpDescription;
                 techSpecs = vdpContent.techSpecs;
                 carfaxUrl = vdpContent.carfaxUrl || undefined;
@@ -3627,6 +3757,7 @@ export async function batchUpdateCarfaxData(dealershipId: number): Promise<{
       year: vehicles.year,
       make: vehicles.make,
       model: vehicles.model,
+      vin: vehicles.vin,
       dealerVdpUrl: vehicles.dealerVdpUrl,
       carfaxUrl: vehicles.carfaxUrl,
       carfaxBadges: vehicles.carfaxBadges,
@@ -3651,7 +3782,7 @@ export async function batchUpdateCarfaxData(dealershipId: number): Promise<{
         });
 
         // Fetch VDP content and extract Carfax data
-        const vdpContent = await fetchVdpContent(vehicle.dealerVdpUrl!);
+        const vdpContent = await fetchVdpContent(vehicle.dealerVdpUrl!, vehicle.vin);
         
         // Only update if we got new Carfax data
         const hasNewCarfaxUrl = vdpContent.carfaxUrl && !vehicle.carfaxUrl;
@@ -3732,6 +3863,15 @@ export async function runRobustScrape(
   let zenrowsError = '';
   let method: 'zenrows' | 'scrapingbee' | 'puppeteer' | 'browserless' | 'apify' | 'cache_preserve' = 'zenrows';
   let scrapingBeeError = '';
+
+  const abandonedRunCount = await closeAbandonedScrapeRuns(dealershipId);
+  if (abandonedRunCount > 0) {
+    logWarn('[Robust Scraper] Closed abandoned running scrape run(s) before starting a new run', {
+      service: 'scraper',
+      dealershipId,
+      abandonedRunCount,
+    });
+  }
 
   const runData: InsertScrapeRun = {
     dealershipId: dealershipId || null,
@@ -3993,9 +4133,20 @@ export async function getLatestScrapeStatus(dealershipId?: number): Promise<any 
 
 export const robustScraperTestables = {
   extractVdpContent,
+  enrichVdpContentWithDynamicCarfax,
   extractColors,
   extractTransmission,
   extractDrivetrain,
   extractFuelType,
   extractEngine,
+  isCloudflareBlockPage,
+  normalizeAutoTraderPhotoUrl,
+  isOlympicHyundaiDomain,
+  parseListingPriceText,
+  normalizeDealerVdpUrl,
+  extractVehicleListingsFromSrp,
+  validateSameFolderImages,
+  validateVehicleData,
+  extractPhotoUrlsFromSrcset,
+  runRobustScrape,
 };
