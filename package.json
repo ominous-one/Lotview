@@ -11,7 +11,15 @@
     "start": "cross-env NODE_ENV=production node dist/index.js",
     "start:worker": "cross-env NODE_ENV=production node dist/index-worker.js",
     "check": "tsc",
-    "db:push": "drizzle-kit push"
+    "test:server": "jest --runInBand",
+    "test:server:root": "jest --runInBand server/tests/runtime-readiness.test.ts server/tests/vehicle-data-quality.test.ts server/tests/vin-decode-router.test.ts server/tests/robust-scraper-validation.test.ts server/tests/robust-scraper-guardrails.test.ts server/tests/robust-scraper-fallback.test.ts server/tests/workflow-proof-closer-guardrails.test.ts",
+    "ci:verify": "npm run check && npm run test:server:root",
+    "db:push": "drizzle-kit push",
+    "proof:live-runtime": "node scripts/audit-live-runtime.mjs",
+    "proof:dealership-certification": "tsx scripts/run-db-backed-dealership-certification.ts",
+    "proof:source-truth-certification": "tsx scripts/materialize-source-truth-certification.ts",
+    "proof:live-source-reconciliation": "tsx scripts/generate-live-source-reconciliation.ts",
+    "ops:repair-source-truth-inventory": "tsx scripts/repair-source-truth-inventory.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",

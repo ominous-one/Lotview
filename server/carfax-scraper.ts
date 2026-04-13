@@ -26,6 +26,97 @@ export interface CarfaxReportData {
   badges: string[];
 }
 
+interface CarfaxBadgeApiResponse {
+  ResponseData?: {
+    Badges?: Array<{
+      BadgeList?: Array<{
+        BadgeName?: string | null;
+        BadgeType?: number | null;
+        BadgeImageUrl?: string | null;
+      }> | null;
+      VhrReportUrl?: string | null;
+      VIN?: string | null;
+      ResultCode?: number | null;
+      ResultMessage?: string | null;
+    }>;
+    Language?: string;
+    LogoUrl?: string | null;
+  };
+  ResultCode?: number;
+  ResultMessage?: string;
+}
+
+export async function resolveCarfaxReportUrlFromVdpHtml(
+  vdpUrl: string,
+  html: string,
+  vin: string
+): Promise<{ reportUrl: string | null; badges: string[] }> {
+  if (!vdpUrl || !html || !vin) {
+    return { reportUrl: null, badges: [] };
+  }
+
+  const parsedVdpUrl = new URL(vdpUrl);
+  const accountIdMatch =
+    html.match(/"carfaxAccountId":"(\d+)"/i) ||
+    html.match(/carfaxAccountId["']?\s*:\s*["']?(\d+)["']?/i);
+  const nonceMatch =
+    html.match(/"carfaxNonce":"([a-z0-9]+)"/i) ||
+    html.match(/carfaxNonce["']?\s*:\s*["']?([a-z0-9]+)["']?/i);
+
+  const accountId = accountIdMatch?.[1];
+  const carfaxNonce = nonceMatch?.[1];
+  if (!accountId || !carfaxNonce) {
+    return { reportUrl: null, badges: [] };
+  }
+
+  const authResponse = await fetch(`${parsedVdpUrl.origin}/wp-admin/admin-ajax.php`, {
+    method: 'POST',
+    headers: {
+      'Accept': 'application/json, text/plain, */*',
+      'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+      'Origin': parsedVdpUrl.origin,
+      'Referer': `${parsedVdpUrl.origin}/`,
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+    },
+    body: new URLSearchParams({
+      action: 'get_carfax_auth',
+      nonce: carfaxNonce,
+      Language: 'en',
+    }),
+  });
+
+  if (!authResponse.ok) {
+    return { reportUrl: null, badges: [] };
+  }
+
+  const authJson = await authResponse.json() as { token?: string };
+  if (!authJson.token) {
+    return { reportUrl: null, badges: [] };
+  }
+
+  const badgeUrl = `https://badgingapi.carfax.ca/api/v3/badges?CompanyId=${encodeURIComponent(accountId)}&Language=en&Vin=${encodeURIComponent(vin)}&HideVin=false`;
+  const badgeResponse = await fetch(badgeUrl, {
+    method: 'GET',
+    headers: {
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authJson.token}`,
+      'Origin': parsedVdpUrl.origin,
+      'Referer': `${parsedVdpUrl.origin}/`,
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+    },
+  });
+
+  if (!badgeResponse.ok) {
+    return { reportUrl: null, badges: [] };
+  }
+
+  const payload = await badgeResponse.json() as CarfaxBadgeApiResponse;
+  return {
+    reportUrl: extractVhrUrlFromBadgePayloads([payload]),
+    badges: extractBadgesFromBadgePayloads([payload]),
+  };
+}
+
 /**
  * Scrape a Carfax report page from vhr.carfax.ca
  * Uses Puppeteer with stealth to render the page, then Cheerio to parse it.
@@ -38,30 +129,6 @@ export async function scrapeCarfaxReport(carfaxUrl: string): Promise<CarfaxRepor
 
   console.log(`  🔍 Scraping Carfax report: ${carfaxUrl}`);
 
-  // STRATEGY 1: Use ZenRows (preferred — renders JS, no Cloudflare issues)
-  const zenrowsKey = process.env.ZENROWS_API_KEY;
-  if (zenrowsKey) {
-    try {
-      const encoded = encodeURIComponent(carfaxUrl);
-      const zenrowsUrl = `https://api.zenrows.com/v1/?apikey=${zenrowsKey}&url=${encoded}&js_render=true&wait=5000`;
-      const zenResp = await fetch(zenrowsUrl, { signal: AbortSignal.timeout(60000) });
-      if (zenResp.ok) {
-        const html = await zenResp.text();
-        if (html.length > 5000 && !html.includes('"code":"RESP001"')) {
-          console.log(`  ✅ ZenRows fetched CARFAX report (${html.length} bytes)`);
-          const reportData = parseCarfaxHtml(html, carfaxUrl);
-          if (reportData && (reportData.ownerCount > 0 || reportData.accidentCount >= 0)) {
-            return reportData;
-          }
-          console.log('  ⚠ ZenRows HTML parsed but no owner/accident data found, falling back...');
-        }
-      }
-    } catch (err) {
-      console.log(`  ⚠ ZenRows CARFAX fetch failed: ${err instanceof Error ? err.message : err}`);
-    }
-  }
-
-  // STRATEGY 2: Puppeteer (for local/dev environments with Chrome)
   const proxy = proxyManager.getNext();
 
   const launchOptions: any = {
@@ -134,6 +201,120 @@ export async function scrapeCarfaxReport(carfaxUrl: string): Promise<CarfaxRepor
 }
 
 /**
+ * Resolve the real randomized Carfax VHR URL from a dealer VDP.
+ * This mirrors the dealer-side badge/modal flow instead of guessing a generic VIN URL.
+ */
+export async function resolveCarfaxReportUrlFromDealerVdp(
+  vdpUrl: string,
+  vin: string
+): Promise<{ reportUrl: string | null; badges: string[] }> {
+  if (!vdpUrl || !vin) {
+    return { reportUrl: null, badges: [] };
+  }
+
+  const proxy = proxyManager.getNext();
+  const launchOptions: any = {
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--window-size=1920,1080',
+    ],
+  };
+
+  if (proxy) {
+    launchOptions.args.push(`--proxy-server=${proxy.server}`);
+  }
+
+  let browser;
+  try {
+    const parsedVdpUrl = new URL(vdpUrl);
+    const dealerHost = parsedVdpUrl.hostname.replace(/^www\./i, '');
+    const warmupUrl = `${parsedVdpUrl.origin}/vehicles/used/`;
+
+    browser = await puppeteer.launch(launchOptions);
+    const page = await browser.newPage();
+
+    if (proxy) {
+      await proxyManager.authenticateProxy(page, proxy);
+    }
+
+    try {
+      const savedCookies =
+        (await cookieStore.loadCookies(dealerHost)) ||
+        (dealerHost !== parsedVdpUrl.hostname ? await cookieStore.loadCookies(parsedVdpUrl.hostname) : null);
+      if (savedCookies?.length) {
+        await page.setCookie(...savedCookies);
+      }
+    } catch {
+      // Cookie reuse is opportunistic only.
+    }
+
+    const badgeResponses: CarfaxBadgeApiResponse[] = [];
+    page.on('response', async (response) => {
+      const url = response.url();
+      if (!/badgingapi\.carfax\.ca\/api\/v3\/badges/i.test(url)) return;
+      if (!url.toUpperCase().includes(vin.toUpperCase())) return;
+      try {
+        const json = await response.json() as CarfaxBadgeApiResponse;
+        badgeResponses.push(json);
+      } catch {
+        // Ignore parse failures and fall back to direct page-side fetch below.
+      }
+    });
+
+    // Warm the dealer session first. Olympic VDPs will often challenge a cold direct VDP hit.
+    await page.goto(warmupUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
+    await randomDelay(4000, 6000);
+    try {
+      const cookies = await page.cookies();
+      if (cookies.length > 0) {
+        await cookieStore.saveCookies(dealerHost, cookies);
+      }
+    } catch {
+      // Non-fatal.
+    }
+
+    await page.goto(vdpUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
+    await randomDelay(2500, 4000);
+
+    try {
+      await page.click('.carfax-badge__trigger', { delay: 60 });
+      await randomDelay(2000, 3500);
+    } catch {
+      // Some dealers do not expose the badge trigger as a clickable image.
+      // The direct badge API fallback below handles that case.
+    }
+
+    let resolved = extractVhrUrlFromBadgePayloads(badgeResponses);
+    let badges = extractBadgesFromBadgePayloads(badgeResponses);
+
+    if (!resolved) {
+      const html = await page.content();
+      const fallback = await resolveCarfaxReportUrlFromVdpHtml(vdpUrl, html, vin);
+      if (fallback.reportUrl) {
+        resolved = fallback.reportUrl;
+        badges = dedupeMeaningfulBadges([...badges, ...fallback.badges]);
+      }
+    }
+
+    return {
+      reportUrl: resolved,
+      badges,
+    };
+  } catch (error) {
+    console.error('  ✗ Failed to resolve Carfax report URL from dealer VDP:', error instanceof Error ? error.message : error);
+    return { reportUrl: null, badges: [] };
+  } finally {
+    if (browser) {
+      await browser.close();
+    }
+  }
+}
+
+/**
  * Parse Carfax HTML using Cheerio to extract structured report data.
  */
 function parseCarfaxHtml(html: string, reportUrl: string): CarfaxReportData {
@@ -160,7 +341,7 @@ function parseCarfaxHtml(html: string, reportUrl: string): CarfaxReportData {
     const src = ($(el).attr('src') || '').toLowerCase();
     const text = $(el).text().trim();
 
-    const badgeText = alt || text;
+    const badgeText = normalizeMeaningfulBadgeText(alt || text || src);
     if (badgeText && !badges.includes(badgeText)) {
       badges.push(badgeText);
     }
@@ -179,90 +360,30 @@ function parseCarfaxHtml(html: string, reportUrl: string): CarfaxReportData {
   if (textContent.includes('one owner') || textContent.includes('1 owner')) {
     addBadge(badges, 'One Owner');
   }
+  const normalizedBadges = dedupeMeaningfulBadges(badges);
 
-  // Extract accident info (try structured DOM first, then text-based fallback)
-  let accidentHistory = parseAccidentHistory($);
-  let damageReported = false;
+  // Extract accident info
+  const accidentHistory = parseAccidentHistory($);
+  const hasNoAccidentBadge = normalizedBadges.includes('No Reported Accidents');
+  const accidentCount = hasNoAccidentBadge ? 0 : accidentHistory.length;
+  const damageReported =
+    hasNoAccidentBadge
+      ? false
+      : accidentCount > 0 || (textContent.includes('damage reported') && !textContent.includes('no reported accidents'));
 
-  // Text-based accident extraction for ZenRows-rendered CARFAX pages
-  if (accidentHistory.length === 0) {
-    const bodyText = $('body').text();
-    const accidentTypes = bodyText.match(/(COLLISION[A-Z\s]*|NON-COLLISION[A-Z\s]*|VANDALISM[A-Z\s]*)/g);
-    if (accidentTypes) {
-      const seen = new Set<string>();
-      accidentTypes.forEach(type => {
-        const normalized = type.trim();
-        if (!seen.has(normalized)) {
-          seen.add(normalized);
-          accidentHistory.push({
-            date: '',
-            description: normalized,
-            severity: normalized.includes('NON-COLLISION') ? 'Non-Collision' : 'Collision',
-          });
-        }
-      });
-    }
-    if (textContent.includes('accident/damage records found')) damageReported = true;
-  }
-
-  const accidentCount = accidentHistory.length;
-  damageReported = damageReported || accidentCount > 0 || textContent.includes('damage reported') || textContent.includes('damage records found');
-
-  // Extract ownership history (try structured DOM first, then text-based)
-  let ownershipHistory = parseOwnershipHistory($);
-  let ownerCount = ownershipHistory.length;
-
-  // Text-based owner extraction for ZenRows-rendered pages
-  if (ownerCount === 0) {
-    const bodyText = $('body').text();
-    // Count "First Owner Reported" or "Registration Issued or Renewed" with "First Owner"
-    const firstOwner = bodyText.match(/First Owner Reported/gi);
-    if (firstOwner) {
-      // Deduplicate (appears twice in desktop+mobile)
-      ownerCount = Math.max(1, Math.ceil(firstOwner.length / 2));
-    }
-    // Check badge for "One Owner"
-    if (textContent.includes('one owner') && ownerCount === 0) ownerCount = 1;
-    // Count registrations as a proxy for owner count
-    const regEvents = bodyText.match(/Registration Issued or Renewed/g);
-    if (regEvents && ownerCount === 0) {
-      ownerCount = Math.max(1, Math.ceil(regEvents.length / 4)); // ~4 renewals per owner on avg
-    }
-    // Extract via number near 'owner' in text
-    if (ownerCount === 0) {
-      ownerCount = extractNumberNear($, textContent, 'owner');
-    }
-  }
+  // Extract ownership history
+  const ownershipHistory = parseOwnershipHistory($);
+  const ownerCount = ownershipHistory.length || extractNumberNear($, textContent, 'owner') || (normalizedBadges.includes('One Owner') ? 1 : 0);
 
   // Extract service history
-  let serviceHistory = parseServiceHistory($);
-  let serviceRecordCount = serviceHistory.length;
-
-  // Text-based service record count
-  if (serviceRecordCount === 0) {
-    if (textContent.includes('service records found')) {
-      // Count service-related entries
-      const bodyText = $('body').text();
-      const serviceEntries = bodyText.match(/Vehicle Serviced|Maintenance|Oil Change|Tire Rotation|Brake Service|Repair/gi);
-      serviceRecordCount = serviceEntries ? new Set(serviceEntries.map(s => s.toLowerCase())).size : 0;
-    }
-  }
+  const serviceHistory = parseServiceHistory($);
+  const serviceRecordCount = serviceHistory.length;
 
   // Extract odometer history
   const odometerHistory = parseOdometerHistory($);
   const lastOdometer = odometerHistory.length > 0
     ? odometerHistory[odometerHistory.length - 1]
     : null;
-
-  // Text-based odometer extraction
-  let lastReportedOdometerFromText: number | null = null;
-  if (!lastOdometer) {
-    const bodyText = $('body').text();
-    const odomMatch = bodyText.match(/Last Reported Odometer:\s*([\d,]+)/i);
-    if (odomMatch) {
-      lastReportedOdometerFromText = parseInt(odomMatch[1].replace(/,/g, ''), 10);
-    }
-  }
 
   // Extract registration history
   const registrationHistory = parseRegistrationHistory($);
@@ -276,7 +397,7 @@ function parseCarfaxHtml(html: string, reportUrl: string): CarfaxReportData {
     accidentCount,
     ownerCount: ownerCount || 0,
     serviceRecordCount,
-    lastReportedOdometer: lastOdometer?.reading ?? lastReportedOdometerFromText ?? null,
+    lastReportedOdometer: lastOdometer?.reading ?? null,
     lastReportedDate: lastOdometer?.date ?? null,
     damageReported,
     lienReported,
@@ -289,17 +410,66 @@ function parseCarfaxHtml(html: string, reportUrl: string): CarfaxReportData {
       scrapedUrl: reportUrl,
       vin,
       pageTitle: $('title').text().trim(),
-      badges,
+      badges: normalizedBadges,
       accidentCount,
       ownerCount,
       serviceRecordCount,
       lienReported,
       damageReported,
     },
-    badges,
+    badges: normalizedBadges,
   };
 
   return result;
+}
+
+function normalizeMeaningfulBadgeText(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const text = raw.replace(/\s+/g, ' ').trim();
+  const lower = text.toLowerCase();
+  if (!text) return null;
+  if (lower.includes('one owner')) return 'One Owner';
+  if (lower.includes('oneowner')) return 'One Owner';
+  if (lower.includes('no reported accidents')) return 'No Reported Accidents';
+  if (lower.includes('accident free') || lower.includes('accidentfree') || lower.includes('no accident')) return 'No Reported Accidents';
+  if (lower.includes('service history') || lower.includes('servicehistory')) return 'Service History';
+  if (lower.includes('low kilometer') || lower.includes('low kilometre') || lower.includes('low mileage') || lower.includes('lowkilometer')) return 'Low Kilometers';
+  return null;
+}
+
+function dedupeMeaningfulBadges(badges: string[]): string[] {
+  const normalized = badges
+    .map((badge) => normalizeMeaningfulBadgeText(badge) || badge)
+    .filter((badge) => ['One Owner', 'No Reported Accidents', 'Service History', 'Low Kilometers'].includes(badge));
+  return [...new Set(normalized)];
+}
+
+function extractVhrUrlFromBadgePayloads(payloads: CarfaxBadgeApiResponse[]): string | null {
+  for (const payload of payloads) {
+    const badges = payload?.ResponseData?.Badges || [];
+    for (const badge of badges) {
+      if (badge?.VhrReportUrl) {
+        return badge.VhrReportUrl;
+      }
+    }
+  }
+  return null;
+}
+
+function extractBadgesFromBadgePayloads(payloads: CarfaxBadgeApiResponse[]): string[] {
+  const out: string[] = [];
+  for (const payload of payloads) {
+    const badges = payload?.ResponseData?.Badges || [];
+    for (const badge of badges) {
+      for (const item of badge?.BadgeList || []) {
+        const normalized = normalizeMeaningfulBadgeText(item?.BadgeName || item?.BadgeImageUrl || null);
+        if (normalized) {
+          out.push(normalized);
+        }
+      }
+    }
+  }
+  return dedupeMeaningfulBadges(out);
 }
 
 function addBadge(badges: string[], badge: string) {
@@ -360,14 +530,7 @@ function parseAccidentHistory($: cheerio.CheerioAPI): { date: string; descriptio
     } catch { /* selector not found, try next */ }
   }
 
-  // Deduplicate by date+description (same DOM-doubling issue as ownership)
-  const seen = new Set<string>();
-  return accidents.filter(a => {
-    const key = `${a.date}|${a.description}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  return accidents;
 }
 
 /**
@@ -413,18 +576,7 @@ function parseOwnershipHistory($: cheerio.CheerioAPI): { startDate: string; endD
     } catch { /* selector not found, try next */ }
   }
 
-  // Deduplicate: remove entries with identical startDate+type+location combination.
-  // CARFAX HTML sometimes has the same section rendered in multiple DOM containers
-  // (e.g. desktop + mobile views), causing each owner to appear 2× or 4×.
-  const seen = new Set<string>();
-  const deduped = owners.filter(o => {
-    const key = `${o.startDate}|${o.endDate ?? ''}|${o.type}|${o.location}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-
-  return deduped;
+  return owners;
 }
 
 /**

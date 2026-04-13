@@ -28,11 +28,11 @@ module.exports = {
     '/node_modules/',
     '/chrome-extension/',
     'color-scoring\\.test\\.ts$',
+    'fb-replies-decide-send\\.int\\.test\\.ts$',
+    'fb-replies-ingestion\\.test\\.ts$',
     'image-proxy\\.test\\.ts$',
     'ghl-sync\\.test\\.ts$',
     'tenant-isolation\\.test\\.ts$',
     'vin-appraisal\\.test\\.ts$',
   ],
-  // Force exit to handle timers from auth.ts nonce cleanup
-  forceExit: true,
 };

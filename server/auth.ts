@@ -1,9 +1,9 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import type { Request, Response, NextFunction } from "express";
-import type { User } from "@shared/schema";
-import { hasRole } from "@shared/authz";
-import { getE2EUserFromToken, isSafeE2ERequest, seedE2E } from "./e2e-test-mode";
+import type { User } from "../shared/schema.ts";
+import { hasRole } from "../shared/authz.ts";
+import { getE2EUserFromToken, isSafeE2ERequest, seedE2E } from "./e2e-test-mode.ts";
 
 // JWT_SECRET must be set in production for security (SESSION_SECRET accepted as alias)
 const JWT_SECRET = process.env.JWT_SECRET || process.env.SESSION_SECRET;
@@ -173,7 +173,7 @@ const NONCE_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
 const nonceCache = new Map<string, number>();
 
 // Clean expired nonces periodically
-setInterval(() => {
+const nonceCleanupInterval = setInterval(() => {
   const now = Date.now();
   for (const [nonce, timestamp] of nonceCache.entries()) {
     if (now - timestamp > NONCE_EXPIRY_MS * 2) {
@@ -181,6 +181,7 @@ setInterval(() => {
     }
   }
 }, 60 * 1000); // Clean every minute
+nonceCleanupInterval.unref?.();
 
 async function computeHmac(message: string): Promise<string> {
   const crypto = await import("crypto");
@@ -258,7 +259,7 @@ const POSTING_TOKEN_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
 const usedPostingTokens = new Map<string, number>(); // token -> timestamp
 
 // Clean expired tokens periodically (time-based, not size-based)
-setInterval(() => {
+const postingTokenCleanupInterval = setInterval(() => {
   const now = Date.now();
   for (const [token, timestamp] of usedPostingTokens.entries()) {
     if (now - timestamp > POSTING_TOKEN_EXPIRY_MS * 2) {
@@ -266,6 +267,7 @@ setInterval(() => {
     }
   }
 }, 60 * 1000); // Clean every minute
+postingTokenCleanupInterval.unref?.();
 
 export async function generatePostingToken(userId: number, vehicleId: number, platform: string): Promise<string> {
   const crypto = await import("crypto");

@@ -92,4 +92,24 @@ describe('robust scraper SRP helpers', () => {
       },
     ]);
   });
+
+  it('deduplicates the same VDP when query strings and trailing slashes differ', () => {
+    const html = `
+      <div class="vehicle-card">
+        <a href="/vehicles/2023/hyundai/ioniq-5/vancouver/bc/11111111/?sale_class=used">Primary link</a>
+        <div class="price-block__price--primary">$49,888</div>
+      </div>
+      <div class="vehicle-card">
+        <a href="https://www.olympichyundaivancouver.com/vehicles/2023/hyundai/ioniq-5/vancouver/bc/11111111/">Duplicate link</a>
+        <div class="price-block__price--primary">$49,888</div>
+      </div>
+    `;
+
+    expect(extractVehicleListingsFromSrp(html, 'https://www.olympichyundaivancouver.com/vehicles/used/')).toEqual([
+      {
+        vdpUrl: 'https://www.olympichyundaivancouver.com/vehicles/2023/hyundai/ioniq-5/vancouver/bc/11111111',
+        srpPrice: 49888,
+      },
+    ]);
+  });
 });

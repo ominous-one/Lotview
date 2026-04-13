@@ -1,4 +1,3 @@
-import { storage } from '../storage';
 import bcrypt from 'bcryptjs';
 
 interface TestResult {
@@ -110,7 +109,13 @@ export interface TestDealership {
 
 const TEST_PASSWORD = 'TestPassword123!';
 
+async function getStorage() {
+  const mod = await import('../storage.ts');
+  return mod.storage;
+}
+
 export async function seedTestDealership(name: string, slug: string): Promise<TestDealership> {
+  const storage = await getStorage();
   const existing = await storage.getDealershipBySlug(slug);
   if (existing) {
     return { id: existing.id, name: existing.name, slug: existing.slug };
@@ -137,6 +142,7 @@ export async function seedTestUser(
   role: string = 'manager',
   name: string = 'Test User'
 ): Promise<TestUser> {
+  const storage = await getStorage();
   const existing = await storage.getUserByEmail(email);
   if (existing) {
     return {
@@ -225,6 +231,7 @@ export async function seedTestData(): Promise<{
 }
 
 export async function seedVehicleForDealership(dealershipId: number, stockNumber: string): Promise<any> {
+  const storage = await getStorage();
   const existing = await storage.getVehicleByVin(`TESTVIN${stockNumber}`, dealershipId);
   if (existing) {
     return existing;
@@ -257,6 +264,7 @@ export async function seedVehicleForDealership(dealershipId: number, stockNumber
 }
 
 export async function cleanupTestUser(email: string): Promise<void> {
+  const storage = await getStorage();
   const user = await storage.getUserByEmail(email);
   if (user) {
     await storage.deleteUser(user.id);
@@ -264,6 +272,7 @@ export async function cleanupTestUser(email: string): Promise<void> {
 }
 
 export async function cleanupTestVehicle(vin: string, dealershipId: number): Promise<void> {
+  const storage = await getStorage();
   const vehicle = await storage.getVehicleByVin(vin, dealershipId);
   if (vehicle) {
     await storage.deleteVehicle(vehicle.id, dealershipId);

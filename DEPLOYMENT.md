@@ -1,306 +1,200 @@
 # LotView Deployment Guide
 
-## Architecture Overview
+## Production Truth
 
-```
-┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│  React SPA   │────▶│  Express API │────▶│  PostgreSQL  │
-│  (Vite)      │     │  + Puppeteer │     │              │
-└──────────────┘     └──────────────┘     └──────────────┘
-                            │
-                     ┌──────┴──────┐
-                     │   Redis     │  (optional, future)
-                     │   (cache)   │
-                     └─────────────┘
-```
+LotView production should deploy from `GitHub -> Render Blueprint`, with [`render.yaml`](render.yaml) as the single deployment source of truth.
 
-The Express server serves both the API and the built React SPA from a single port (5000).
+The current production shape is:
 
----
+- `lotview` web service on Render
+- `lotview-worker` background worker on Render
+- `lotview-db` Postgres on Render
+
+This repo is configured for:
+
+- paid always-on Render services
+- deploys from `main`
+- auto-deploy only after GitHub checks pass
+- Node 20 runtime pinning
+- separate web and worker processes
+- `/ready` as the deploy health gate
+
+The GitHub workflow at [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) builds artifacts. It is not the canonical Render production deploy path.
 
 ## 1. Local Development
 
 ### Prerequisites
 
-- Node.js 20+
+- Node.js 20
 - PostgreSQL 16+
 - npm
 
 ### Setup
 
 ```bash
-# Clone the repo
 git clone <repo-url> && cd lotview
-
-# Install dependencies
-npm install
-
-# Copy and fill in environment variables
+npm ci
 cp .env.example .env
-# Edit .env with your local PostgreSQL credentials and API keys
-
-# Push database schema
+# edit .env with PostgreSQL credentials and API keys
 npm run db:push
-
-# Start dev server (port 5000 with HMR)
 npm run dev
 ```
 
-### Chrome Extension (local)
+### Chrome Extension
 
 ```bash
 cd chrome-extension
-npm install
-npm run build        # Dev build
-npm test             # Run 256 tests
+npm ci
+npm run build
+npm test
 ```
 
-Load `chrome-extension/dist/` as unpacked extension in `chrome://extensions/`.
+Load `chrome-extension/dist/` as an unpacked extension in Chrome.
 
----
+## 2. Health and Readiness
 
-## 2. Docker (Local / Staging)
+- `GET /health`: process liveness
+- `GET /ready`: deployment readiness and dependency truth
+- `GET /api/health`: alias for `/health`
+
+On Render, treat `/ready` as the authoritative signal. A green build is not enough if the app is missing secrets, database access, or the built SPA bundle.
+
+## 3. Production on Render
+
+### Canonical Path
+
+1. Push the reviewed production commit to GitHub `main`.
+2. Connect the repo to Render as a Blueprint using [`render.yaml`](render.yaml).
+3. Keep Render auto-deploy set to `After CI Checks Pass`.
+4. Keep the paid instance types from [`render.yaml`](render.yaml):
+   - web: `standard`
+   - worker: `standard`
+   - database: `basic-1gb`
+5. Set required secrets in Render.
+6. Confirm `/ready` is green after deploy.
+
+### Why This Is the Production Path
+
+- Render free services are not acceptable for an always-active SaaS. They spin down.
+- The web and worker are separate services and should stay that way.
+- `main` is the release branch. Protect it in GitHub and require CI before merge.
+- The worker is the only scheduler-enabled process.
+
+### Required Render Secrets
+
+Render generates some secrets automatically from [`render.yaml`](render.yaml), but production still needs any feature-specific secrets you use, such as:
+
+- `AI_INTEGRATIONS_OPENAI_API_KEY`
+- `RESEND_API_KEY`
+- `FACEBOOK_APP_ID`
+- `FACEBOOK_APP_SECRET`
+- any scraping provider credentials you rely on
+
+### Schema Changes
+
+LotView currently uses Drizzle push-based schema management:
+
+```bash
+npm run db:push
+```
+
+For Render production, run schema changes deliberately. Do not put `drizzle-kit push` back into the normal `buildCommand`.
+
+Safe operator path:
+
+1. Merge the schema-changing commit to `main`.
+2. Open a Render shell on `lotview`, or run a one-off command in the same environment.
+3. Run `npm run db:push`.
+4. Let Render deploy the new web and worker build from GitHub.
+5. Confirm `/ready` is green.
+
+This is intentionally manual because automatic schema mutation during normal service deploys is too risky when web and worker deploy independently.
+
+## 4. Docker Alternative
+
+Docker remains useful for local staging or non-Render environments.
 
 ### Quick Start
 
 ```bash
-# Copy env file
 cp .env.example .env
-# Fill in at minimum: SESSION_SECRET, AI_INTEGRATIONS_OPENAI_API_KEY
-
-# Build and start all services
 docker compose up --build -d
-
-# Push database schema (first time)
-docker compose exec app node -e "
-  const { execSync } = require('child_process');
-  execSync('npx drizzle-kit push', { stdio: 'inherit' });
-"
-
-# View logs
+docker compose exec app npx drizzle-kit push
 docker compose logs -f app
-
-# Stop
-docker compose down
 ```
 
 ### Services
 
 | Service | Port | Description |
-|---------|------|-------------|
-| `app`   | 5000 | Express API + React SPA + Puppeteer |
-| `db`    | 5432 | PostgreSQL 16 |
-| `redis` | 6379 | Redis 7 (future caching) |
+| --- | --- | --- |
+| `app` | 5000 | Express API + built SPA |
+| `db` | 5432 | PostgreSQL 16 |
+| `redis` | 6379 | optional future caching |
 
-### Health Checks
+## 5. Environment Variables
 
-- `GET /health` - Basic liveness (is the process running?)
-- `GET /ready` - Readiness (are DB and dependencies connected?)
-- `GET /api/health` - Alias for `/health` (k8s convention)
-
-### Persistent Volumes
-
-- `pgdata` - PostgreSQL data
-- `redisdata` - Redis AOF persistence
-- `uploads` - User-uploaded files (logos, vehicle images)
-
----
-
-## 3. Production Deployment
-
-### Option A: Docker on a VPS (Recommended for starting out)
-
-#### Server Requirements
-
-- 2+ CPU cores, 4GB+ RAM (Puppeteer/Chromium needs memory)
-- Ubuntu 22.04+ or Debian 12+
-- Docker and Docker Compose installed
-
-#### Steps
-
-```bash
-# 1. SSH into your server
-ssh user@your-server
-
-# 2. Clone the repo
-git clone <repo-url> && cd lotview
-
-# 3. Create production env file
-cp .env.production.example .env
-# Fill in ALL required values - especially:
-#   SESSION_SECRET (openssl rand -hex 32)
-#   DATABASE_URL
-#   AI_INTEGRATIONS_OPENAI_API_KEY
-#   EXTENSION_HMAC_SECRET (openssl rand -hex 32)
-
-# 4. Build and start
-docker compose up --build -d
-
-# 5. Push database schema
-docker compose exec app npx drizzle-kit push
-
-# 6. Verify
-curl http://localhost:5000/ready
-```
-
-#### Reverse Proxy (Nginx)
-
-```nginx
-server {
-    listen 80;
-    server_name your-domain.com;
-
-    # Redirect to HTTPS
-    return 301 https://$host$request_uri;
-}
-
-server {
-    listen 443 ssl http2;
-    server_name your-domain.com;
-
-    ssl_certificate     /etc/letsencrypt/live/your-domain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
-
-    client_max_body_size 10M;
-
-    location / {
-        proxy_pass http://127.0.0.1:5000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-
-        # WebSocket support
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-    }
-}
-```
-
-Use [Certbot](https://certbot.eff.org/) for free SSL certificates.
-
-### Option B: Container Registry + Managed Service
-
-The CI/CD pipeline (`.github/workflows/deploy.yml`) automatically builds and pushes Docker images to GitHub Container Registry on every push to `main`.
-
-```bash
-# Pull the latest image
-docker pull ghcr.io/<org>/lotview:latest
-
-# Run with your env file
-docker run -d \
-  --name lotview \
-  -p 5000:5000 \
-  --env-file .env \
-  ghcr.io/<org>/lotview:latest
-```
-
-This image works with any container orchestrator: AWS ECS, Google Cloud Run, Azure Container Apps, Fly.io, Railway, etc.
-
----
-
-## 4. Environment Variables
-
-See `.env.example` for the full list with descriptions. Critical production variables:
+See `.env.example` for the full list. The critical production variables are:
 
 | Variable | Required | Description |
-|----------|----------|-------------|
+| --- | --- | --- |
 | `DATABASE_URL` | Yes | PostgreSQL connection string |
-| `SESSION_SECRET` | Yes | JWT signing key (min 32 chars) |
-| `AI_INTEGRATIONS_OPENAI_API_KEY` | Yes* | OpenAI API key for AI features |
-| `RESEND_API_KEY` | Yes* | Email delivery (password reset, invites) |
-| `FACEBOOK_APP_ID` | No | Facebook Marketplace integration |
-| `EXTENSION_HMAC_SECRET` | No | Chrome extension auth signing |
-| `SENTRY_DSN` | No | Error tracking |
+| `SESSION_SECRET` | Yes | session signing secret |
+| `JWT_SECRET` | Yes | JWT signing secret |
+| `EXTENSION_HMAC_SECRET` | Yes | extension auth signing |
+| `AI_INTEGRATIONS_OPENAI_API_KEY` | Feature-dependent | OpenAI integration |
+| `RESEND_API_KEY` | Feature-dependent | email delivery |
 
-*Required for full functionality; app starts without them but features are degraded.
+Pin Node to version `20` in production. [`render.yaml`](render.yaml) now does this explicitly.
 
----
+## 6. Database Review
 
-## 5. Database Migrations
-
-LotView uses Drizzle ORM with push-based migrations:
+Before running `db:push` in production:
 
 ```bash
-# Apply schema changes to database
-npm run db:push
-
-# Or via Docker
-docker compose exec app npx drizzle-kit push
+npx drizzle-kit generate
+# review the generated SQL
+npx drizzle-kit push
 ```
 
-For production, review changes before pushing:
+Drizzle push is operationally acceptable for the first launch wave only if it remains a deliberate operator action.
 
-```bash
-npx drizzle-kit generate   # Generate migration SQL
-# Review the generated SQL
-npx drizzle-kit push        # Apply
-```
+## 7. Monitoring
 
----
+Production logs should remain structured JSON for ingestion by your log system.
 
-## 6. Monitoring
+Recommended monitoring:
 
-### Logs
+- uptime checks on `/health`
+- readiness checks on `/ready`
+- error aggregation with `SENTRY_DSN`
+- proof artifacts for scrape, post, and AI decisions
 
-In production, all logs are JSON-formatted for ingestion by log aggregators (Datadog, Loki, CloudWatch, etc.):
+## 8. Chrome Extension
 
-```json
-{"timestamp":"2026-02-23T10:00:00.000Z","level":"info","source":"http","method":"GET","path":"/api/vehicles","status":200,"duration_ms":45}
-```
+See [`chrome-extension/PUBLISHING.md`](chrome-extension/PUBLISHING.md) for Chrome Web Store publishing.
 
-Set `LOG_FORMAT=json` explicitly, or it defaults to JSON when `NODE_ENV=production`.
+The GitHub artifact workflow builds the extension zip on pushes to `main`. Download it from GitHub Actions artifacts.
 
-### Error Tracking
-
-To enable Sentry, set `SENTRY_DSN` in your environment. The server already produces structured error logs with correlation IDs that Sentry can ingest.
-
-### Health Monitoring
-
-Configure your uptime monitor (UptimeRobot, Pingdom, etc.) to poll:
-- `https://your-domain.com/health` for basic liveness
-- `https://your-domain.com/ready` for full dependency checks
-
----
-
-## 7. Chrome Extension
-
-See [`chrome-extension/PUBLISHING.md`](chrome-extension/PUBLISHING.md) for Chrome Web Store submission instructions.
-
-The deploy workflow automatically builds and archives the extension zip on every push to `main`. Download from GitHub Actions artifacts.
-
----
-
-## 8. Backup & Recovery
+## 9. Backup and Recovery
 
 ### Database
 
 ```bash
-# Backup
-docker compose exec db pg_dump -U lotview lotview > backup-$(date +%Y%m%d).sql
-
-# Restore
-docker compose exec -T db psql -U lotview lotview < backup-20260223.sql
+pg_dump "$DATABASE_URL" > backup-$(date +%Y%m%d).sql
 ```
 
-### Uploads
-
-The `uploads` Docker volume contains user-uploaded files. Back it up:
+### Restore
 
 ```bash
-docker run --rm -v lotview_uploads:/data -v $(pwd):/backup alpine \
-  tar czf /backup/uploads-$(date +%Y%m%d).tar.gz -C /data .
+psql "$DATABASE_URL" < backup-20260402.sql
 ```
 
----
+## 10. Troubleshooting
 
-## Troubleshooting
-
-| Issue | Solution |
-|-------|----------|
-| Puppeteer crashes in Docker | Ensure `--no-sandbox` flag is used; the Dockerfile installs Chromium and sets `PUPPETEER_EXECUTABLE_PATH` |
-| `ECONNREFUSED` to database | Check `DATABASE_URL` and that PostgreSQL is running; use `docker compose logs db` |
-| Extension HMAC errors | Ensure `EXTENSION_HMAC_SECRET` matches between server `.env` and extension config |
-| Port 5000 in use | Change `PORT` in `.env` and update `docker-compose.yml` port mapping |
-| OOM kills in container | Increase Docker memory limit to 4GB+; Puppeteer with Chromium needs ~1-2GB |
+| Issue | Action |
+| --- | --- |
+| App passes build but fails after deploy | Check `/ready`, not just build logs |
+| Render app cannot reach Postgres | Verify `DATABASE_URL` wiring from `lotview-db` |
+| Worker duplicates jobs | Ensure only `lotview-worker` has `LOTVIEW_ENABLE_SCHEDULERS=true` |
+| Puppeteer scraping crashes | Check worker memory headroom and Chromium runtime requirements |
+| Schema mismatch after deploy | Run `npm run db:push` deliberately, then redeploy |

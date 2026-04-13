@@ -1,3 +1,5 @@
+import { normalizeCarfaxBadgeList } from './carfax-badge-utils';
+
 export type ReconciledField =
   | 'vin'
   | 'stockNumber'
@@ -102,7 +104,7 @@ function normalizeUrl(value: string | null | undefined): string | null {
 }
 
 function normalizeBadgeList(values: string[] | null | undefined): string[] {
-  return [...new Set((values ?? []).map(v => normalizeText(v)).filter((v): v is string => Boolean(v)))].sort();
+  return normalizeCarfaxBadgeList(values).map(v => normalizeText(v)!).sort();
 }
 
 function equalText(a: string | null | undefined, b: string | null | undefined): boolean {
@@ -115,6 +117,32 @@ function equalUrl(a: string | null | undefined, b: string | null | undefined): b
 
 function equalNumber(a: number | null | undefined, b: number | null | undefined): boolean {
   return typeof a === 'number' && typeof b === 'number' ? a === b : a == null && b == null;
+}
+
+function optionalTextMatches(sourceValue: string | null | undefined, observedValue: string | null | undefined): boolean {
+  if (sourceValue == null) return true;
+  return equalText(sourceValue, observedValue);
+}
+
+function optionalUrlMatches(sourceValue: string | null | undefined, observedValue: string | null | undefined): boolean {
+  if (sourceValue == null) return true;
+  return equalUrl(sourceValue, observedValue);
+}
+
+function optionalNumberMatches(
+  sourceValue: number | null | undefined,
+  observedValue: number | null | undefined,
+  tolerance = 0,
+): boolean {
+  if (sourceValue == null) return true;
+  if (observedValue == null) return false;
+  return Math.abs(sourceValue - observedValue) <= tolerance;
+}
+
+function optionalBadgeMatch(sourceValue: string[] | null | undefined, observedValue: string[] | null | undefined): boolean {
+  const normalizedSource = normalizeBadgeList(sourceValue);
+  if (normalizedSource.length === 0) return true;
+  return JSON.stringify(normalizedSource) === JSON.stringify(normalizeBadgeList(observedValue));
 }
 
 function pct(numerator: number, denominator: number): number {
@@ -144,7 +172,7 @@ export function reconcileVehicleTruth(input: VehicleReconciliationInput): Vehicl
   check('year', equalNumber(input.source.year, input.observed.year), input.source.year, input.observed.year, 'Year mismatch', true);
   check('make', equalText(input.source.make, input.observed.make), input.source.make, input.observed.make, 'Make mismatch', true);
   check('model', equalText(input.source.model, input.observed.model), input.source.model, input.observed.model, 'Model mismatch', true);
-  check('trim', equalText(input.source.trim, input.observed.trim), input.source.trim, input.observed.trim, 'Trim mismatch');
+  check('trim', optionalTextMatches(input.source.trim, input.observed.trim), input.source.trim, input.observed.trim, 'Trim mismatch');
 
   const sourcePrice = input.source.price ?? null;
   const observedPrice = input.observed.price ?? null;
@@ -155,21 +183,19 @@ export function reconcileVehicleTruth(input: VehicleReconciliationInput): Vehicl
 
   const sourceOdometer = input.source.odometer ?? null;
   const observedOdometer = input.observed.odometer ?? null;
-  const odometerMatches = typeof sourceOdometer === 'number' && typeof observedOdometer === 'number'
-    ? Math.abs(sourceOdometer - observedOdometer) <= 5
-    : sourceOdometer == null && observedOdometer == null;
+  const odometerMatches = optionalNumberMatches(sourceOdometer, observedOdometer, 5);
   check('odometer', odometerMatches, sourceOdometer, observedOdometer, 'Odometer mismatch');
 
   check('photoCount', equalNumber(input.source.photoCount, input.observed.photoCount), input.source.photoCount, input.observed.photoCount, 'Photo count mismatch', true);
   check('primaryPhoto', equalUrl(input.source.primaryPhoto, input.observed.primaryPhoto), input.source.primaryPhoto, input.observed.primaryPhoto, 'Primary photo mismatch', true);
-  check('transmission', equalText(input.source.transmission, input.observed.transmission), input.source.transmission, input.observed.transmission, 'Transmission mismatch');
-  check('drivetrain', equalText(input.source.drivetrain, input.observed.drivetrain), input.source.drivetrain, input.observed.drivetrain, 'Drivetrain mismatch');
-  check('fuelType', equalText(input.source.fuelType, input.observed.fuelType), input.source.fuelType, input.observed.fuelType, 'Fuel type mismatch');
-  check('exteriorColor', equalText(input.source.exteriorColor, input.observed.exteriorColor), input.source.exteriorColor, input.observed.exteriorColor, 'Exterior color mismatch');
-  check('interiorColor', equalText(input.source.interiorColor, input.observed.interiorColor), input.source.interiorColor, input.observed.interiorColor, 'Interior color mismatch');
-  check('carfaxUrl', equalUrl(input.source.carfaxUrl, input.observed.carfaxUrl), input.source.carfaxUrl, input.observed.carfaxUrl, 'CARFAX URL mismatch');
+  check('transmission', optionalTextMatches(input.source.transmission, input.observed.transmission), input.source.transmission, input.observed.transmission, 'Transmission mismatch');
+  check('drivetrain', optionalTextMatches(input.source.drivetrain, input.observed.drivetrain), input.source.drivetrain, input.observed.drivetrain, 'Drivetrain mismatch');
+  check('fuelType', optionalTextMatches(input.source.fuelType, input.observed.fuelType), input.source.fuelType, input.observed.fuelType, 'Fuel type mismatch');
+  check('exteriorColor', optionalTextMatches(input.source.exteriorColor, input.observed.exteriorColor), input.source.exteriorColor, input.observed.exteriorColor, 'Exterior color mismatch');
+  check('interiorColor', optionalTextMatches(input.source.interiorColor, input.observed.interiorColor), input.source.interiorColor, input.observed.interiorColor, 'Interior color mismatch');
+  check('carfaxUrl', optionalUrlMatches(input.source.carfaxUrl, input.observed.carfaxUrl), input.source.carfaxUrl, input.observed.carfaxUrl, 'CARFAX URL mismatch');
 
-  const badgesMatch = JSON.stringify(normalizeBadgeList(input.source.carfaxBadges)) === JSON.stringify(normalizeBadgeList(input.observed.carfaxBadges));
+  const badgesMatch = optionalBadgeMatch(input.source.carfaxBadges, input.observed.carfaxBadges);
   check('carfaxBadges', badgesMatch, input.source.carfaxBadges ?? [], input.observed.carfaxBadges ?? [], 'CARFAX badge mismatch');
 
   const blockingReasons = mismatches.filter(m => m.blocking).map(m => `${m.field}:${m.reason}`);

@@ -11,7 +11,7 @@ import {
   logout,
   TestUser,
   TestDealership
-} from './test-helpers';
+} from './test-helpers.ts';
 
 interface TestResult {
   name: string;

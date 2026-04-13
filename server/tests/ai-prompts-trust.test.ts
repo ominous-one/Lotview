@@ -79,6 +79,48 @@ describe('ai prompt truthfulness proof', () => {
     expect(context).toContain('1 previous owner(s)');
     expect(context).toContain('9 service records on file');
     expect(context).toContain('Last reported odometer: 41,880 km');
-    expect(context).toContain('Badges: One Owner, No Accidents Reported');
+    expect(context).toContain('Carfax Badges: One Owner, No Reported Accidents');
+  });
+
+  test('vehicle and carfax contexts normalize raw badge tokens before the AI sees them', () => {
+    const vehicleContext = buildVehicleContext({
+      id: 102,
+      year: 2020,
+      make: 'Honda',
+      model: 'Civic',
+      trim: 'Sport',
+      price: 27995,
+      odometer: 51234,
+      exteriorColor: 'White',
+      interiorColor: 'Black',
+      transmission: 'Automatic',
+      drivetrain: 'FWD',
+      fuelType: 'Gasoline',
+      type: 'Sedan',
+      vin: '2HGFC2F86LH029479',
+      stockNumber: 'HC-12',
+      normalizedStockNumber: 'HC12',
+      dealerVdpUrl: 'https://dealer.example/vehicles/honda-civic-sport',
+      carfaxUrl: 'https://vhr.carfax.ca/?id=proof-raw',
+      carfaxBadges: ['AccidentFree', 'OneOwner', 'LowKilometer'],
+      lastScrapedAt: new Date(Date.now() - 60 * 60 * 1000),
+      deletedAt: null,
+      lifecycleStatus: 'ACTIVE',
+      photoStatus: 'complete',
+      badges: [],
+      dealership: 'Trust Honda',
+      location: 'Vancouver, BC',
+    } as any);
+
+    const carfaxContext = buildCarfaxContext({
+      accidentCount: 0,
+      ownerCount: 1,
+      badges: ['AccidentFree', 'OneOwner', 'LowKilometer'],
+    });
+
+    expect(vehicleContext).toContain('Carfax Badges: No Reported Accidents, One Owner, Low Kilometers');
+    expect(vehicleContext).not.toContain('AccidentFree');
+    expect(vehicleContext).not.toContain('OneOwner');
+    expect(carfaxContext).toContain('Carfax Badges: No Reported Accidents, One Owner, Low Kilometers');
   });
 });

@@ -12,6 +12,10 @@ import {
 import { uniquePhotoCount } from './vehicle-photo-utils';
 import { createInventoryOpsNotification } from './notifications/notification-service';
 import type { DealershipScrapeGateResult } from './scrape-truth-foundation';
+import {
+  describeVehicleVerificationBlockReason,
+  resolveVehicleVerificationState,
+} from './vehicle-data-quality';
 
 const PHOTO_GATE_MIN_UNIQUE = 10;
 const MAX_ATTEMPTS_PER_PLATFORM = 3;
@@ -59,11 +63,17 @@ function platformBlockedReason(params: {
   photoGateOverride: boolean;
   vehicleAutopostEligible: boolean;
   vehicleAutopostBlockReason: string | null;
+  vehicleVerificationState: ReturnType<typeof resolveVehicleVerificationState>;
   dealershipScrapeGate?: DealershipScrapeGateResult | null;
 }): { blocked: boolean; reason: string | null } {
   const dealershipGateReason = summarizeDealershipScrapeGateBlockReason(params.dealershipScrapeGate);
   if (dealershipGateReason) {
     return { blocked: true, reason: dealershipGateReason };
+  }
+
+  const verificationGateReason = describeVehicleVerificationBlockReason(params.vehicleVerificationState);
+  if (verificationGateReason) {
+    return { blocked: true, reason: verificationGateReason };
   }
 
   const uCount = uniquePhotoCount(params.vehicleImages || []);
@@ -103,8 +113,24 @@ export async function evaluateAndEnqueueAutopostQueue(params: {
   dealershipId: number;
   actorUserId?: number | null;
   scrapeGate?: DealershipScrapeGateResult | null;
-}): Promise<{ enqueued: number; updated: number; skipped: number }> {
+}): Promise<{ enqueued: number; updated: number; skipped: number; dealershipBlockedReason: string | null }> {
   const actorUserId = params.actorUserId ?? null;
+  const dealershipBlockedReason = summarizeDealershipScrapeGateBlockReason(params.scrapeGate);
+
+  if (dealershipBlockedReason) {
+    const reconciled = await reconcileAutopostPlatformBlocks({
+      dealershipId: params.dealershipId,
+      actorUserId,
+      scrapeGate: params.scrapeGate ?? null,
+    });
+
+    return {
+      enqueued: 0,
+      updated: reconciled.updated,
+      skipped: 0,
+      dealershipBlockedReason,
+    };
+  }
 
   // Candidate inventory: active, not deleted.
   const inventory = await db
@@ -119,6 +145,15 @@ export async function evaluateAndEnqueueAutopostQueue(params: {
       autopostBlockReason: vehicles.autopostBlockReason,
       deletedAt: vehicles.deletedAt,
       lifecycleStatus: vehicles.lifecycleStatus,
+      vin: vehicles.vin,
+      stockNumber: vehicles.stockNumber,
+      normalizedStockNumber: vehicles.normalizedStockNumber,
+      dealerVdpUrl: vehicles.dealerVdpUrl,
+      carfaxUrl: vehicles.carfaxUrl,
+      carfaxBadges: vehicles.carfaxBadges,
+      lastScrapedAt: vehicles.lastScrapedAt,
+      photoStatus: vehicles.photoStatus,
+      verificationStatus: vehicles.verificationStatus,
     })
     .from(vehicles)
     .where(
@@ -162,8 +197,15 @@ export async function evaluateAndEnqueueAutopostQueue(params: {
     let nextRank = Number(maxRankRow[0]?.max || 0) + 1;
 
     for (const v of sorted) {
+      const verificationState = resolveVehicleVerificationState(v);
+      const verificationBlockReason = describeVehicleVerificationBlockReason(verificationState);
       const queueId = existingByVehicle.get(v.id);
       if (!queueId) {
+        if (verificationBlockReason) {
+          skipped++;
+          continue;
+        }
+
         // Create queue item.
         const inserted = await tx
           .insert(autopostQueueItems)
@@ -235,7 +277,7 @@ export async function evaluateAndEnqueueAutopostQueue(params: {
     scrapeGate: params.scrapeGate ?? null,
   });
 
-  return { enqueued, updated, skipped };
+  return { enqueued, updated, skipped, dealershipBlockedReason: null };
 }
 
 export async function reconcileAutopostPlatformBlocks(params: {
@@ -253,6 +295,17 @@ export async function reconcileAutopostPlatformBlocks(params: {
       images: vehicles.images,
       autopostEligible: vehicles.autopostEligible,
       autopostBlockReason: vehicles.autopostBlockReason,
+      vin: vehicles.vin,
+      stockNumber: vehicles.stockNumber,
+      normalizedStockNumber: vehicles.normalizedStockNumber,
+      dealerVdpUrl: vehicles.dealerVdpUrl,
+      carfaxUrl: vehicles.carfaxUrl,
+      carfaxBadges: vehicles.carfaxBadges,
+      lastScrapedAt: vehicles.lastScrapedAt,
+      deletedAt: vehicles.deletedAt,
+      lifecycleStatus: vehicles.lifecycleStatus,
+      photoStatus: vehicles.photoStatus,
+      verificationStatus: vehicles.verificationStatus,
       fbId: autopostPlatformStatuses.id,
       fbStatus: autopostPlatformStatuses.status,
       fbPlatform: autopostPlatformStatuses.platform,
@@ -273,6 +326,17 @@ export async function reconcileAutopostPlatformBlocks(params: {
       images: vehicles.images,
       autopostEligible: vehicles.autopostEligible,
       autopostBlockReason: vehicles.autopostBlockReason,
+      vin: vehicles.vin,
+      stockNumber: vehicles.stockNumber,
+      normalizedStockNumber: vehicles.normalizedStockNumber,
+      dealerVdpUrl: vehicles.dealerVdpUrl,
+      carfaxUrl: vehicles.carfaxUrl,
+      carfaxBadges: vehicles.carfaxBadges,
+      lastScrapedAt: vehicles.lastScrapedAt,
+      deletedAt: vehicles.deletedAt,
+      lifecycleStatus: vehicles.lifecycleStatus,
+      photoStatus: vehicles.photoStatus,
+      verificationStatus: vehicles.verificationStatus,
       statusId: autopostPlatformStatuses.id,
       status: autopostPlatformStatuses.status,
     })
@@ -284,13 +348,20 @@ export async function reconcileAutopostPlatformBlocks(params: {
     )
     .where(and(eq(autopostQueueItems.dealershipId, params.dealershipId), eq(autopostQueueItems.isActive, true)));
 
-  const byQueue = new Map<string, { images: string[]; autopostEligible: boolean; autopostBlockReason: string | null; photoGateOverride: boolean }>();
+  const byQueue = new Map<string, {
+    images: string[];
+    autopostEligible: boolean;
+    autopostBlockReason: string | null;
+    photoGateOverride: boolean;
+    verificationState: ReturnType<typeof resolveVehicleVerificationState>;
+  }>();
   for (const r of rows) {
     byQueue.set(r.queueItemId, {
       images: (r.images || []) as any,
       autopostEligible: !!r.autopostEligible,
       autopostBlockReason: (r.autopostBlockReason as any) || null,
       photoGateOverride: !!r.photoGateOverride,
+      verificationState: resolveVehicleVerificationState(r),
     });
   }
 
@@ -309,6 +380,7 @@ export async function reconcileAutopostPlatformBlocks(params: {
       photoGateOverride: base.photoGateOverride,
       vehicleAutopostEligible: base.autopostEligible,
       vehicleAutopostBlockReason: base.autopostBlockReason,
+      vehicleVerificationState: base.verificationState,
       dealershipScrapeGate: params.scrapeGate ?? null,
     });
 
@@ -594,6 +666,14 @@ export async function claimNextAutopostItem(params: {
         v.images,
         v.autopost_eligible,
         v.autopost_block_reason,
+        v.vin,
+        v.stock_number,
+        v.normalized_stock_number,
+        v.carfax_url,
+        v.carfax_badges,
+        v.last_scraped_at,
+        v.photo_status,
+        v.verification_status,
         v.year, v.make, v.model, v.trim, v.price, v.odometer, v.dealer_vdp_url
       FROM autopost_queue_items qi
       JOIN autopost_platform_statuses ps ON ps.queue_item_id = qi.id AND ps.platform = ${params.platform}
@@ -617,6 +697,19 @@ export async function claimNextAutopostItem(params: {
       photoGateOverride: !!row.photo_gate_override,
       vehicleAutopostEligible: !!row.autopost_eligible,
       vehicleAutopostBlockReason: row.autopost_block_reason,
+      vehicleVerificationState: resolveVehicleVerificationState({
+        vin: row.vin,
+        stockNumber: row.stock_number,
+        normalizedStockNumber: row.normalized_stock_number,
+        dealerVdpUrl: row.dealer_vdp_url,
+        carfaxUrl: row.carfax_url,
+        carfaxBadges: row.carfax_badges,
+        lastScrapedAt: row.last_scraped_at,
+        deletedAt: null,
+        lifecycleStatus: 'ACTIVE',
+        photoStatus: row.photo_status,
+        verificationStatus: row.verification_status,
+      }),
       dealershipScrapeGate: params.scrapeGate ?? null,
     });
 

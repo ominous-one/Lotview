@@ -24,7 +24,7 @@ The development workflow leverages Vite middleware for Hot Module Replacement (H
 The system defines roles such as `super_admin`, `master`, `admin`, `manager`, and `salesperson`. Authorization is enforced using middleware like `requireRole` for access control and `requireDealership` for multi-tenant data isolation.
 
 ### Multi-Tenant Management
-The system is production-ready for single dealerships with a `super_admin` role for system-wide administration and "Login As" impersonation. It's designed for future expansion into a multi-tenant SaaS model using a Pool Model.
+The system has significant single-dealership and multi-tenant groundwork, but this repo should not currently be described as production-ready without a fresh end-to-end validation run. Treat it as an active build/hardening codebase with partial readiness evidence, not a fully certified production deployment.
 
 ### Legal Compliance Pages
 The platform includes dedicated pages for a Privacy Policy and Terms of Service, covering data handling, integrations, user rights, and service agreements, linked from the main inventory page footer.

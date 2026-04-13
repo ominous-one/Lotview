@@ -31,6 +31,8 @@ export interface NormalizedVehicleSpec {
   sources: string[];
 }
 
+type VinDecodeCacheRow = Awaited<ReturnType<typeof storage.getVinDecodeCache>>;
+
 function asNumber(v: unknown): number | undefined {
   if (typeof v === 'number' && Number.isFinite(v)) return v;
   if (typeof v === 'string') {
@@ -44,13 +46,22 @@ function normalizeTrimConfidence(trim?: string): NormalizedVehicleSpec['trimConf
   if (!trim) return 'unknown';
   const t = trim.trim();
   if (!t) return 'unknown';
-  if (t.length >= 3) return 'medium';
+  const normalized = t.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const tokens = normalized.split(/\s+/).filter(Boolean);
+  const ambiguous = new Set(['base', 'sedan', 'coupe', 'wagon', 'sport', 'premium', 'limited', 'special']);
+  const meaningfulTokens = tokens.filter(token => token.length > 1 && !ambiguous.has(token));
+  if (meaningfulTokens.length >= 2 || /\b(xle|xse|sel|se|ex|lx|touring|platinum|denali|sx|gt|rs|lt|ltz|sportage|limited awd)\b/i.test(normalized)) {
+    return 'high';
+  }
+  if (meaningfulTokens.length >= 1 || t.length >= 3) return 'medium';
   return 'low';
 }
 
-function normalizeOptionsConfidence(options?: unknown): NormalizedVehicleSpec['optionsConfidence'] {
-  if (!Array.isArray(options) || options.length === 0) return 'unknown';
-  if (options.length >= 10) return 'high';
+function normalizeOptionsConfidence(options?: unknown, packages?: unknown): NormalizedVehicleSpec['optionsConfidence'] {
+  const optionCount = Array.isArray(options) ? options.length : 0;
+  const packageCount = Array.isArray(packages) ? packages.length : 0;
+  if (optionCount === 0 && packageCount === 0) return 'unknown';
+  if (optionCount >= 10 || optionCount + packageCount >= 12) return 'high';
   return 'medium';
 }
 
@@ -133,9 +144,15 @@ export async function decodeVinCheapHybrid(vin: string, opts: VinDecodeRouterOpt
   const cacheTtlMs = opts.cacheTtlMs ?? 1000 * 60 * 60 * 24 * 180; // 180d
 
   const cached = await storage.getVinDecodeCache(opts.dealershipId, cleanVIN);
-  if (cached) {
+  const cacheExpired = (row: VinDecodeCacheRow): boolean => {
+    if (!row?.expiresAt) return false;
+    return row.expiresAt.getTime() < Date.now();
+  };
+
+  if (cached && !cacheExpired(cached)) {
     const baseline = cached.baselinePayload as any;
     const enriched = cached.enrichedPayload as any | null;
+    const sources = Array.from(new Set([cached.baselineSource, cached.enrichedSource].filter(Boolean) as string[]));
 
     return {
       vin: cleanVIN,
@@ -153,7 +170,7 @@ export async function decodeVinCheapHybrid(vin: string, opts: VinDecodeRouterOpt
       packages: enriched?.packages ?? baseline?.packages,
       trimConfidence: (cached.trimConfidence as any) ?? 'unknown',
       optionsConfidence: (cached.optionsConfidence as any) ?? 'unknown',
-      sources: [cached.baselineSource, cached.enrichedSource].filter(Boolean) as string[],
+      sources,
     };
   }
 
@@ -194,8 +211,18 @@ export async function decodeVinCheapHybrid(vin: string, opts: VinDecodeRouterOpt
   const finalSpec: NormalizedVehicleSpec = {
     ...baselineSpec,
     ...enriched,
-    trimConfidence: normalizeTrimConfidence((enriched?.trim ?? baselineSpec.trim) as any),
-    optionsConfidence: normalizeOptionsConfidence(enriched?.installedOptions ?? baselineSpec.installedOptions),
+    trimConfidence: (() => {
+      const finalTrim = (enriched?.trim ?? baselineSpec.trim) as string | undefined;
+      const baseConfidence = normalizeTrimConfidence(finalTrim);
+      if (baselineSpec.trim && enriched?.trim && baselineSpec.trim.trim().toLowerCase() === enriched.trim.trim().toLowerCase()) {
+        return baseConfidence === 'medium' ? 'high' : baseConfidence;
+      }
+      return baseConfidence;
+    })(),
+    optionsConfidence: normalizeOptionsConfidence(
+      enriched?.installedOptions ?? baselineSpec.installedOptions,
+      enriched?.packages ?? baselineSpec.packages,
+    ),
   };
 
   await storage.upsertVinDecodeCache(opts.dealershipId, cleanVIN, {

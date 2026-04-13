@@ -219,6 +219,8 @@ export const vehicles = pgTable("vehicles", {
   marketplacePostedBy: integer("marketplace_posted_by"), // User ID who posted to Marketplace
   createdAt: timestamp("created_at").defaultNow().notNull(),
   lastScrapedAt: timestamp("last_scraped_at").defaultNow(), // Track when vehicle was last scraped (for incremental sync)
+  verificationStatus: text("verification_status").notNull().default('UNVERIFIED'),
+  verificationCheckedAt: timestamp("verification_checked_at"),
   missedScrapeCount: integer("missed_scrape_count").default(0), // Tracks consecutive scrapes where vehicle wasn't found (for safe deletion)
 
   // ===== Inventory Sync v1.1 fields =====
@@ -243,6 +245,8 @@ export const insertVehicleSchema = createInsertSchema(vehicles).omit({
 
 export type InsertVehicle = z.infer<typeof insertVehicleSchema>;
 export type Vehicle = typeof vehicles.$inferSelect;
+export const vehicleVerificationStatuses = ['VERIFIED', 'UNVERIFIED', 'STALE', 'ERROR'] as const;
+export type VehicleVerificationStatus = typeof vehicleVerificationStatuses[number];
 
 // Custom type for PostgreSQL bytea columns (binary data)
 const bytea = customType<{ data: Buffer; driverParam: Buffer }>({

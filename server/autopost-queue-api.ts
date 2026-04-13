@@ -2,6 +2,10 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { db } from './db';
 import { autopostQueueItems, vehicles } from '@shared/schema';
 import { uniquePhotoCount } from './vehicle-photo-utils';
+import {
+  describeVehicleVerificationBlockReason,
+  resolveVehicleVerificationState,
+} from './vehicle-data-quality';
 
 export {
   claimNextAutopostItem,
@@ -28,6 +32,15 @@ export async function evaluateAndEnqueueAutopost(params: {
       images: vehicles.images,
       deletedAt: vehicles.deletedAt,
       lifecycleStatus: vehicles.lifecycleStatus,
+      vin: vehicles.vin,
+      stockNumber: vehicles.stockNumber,
+      normalizedStockNumber: vehicles.normalizedStockNumber,
+      dealerVdpUrl: vehicles.dealerVdpUrl,
+      carfaxUrl: vehicles.carfaxUrl,
+      carfaxBadges: vehicles.carfaxBadges,
+      lastScrapedAt: vehicles.lastScrapedAt,
+      photoStatus: vehicles.photoStatus,
+      verificationStatus: vehicles.verificationStatus,
       autopostEligible: vehicles.autopostEligible,
       autopostReadyAt: vehicles.autopostReadyAt,
     })
@@ -38,14 +51,22 @@ export async function evaluateAndEnqueueAutopost(params: {
 
   for (const vehicle of inventory) {
     const uniqueCount = uniquePhotoCount(vehicle.images);
-    const eligible = !vehicle.deletedAt && vehicle.lifecycleStatus === 'ACTIVE' && uniqueCount >= minPhotosTarget;
+    const verificationState = resolveVehicleVerificationState(vehicle);
+    const verificationBlockReason = describeVehicleVerificationBlockReason(verificationState);
+    const eligible =
+      !vehicle.deletedAt &&
+      vehicle.lifecycleStatus === 'ACTIVE' &&
+      !verificationBlockReason &&
+      uniqueCount >= minPhotosTarget;
     const blockReason = eligible
       ? null
       : vehicle.deletedAt
         ? 'DELETED'
         : vehicle.lifecycleStatus !== 'ACTIVE'
           ? `STATUS_${vehicle.lifecycleStatus}`
-          : `NEEDS_PHOTOS_${uniqueCount}`;
+          : verificationBlockReason
+            ? verificationBlockReason
+            : `NEEDS_PHOTOS_${uniqueCount}`;
 
     const shouldSetReadyAt = eligible && !vehicle.autopostReadyAt;
 

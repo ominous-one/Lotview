@@ -4,7 +4,7 @@ import { storage } from './storage';
 import { decodeVinCheapHybrid, type NormalizedVehicleSpec } from './vin-decode-router';
 import { conditionForDisplay, normalizeCondition } from './condition-normalization';
 import { extractDrivetrainFromText, scoreComp, sourceScore } from './comps-scoring';
-import type { NormalizedComp, CompScoreExplain, TrimMatchMode } from './comps-types';
+import type { NormalizedComp, CompScoreExplain, TrimMatchMode, AppraisalProofPoint } from './comps-types';
 
 export interface CompsQuery {
   dealershipId: number;
@@ -35,6 +35,15 @@ export interface CompsResult {
     suggestedRetailPrice?: number;
     confidence: 'high' | 'medium' | 'low';
     notes: string[];
+    proof: {
+      exactTrimMatchCount: number;
+      drivetrainMatchCount: number;
+      drivetrainMismatchCount: number;
+      freshCompCount: number;
+      sourceDiversity: number;
+      averageScore: number;
+      topEvidence: AppraisalProofPoint[];
+    };
   };
 }
 
@@ -187,6 +196,15 @@ export async function getAppraisalComps(query: CompsQuery): Promise<CompsResult>
         count: 0,
         confidence: 'low',
         notes: ['VIN decode did not yield enough vehicle identity for comparable matching.'],
+        proof: {
+          exactTrimMatchCount: 0,
+          drivetrainMatchCount: 0,
+          drivetrainMismatchCount: 0,
+          freshCompCount: 0,
+          sourceDiversity: 0,
+          averageScore: 0,
+          topEvidence: [],
+        },
       },
     };
   }
@@ -250,8 +268,10 @@ export async function getAppraisalComps(query: CompsQuery): Promise<CompsResult>
   const exactTrimMatches = top.filter((x) => x.score.reasons.includes('Exact trim match')).length;
   const drivetrainMismatches = top.filter((x) => x.score.reasons.some((r) => r.startsWith('Drivetrain mismatch'))).length;
   const staleComps = top.filter((x) => x.score.components.freshness <= 2).length;
+  const freshCompCount = top.length - staleComps;
   const sourceDiversity = new Set(top.map((x) => x.comp.source)).size;
   const avgScore = top.length ? Math.round(top.reduce((sum, item) => sum + item.score.total, 0) / top.length) : 0;
+  const drivetrainMatchCount = top.filter((x) => x.score.reasons.some((r) => r.startsWith('Drivetrain match'))).length;
   const notes: string[] = [];
   if (top.length < 5) notes.push('Small comparable set; treat appraisal as directional.');
   if (spec.trim && exactTrimMatches === 0) notes.push('No exact trim matches found in current comp set.');
@@ -264,17 +284,28 @@ export async function getAppraisalComps(query: CompsQuery): Promise<CompsResult>
     top.length >= 8
       && avgScore >= 75
       && exactTrimMatches >= Math.max(1, Math.floor(top.length / 3))
-      && staleComps <= 2
+      && freshCompCount >= Math.max(5, Math.floor(top.length * 0.6))
       && drivetrainMismatches <= Math.floor(top.length / 4)
       && sourceDiversity >= 2
-      && spec.trimConfidence !== 'low'
-      && spec.trimConfidence !== 'unknown'
+      && (spec.trimConfidence === 'high' || spec.trimConfidence === 'medium')
       ? 'high'
       : top.length >= 4
           && avgScore >= 60
           && drivetrainMismatches < top.length
+          && freshCompCount >= Math.max(2, Math.floor(top.length / 2))
         ? 'medium'
         : 'low';
+
+  const topEvidence: AppraisalProofPoint[] = top.slice(0, 5).map((item) => ({
+    listingUrl: item.comp.listingUrl,
+    source: item.comp.source,
+    sellerName: item.comp.sellerName,
+    price: item.comp.price,
+    trim: item.comp.trim,
+    drivetrain: item.comp.drivetrain,
+    score: item.score.total,
+    reasons: item.score.reasons.slice(0, 4),
+  }));
 
   return {
     spec,
@@ -289,6 +320,15 @@ export async function getAppraisalComps(query: CompsQuery): Promise<CompsResult>
       suggestedRetailPrice: suggested,
       confidence,
       notes,
+      proof: {
+        exactTrimMatchCount: exactTrimMatches,
+        drivetrainMatchCount,
+        drivetrainMismatchCount: drivetrainMismatches,
+        freshCompCount,
+        sourceDiversity,
+        averageScore: avgScore,
+        topEvidence,
+      },
     },
   };
 }

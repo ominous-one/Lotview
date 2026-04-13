@@ -155,26 +155,8 @@ export class CompetitiveReportService {
           : null;
 
         const position = delta === null ? null : delta < -500 ? 'under' : delta > 500 ? 'over' : 'at';
-        const compDays = normalizedComps.map((c) => c.daysOnLot).filter((d): d is number => typeof d === 'number' && d >= 0);
         const compMileage = normalizedComps.map((c) => c.mileageKm).filter((m): m is number => typeof m === 'number' && m >= 0);
-        const daysMedian = median(compDays);
         const mileageMedian = median(compMileage);
-        const accidentFreeCount = normalizedComps.filter((c) => c.accidentHistory === 'accident_free').length;
-        const reportedDamageCount = normalizedComps.filter((c) => c.accidentHistory === 'reported').length;
-        const summary = {
-          priceMedian: compMedian ?? null,
-          priceAverage: average(compPrices) ?? null,
-          averageDaysOnLot: average(compDays) ?? null,
-          medianDaysOnLot: daysMedian ?? null,
-          medianMileageKm: mileageMedian ?? null,
-          accidentFreeCount,
-          reportedDamageCount,
-          sourceBreakdown: normalizedComps.reduce<Record<string, number>>((acc, comp) => {
-            acc[comp.source] = (acc[comp.source] || 0) + 1;
-            return acc;
-          }, {}),
-        };
-
         unitRows.push({
           runId: run.id,
           vehicleId: v.id,
@@ -200,7 +182,6 @@ export class CompetitiveReportService {
               ? Math.abs(comp.mileageKm - mileageMedian) <= 20000
               : null,
           })),
-          summary,
         } as any);
       } catch (e) {
         errors.push(e instanceof Error ? e.message : String(e));

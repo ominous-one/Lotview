@@ -47,11 +47,26 @@ jest.mock('../error-utils', () => ({
   logError: jest.fn(),
 }));
 
+const resolveCarfaxReportUrlFromVdpHtmlMock = jest.fn();
+
+jest.mock('../carfax-scraper', () => ({
+  resolveCarfaxReportUrlFromVdpHtml: (...args: any[]) => resolveCarfaxReportUrlFromVdpHtmlMock(...args),
+}));
+
 import { robustScraperTestables } from '../robust-scraper';
 
-const { extractVdpContent, extractFuelType, extractEngine } = robustScraperTestables;
+const {
+  extractVdpContent,
+  enrichVdpContentWithDynamicCarfax,
+  extractFuelType,
+  extractEngine,
+} = robustScraperTestables;
 
 describe('robust scraper VDP extraction', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   it('extracts rich vehicle details from VDP html', () => {
     const html = `
       <html>
@@ -119,5 +134,42 @@ describe('robust scraper VDP extraction', () => {
   it('extracts engine labels safely', () => {
     const html = `<dt>Engine</dt><dd>2.5L I4</dd>`;
     expect(extractEngine(html)).toBe('2.5L I4');
+  });
+
+  it('resolves dealer popup carfax data into the VDP content when the page only exposes modal config', async () => {
+    resolveCarfaxReportUrlFromVdpHtmlMock.mockResolvedValue({
+      reportUrl: 'https://vhr.carfax.ca/?id=popup123',
+      badges: ['One Owner', 'No Reported Accidents'],
+    });
+
+    const html = `
+      <html>
+        <body>
+          <script>
+            window.inventory = {"carfaxAccountId":"33267","carfaxNonce":"abc123"};
+          </script>
+          <button class="carfax-badge__trigger">View Carfax Report</button>
+          <div class="vehicle-description">Premium EV with heat pump and AWD.</div>
+        </body>
+      </html>
+    `;
+
+    const extracted = extractVdpContent(html);
+    expect(extracted.carfaxUrl).toBeNull();
+
+    const enriched = await enrichVdpContentWithDynamicCarfax(
+      'https://www.olympichyundaivancouver.com/vehicles/2022/hyundai/ioniq-5/vancouver/bc/69188186/',
+      html,
+      'KM8KN4AE6NU054295',
+      extracted,
+    );
+
+    expect(resolveCarfaxReportUrlFromVdpHtmlMock).toHaveBeenCalledWith(
+      'https://www.olympichyundaivancouver.com/vehicles/2022/hyundai/ioniq-5/vancouver/bc/69188186/',
+      html,
+      'KM8KN4AE6NU054295',
+    );
+    expect(enriched.carfaxUrl).toBe('https://vhr.carfax.ca/?id=popup123');
+    expect(enriched.carfaxBadges).toEqual(expect.arrayContaining(['One Owner', 'No Reported Accidents']));
   });
 });

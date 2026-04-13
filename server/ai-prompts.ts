@@ -1,4 +1,5 @@
 import type { Dealership, Vehicle, AiSettings } from "@shared/schema";
+import { normalizeCarfaxBadgeList } from "./carfax-badge-utils";
 import { buildVehicleTruthfulnessContext } from "./vehicle-data-quality";
 
 /**
@@ -173,6 +174,7 @@ ${greetingInstruction}`;
 export function buildVehicleContext(vehicle: Vehicle): string {
   const lines: string[] = [];
   const name = `${vehicle.year} ${vehicle.make} ${vehicle.model}${vehicle.trim ? ` ${vehicle.trim}` : ''}`;
+  const normalizedCarfaxBadges = normalizeCarfaxBadgeList(vehicle.carfaxBadges);
   lines.push(`Vehicle: ${name}`);
   lines.push(`Price: $${vehicle.price.toLocaleString()} CAD`);
   lines.push(`Odometer: ${vehicle.odometer.toLocaleString()} km`);
@@ -186,8 +188,8 @@ export function buildVehicleContext(vehicle: Vehicle): string {
   if (vehicle.vin) lines.push(`VIN: ${vehicle.vin}`);
   if (vehicle.stockNumber) lines.push(`Stock #: ${vehicle.stockNumber}`);
 
-  if (vehicle.carfaxBadges && vehicle.carfaxBadges.length > 0) {
-    lines.push(`Carfax Badges: ${vehicle.carfaxBadges.join(', ')}`);
+  if (normalizedCarfaxBadges.length > 0) {
+    lines.push(`Carfax Badges: ${normalizedCarfaxBadges.join(', ')}`);
   }
   if (vehicle.carfaxUrl) {
     lines.push(`Carfax URL Available: yes`);
@@ -243,6 +245,7 @@ export function buildCarfaxContext(report: {
   badges?: string[] | null;
 }): string {
   const lines: string[] = [];
+  const normalizedBadges = normalizeCarfaxBadgeList(report.badges);
 
   if (report.accidentCount !== undefined && report.accidentCount !== null) {
     lines.push(report.accidentCount === 0
@@ -264,8 +267,8 @@ export function buildCarfaxContext(report: {
   if (report.lienReported === false) {
     lines.push('No liens reported');
   }
-  if (report.badges && report.badges.length > 0) {
-    lines.push(`Carfax Badges: ${report.badges.join(', ')}`);
+  if (normalizedBadges.length > 0) {
+    lines.push(`Carfax Badges: ${normalizedBadges.join(', ')}`);
   }
 
   return lines.length > 0 ? lines.join('\n') : 'Carfax report available — ask for details.';
@@ -284,8 +287,9 @@ export function buildInventoryContext(vehicles: Vehicle[], currentVehicleId?: nu
   const lines = alternatives.map(v => {
     const name = `${v.year} ${v.make} ${v.model}${v.trim ? ` ${v.trim}` : ''}`;
     const extras: string[] = [];
+    const normalizedCarfaxBadges = normalizeCarfaxBadgeList(v.carfaxBadges);
     if (v.odometer) extras.push(`${v.odometer.toLocaleString()} km`);
-    if (v.carfaxBadges?.includes('No Reported Accidents')) extras.push('No Accidents');
+    if (normalizedCarfaxBadges.includes('No Reported Accidents')) extras.push('No Accidents');
     if (v.drivetrain) extras.push(v.drivetrain);
     return `- ${name} — $${v.price.toLocaleString()} (${extras.join(', ')})`;
   });

@@ -20,9 +20,51 @@ vite.config.ts.*
 # Build artifacts
 coverage/
 *.tsbuildinfo
+_deploy/
+deliverables/deploy-packages/
 
 # Local runtime artifacts
 artifacts/
+.build.out
+build.out
+jest.out
+jest_current.log
+build_current.log
+build_current2.log
+tsc.log
+tsc2.log
+tsc_current.log
+tmp/saas-spawns/
+tmp/swarm-spawns/
+workspace/runtime/swarm/run-history/
+build_audit.log
+check.out
+jest_audit.log
+root-test.out
+runtime-proof-jest.log
+tsc_audit.log
+tsc_runtimeproof.log
+temp-fetch.mjs
+temp-inventory-query.ts
+temp-pg-query.mjs
+temp-pup.mjs
+tmp/
+.openclaw/
+memory/
+runtime/swarm/
+runtime/live-runtime-audit-*.json
+.cloudflare-cookies/
+qa/proofs/
+AGENTS.md
+BOOTSTRAP.md
+HEARTBEAT.md
+IDENTITY.md
+LOTVIEW_ACCEPTANCE_TESTS.md
+LOTVIEW_EXECUTION_CONTRACT.md
+LOTVIEW_MILESTONE_PLAN.md
+SOUL.md
+TOOLS.md
+USER.md
 
 # Chrome extension build output
 chrome-extension/dist/

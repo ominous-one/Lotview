@@ -1,9 +1,9 @@
 import OpenAI from "openai";
-import Anthropic from "@anthropic-ai/sdk";
 import { db } from "./db";
 import { aiPromptTemplates, dealershipApiKeys } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import { storage } from "./storage";
+import { normalizeCarfaxBadgeList } from "./carfax-badge-utils";
 
 export interface ChatMessage {
   role: "user" | "assistant" | "system";
@@ -24,19 +24,30 @@ async function getOpenAIClient(dealershipId: number): Promise<{ client: OpenAI; 
       source: 'dealership'
     };
   }
-  
-  // Fallback to Replit's AI Integrations service (for Replit deployments only)
-  console.log(`Using Replit AI Integrations fallback for dealership ${dealershipId}`);
-  return {
-    client: new OpenAI({
-      baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-      apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY
-    }),
-    source: 'replit'
-  };
-}
 
-const fallbackMessage = "I'm having a little trouble right now — please call or text us directly and we'll be happy to help!";
+  if (process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
+    console.log(`Using Replit AI Integrations fallback for dealership ${dealershipId}`);
+    return {
+      client: new OpenAI({
+        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY
+      }),
+      source: 'replit'
+    };
+  }
+
+  if (process.env.OPENAI_API_KEY) {
+    console.log(`Using OPENAI_API_KEY fallback for dealership ${dealershipId}`);
+    return {
+      client: new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY
+      }),
+      source: 'env'
+    };
+  }
+
+  throw new Error(`No OpenAI API key configured for dealership ${dealershipId}`);
+}
 
 export async function generateChatResponse(
   messages: ChatMessage[],
@@ -64,6 +75,7 @@ export async function generateChatResponse(
           ];
 
           if (carfaxReport) {
+            const normalizedCarfaxBadges = normalizeCarfaxBadgeList(carfaxReport.badges);
             lines.push('Structured CARFAX fields:');
             lines.push(`- accidentCount: ${carfaxReport.accidentCount ?? 'unknown'}`);
             lines.push(`- ownerCount: ${carfaxReport.ownerCount ?? 'unknown'}`);
@@ -71,7 +83,7 @@ export async function generateChatResponse(
             lines.push(`- damageReported: ${carfaxReport.damageReported ?? 'unknown'}`);
             lines.push(`- lienReported: ${carfaxReport.lienReported ?? 'unknown'}`);
             lines.push(`- lastReportedOdometer: ${carfaxReport.lastReportedOdometer ?? 'unknown'}`);
-            if (carfaxReport.badges?.length) lines.push(`- badges: ${carfaxReport.badges.join(', ')}`);
+            if (normalizedCarfaxBadges.length) lines.push(`- badges: ${normalizedCarfaxBadges.join(', ')}`);
             if (Array.isArray(carfaxReport.accidentHistory) && carfaxReport.accidentHistory.length > 0) {
               lines.push(`- accidentHistory: ${carfaxReport.accidentHistory.map((entry: any) => [entry.date, entry.description, entry.severity].filter(Boolean).join(' | ')).join(' || ')}`);
             }
@@ -113,7 +125,7 @@ Use this exact date/time when customers ask about the current date, time, or whe
 
 ${dateTimeContext}
 
-${enrichedVehicleContext ? `=== VEHICLE BEING DISCUSSED ===\n${enrichedVehicleContext}\n==============================` : ""}
+${enrichedVehicleContext ? `Current vehicle being discussed: ${enrichedVehicleContext}` : ""}
 
 IMPORTANT RULES:
 1. Keep responses to 2-3 sentences maximum - be concise
@@ -122,22 +134,20 @@ IMPORTANT RULES:
 4. Don't repeat information the customer already gave you
 5. Never confirm an appointment without having: date/time, full name, and phone number
 6. When asked about the date or time, use the ACTUAL date/time provided above - never use placeholder text
-7. When asked about accidents, owners, or vehicle history: answer DIRECTLY using the CARFAX data in the vehicle context above. State the exact number of accidents and owners from that data. Never say you don't have the information if it is present in the vehicle context.
-8. If the vehicle context shows "No reported accidents" — state that confidently. If it shows accidents, give the exact count.
 
 Your goals:
 - Answer questions directly and briefly
 - Help schedule test drives and appointments (but always get name + contact first)
-- Explain vehicle features and history when asked
+- Explain vehicle features when asked
 - Guide customers efficiently through their purchase journey
 
-Be helpful and action-oriented. If you genuinely don't have specific information, offer to connect them with a sales representative.`;
+Be helpful and action-oriented. If you don't have specific information, offer to connect them with a sales representative.`;
 
     if (promptData) {
       // Use the database prompt with date/time and vehicle context - put date/time at the TOP
-      systemContent = `${dateTimeContext}\n\n${promptData.systemPrompt}\n\nIMPORTANT: When customers ask about the date or time, use the ACTUAL date/time provided at the start of this prompt. NEVER use placeholder text like "[insert date]" or "[current time]".\nWhen asked about accidents, owners, or vehicle history: answer directly from the vehicle context below. Never say you lack the info if it is present.`;
+      systemContent = `${dateTimeContext}\n\n${promptData.systemPrompt}\n\nIMPORTANT: When customers ask about the date or time, use the ACTUAL date/time provided at the start of this prompt. NEVER use placeholder text like "[insert date]" or "[current time]".`;
       if (enrichedVehicleContext) {
-        systemContent += `\n\n=== VEHICLE BEING DISCUSSED ===\n${enrichedVehicleContext}\n==============================`;
+        systemContent += `\n\nCurrent vehicle being discussed: ${enrichedVehicleContext}`;
       }
     }
 
@@ -146,59 +156,23 @@ Be helpful and action-oriented. If you genuinely don't have specific information
       content: systemContent
     };
 
-    // Try OpenAI first (if dealership has a key), then fall back to Anthropic
-    const apiKeys = await storage.getDealershipApiKeys(dealershipId);
-    const hasOpenAI = apiKeys?.openaiApiKey && apiKeys.openaiApiKey.length > 20;
-    const hasAnthropic = !!process.env.ANTHROPIC_API_KEY;
+    // Get the appropriate OpenAI client (dealership-specific or fallback)
+    const { client: openai, source } = await getOpenAIClient(dealershipId);
+    
+    const model = source === 'replit' ? 'gpt-4o' : 'gpt-4o-mini';
 
-    if (hasOpenAI) {
-      // Use dealership's OpenAI key
-      const openai = new OpenAI({ apiKey: apiKeys!.openaiApiKey! });
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [systemMessage, ...messages],
-        max_completion_tokens: 500,
-        temperature: 0.8,
-      });
-      return response.choices[0]?.message?.content || fallbackMessage;
-    }
-
-    if (hasAnthropic) {
-      // Use Anthropic Claude (production default when no OpenAI key)
-      const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-      // Convert messages: separate system from user/assistant
-      const anthropicMessages = messages
-        .filter(m => m.role !== 'system')
-        .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
-
-      const response = await anthropic.messages.create({
-        model: 'claude-3-5-haiku-latest',
-        system: systemContent,
-        messages: anthropicMessages,
-        max_tokens: 500,
-        temperature: 0.8,
-      });
-
-      const textBlock = response.content.find(b => b.type === 'text');
-      return textBlock?.text || fallbackMessage;
-    }
-
-    // Last resort: try Replit AI Integrations
-    const openai = new OpenAI({
-      baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-      apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-    });
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model: model,
       messages: [systemMessage, ...messages],
       max_completion_tokens: 500,
-      temperature: 0.8,
+      temperature: 1,
     });
-    return response.choices[0]?.message?.content || fallbackMessage;
+
+    return response.choices[0]?.message?.content || "I apologize, but I'm having trouble responding right now. Please try again or contact our sales team directly.";
   } catch (error: any) {
-    console.error("Chat API error:", error?.message || error);
-    // Return a graceful response instead of crashing
-    return fallbackMessage;
+    console.error("OpenAI API error:", error?.message || error);
+    console.error("Full error:", JSON.stringify(error, null, 2));
+    throw new Error("Failed to generate chat response");
   }
 }
 
@@ -299,8 +273,7 @@ export async function generateVehicleDescription(vehicle: VehicleData, dealershi
     // Get the appropriate OpenAI client
     const { client: openaiClient, source } = await getOpenAIClient(dealershipId);
     
-    // Use gpt-4o-mini for dealership keys, gpt-5 for Replit AI Integrations
-    const model = source === 'dealership' ? 'gpt-4o-mini' : 'gpt-4o';
+    const model = source === 'replit' ? 'gpt-4o' : 'gpt-4o-mini';
 
     const response = await openaiClient.chat.completions.create({
       model: model,
@@ -415,7 +388,7 @@ Return ONLY valid JSON in this exact format, no other text:
 }`;
 
     const { client: openaiClient, source } = await getOpenAIClient(dealershipId);
-    const model = source === 'dealership' ? 'gpt-4o-mini' : 'gpt-4o';
+    const model = source === 'replit' ? 'gpt-4o' : 'gpt-4o-mini';
 
     const response = await openaiClient.chat.completions.create({
       model: model,

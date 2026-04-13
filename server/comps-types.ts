@@ -38,3 +38,14 @@ export interface CompScoreExplain {
   };
   reasons: string[];
 }
+
+export interface AppraisalProofPoint {
+  listingUrl: string;
+  source: string;
+  sellerName?: string;
+  price: number;
+  trim?: string;
+  drivetrain?: string;
+  score: number;
+  reasons: string[];
+}

@@ -41,7 +41,9 @@ async function insertVehicleReturningId(vehicle: any): Promise<{ id: number }> {
   return inserted[0];
 }
 
-describe('autopost-queue-service', () => {
+const describeWithDatabase = process.env.DATABASE_URL ? describe : describe.skip;
+
+describeWithDatabase('autopost-queue-service', () => {
   beforeAll(async () => {
     // Make tests resilient when local dev DB is missing newer v1.1 columns/tables.
     await db.execute(sql`CREATE EXTENSION IF NOT EXISTS pgcrypto`);
@@ -129,6 +131,48 @@ describe('autopost-queue-service', () => {
     const newBucket = computeDefaultQueueSortKey(c as any)[1];
     expect(usedBucket).toBeLessThan(newBucket);
   });
+
+  test('dealership scrape gate blocks queue creation before vehicles are enqueued', async () => {
+    const slug = `apq-gated-${Date.now()}`;
+    const dealer = await seedTestDealership('Autopost Queue Gated Dealer', slug);
+    const mgr = await seedTestUser(dealer.id, `${slug}@test.com`, 'master', 'Gate Master');
+
+    await insertVehicleReturningId(
+      buildVehicle({
+        dealershipId: dealer.id,
+        vin: `VINGATE-${Date.now()}`,
+        stock: `SGATE-${Date.now()}`,
+        createdAt: new Date(Date.now() - 5000),
+        images: Array.from({ length: 12 }, (_, i) => `https://img-gate/${i}.jpg`),
+        odometer: 14000,
+        year: new Date().getFullYear(),
+      }),
+    );
+
+    const result = await evaluateAndEnqueueAutopostQueue({
+      dealershipId: dealer.id,
+      actorUserId: mgr.id,
+      scrapeGate: {
+        dealershipId: dealer.id,
+        score: 91.2,
+        passed: false,
+        blockers: ['certification_artifact_missing', 'truth_boundary_not_source_reconciled'],
+        categoryBreakdown: {
+          identity: 100,
+          price: 100,
+          media: 100,
+          details: 100,
+          freshness: 90,
+          history: 100,
+        },
+      },
+    });
+
+    const queue = await listAutopostQueue({ dealershipId: dealer.id, platform: 'all' });
+    expect(result.enqueued).toBe(0);
+    expect(result.dealershipBlockedReason).toContain('SCRAPE_GATE_FAILED');
+    expect(queue).toHaveLength(0);
+  }, 30000);
 
   test('claim-next is idempotent/exclusive and respects photo gate override', async () => {
     const slug = `apq-${Date.now()}`;
@@ -302,6 +346,50 @@ describe('autopost-queue-service', () => {
       where: and(eq(autopostPlatformStatuses.queueItemId, item.queueItemId), eq(autopostPlatformStatuses.platform, 'facebook_marketplace')),
     });
     expect(statusRow?.status).toBe('queued');
+  }, 30000);
+
+  test('list exposes recent claim/result history so operators can trust queue state', async () => {
+    const slug = `apq-history-${Date.now()}`;
+    const dealer = await seedTestDealership('Autopost History Dealer', slug);
+    const mgr = await seedTestUser(dealer.id, `${slug}@test.com`, 'master', 'History Master');
+
+    const vehicle = await insertVehicleReturningId(buildVehicle({
+      dealershipId: dealer.id,
+      vin: `VINHIST-${Date.now()}`,
+      stock: `SHIST-${Date.now()}`,
+      createdAt: new Date(Date.now() - 5000),
+      images: Array.from({ length: 12 }, (_, i) => `https://img-history/${i}.jpg`),
+      odometer: 14000,
+      year: new Date().getFullYear(),
+    }));
+
+    await evaluateAndEnqueueAutopostQueue({ dealershipId: dealer.id, actorUserId: mgr.id });
+    const initialQueue = await listAutopostQueue({ dealershipId: dealer.id, platform: 'all' });
+    const item = initialQueue.find((x: any) => x.vehicleId === vehicle.id);
+    expect(item).toBeTruthy();
+    expect(item.recentHistory?.[0]?.eventType).toBe('ENQUEUED');
+
+    const claim = await claimNextAutopostItem({ dealershipId: dealer.id, platform: 'facebook_marketplace', actorUserId: mgr.id });
+    expect(claim?.queueItemId).toBe(item.queueItemId);
+
+    await recordAutopostResult({
+      dealershipId: dealer.id,
+      queueItemId: item.queueItemId,
+      platform: 'facebook_marketplace',
+      status: 'posted',
+      postedUrl: 'https://facebook.example/listing/history-proof',
+      externalId: 'fb-history-proof',
+      actorUserId: mgr.id,
+    });
+
+    const refreshedQueue = await listAutopostQueue({ dealershipId: dealer.id, platform: 'all' });
+    const refreshedItem = refreshedQueue.find((x: any) => x.queueItemId === item.queueItemId);
+    expect(refreshedItem).toBeTruthy();
+    expect(refreshedItem.latestEvent?.eventType).toBe('POSTED_SUCCESS');
+    expect(refreshedItem.recentHistory.map((ev: any) => ev.eventType)).toEqual(
+      expect.arrayContaining(['ENQUEUED', 'CLAIMED', 'POSTED_SUCCESS'])
+    );
+    expect(refreshedItem.fbStatus).toBe('posted');
   }, 30000);
 
   test('record result cannot cross dealership boundaries', async () => {

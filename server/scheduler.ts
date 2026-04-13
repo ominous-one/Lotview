@@ -10,7 +10,7 @@ import { processEmailOutboxBatch } from './notifications/email-outbox-worker';
 import { runPhotoEnrichmentSweep } from './inventory-enrichment-service';
 import { evaluateAndEnqueueAutopostQueue } from './autopost-queue-service';
 import { evaluateAndEnqueueAutopost } from './autopost-queue-api';
-import { computeStoredInventoryScrapeGate } from './scrape-gate-service';
+import { resolveDealershipScrapeGateForPosting } from './scrape-gate-service';
 
 let schedulerInitialized = false;
 let marketAnalysisSchedulerInitialized = false;
@@ -106,13 +106,15 @@ export function startInventoryScheduler() {
     try {
       const targetIds = await getActiveDealershipIds();
       for (const dealershipId of targetIds) {
-        const scrapeGateComputation = await computeStoredInventoryScrapeGate(dealershipId);
+        const scrapeGateResolution = await resolveDealershipScrapeGateForPosting(dealershipId);
         const result = await evaluateAndEnqueueAutopostQueue({
           dealershipId,
           actorUserId: null,
-          scrapeGate: scrapeGateComputation?.gate ?? null,
+          scrapeGate: scrapeGateResolution.gate,
         });
-        console.log(`[AutopostQueue] Dealership ${dealershipId}: enqueued=${result.enqueued}, updated=${result.updated}, skipped=${result.skipped}`);
+        console.log(
+          `[AutopostQueue] Dealership ${dealershipId}: enqueued=${result.enqueued}, updated=${result.updated}, skipped=${result.skipped}, launchEligible=${scrapeGateResolution.launchEligible}, source=${scrapeGateResolution.source}, blockedReason=${result.dealershipBlockedReason ?? 'none'}`,
+        );
       }
     } catch (error) {
       console.error('[AutopostQueue] Evaluate failed:', error);

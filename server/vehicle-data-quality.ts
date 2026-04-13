@@ -1,4 +1,4 @@
-import type { Vehicle } from '@shared/schema';
+import type { Vehicle, VehicleVerificationStatus } from '@shared/schema';
 import { isPlaceholderVin, normalizeStockNumber, normalizeVin } from './inventory-identity';
 
 export interface VehicleDataQualitySignals {
@@ -12,6 +12,12 @@ export interface VehicleDataQualitySignals {
 }
 
 export const DEFAULT_AVAILABILITY_FRESHNESS_HOURS = 36;
+
+export interface VehicleVerificationState {
+  status: VehicleVerificationStatus;
+  reasons: string[];
+  signals: VehicleDataQualitySignals;
+}
 
 function toDate(value: Date | string | null | undefined): Date | null {
   if (!value) return null;
@@ -82,6 +88,67 @@ export function computeVehicleDataQualitySignals(
   };
 }
 
+function normalizeVerificationStatus(value: string | null | undefined): VehicleVerificationStatus | null {
+  if (value === 'VERIFIED' || value === 'UNVERIFIED' || value === 'STALE' || value === 'ERROR') {
+    return value;
+  }
+  return null;
+}
+
+export function resolveVehicleVerificationState(
+  vehicle: Pick<Vehicle,
+    'vin' |
+    'stockNumber' |
+    'normalizedStockNumber' |
+    'dealerVdpUrl' |
+    'carfaxUrl' |
+    'carfaxBadges' |
+    'lastScrapedAt' |
+    'deletedAt' |
+    'lifecycleStatus' |
+    'photoStatus' |
+    'verificationStatus'
+  >,
+  options?: { freshnessHours?: number },
+): VehicleVerificationState {
+  const signals = computeVehicleDataQualitySignals(vehicle, options);
+  const reasons = new Set(signals.blockers);
+  const persistedStatus = normalizeVerificationStatus(vehicle.verificationStatus);
+
+  if (signals.isSoldOrRemoved) {
+    return { status: 'ERROR', reasons: Array.from(reasons), signals };
+  }
+
+  if (persistedStatus === 'ERROR') {
+    reasons.add('verification_marked_error');
+    return { status: 'ERROR', reasons: Array.from(reasons), signals };
+  }
+
+  if (reasons.has('freshness_unknown') || reasons.has('inventory_stale')) {
+    return { status: 'STALE', reasons: Array.from(reasons), signals };
+  }
+
+  if (reasons.size > 0) {
+    return { status: 'UNVERIFIED', reasons: Array.from(reasons), signals };
+  }
+
+  return { status: 'VERIFIED', reasons: [], signals };
+}
+
+export function describeVehicleVerificationBlockReason(
+  state: VehicleVerificationState,
+): string | null {
+  if (state.status === 'VERIFIED') return null;
+
+  const reasonSuffix = state.reasons.length > 0
+    ? `:${state.reasons.join(',')}`
+    : '';
+
+  if (state.status === 'STALE') return `VERIFICATION_STALE${reasonSuffix}`;
+  if (state.status === 'ERROR') return `VERIFICATION_ERROR${reasonSuffix}`;
+  return `VERIFICATION_UNVERIFIED${reasonSuffix}`;
+}
+
 export function buildVehicleTruthfulnessContext(
   vehicle: Pick<Vehicle,
     'vin' |
@@ -93,15 +160,18 @@ export function buildVehicleTruthfulnessContext(
     'lastScrapedAt' |
     'deletedAt' |
     'lifecycleStatus' |
-    'photoStatus'
+    'photoStatus' |
+    'verificationStatus'
   >,
 ): string[] {
-  const signals = computeVehicleDataQualitySignals(vehicle);
+  const verification = resolveVehicleVerificationState(vehicle);
+  const signals = verification.signals;
   const lines: string[] = [];
 
   if (signals.provenance.length > 0) {
     lines.push(`Verification Signals: ${signals.provenance.join(', ')}`);
   }
+  lines.push(`Verification Status: ${verification.status}`);
   if (signals.freshnessHours !== null) {
     lines.push(`Inventory Freshness: ${signals.freshnessHours.toFixed(1)}h since last scrape`);
   } else {

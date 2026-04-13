@@ -1,5 +1,7 @@
 import puppeteer, { Browser, Page } from 'puppeteer';
 import { execSync } from 'child_process';
+import { existsSync } from 'fs';
+import { extractVehicleImages, validateImages } from './precision-image-extractor';
 import { storage } from './storage';
 
 export interface BrowserlessConfig {
@@ -44,6 +46,8 @@ export interface ScrapeResult {
   error?: string;
   method: 'browserless' | 'local_puppeteer' | 'zenrows' | 'zyte';
   duration?: number;
+  sourceVehicleCount?: number;
+  sourceVehicleUrls?: string[];
 }
 
 export interface MarketAnalysisResult {
@@ -58,6 +62,142 @@ const UNBLOCK_ENDPOINT = 'https://production-sfo.browserless.io/unblock';
 const BROWSERQL_ENDPOINT = 'https://production-sfo.browserless.io/stealth/bql';
 const MAX_RETRIES = 3;
 const RETRY_DELAYS = [3000, 8000, 15000];
+
+interface ChromiumPathResolutionOptions {
+  envExecutablePath?: string | null;
+  bundledExecutablePath?: string | null;
+  pathExists?: (candidate: string) => boolean;
+  exec?: (command: string) => string;
+  platform?: NodeJS.Platform;
+}
+
+interface ExtractedVdpPageData {
+  year: number;
+  make: string;
+  model: string;
+  trim?: string;
+  type: string;
+  price: number | null;
+  odometer: number | null;
+  fallbackImages: string[];
+  badges: string[];
+  carfaxBadges: string[];
+  location: string;
+  dealership: string;
+  dealershipId: number;
+  description?: string;
+  vin?: string;
+  stockNumber?: string;
+  carfaxUrl?: string | null;
+  dealerVdpUrl?: string;
+  exteriorColor?: string;
+  interiorColor?: string;
+  engine?: string;
+  transmission?: string;
+  drivetrain?: string;
+  fuelType?: string;
+  features?: string[];
+}
+
+function parseExecutableCandidates(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  return raw
+    .split(/\r?\n/)
+    .map(candidate => candidate.trim())
+    .filter(Boolean);
+}
+
+function normalizeCarfaxDetailUrl(value: string | null | undefined): string | undefined {
+  if (!value) return undefined;
+
+  try {
+    const parsed = new URL(value);
+    const host = parsed.host.toLowerCase();
+    const pathname = parsed.pathname.replace(/\/+$/, '') || '/';
+    if ((host === 'www.carfax.ca' || host === 'carfax.ca' || host === 'www.carfax.com' || host === 'carfax.com') && pathname === '/') {
+      return undefined;
+    }
+    return parsed.toString();
+  } catch {
+    return value;
+  }
+}
+
+export function resolveLocalChromiumExecutablePath(options: ChromiumPathResolutionOptions = {}): string | null {
+  const pathExists = options.pathExists ?? existsSync;
+  const exec = options.exec ?? ((command: string) => execSync(command, { encoding: 'utf8' }).trim());
+  const platform = options.platform ?? process.platform;
+
+  const candidates: string[] = [];
+  const addCandidates = (value: string | null | undefined) => {
+    for (const candidate of parseExecutableCandidates(value)) {
+      if (!candidates.includes(candidate)) {
+        candidates.push(candidate);
+      }
+    }
+  };
+
+  addCandidates(
+    options.envExecutablePath ??
+    process.env.PUPPETEER_EXECUTABLE_PATH ??
+    process.env.CHROME_EXECUTABLE_PATH ??
+    process.env.CHROMIUM_EXECUTABLE_PATH ??
+    null,
+  );
+
+  let bundledExecutablePath = options.bundledExecutablePath ?? null;
+  if (!bundledExecutablePath) {
+    try {
+      bundledExecutablePath = typeof puppeteer.executablePath === 'function'
+        ? puppeteer.executablePath()
+        : null;
+    } catch {
+      bundledExecutablePath = null;
+    }
+  }
+  addCandidates(bundledExecutablePath);
+
+  if (platform === 'win32') {
+    addCandidates([
+      'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+      'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+      'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+      'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+      'C:\\Program Files\\Chromium\\Application\\chrome.exe',
+      'C:\\Program Files (x86)\\Chromium\\Application\\chrome.exe',
+    ].join('\n'));
+
+    for (const command of ['where chrome', 'where msedge', 'where chromium']) {
+      try {
+        addCandidates(exec(command));
+      } catch {
+        // Ignore missing executable lookups on this host.
+      }
+    }
+  } else {
+    for (const command of [
+      'which chromium',
+      'which chromium-browser',
+      'which google-chrome',
+      'which google-chrome-stable',
+      'which microsoft-edge',
+    ]) {
+      try {
+        addCandidates(exec(command));
+      } catch {
+        // Ignore missing executable lookups on this host.
+      }
+    }
+
+    try {
+      addCandidates(exec('find /nix/store -name chromium -type f -path "*/bin/chromium" 2>/dev/null | head -1'));
+    } catch {
+      // Ignore missing nix store lookup on non-Nix hosts.
+    }
+  }
+
+  return candidates.find(candidate => pathExists(candidate)) ?? null;
+}
 
 async function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -428,18 +568,6 @@ export class BrowserlessUnifiedService {
     return `${this.endpoint}?token=${this.apiKey}`;
   }
 
-  private async getLocalChromiumPath(): Promise<string> {
-    try {
-      return execSync('which chromium 2>/dev/null || which chromium-browser 2>/dev/null', { encoding: 'utf8' }).trim();
-    } catch {
-      try {
-        return execSync('find /nix/store -name chromium -type f -path "*/bin/chromium" 2>/dev/null | head -1', { encoding: 'utf8' }).trim();
-      } catch {
-        throw new Error('Chromium not found');
-      }
-    }
-  }
-
   private async connectBrowser(): Promise<{ browser: Browser; isCloud: boolean }> {
     if (this.useBrowserless) {
       try {
@@ -454,13 +582,20 @@ export class BrowserlessUnifiedService {
     }
 
     if (!this.localBrowser) {
-      const executablePath = await this.getLocalChromiumPath();
-      console.log(`[BrowserlessUnified] Using local Chromium: ${executablePath}`);
-      this.localBrowser = await puppeteer.launch({
+      const executablePath = resolveLocalChromiumExecutablePath();
+      const launchOptions: Parameters<typeof puppeteer.launch>[0] = {
         headless: true,
-        executablePath,
         args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
-      });
+      };
+
+      if (executablePath) {
+        console.log(`[BrowserlessUnified] Using local Chromium: ${executablePath}`);
+        launchOptions.executablePath = executablePath;
+      } else {
+        console.log('[BrowserlessUnified] No explicit Chromium path found; using Puppeteer default browser resolution');
+      }
+
+      this.localBrowser = await puppeteer.launch(launchOptions);
     }
     return { browser: this.localBrowser, isCloud: false };
   }
@@ -945,6 +1080,78 @@ export class BrowserlessUnifiedService {
     });
   }
 
+  private async prepareVdpPageForExtraction(page: Page): Promise<void> {
+    try {
+      await page.evaluate(() => {
+        const expandSelectors = [
+          '[class*="accordion"] button',
+          '[class*="accordion"] [class*="trigger"]',
+          '[class*="accordion"] [class*="header"]',
+          '[class*="collapsible"] button',
+          '[class*="expandable"] button',
+          'details summary',
+          'button[class*="expand"]',
+          'button[class*="toggle"]',
+          '[class*="show-more"]',
+          '[class*="read-more"]',
+          '[x-data] button',
+        ];
+
+        const clicked = new Set<Element>();
+        for (const selector of expandSelectors) {
+          document.querySelectorAll(selector).forEach((element) => {
+            if (clicked.has(element)) return;
+            const text = (element.textContent || '').trim().toLowerCase();
+            if (!text || /collapse|less|hide/.test(text)) return;
+
+            const html = element as HTMLElement;
+            if (html.offsetParent === null) return;
+            clicked.add(element);
+            html.click();
+          });
+        }
+      });
+      await sleep(500);
+    } catch {
+      // Expand/collapse failures are non-fatal for VDP extraction.
+    }
+
+    try {
+      await page.evaluate(() => {
+        window.scrollTo(0, document.body.scrollHeight * 0.65);
+      });
+      await sleep(700);
+      await page.evaluate(() => {
+        window.scrollTo(0, document.body.scrollHeight);
+      });
+      await sleep(700);
+      await page.evaluate(() => {
+        window.scrollTo(0, 0);
+      });
+      await sleep(300);
+    } catch {
+      // Scroll assistance is best-effort only.
+    }
+  }
+
+  private async scrapeVdpWithFreshPage(
+    browser: Browser,
+    vdpUrl: string,
+    context: { dealershipId: number; dealershipName: string; location: string },
+  ): Promise<VehicleListing | null> {
+    const page = await browser.newPage();
+    try {
+      await this.configurePage(page);
+      return await this.scrapeVdpPage(page, vdpUrl, context);
+    } finally {
+      try {
+        await page.close();
+      } catch {
+        // Best-effort cleanup.
+      }
+    }
+  }
+
   async scrapeDealerInventory(
     inventoryUrl: string,
     options: {
@@ -993,7 +1200,7 @@ export class BrowserlessUnifiedService {
         if (scrapeVdp && vehicleUrls.length > 0) {
           for (const url of vehicleUrls.slice(0, maxVehicles)) {
             try {
-              const vehicle = await this.scrapeVdpPage(page, url, { dealershipId, dealershipName, location });
+              const vehicle = await this.scrapeVdpWithFreshPage(browser, url, { dealershipId, dealershipName, location });
               if (vehicle) vehicles.push(vehicle);
               await sleep(500 + Math.random() * 500);
             } catch (vdpError) {
@@ -1013,6 +1220,8 @@ export class BrowserlessUnifiedService {
           vehicles,
           method: isCloud ? 'browserless' : 'local_puppeteer',
           duration: Date.now() - startTime,
+          sourceVehicleCount: vehicleUrls.length,
+          sourceVehicleUrls: vehicleUrls,
         };
 
       } catch (error) {
@@ -1028,12 +1237,61 @@ export class BrowserlessUnifiedService {
             error: error instanceof Error ? error.message : String(error),
             method: isCloud ? 'browserless' : 'local_puppeteer',
             duration: Date.now() - startTime,
+            sourceVehicleCount: 0,
+            sourceVehicleUrls: [],
           };
         }
       }
     }
 
-    return { success: false, vehicles: [], error: 'Max retries exceeded', method: 'browserless' };
+    return { success: false, vehicles: [], error: 'Max retries exceeded', method: 'browserless', sourceVehicleCount: 0, sourceVehicleUrls: [] };
+  }
+
+  async scrapeVehicleDetail(
+    vdpUrl: string,
+    options: {
+      dealershipId: number;
+      dealershipName: string;
+      location?: string;
+    },
+  ): Promise<VehicleListing | null> {
+    const { dealershipId, dealershipName, location = 'BC' } = options;
+    let browser: Browser | null = null;
+    let isCloud = false;
+    let page: Page | null = null;
+
+    try {
+      const connection = await this.connectBrowser();
+      browser = connection.browser;
+      isCloud = connection.isCloud;
+
+      page = await browser.newPage();
+      await this.configurePage(page);
+
+      return await this.scrapeVdpPage(page, vdpUrl, {
+        dealershipId,
+        dealershipName,
+        location,
+      });
+    } finally {
+      if (page) {
+        try {
+          await page.close();
+        } catch {
+          // Best-effort cleanup.
+        }
+      }
+
+      if (browser) {
+        try {
+          if (isCloud) {
+            await browser.disconnect();
+          }
+        } catch {
+          // Best-effort cleanup.
+        }
+      }
+    }
   }
 
   private async scrollToLoadAll(page: Page, maxVehicles: number): Promise<void> {
@@ -1166,17 +1424,17 @@ export class BrowserlessUnifiedService {
     const { dealershipId, dealershipName, location } = context;
 
     try {
-      await page.goto(vdpUrl, { waitUntil: 'networkidle2', timeout: 30000 });
-      await sleep(1000);
+      await page.goto(vdpUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await Promise.race([
+        page.waitForSelector('.price-block__price--primary, .main-price, [data-field="price"], [data-field="sellingPrice"], [itemprop="price"]', { timeout: 10000 }),
+        page.waitForSelector('body', { timeout: 10000 }),
+      ]).catch(() => undefined);
+      await sleep(1500);
+      await this.prepareVdpPageForExtraction(page);
 
-      const vehicle = await page.evaluate((ctx) => {
-        const getText = (selector: string): string => {
-          const el = document.querySelector(selector);
-          return el?.textContent?.trim() || '';
-        };
-
+      const extracted = await page.evaluate((ctx) => {
         const pageText = document.body.innerText || '';
-        const pageTitle = document.querySelector('h1, .vehicle-title, .listing-title')?.textContent?.trim() || '';
+        const pageTitle = document.querySelector('h1, .vehicle-title, .listing-title')?.textContent?.trim() || document.title || '';
 
         const urlMatch = window.location.pathname.match(/\/vehicles\/(\d{4})\/([a-z-]+)\/([a-z0-9-]+)\//i);
         if (!urlMatch) return null;
@@ -1185,64 +1443,159 @@ export class BrowserlessUnifiedService {
         const year = parseInt(yearStr);
         const make = makeSlug.split('-').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
         const model = modelSlug.split('-').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        const allListItems = Array.from(document.querySelectorAll('li, .spec-item, [class*="spec"], [class*="detail"], dd, dt'));
 
         let trim = '';
-        const trimPatterns = [
-          /(?:trim|edition|package)[:\s]+([A-Za-z0-9\s]+)/i,
-          new RegExp(`${model}\\s+([A-Z][A-Za-z0-9\\s]+?)(?:\\s|,|$)`),
-        ];
-        for (const pattern of trimPatterns) {
-          const match = pageTitle.match(pattern) || pageText.match(pattern);
-          if (match) {
-            trim = match[1].trim();
+        const trimSelectors = ['[class*="trim"]', '[data-trim]', '[data-field="trim"]', '.vehicle-trim', '.trim-name'];
+        for (const selector of trimSelectors) {
+          const trimText = document.querySelector(selector)?.textContent?.trim() || '';
+          if (trimText && trimText.length < 50 && !/^\d+$/.test(trimText)) {
+            trim = trimText;
             break;
           }
         }
 
-        let price: number | null = null;
-        const pricePatterns = [
-          /\$\s*([\d,]+)/,
-          /price[:\s]+\$?\s*([\d,]+)/i,
-          /dealer\s*price[:\s]+\$?\s*([\d,]+)/i,
+        const knownTrims = [
+          'Calligraphy', 'Ultimate', 'Preferred', 'Essential', 'Luxury', 'Technik', 'Progressiv',
+          'Prestige', 'Platinum', 'Titanium', 'Premium', 'Limited', 'Trailhawk', 'Overland',
+          'Touring', 'Sport', 'Hybrid', 'GT-Line', 'GT Line', 'N Line', 'A-Spec', 'Type S',
+          'XSE', 'XLE', 'SE', 'SEL', 'LE', 'GT', 'EX', 'LX', 'RS', 'ST',
         ];
-        for (const pattern of pricePatterns) {
-          const match = pageText.match(pattern);
-          if (match) {
-            const p = parseInt(match[1].replace(/,/g, ''));
-            if (p > 1000 && p < 500000) {
-              price = p;
+        if (!trim) {
+          for (const knownTrim of knownTrims) {
+            const pattern = new RegExp(`\\b${knownTrim.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+            if (pattern.test(pageTitle)) {
+              trim = knownTrim;
               break;
             }
           }
         }
+        if (!trim) {
+          const cleaned = pageTitle
+            .replace(new RegExp(`\\b${year}\\b`, 'g'), '')
+            .replace(new RegExp(`\\b${make.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'ig'), '')
+            .replace(new RegExp(`\\b${model.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'ig'), '')
+            .replace(/\|.*/g, '')
+            .replace(/\b\d+\.\d+[LT]?\b/gi, '')
+            .replace(/\b(4dr|2dr|sedan|suv|hatchback|coupe|wagon|convertible|awd|fwd|rwd|4wd|4x4)\b/gi, '')
+            .replace(/[|()[\]]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+          if (cleaned.length >= 2 && cleaned.length <= 40 && !/^\d+$/.test(cleaned)) {
+            trim = cleaned;
+          }
+        }
+
+        let price: number | null = null;
+        const authoritativePriceSelectors = [
+          '.price-block__price--primary',
+          '.price-block__price',
+          '.main-price',
+          '[data-field="price"]',
+          '[data-field="sellingPrice"]',
+          '[data-price]',
+          '[itemprop="price"]',
+          '.vehicle-price__price',
+          '.vehicle-price',
+          '.dealer-price',
+          '.selling-price',
+          '.final-price',
+          '.sale-price',
+          '#vehicle-price',
+          '#selling-price',
+          '#dealer-price',
+        ];
+        for (const selector of authoritativePriceSelectors) {
+          const priceElement = document.querySelector(selector);
+          if (!priceElement) continue;
+          const paymentKeywords = /payment|finance|lease|weekly|bi-?weekly|monthly|calculator|estimated/i;
+          const currentClass = priceElement.getAttribute('class') || '';
+          const currentId = priceElement.getAttribute('id') || '';
+          const parentClass = priceElement.parentElement?.getAttribute('class') || '';
+          const parentId = priceElement.parentElement?.getAttribute('id') || '';
+          if (
+            paymentKeywords.test(currentClass) ||
+            paymentKeywords.test(currentId) ||
+            paymentKeywords.test(parentClass) ||
+            paymentKeywords.test(parentId)
+          ) {
+            continue;
+          }
+          const priceText =
+            priceElement.textContent ||
+            priceElement.getAttribute('data-value') ||
+            priceElement.getAttribute('data-price') ||
+            '';
+          const priceMatch = priceText.match(/\$?\s*([0-9,]+)/);
+          if (!priceMatch) continue;
+          const value = parseInt(priceMatch[1].replace(/,/g, ''));
+          if (value >= 1000 && value <= 500000) {
+            price = value;
+            break;
+          }
+        }
+        if (price == null) {
+          const labeledPricePatterns = [
+            /(?:Sale|Selling|Asking|Dealer|Final|Internet)\s*Price[:\s]*\$?\s*([0-9,]+)/i,
+            /Price[:\s]*\$?\s*([0-9,]+)(?!\s*(?:weekly|monthly|payment))/i,
+            /\$\s*([0-9,]+)\s*(?:CAD|CDN|Canadian)?(?!\s*(?:weekly|monthly|payment|per))/i,
+          ];
+          for (const pattern of labeledPricePatterns) {
+            const match = pageText.match(pattern);
+            if (!match) continue;
+            const value = parseInt(match[1].replace(/,/g, ''));
+            if (value >= 1000 && value <= 500000) {
+              price = value;
+              break;
+            }
+          }
+        }
+        if (price == null) {
+          const fallbackMatches = [...pageText.matchAll(/\$\s*([0-9,]+)(?!\s*(?:weekly|bi-?weekly|monthly|per\s+month|\/mo|payment))/gi)];
+          const candidates = fallbackMatches
+            .map((match) => parseInt(match[1].replace(/,/g, '')))
+            .filter((value) => value >= 2000 && value <= 500000)
+            .sort((a, b) => a - b);
+          if (candidates.length > 0) {
+            price = candidates[Math.floor((candidates.length - 1) / 2)] ?? null;
+          }
+        }
 
         let odometer: number | null = null;
-        const odometerMatch = pageText.match(/(\d{1,3}(?:,\d{3})*)\s*km/i);
-        if (odometerMatch) {
-          odometer = parseInt(odometerMatch[1].replace(/,/g, ''));
-        }
-
-        const images: string[] = [];
-        const imgSelectors = [
-          '.gallery img', '.carousel img', '.slider img', '.vehicle-images img',
-          '.photo-gallery img', '[class*="image"] img', '.main-image img',
+        const odometerSelectors = [
+          '[class*="odometer"]',
+          '[class*="mileage"]',
+          '[class*="km"]',
+          '[data-odometer]',
+          '.kilometers',
+          '.vehicle-odometer',
         ];
-        for (const selector of imgSelectors) {
-          document.querySelectorAll(selector).forEach((img: Element) => {
-            const src = (img as HTMLImageElement).src || img.getAttribute('data-src') || img.getAttribute('data-lazy-src');
-            if (src && src.startsWith('http') && !src.includes('placeholder') && !src.includes('thumbnail')) {
-              const highRes = src.replace(/\d{2,3}x\d{2,3}/, '1200x800').replace('thumbnail', 'full');
-              if (!images.includes(highRes)) images.push(highRes);
-            }
-          });
+        for (const selector of odometerSelectors) {
+          const odometerText = document.querySelector(selector)?.textContent || '';
+          const match = odometerText.match(/([0-9,]+)/);
+          if (!match) continue;
+          const value = parseInt(match[1].replace(/,/g, ''));
+          if (value >= 500 && value < 500000) {
+            odometer = value;
+            break;
+          }
         }
-        if (images.length === 0) {
-          document.querySelectorAll('img').forEach((img: Element) => {
-            const src = (img as HTMLImageElement).src;
-            if (src && src.includes('vehicle') && src.startsWith('http') && !src.includes('logo')) {
-              images.push(src);
+        if (odometer == null) {
+          const odometerPatterns = [
+            /odometer[:\s]+([0-9,]+)\s*(km)?/i,
+            /mileage[:\s]+([0-9,]+)\s*(km)?/i,
+            /kilometers[:\s]+([0-9,]+)/i,
+            /([0-9]{1,3}(?:,[0-9]{3})+)\s*km\b/i,
+          ];
+          for (const pattern of odometerPatterns) {
+            const match = pageText.match(pattern);
+            if (!match) continue;
+            const value = parseInt(match[1].replace(/,/g, ''));
+            if (value >= 500 && value < 500000) {
+              odometer = value;
+              break;
             }
-          });
+          }
         }
 
         let vin: string | undefined;
@@ -1253,52 +1606,297 @@ export class BrowserlessUnifiedService {
         const stockMatch = pageText.match(/stock[#:\s]*([A-Z0-9-]+)/i);
         if (stockMatch) stockNumber = stockMatch[1];
 
-        let carfaxUrl: string | undefined;
-        const carfaxLink = document.querySelector('a[href*="carfax"], a[href*="CARFAX"]') as HTMLAnchorElement;
-        if (carfaxLink) carfaxUrl = carfaxLink.href;
-
-        const badges: string[] = [];
-        const badgeText = pageText.toLowerCase();
-        if (/one owner|1 owner|single owner/.test(badgeText)) badges.push('One Owner');
-        if (/no accidents?|accident[\s-]?free|clean history/.test(badgeText)) badges.push('No Accidents');
-        if (/certified|cpo|certified pre-owned/.test(badgeText)) badges.push('Certified Pre-Owned');
+        const fallbackImages: string[] = [];
+        const blockedImagePatterns = [
+          'logo', 'icon', 'badge', 'banner', 'promo', 'button', 'arrow', 'placeholder',
+          'no-image', 'convertus.com/uploads/sites', 'bg-', 'background', 'welcome', 'get-approved',
+          '.svg', 'favicon', '/icons/', '/logos/', '/headers/', '/themes/',
+        ];
+        const trustedImagePatterns = [
+          'autotradercdn.ca', 'photos.autotrader', 'homenetiol.com', 'homenet-inc.com',
+          'dealercdn.com', 'ddclstatic.com', 'dealerinspire.com', 'photos.dealer.com',
+          'spincar.com', 'evoxcdn.com', '/vehicles/', '/inventory/', '/stock/', '/photos/', '/media/', '/gallery/',
+        ];
+        document.querySelectorAll('img').forEach((img: Element) => {
+          const src =
+            (img as HTMLImageElement).currentSrc ||
+            (img as HTMLImageElement).src ||
+            img.getAttribute('data-src') ||
+            img.getAttribute('data-lazy-src') ||
+            '';
+          if (!src) return;
+          const lower = src.toLowerCase();
+          if (blockedImagePatterns.some((pattern) => lower.includes(pattern))) return;
+          if (!trustedImagePatterns.some((pattern) => lower.includes(pattern))) return;
+          if (!fallbackImages.includes(src)) {
+            fallbackImages.push(src);
+          }
+        });
 
         let exteriorColor: string | undefined;
-        const extMatch = pageText.match(/exterior(?:\s*color)?[:\s]+([A-Za-z\s]+?)(?:\n|,|$)/i);
-        if (extMatch) exteriorColor = extMatch[1].trim();
+        for (const label of ['Exterior Colou?r', 'Ext\\.?\\s*Colou?r', 'Exterior']) {
+          const pattern = new RegExp(label + '[:\\s]+([^\\n|<,;]+)', 'i');
+          const match = pageText.match(pattern);
+          if (match?.[1]) {
+            const value = match[1].trim().replace(/\s+$/, '');
+            if (value && value.length < 80) {
+              exteriorColor = value;
+              break;
+            }
+          }
+        }
+        if (!exteriorColor) {
+          for (const item of allListItems) {
+            const text = item.textContent?.trim() || '';
+            const match = text.match(/Exterior\s*Colou?r[:\s]+(.+)/i);
+            if (match?.[1]) {
+              const value = match[1].trim().split(/[,;|\n]/)[0].trim();
+              if (value && value.length < 80) {
+                exteriorColor = value;
+                break;
+              }
+            }
+          }
+        }
 
         let interiorColor: string | undefined;
-        const intMatch = pageText.match(/interior(?:\s*color)?[:\s]+([A-Za-z\s]+?)(?:\n|,|$)/i);
-        if (intMatch) interiorColor = intMatch[1].trim();
+        for (const label of ['Interior Colou?r', 'Int\\.?\\s*Colou?r', 'Interior']) {
+          const pattern = new RegExp(label + '[:\\s]+([^\\n|<,;]+)', 'i');
+          const match = pageText.match(pattern);
+          if (match?.[1]) {
+            const value = match[1].trim().replace(/\s+$/, '');
+            if (value && value.length < 80) {
+              interiorColor = value;
+              break;
+            }
+          }
+        }
+        if (!interiorColor) {
+          for (const item of allListItems) {
+            const text = item.textContent?.trim() || '';
+            const match = text.match(/Interior\s*Colou?r[:\s]+(.+)/i);
+            if (match?.[1]) {
+              const value = match[1].trim().split(/[,;|\n]/)[0].trim();
+              if (value && value.length < 80) {
+                interiorColor = value;
+                break;
+              }
+            }
+          }
+        }
 
         let engine: string | undefined;
-        const engMatch = pageText.match(/engine[:\s]+([A-Za-z0-9\s.]+?)(?:\n|,|$)/i);
-        if (engMatch) engine = engMatch[1].trim();
+        {
+          const match = pageText.match(/Engine[:\s]+([^\n|<,;]+)/i);
+          if (match?.[1]) {
+            const value = match[1].trim();
+            if (value && value.length < 120) {
+              engine = value;
+            }
+          }
+        }
+        if (!engine) {
+          for (const item of allListItems) {
+            const text = item.textContent?.trim() || '';
+            const match = text.match(/Engine[:\s]+(.+)/i);
+            if (match?.[1]) {
+              const value = match[1].trim().split(/[,;|\n]/)[0].trim();
+              if (value && value.length < 120) {
+                engine = value;
+                break;
+              }
+            }
+          }
+        }
 
         let transmission: string | undefined;
-        if (/automatic|auto trans/i.test(pageText)) transmission = 'Automatic';
-        else if (/manual|stick shift/i.test(pageText)) transmission = 'Manual';
-        else if (/cvt/i.test(pageText)) transmission = 'CVT';
+        for (const label of ['Transmission', 'Trans']) {
+          const pattern = new RegExp(label + '[:\\s]+([^\\n|<,;]+)', 'i');
+          const match = pageText.match(pattern);
+          if (match?.[1]) {
+            const value = match[1].trim().replace(/\s+$/, '');
+            if (value && value.length < 80) {
+              transmission = value;
+              break;
+            }
+          }
+        }
+        if (!transmission) {
+          for (const item of allListItems) {
+            const text = item.textContent?.trim() || '';
+            const match = text.match(/Transmission[:\s]+(.+)/i);
+            if (match?.[1]) {
+              const value = match[1].trim().split(/[,;|\n]/)[0].trim();
+              if (value && value.length < 80) {
+                transmission = value;
+                break;
+              }
+            }
+          }
+        }
+        if (transmission) {
+          const lower = transmission.toLowerCase();
+          if (lower.includes('automatic') || lower.includes('auto')) transmission = 'Automatic';
+          else if (lower.includes('manual') || lower.includes('stick')) transmission = 'Manual';
+          else if (lower.includes('cvt')) transmission = 'CVT';
+        }
 
         let drivetrain: string | undefined;
-        if (/\bAWD\b|all[\s-]?wheel/i.test(pageText)) drivetrain = 'AWD';
-        else if (/\b4WD\b|four[\s-]?wheel|4x4/i.test(pageText)) drivetrain = '4WD';
-        else if (/\bFWD\b|front[\s-]?wheel/i.test(pageText)) drivetrain = 'FWD';
-        else if (/\bRWD\b|rear[\s-]?wheel/i.test(pageText)) drivetrain = 'RWD';
+        for (const label of ['Drive\\s*Train', 'Drivetrain', 'Drive\\s*Type']) {
+          const pattern = new RegExp(label + '[:\\s]+([^\\n|<,;]+)', 'i');
+          const match = pageText.match(pattern);
+          if (match?.[1]) {
+            const value = match[1].trim().replace(/\s+$/, '');
+            if (value && value.length < 80) {
+              drivetrain = value;
+              break;
+            }
+          }
+        }
+        if (!drivetrain) {
+          for (const item of allListItems) {
+            const text = item.textContent?.trim() || '';
+            const match = text.match(/Drive\s*Train[:\s]+(.+)/i) || text.match(/Drivetrain[:\s]+(.+)/i);
+            if (match?.[1]) {
+              const value = match[1].trim().split(/[,;|\n]/)[0].trim();
+              if (value && value.length < 80) {
+                drivetrain = value;
+                break;
+              }
+            }
+          }
+        }
+        if (drivetrain) {
+          const lower = drivetrain.toLowerCase();
+          if (lower.includes('awd') || lower.includes('all wheel') || lower.includes('all-wheel')) drivetrain = 'AWD';
+          else if (lower.includes('4wd') || lower.includes('4x4') || lower.includes('four wheel')) drivetrain = '4WD';
+          else if (lower.includes('fwd') || lower.includes('front wheel') || lower.includes('front-wheel')) drivetrain = 'FWD';
+          else if (lower.includes('rwd') || lower.includes('rear wheel') || lower.includes('rear-wheel')) drivetrain = 'RWD';
+        }
 
-        let fuelType: string | undefined;
-        if (/electric|ev\b|battery/i.test(pageText)) fuelType = 'Electric';
-        else if (/hybrid|phev/i.test(pageText)) fuelType = 'Hybrid';
-        else if (/diesel/i.test(pageText)) fuelType = 'Diesel';
-        else if (/gasoline|gas|petrol/i.test(pageText)) fuelType = 'Gasoline';
+        let fuelType = (document.querySelector('input[name="vdp-fuelType"]') as HTMLInputElement | null)?.value || null;
+        if (!fuelType) {
+          for (const label of ['Fuel\\s*Type', 'Fuel']) {
+            const pattern = new RegExp(label + '[:\\s]+([^\\n|<,;]+)', 'i');
+            const match = pageText.match(pattern);
+            if (match?.[1]) {
+              const value = match[1].trim().replace(/\s+$/, '');
+              if (value && value.length < 80) {
+                fuelType = value;
+                break;
+              }
+            }
+          }
+        }
+        if (!fuelType) {
+          for (const item of allListItems) {
+            const text = item.textContent?.trim() || '';
+            const match = text.match(/Fuel\s*Type[:\s]+(.+)/i) || text.match(/Fuel[:\s]+(.+)/i);
+            if (match?.[1]) {
+              const value = match[1].trim().split(/[,;|\n]/)[0].trim();
+              if (value && value.length < 80) {
+                fuelType = value;
+                break;
+              }
+            }
+          }
+        }
+        if (fuelType) {
+          const lower = fuelType.toLowerCase();
+          if (lower.includes('electric') || lower === 'ev' || lower === 'bev') fuelType = 'Electric';
+          else if (lower.includes('plug') && lower.includes('hybrid')) fuelType = 'Hybrid';
+          else if (lower.includes('hybrid')) fuelType = 'Hybrid';
+          else if (lower.includes('diesel')) fuelType = 'Diesel';
+          else if (lower.includes('gas') || lower.includes('petrol') || lower.includes('unleaded')) fuelType = 'Gasoline';
+        }
 
-        let type = 'SUV';
-        if (/sedan/i.test(pageText)) type = 'Sedan';
-        else if (/truck|pickup|crew cab/i.test(pageText)) type = 'Truck';
-        else if (/hatchback/i.test(pageText)) type = 'Hatchback';
-        else if (/coupe/i.test(pageText)) type = 'Coupe';
-        else if (/wagon/i.test(pageText)) type = 'Wagon';
-        else if (/minivan|van/i.test(pageText)) type = 'Minivan';
+        let bodyStyle: string | undefined;
+        for (const label of ['Body\\s*Style', 'Body\\s*Type']) {
+          const pattern = new RegExp(label + '[:\\s]+([^\\n|<,;]+)', 'i');
+          const match = pageText.match(pattern);
+          if (match?.[1]) {
+            const value = match[1].trim().replace(/\s+$/, '');
+            if (value && value.length < 80) {
+              bodyStyle = value;
+              break;
+            }
+          }
+        }
+        if (!bodyStyle) {
+          for (const item of allListItems) {
+            const text = item.textContent?.trim() || '';
+            const match = text.match(/Body\s*Style[:\s]+(.+)/i) || text.match(/Body\s*Type[:\s]+(.+)/i);
+            if (match?.[1]) {
+              const value = match[1].trim().split(/[,;|\n]/)[0].trim();
+              if (value && value.length < 80) {
+                bodyStyle = value;
+                break;
+              }
+            }
+          }
+        }
+
+        let carfaxUrl: string | null = null;
+        const carfaxLinkSelectors = ['a[href*="vhr.carfax"]', 'a[href*="carfax"]', '[data-carfax-url]', '[data-carfax]'];
+        for (const selector of carfaxLinkSelectors) {
+          const candidates = Array.from(document.querySelectorAll(selector));
+          for (const candidate of candidates) {
+            const href =
+              (candidate as HTMLAnchorElement).href ||
+              candidate.getAttribute('data-carfax-url') ||
+              candidate.getAttribute('data-carfax') ||
+              candidate.getAttribute('data-href') ||
+              '';
+            if (!href || !/carfax/i.test(href)) continue;
+            if (/vhr\.carfax|\/vehicle\/|\/vhr\/|vin=/i.test(href)) {
+              carfaxUrl = href;
+              break;
+            }
+            if (!carfaxUrl && !/^https?:\/\/(?:www\.)?carfax\.(?:ca|com)\/?$/i.test(href)) {
+              carfaxUrl = href;
+            }
+          }
+          if (carfaxUrl) break;
+        }
+
+        const carfaxBadges: string[] = [];
+        document.querySelectorAll('img[src*="carfax"], img[data-src*="carfax"], img[data-lazy-src*="carfax"]').forEach((img: Element) => {
+          const src = (img.getAttribute('src') || img.getAttribute('data-src') || img.getAttribute('data-lazy-src') || '').toLowerCase();
+          const alt = (img.getAttribute('alt') || '').toLowerCase();
+          const dataBadge = (img.getAttribute('data-badge') || '').toLowerCase();
+          if ((src.includes('oneowner') || alt.includes('one owner') || dataBadge.includes('one owner')) && !carfaxBadges.includes('One Owner')) carfaxBadges.push('One Owner');
+          if ((src.includes('accidentfree') || src.includes('noaccident') || alt.includes('accident free') || alt.includes('no reported accident') || dataBadge.includes('accident')) && !carfaxBadges.includes('No Reported Accidents')) carfaxBadges.push('No Reported Accidents');
+          if ((src.includes('servicehistory') || alt.includes('service history') || dataBadge.includes('service')) && !carfaxBadges.includes('Service History')) carfaxBadges.push('Service History');
+          if ((src.includes('lowkilometer') || src.includes('lowmileage') || alt.includes('low km') || alt.includes('low mileage') || dataBadge.includes('low')) && !carfaxBadges.includes('Low Kilometers')) carfaxBadges.push('Low Kilometers');
+        });
+
+        const badges = [...carfaxBadges];
+        const badgeText = pageText.toLowerCase();
+        if (/one owner|1 owner|single owner/.test(badgeText) && !badges.includes('One Owner')) badges.push('One Owner');
+        if (/no accidents?|accident[\s-]?free|clean history/.test(badgeText) && !badges.includes('No Reported Accidents')) badges.push('No Reported Accidents');
+        if (/certified|cpo|certified pre-owned/.test(badgeText) && !badges.includes('Certified Pre-Owned')) badges.push('Certified Pre-Owned');
+
+        const descriptionSelectors = ['[class*="description"]', '[class*="details"]', '[class*="comments"]', '.vehicle-description', '#description'];
+        let description = '';
+        for (const selector of descriptionSelectors) {
+          const value = document.querySelector(selector)?.textContent?.trim() || '';
+          if (value.length > 50) {
+            description = value;
+            break;
+          }
+        }
+        if (!description) {
+          description = 'Used vehicle. Contact dealer for more information.';
+        }
+
+        let type = bodyStyle || 'SUV';
+        if (/sedan/i.test(type) || /sedan/i.test(pageText)) type = 'Sedan';
+        else if (/truck|pickup|crew cab/i.test(type) || /truck|pickup|crew cab/i.test(pageText)) type = 'Truck';
+        else if (/hatchback/i.test(type) || /hatchback/i.test(pageText)) type = 'Hatchback';
+        else if (/coupe/i.test(type) || /coupe/i.test(pageText)) type = 'Coupe';
+        else if (/wagon/i.test(type) || /wagon/i.test(pageText)) type = 'Wagon';
+        else if (/minivan|van/i.test(type) || /minivan|van/i.test(pageText)) type = 'Minivan';
+        else if (/suv/i.test(type) || /sport utility/i.test(pageText)) type = 'SUV';
 
         const features: string[] = [];
         const featurePatterns = [
@@ -1321,12 +1919,14 @@ export class BrowserlessUnifiedService {
           type,
           price,
           odometer,
-          images: images.slice(0, 20),
+          fallbackImages: fallbackImages.slice(0, 40),
           badges,
+          carfaxBadges,
           location: ctx.location,
           dealership: ctx.dealershipName,
           dealershipId: ctx.dealershipId,
           dealerVdpUrl: window.location.href,
+          description,
           vin,
           stockNumber,
           carfaxUrl,
@@ -1335,12 +1935,53 @@ export class BrowserlessUnifiedService {
           engine,
           transmission,
           drivetrain,
-          fuelType,
+          fuelType: fuelType || undefined,
           features,
-        };
+        } satisfies ExtractedVdpPageData;
       }, context);
 
-      return vehicle;
+      if (!extracted) {
+        return null;
+      }
+
+      let images = extracted.fallbackImages ?? [];
+      try {
+        const imageExtraction = await extractVehicleImages(page, extracted.vin ?? null, extracted.stockNumber ?? null);
+        const { valid } = validateImages(imageExtraction.images, extracted.vin ?? null, extracted.stockNumber ?? null);
+        const precisionImages = valid.map((image) => image.url);
+        if (precisionImages.length > 0) {
+          images = precisionImages;
+        }
+      } catch (imageError) {
+        console.warn(`[BrowserlessUnified] Precision image extraction fallback for ${vdpUrl}:`, imageError);
+      }
+
+      return {
+        year: extracted.year,
+        make: extracted.make,
+        model: extracted.model,
+        trim: extracted.trim,
+        type: extracted.type,
+        price: extracted.price,
+        odometer: extracted.odometer,
+        images: images.slice(0, 40),
+        badges: extracted.badges,
+        location,
+        dealership: dealershipName,
+        dealershipId,
+        description: extracted.description,
+        vin: extracted.vin,
+        stockNumber: extracted.stockNumber,
+        carfaxUrl: normalizeCarfaxDetailUrl(extracted.carfaxUrl),
+        dealerVdpUrl: extracted.dealerVdpUrl,
+        exteriorColor: extracted.exteriorColor,
+        interiorColor: extracted.interiorColor,
+        engine: extracted.engine,
+        transmission: extracted.transmission,
+        drivetrain: extracted.drivetrain,
+        fuelType: extracted.fuelType,
+        features: extracted.features,
+      };
     } catch (error) {
       console.warn(`[BrowserlessUnified] VDP scrape error for ${vdpUrl}:`, error);
       return null;

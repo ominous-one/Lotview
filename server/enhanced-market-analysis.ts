@@ -157,6 +157,12 @@ export interface EnhancedMarketAnalysisResult {
     highQualityListings: number;
     sourceDiversity: number;
     trimMatchRate?: number;
+    proof?: {
+      directTrimMatches?: number;
+      fallbackNoTrimCount?: number;
+      zeroPriceFiltered: number;
+      outlierPriceFiltered: number;
+    };
     notes: string[];
   };
   aiInsights?: string;
@@ -430,6 +436,10 @@ export class EnhancedMarketAnalysisService {
       params.trims && params.trims.length > 0 && trimCoverage.totalListings > 0
         ? trimCoverage.trimMatchedListings / trimCoverage.totalListings
         : undefined,
+      params.trims && params.trims.length > 0 ? trimCoverage.trimMatchedListings : undefined,
+      params.trims && params.trims.length > 0 ? trimCoverage.noTrimListings : undefined,
+      zeroCount,
+      outlierCount,
       errors
     );
 
@@ -652,6 +662,10 @@ export class EnhancedMarketAnalysisService {
     highQualityListings: number,
     sourceDiversity: number,
     trimMatchRate: number | undefined,
+    directTrimMatches: number | undefined,
+    fallbackNoTrimCount: number | undefined,
+    zeroPriceFiltered: number,
+    outlierPriceFiltered: number,
     errors: string[]
   ): NonNullable<EnhancedMarketAnalysisResult['analysisQuality']> {
     let confidence: 'high' | 'medium' | 'low' = 'low';
@@ -679,6 +693,12 @@ export class EnhancedMarketAnalysisService {
       highQualityListings,
       sourceDiversity,
       trimMatchRate,
+      proof: {
+        directTrimMatches,
+        fallbackNoTrimCount,
+        zeroPriceFiltered,
+        outlierPriceFiltered,
+      },
       notes
     };
   }

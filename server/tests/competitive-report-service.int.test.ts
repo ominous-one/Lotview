@@ -99,5 +99,6 @@ describe('competitive report snapshot job (integration-ish)', () => {
     expect(result.errors).toEqual([]);
     expect(result.run.status).toBe('success');
     expect((storage.createCompetitiveReportUnits as jest.Mock).mock.calls[0][0][0].confidence).toBe('medium');
+    expect((storage.createCompetitiveReportUnits as jest.Mock).mock.calls[0][0][0]).not.toHaveProperty('summary');
   });
 });

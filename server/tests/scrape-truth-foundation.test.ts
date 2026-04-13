@@ -185,6 +185,59 @@ describe('scrape truth foundation', () => {
     expect(gate.blockers).toContain('carfax_truthfulness_failed');
   });
 
+  test('optional detail fields do not mismatch when source truth is unknown', () => {
+    const result = reconcileVehicleTruth({
+      dealershipId: 13,
+      source: {
+        vin: '1HGCM82633A004352',
+        stockNumber: 'A1',
+        year: 2023,
+        make: 'Toyota',
+        model: 'RAV4',
+        trim: null,
+        price: 31995,
+        odometer: null,
+        photoCount: 12,
+        primaryPhoto: 'https://dealer.example/a.jpg',
+        transmission: 'Automatic',
+        drivetrain: 'AWD',
+        fuelType: 'Gasoline',
+        exteriorColor: null,
+        interiorColor: null,
+        carfaxUrl: null,
+        carfaxBadges: [],
+      },
+      observed: {
+        vin: '1HGCM82633A004352',
+        stockNumber: 'A1',
+        year: 2023,
+        make: 'Toyota',
+        model: 'RAV4',
+        trim: 'XLE',
+        price: 31995,
+        odometer: 12000,
+        photoCount: 12,
+        primaryPhoto: 'https://dealer.example/a.jpg',
+        transmission: 'Automatic',
+        drivetrain: 'AWD',
+        fuelType: 'Gasoline',
+        exteriorColor: 'Blue',
+        interiorColor: 'Black',
+        carfaxUrl: 'https://www.carfax.com/VehicleHistory/p/Report.cfx?vin=1HGCM82633A004352',
+        carfaxBadges: ['One Owner'],
+      },
+    });
+
+    expect(result.mismatches.map((m) => m.field)).not.toEqual(expect.arrayContaining([
+      'trim',
+      'odometer',
+      'exteriorColor',
+      'interiorColor',
+      'carfaxUrl',
+      'carfaxBadges',
+    ]));
+  });
+
   test('autopost layer gets a dealership-level scrape gate block reason', () => {
     const reason = summarizeDealershipScrapeGateBlockReason({
       dealershipId: 5,
