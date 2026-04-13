@@ -10,24 +10,98 @@ import {
 } from "./objectAcl";
 
 const REPLIT_SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
+const DISABLED_UPLOAD_PATH = "/public-objects/unavailable";
 
-export const objectStorageClient = new Storage({
-  credentials: {
-    audience: "replit",
-    subject_token_type: "access_token",
-    token_url: `${REPLIT_SIDECAR_ENDPOINT}/token`,
-    type: "external_account",
-    credential_source: {
-      url: `${REPLIT_SIDECAR_ENDPOINT}/credential`,
-      format: {
-        type: "json",
-        subject_token_field_name: "access_token",
-      },
-    },
-    universe_domain: "googleapis.com",
-  },
-  projectId: "",
-});
+type ObjectStorageMode = "replit" | "gcs" | "disabled";
+
+type ObjectStorageConfig = {
+  mode: ObjectStorageMode;
+  client: Storage | null;
+  warning?: string;
+};
+
+function parseJsonCredentials(raw: string) {
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    throw new Error(
+      `GCS_SERVICE_ACCOUNT_KEY is not valid JSON: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
+
+function createObjectStorageConfig(): ObjectStorageConfig {
+  if (process.env.REPL_ID) {
+    return {
+      mode: "replit",
+      client: new Storage({
+        credentials: {
+          audience: "replit",
+          subject_token_type: "access_token",
+          token_url: `${REPLIT_SIDECAR_ENDPOINT}/token`,
+          type: "external_account",
+          credential_source: {
+            url: `${REPLIT_SIDECAR_ENDPOINT}/credential`,
+            format: {
+              type: "json",
+              subject_token_field_name: "access_token",
+            },
+          },
+          universe_domain: "googleapis.com",
+        },
+        projectId: "",
+      }),
+    };
+  }
+
+  if (process.env.GCS_SERVICE_ACCOUNT_KEY) {
+    const credentials = parseJsonCredentials(process.env.GCS_SERVICE_ACCOUNT_KEY);
+    return {
+      mode: "gcs",
+      client: new Storage({
+        credentials,
+        projectId: credentials.project_id,
+      }),
+    };
+  }
+
+  if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    return {
+      mode: "gcs",
+      client: new Storage(),
+    };
+  }
+
+  return {
+    mode: "disabled",
+    client: null,
+    warning:
+      "Object Storage disabled: set REPL_ID for Replit sidecar auth, or configure GCS_SERVICE_ACCOUNT_KEY / GOOGLE_APPLICATION_CREDENTIALS for standard GCS.",
+  };
+}
+
+const objectStorageConfig = createObjectStorageConfig();
+let hasLoggedDisabledWarning = false;
+
+function logDisabledWarning() {
+  if (objectStorageConfig.mode !== "disabled" || hasLoggedDisabledWarning) {
+    return;
+  }
+
+  hasLoggedDisabledWarning = true;
+  console.warn(`[ObjectStorage] ${objectStorageConfig.warning}`);
+}
+
+function getObjectStorageClient(): Storage {
+  if (!objectStorageConfig.client) {
+    logDisabledWarning();
+    throw new ObjectNotFoundError();
+  }
+
+  return objectStorageConfig.client;
+}
+
+export const objectStorageClient = objectStorageConfig.client;
 
 export class ObjectNotFoundError extends Error {
   constructor() {
@@ -38,7 +112,23 @@ export class ObjectNotFoundError extends Error {
 }
 
 export class ObjectStorageService {
-  constructor() {}
+  constructor() {
+    if (objectStorageConfig.mode === "disabled") {
+      logDisabledWarning();
+    }
+  }
+
+  isAvailable(): boolean {
+    return !!objectStorageConfig.client;
+  }
+
+  private getClient(): Storage {
+    return getObjectStorageClient();
+  }
+
+  private getMode(): ObjectStorageMode {
+    return objectStorageConfig.mode;
+  }
 
   getPublicObjectSearchPaths(): Array<string> {
     const pathsStr = process.env.PUBLIC_OBJECT_SEARCH_PATHS || "";
@@ -71,10 +161,15 @@ export class ObjectStorageService {
   }
 
   async searchPublicObject(filePath: string): Promise<File | null> {
+    if (!this.isAvailable()) {
+      throw new ObjectNotFoundError();
+    }
+
+    const client = this.getClient();
     for (const searchPath of this.getPublicObjectSearchPaths()) {
       const fullPath = `${searchPath}/${filePath}`;
       const { bucketName, objectName } = parseObjectPath(fullPath);
-      const bucket = objectStorageClient.bucket(bucketName);
+      const bucket = client.bucket(bucketName);
       const file = bucket.file(objectName);
       const [exists] = await file.exists();
       if (exists) {
@@ -85,6 +180,10 @@ export class ObjectStorageService {
   }
 
   async downloadObject(file: File, res: Response, cacheTtlSec: number = 3600) {
+    if (!this.isAvailable()) {
+      throw new ObjectNotFoundError();
+    }
+
     try {
       const [metadata] = await file.getMetadata();
       const aclPolicy = await getObjectAclPolicy(file);
@@ -112,14 +211,12 @@ export class ObjectStorageService {
   }
 
   async getObjectEntityUploadURL(): Promise<string> {
-    const privateObjectDir = this.getPrivateObjectDir();
-    if (!privateObjectDir) {
-      throw new Error(
-        "PRIVATE_OBJECT_DIR not set. Create a bucket in 'Object Storage' " +
-          "tool and set PRIVATE_OBJECT_DIR env var."
-      );
+    if (!this.isAvailable()) {
+      console.warn("[ObjectStorage] Skipping object entity upload URL generation because storage is disabled.");
+      return DISABLED_UPLOAD_PATH;
     }
 
+    const privateObjectDir = this.getPrivateObjectDir();
     const objectId = randomUUID();
     const fullPath = `${privateObjectDir}/uploads/${objectId}`;
     const { bucketName, objectName } = parseObjectPath(fullPath);
@@ -133,6 +230,11 @@ export class ObjectStorageService {
   }
 
   async uploadLogoFromBuffer(buffer: Buffer, dealershipId: number, mimeType: string): Promise<string> {
+    if (!this.isAvailable()) {
+      console.warn(`[ObjectStorage] Skipping logo upload for dealership ${dealershipId} because storage is disabled.`);
+      return DISABLED_UPLOAD_PATH;
+    }
+
     const publicPaths = this.getPublicObjectSearchPaths();
     if (publicPaths.length === 0) {
       throw new Error("No public object storage paths configured");
@@ -140,162 +242,157 @@ export class ObjectStorageService {
 
     const publicPath = publicPaths[0];
     const objectId = randomUUID();
-    
+
     const extensionMap: Record<string, string> = {
-      'image/png': 'png',
-      'image/jpeg': 'jpg',
-      'image/jpg': 'jpg',
-      'image/gif': 'gif',
-      'image/webp': 'webp',
-      'image/svg+xml': 'svg',
-      'image/bmp': 'bmp',
-      'image/x-icon': 'ico',
-      'image/vnd.microsoft.icon': 'ico',
+      "image/png": "png",
+      "image/jpeg": "jpg",
+      "image/jpg": "jpg",
+      "image/gif": "gif",
+      "image/webp": "webp",
+      "image/svg+xml": "svg",
+      "image/bmp": "bmp",
+      "image/x-icon": "ico",
+      "image/vnd.microsoft.icon": "ico",
     };
-    const extension = extensionMap[mimeType] || 'png';
-    
+    const extension = extensionMap[mimeType] || "png";
+
     const relativePath = `logos/dealership-${dealershipId}-${objectId}.${extension}`;
     const fullPath = `${publicPath}/${relativePath}`;
-    
+
     const { bucketName, objectName } = parseObjectPath(fullPath);
-    const bucket = objectStorageClient.bucket(bucketName);
+    const bucket = this.getClient().bucket(bucketName);
     const file = bucket.file(objectName);
 
     await file.save(buffer, {
       contentType: mimeType,
       metadata: {
-        cacheControl: 'public, max-age=31536000',
+        cacheControl: "public, max-age=31536000",
       },
     });
 
     await setObjectAclPolicy(file, {
       owner: `dealership-${dealershipId}`,
-      visibility: 'public',
+      visibility: "public",
     });
 
     return `/public-objects/${relativePath}`;
   }
 
   async uploadVehicleImage(buffer: Buffer, dealershipId: number, vehicleId: number, imageIndex: number, mimeType: string): Promise<string> {
+    if (!this.isAvailable()) {
+      console.warn(`[ObjectStorage] Skipping vehicle image upload for vehicle ${vehicleId} because storage is disabled.`);
+      return DISABLED_UPLOAD_PATH;
+    }
+
     const publicPaths = this.getPublicObjectSearchPaths();
     if (publicPaths.length === 0) {
       throw new Error("No public object storage paths configured");
     }
 
     const publicPath = publicPaths[0];
-    
+
     const extensionMap: Record<string, string> = {
-      'image/png': 'png',
-      'image/jpeg': 'jpg',
-      'image/jpg': 'jpg',
-      'image/gif': 'gif',
-      'image/webp': 'webp',
+      "image/png": "png",
+      "image/jpeg": "jpg",
+      "image/jpg": "jpg",
+      "image/gif": "gif",
+      "image/webp": "webp",
     };
-    const extension = extensionMap[mimeType] || 'jpg';
-    
-    const relativePath = `vehicles/${dealershipId}/${vehicleId}/image-${imageIndex.toString().padStart(2, '0')}.${extension}`;
+    const extension = extensionMap[mimeType] || "jpg";
+
+    const relativePath = `vehicles/${dealershipId}/${vehicleId}/image-${imageIndex.toString().padStart(2, "0")}.${extension}`;
     const fullPath = `${publicPath}/${relativePath}`;
-    
+
     const { bucketName, objectName } = parseObjectPath(fullPath);
-    const bucket = objectStorageClient.bucket(bucketName);
+    const bucket = this.getClient().bucket(bucketName);
     const file = bucket.file(objectName);
 
     await file.save(buffer, {
       contentType: mimeType,
       metadata: {
-        cacheControl: 'public, max-age=31536000',
+        cacheControl: "public, max-age=31536000",
       },
     });
 
     await setObjectAclPolicy(file, {
       owner: `dealership-${dealershipId}`,
-      visibility: 'public',
+      visibility: "public",
     });
 
     return `/public-objects/${relativePath}`;
   }
 
   async uploadVehicleImages(cdnUrls: string[], dealershipId: number, vehicleId: number): Promise<string[]> {
+    if (!this.isAvailable()) {
+      console.warn(`[ObjectStorage] Skipping vehicle image batch upload for vehicle ${vehicleId} because storage is disabled.`);
+      return [];
+    }
+
     const localUrls: string[] = [];
     const fetchHeaders = {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Referer': 'https://www.autotrader.ca/',
-      'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      Referer: "https://www.autotrader.ca/",
+      Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
     };
-    
-    // Helper to generate fallback URLs - strips query params which is where maximizeImageUrl adds transforms
+
     const generateFallbackUrls = (url: string): string[] => {
       const fallbacks: string[] = [];
-      
-      // Primary fallback: strip query params entirely (reverses autotradercdn/cargurus/cloudinary transforms)
-      if (url.includes('?')) {
-        fallbacks.push(url.split('?')[0]);
+      if (url.includes("?")) {
+        fallbacks.push(url.split("?")[0]);
       }
-      
-      // Dedupe
-      return [...new Set(fallbacks)].filter(f => f !== url);
+      return [...new Set(fallbacks)].filter((fallback) => fallback !== url);
     };
-    
-    // Helper to validate response is actually an image (uses global fetch Response, not express Response)
+
     const isValidImageResponse = (contentType: string, buffer: Buffer): boolean => {
-      
-      // Must be an image content type
-      if (!contentType.startsWith('image/')) {
+      if (!contentType.startsWith("image/")) {
         return false;
       }
-      
-      // Must be reasonably sized (> 1KB to filter out error pages/placeholders)
+
       if (buffer.length < 1024) {
         return false;
       }
-      
+
       return true;
     };
-    
+
     for (let i = 0; i < cdnUrls.length; i++) {
       const cdnUrl = cdnUrls[i];
       try {
-        // Try the provided URL first
         let response = await fetch(cdnUrl, { headers: fetchHeaders });
-        let usedUrl = cdnUrl;
         let buffer: Buffer | null = null;
         let isValid = false;
 
-        // Check if response is OK and actually an image
         if (response.ok) {
           const arrayBuffer = await response.arrayBuffer();
           buffer = Buffer.from(arrayBuffer);
-          const contentType = response.headers.get('content-type') || '';
+          const contentType = response.headers.get("content-type") || "";
           isValid = isValidImageResponse(contentType, buffer);
-          
+
           if (!isValid) {
             console.log(`[ObjectStorage] Image ${i} for vehicle ${vehicleId}: Response not valid image, trying fallbacks`);
           }
         }
 
-        // If error status or invalid content, try fallback URLs
         if (!response.ok || !isValid) {
-          const statusOrReason = response.ok ? 'invalid content' : response.status;
+          const statusOrReason = response.ok ? "invalid content" : response.status;
           console.log(`[ObjectStorage] Image ${i} for vehicle ${vehicleId}: ${statusOrReason} on primary URL, trying fallbacks`);
-          
+
           const fallbackUrls = generateFallbackUrls(cdnUrl);
-          
           for (const fallbackUrl of fallbackUrls) {
             try {
               response = await fetch(fallbackUrl, { headers: fetchHeaders });
               if (response.ok) {
                 const arrayBuffer = await response.arrayBuffer();
                 buffer = Buffer.from(arrayBuffer);
-                const contentType = response.headers.get('content-type') || '';
+                const contentType = response.headers.get("content-type") || "";
                 if (isValidImageResponse(contentType, buffer)) {
-                  usedUrl = fallbackUrl;
                   isValid = true;
                   console.log(`[ObjectStorage] Image ${i} for vehicle ${vehicleId}: Success with fallback`);
                   break;
                 }
               }
             } catch {
-              // Continue to next fallback
+              // continue
             }
           }
         }
@@ -305,7 +402,7 @@ export class ObjectStorageService {
           continue;
         }
 
-        const contentType = response.headers.get('content-type') || 'image/jpeg';
+        const contentType = response.headers.get("content-type") || "image/jpeg";
         const localUrl = await this.uploadVehicleImage(buffer, dealershipId, vehicleId, i, contentType);
         localUrls.push(localUrl);
       } catch (error) {
@@ -317,6 +414,11 @@ export class ObjectStorageService {
   }
 
   async deleteVehicleImages(dealershipId: number, vehicleId: number): Promise<void> {
+    if (!this.isAvailable()) {
+      console.warn(`[ObjectStorage] Skipping vehicle image deletion for vehicle ${vehicleId} because storage is disabled.`);
+      return;
+    }
+
     try {
       const publicPaths = this.getPublicObjectSearchPaths();
       if (publicPaths.length === 0) return;
@@ -324,7 +426,7 @@ export class ObjectStorageService {
       const publicPath = publicPaths[0];
       const prefix = `vehicles/${dealershipId}/${vehicleId}/`;
       const { bucketName, objectName: basePath } = parseObjectPath(`${publicPath}/${prefix}`);
-      const bucket = objectStorageClient.bucket(bucketName);
+      const bucket = this.getClient().bucket(bucketName);
 
       const [files] = await bucket.getFiles({ prefix: basePath });
       for (const file of files) {
@@ -336,15 +438,20 @@ export class ObjectStorageService {
   }
 
   async deleteObject(objectPath: string): Promise<void> {
+    if (!this.isAvailable()) {
+      console.warn(`[ObjectStorage] Skipping delete for ${objectPath} because storage is disabled.`);
+      return;
+    }
+
     try {
-      if (objectPath.startsWith('/public-objects/')) {
-        const relativePath = objectPath.replace('/public-objects/', '');
+      if (objectPath.startsWith("/public-objects/")) {
+        const relativePath = objectPath.replace("/public-objects/", "");
         const publicPaths = this.getPublicObjectSearchPaths();
-        
+
         for (const searchPath of publicPaths) {
           const fullPath = `${searchPath}/${relativePath}`;
           const { bucketName, objectName } = parseObjectPath(fullPath);
-          const bucket = objectStorageClient.bucket(bucketName);
+          const bucket = this.getClient().bucket(bucketName);
           const file = bucket.file(objectName);
           const [exists] = await file.exists();
           if (exists) {
@@ -359,6 +466,10 @@ export class ObjectStorageService {
   }
 
   async getObjectEntityFile(objectPath: string): Promise<File> {
+    if (!this.isAvailable()) {
+      throw new ObjectNotFoundError();
+    }
+
     if (!objectPath.startsWith("/objects/")) {
       throw new ObjectNotFoundError();
     }
@@ -375,7 +486,7 @@ export class ObjectStorageService {
     }
     const objectEntityPath = `${entityDir}${entityId}`;
     const { bucketName, objectName } = parseObjectPath(objectEntityPath);
-    const bucket = objectStorageClient.bucket(bucketName);
+    const bucket = this.getClient().bucket(bucketName);
     const objectFile = bucket.file(objectName);
     const [exists] = await objectFile.exists();
     if (!exists) {
@@ -411,6 +522,11 @@ export class ObjectStorageService {
   ): Promise<string> {
     const normalizedPath = this.normalizeObjectEntityPath(rawPath);
     if (!normalizedPath.startsWith("/")) {
+      return normalizedPath;
+    }
+
+    if (!this.isAvailable()) {
+      console.warn(`[ObjectStorage] Skipping ACL update for ${normalizedPath} because storage is disabled.`);
       return normalizedPath;
     }
 
@@ -468,29 +584,56 @@ async function signObjectURL({
   method: "GET" | "PUT" | "DELETE" | "HEAD";
   ttlSec: number;
 }): Promise<string> {
-  const request = {
-    bucket_name: bucketName,
-    object_name: objectName,
-    method,
-    expires_at: new Date(Date.now() + ttlSec * 1000).toISOString(),
-  };
-  const response = await fetch(
-    `${REPLIT_SIDECAR_ENDPOINT}/object-storage/signed-object-url`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(request),
-    }
-  );
-  if (!response.ok) {
-    throw new Error(
-      `Failed to sign object URL, errorcode: ${response.status}, ` +
-        `make sure you're running on Replit`
-    );
+  if (objectStorageConfig.mode === "disabled") {
+    logDisabledWarning();
+    return DISABLED_UPLOAD_PATH;
   }
 
-  const { signed_url: signedURL } = await response.json();
+  if (objectStorageConfig.mode === "replit") {
+    const request = {
+      bucket_name: bucketName,
+      object_name: objectName,
+      method,
+      expires_at: new Date(Date.now() + ttlSec * 1000).toISOString(),
+    };
+    const response = await fetch(
+      `${REPLIT_SIDECAR_ENDPOINT}/object-storage/signed-object-url`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(request),
+      }
+    );
+    if (!response.ok) {
+      throw new Error(
+        `Failed to sign object URL, errorcode: ${response.status}, make sure you're running on Replit`
+      );
+    }
+
+    const { signed_url: signedURL } = await response.json();
+    return signedURL;
+  }
+
+  const client = getObjectStorageClient();
+  const file = client.bucket(bucketName).file(objectName);
+  const [signedURL] = await file.getSignedUrl({
+    version: "v4",
+    action: normalizeSignedUrlAction(method),
+    expires: Date.now() + ttlSec * 1000,
+  });
   return signedURL;
+}
+
+function normalizeSignedUrlAction(method: "GET" | "PUT" | "DELETE" | "HEAD"): "read" | "write" | "delete" {
+  switch (method) {
+    case "GET":
+    case "HEAD":
+      return "read";
+    case "PUT":
+      return "write";
+    case "DELETE":
+      return "delete";
+  }
 }
