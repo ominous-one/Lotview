@@ -57,6 +57,7 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 # Copy built artifacts from builder stage
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/migrations ./migrations
 
 # Create directories for uploads and temp files
 RUN mkdir -p /app/public/uploads /app/tmp && \
