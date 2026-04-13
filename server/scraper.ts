@@ -1,6 +1,7 @@
 import puppeteer from 'puppeteer';
 import { execSync } from 'child_process';
 import { sql, eq, and, inArray, lt, isNull, or } from 'drizzle-orm';
+import { z } from 'zod';
 import { db } from './db';
 import { storage } from './storage';
 import { vehicles, vehicleImages } from '@shared/schema';
@@ -9,10 +10,22 @@ import { generateVehicleDescription } from './openai';
 import { scrapeAllDealerListings, scrapeDealerListingsWithCallback, scrapeDealerListingsCheckpointed, type DealerVehicleListing } from './dealer-listing-scraper';
 import { matchCarGurusToDealer } from './vehicle-matcher';
 import { ObjectStorageService } from './objectStorage';
-import { scrapeCarfaxReport as scrapeCarfaxReportPage } from './carfax-scraper';
+import {
+  scrapeCarfaxReport as scrapeCarfaxReportPage,
+  resolveCarfaxReportUrlFromDealerVdp,
+} from './carfax-scraper';
 import { carfaxReports } from '@shared/schema';
 import { normalizeStockNumber, normalizeVin, isPlaceholderVin } from './inventory-identity';
-import { computePhotoStatus } from './vehicle-photo-utils';
+import {
+  computePhotoStatus,
+  hasEnoughPhotosForPriceOnlyRefresh,
+} from './vehicle-photo-utils';
+import {
+  assessInventoryWrite,
+  InventoryWriteGuardError,
+  normalizeGroundedCarfaxUrl,
+} from './inventory-write-guardrails';
+import { resolveVehicleVerificationState } from './vehicle-data-quality';
 
 // Singleton for image uploads during scraping
 const objectStorageService = new ObjectStorageService();
@@ -31,7 +44,11 @@ async function resolveTargetDealershipIds(dealershipId?: number): Promise<number
   }
 }
 
-// Check if vehicle exists and needs VDP enrichment (missing techSpecs, vdpDescription, or fuelType)
+// Check if vehicle exists and needs VDP enrichment.
+// Price-only refresh eligibility should depend on structured data + photo completeness,
+// not on dealer marketing copy availability. Olympic VDPs often expose only boilerplate
+// under "Overview", so requiring vdpDescription would keep otherwise-complete rows in
+// enrichment mode forever.
 export async function checkVehicleNeedsEnrichment(vin: string, dealershipId: number): Promise<{ exists: boolean; needsEnrichment: boolean; id: number | null; currentPrice: number | null }> {
   if (!vin) return { exists: false, needsEnrichment: true, id: null, currentPrice: null };
   
@@ -40,6 +57,7 @@ export async function checkVehicleNeedsEnrichment(vin: string, dealershipId: num
     techSpecs: vehicles.techSpecs, 
     vdpDescription: vehicles.vdpDescription,
     fuelType: vehicles.fuelType,
+    images: vehicles.images,
     price: vehicles.price
   })
     .from(vehicles)
@@ -54,8 +72,12 @@ export async function checkVehicleNeedsEnrichment(vin: string, dealershipId: num
   }
   
   const vehicle = existing[0];
-  // Needs enrichment if missing techSpecs, vdpDescription, OR fuelType
-  const needsEnrichment = !vehicle.techSpecs || !vehicle.vdpDescription || !vehicle.fuelType;
+  // Vehicles are only eligible for price-only refresh after they have structured VDP data
+  // and more than 10 uploaded photos.
+  const needsEnrichment =
+    !vehicle.techSpecs ||
+    !vehicle.fuelType ||
+    !hasEnoughPhotosForPriceOnlyRefresh(vehicle.images);
   
   return { 
     exists: true, 
@@ -86,7 +108,9 @@ function normalizeVdpUrl(url: string | null | undefined): string | null {
   try {
     const parsed = new URL(url);
     // Keep only protocol, host, and pathname
-    let normalized = `${parsed.protocol}//${parsed.host}${parsed.pathname}`;
+    let normalizedPath = parsed.pathname.replace(/\/+$/, '');
+    if (!normalizedPath) normalizedPath = '/';
+    let normalized = `${parsed.protocol}//${parsed.host}${normalizedPath}`;
     // Remove trailing slash (unless it's just "/")
     if (normalized.endsWith('/') && normalized.length > parsed.origin.length + 1) {
       normalized = normalized.slice(0, -1);
@@ -97,11 +121,19 @@ function normalizeVdpUrl(url: string | null | undefined): string | null {
   }
 }
 
+export function buildIncrementalCleanupScopeClause(dealershipIdsArray: number[]) {
+  return and(
+    inArray(vehicles.dealershipId, dealershipIdsArray),
+    isNull(vehicles.deletedAt)
+  );
+}
+
 // Upsert a single vehicle by dealer_vdp_url (primary), VIN (secondary), or year/make/model (fallback)
 // This enables incremental saving - each vehicle is saved immediately after scraping
 // PRIORITY: dealer_vdp_url > VIN > year/make/model to prevent duplicates
 export async function upsertVehicleByVin(vehicleData: ScrapedVehicle): Promise<{ action: 'inserted' | 'updated', id: number }> {
   const now = new Date();
+  const normalizedVehicleData = validateScrapedVehiclePayload(normalizeScrapedVehicleAliases(vehicleData));
   
   // Find existing vehicle using canonical dedupe identity:
   //   (dealershipId, VIN, stockNumber)
@@ -109,16 +141,16 @@ export async function upsertVehicleByVin(vehicleData: ScrapedVehicle): Promise<{
   // NOTE: We intentionally do NOT resurrect vehicles soft-deleted by a user.
   let existingId: number | null = null;
 
-  const normalizedUrl = normalizeVdpUrl(vehicleData.dealerVdpUrl);
-  const normalizedVin = normalizeVin(vehicleData.vin);
-  const normalizedStock = normalizeStockNumber(vehicleData.stockNumber);
+  const normalizedUrl = normalizeVdpUrl(normalizedVehicleData.dealerVdpUrl);
+  const normalizedVin = normalizeVin(normalizedVehicleData.vin);
+  const normalizedStock = normalizeStockNumber(normalizedVehicleData.stockNumber);
 
   // STRATEGY 1: dealershipId + VIN + normalizedStockNumber (canonical)
   if (normalizedVin && normalizedStock && !isPlaceholderVin(normalizedVin)) {
     const existingByVinStock = await db.select({ id: vehicles.id })
       .from(vehicles)
       .where(and(
-        eq(vehicles.dealershipId, vehicleData.dealershipId),
+        eq(vehicles.dealershipId, normalizedVehicleData.dealershipId),
         sql`UPPER(TRIM(${vehicles.vin})) = ${normalizedVin}`,
         sql`UPPER(TRIM(${vehicles.normalizedStockNumber})) = ${normalizedStock}`
       ))
@@ -135,7 +167,7 @@ export async function upsertVehicleByVin(vehicleData: ScrapedVehicle): Promise<{
     const existingByStockPlaceholderVin = await db.select({ id: vehicles.id })
       .from(vehicles)
       .where(and(
-        eq(vehicles.dealershipId, vehicleData.dealershipId),
+        eq(vehicles.dealershipId, normalizedVehicleData.dealershipId),
         sql`UPPER(TRIM(${vehicles.normalizedStockNumber})) = ${normalizedStock}`,
         or(
           isNull(vehicles.vin),
@@ -155,7 +187,7 @@ export async function upsertVehicleByVin(vehicleData: ScrapedVehicle): Promise<{
     const existingByVin = await db.select({ id: vehicles.id })
       .from(vehicles)
       .where(and(
-        eq(vehicles.dealershipId, vehicleData.dealershipId),
+        eq(vehicles.dealershipId, normalizedVehicleData.dealershipId),
         sql`UPPER(TRIM(${vehicles.vin})) = ${normalizedVin}`
       ))
       .limit(1);
@@ -170,32 +202,13 @@ export async function upsertVehicleByVin(vehicleData: ScrapedVehicle): Promise<{
     const existingByUrl = await db.select({ id: vehicles.id })
       .from(vehicles)
       .where(and(
-        eq(vehicles.dealershipId, vehicleData.dealershipId),
-        sql`LOWER(${vehicles.dealerVdpUrl}) LIKE ${normalizedUrl + '%'}`
+        eq(vehicles.dealershipId, normalizedVehicleData.dealershipId),
+        sql`LOWER(TRIM(${vehicles.dealerVdpUrl})) = ${normalizedUrl}`
       ))
       .limit(1);
 
     if (existingByUrl.length > 0) {
       existingId = existingByUrl[0].id;
-    }
-  }
-
-  // STRATEGY 4: Fallback to year/make/model/dealershipId (only for vehicles without VIN or URL)
-  if (!existingId && !vehicleData.vin && !vehicleData.dealerVdpUrl) {
-    const existingByYMM = await db.select({ id: vehicles.id })
-      .from(vehicles)
-      .where(and(
-        eq(vehicles.year, vehicleData.year),
-        eq(vehicles.make, vehicleData.make),
-        eq(vehicles.model, vehicleData.model),
-        eq(vehicles.dealershipId, vehicleData.dealershipId),
-        sql`${vehicles.vin} IS NULL`,
-        sql`${vehicles.dealerVdpUrl} IS NULL`
-      ))
-      .limit(1);
-
-    if (existingByYMM.length > 0) {
-      existingId = existingByYMM[0].id;
     }
   }
   
@@ -216,21 +229,29 @@ export async function upsertVehicleByVin(vehicleData: ScrapedVehicle): Promise<{
     }
 
     const shouldRestore = !!existingVehicle?.deletedAt && (existingVehicle.deletedReason === 'REMOVED_BY_SYNC');
+    const writeDecision = assessInventoryWrite(normalizedVehicleData, existingVehicle);
+    if (!writeDecision.allow) {
+      throw new InventoryWriteGuardError(writeDecision.blockers, writeDecision.warnings);
+    }
+
+    if (writeDecision.warnings.length > 0) {
+      console.warn(`[Scraper] Guarded update for vehicle ${existingId}: ${writeDecision.warnings.join(', ')}`);
+    }
 
     // Preserve images: only update if new scrape has images
-    let imagesToSave = vehicleData.images;
+    let imagesToSave = normalizedVehicleData.images;
     if (imagesToSave.length === 0 && existingVehicle?.images && existingVehicle.images.length > 0) {
       imagesToSave = existingVehicle.images;
     }
 
     // Preserve price: only update if new price > 0, otherwise keep existing
-    let priceToSave = vehicleData.price || 0;
+    let priceToSave = normalizedVehicleData.price || 0;
     if (priceToSave === 0 && existingVehicle?.price && existingVehicle.price > 0) {
       priceToSave = existingVehicle.price;
     }
 
     // Preserve odometer: only update if new odometer > 0, otherwise keep existing
-    let odometerToSave = vehicleData.odometer || 0;
+    let odometerToSave = normalizedVehicleData.odometer || 0;
     if (odometerToSave === 0 && existingVehicle?.odometer && existingVehicle.odometer > 0) {
       odometerToSave = existingVehicle.odometer;
     }
@@ -241,50 +262,74 @@ export async function upsertVehicleByVin(vehicleData: ScrapedVehicle): Promise<{
       return existingVal ?? undefined;
     };
 
+    const existingGroundedCarfaxUrl = normalizeGroundedCarfaxUrl(existingVehicle?.carfaxUrl);
+    const existingNormalizedCarfaxBadges = existingVehicle?.carfaxBadges && existingVehicle.carfaxBadges.length > 0
+      ? existingVehicle.carfaxBadges
+      : null;
+    const groundedCarfaxUrlToSave = writeDecision.groundedCarfaxUrl ?? existingGroundedCarfaxUrl ?? null;
+
     // Build the vehicle record with smart merge
-    const vehicleRecord = {
-      dealershipId: vehicleData.dealershipId,
+    const vehicleRecordBase = {
+      dealershipId: normalizedVehicleData.dealershipId,
       ...(shouldRestore ? {
         deletedAt: null,
         deletedByUserId: null,
         deletedReason: null,
         lifecycleStatus: 'ACTIVE',
       } : {}),
-      year: vehicleData.year,
-      make: vehicleData.make,
-      model: vehicleData.model,
-      trim: preserveField(vehicleData.trim, existingVehicle?.trim),
-      type: preserveField(vehicleData.type, existingVehicle?.type),
+      year: normalizedVehicleData.year,
+      make: normalizedVehicleData.make,
+      model: normalizedVehicleData.model,
+      type: preserveField(normalizedVehicleData.type, existingVehicle?.type),
       price: priceToSave,
       odometer: odometerToSave,
       images: imagesToSave,
       photoStatus: computePhotoStatus(imagesToSave, 10),
-      badges: vehicleData.badges?.length ? vehicleData.badges : existingVehicle?.badges || [],
-      location: preserveField(vehicleData.location, existingVehicle?.location),
-      dealership: preserveField(vehicleData.dealership, existingVehicle?.dealership),
-      description: preserveField(vehicleData.description, existingVehicle?.description) || existingVehicle?.description || `${vehicleData.year} ${vehicleData.make} ${vehicleData.model} ${vehicleData.trim || ''}`.trim(),
-      fullPageContent: preserveField(vehicleData.fullPageContent, existingVehicle?.fullPageContent),
-      vin: preserveField(vehicleData.vin, existingVehicle?.vin),
-      stockNumber: preserveField(vehicleData.stockNumber, existingVehicle?.stockNumber),
-      normalizedStockNumber: preserveField(normalizeStockNumber(vehicleData.stockNumber), existingVehicle?.normalizedStockNumber),
-      cargurusPrice: preserveField(vehicleData.cargurusPrice, existingVehicle?.cargurusPrice),
-      cargurusUrl: preserveField(vehicleData.cargurusUrl, existingVehicle?.cargurusUrl),
-      dealRating: preserveField(vehicleData.dealRating, existingVehicle?.dealRating),
-      carfaxUrl: preserveField(vehicleData.carfaxUrl, existingVehicle?.carfaxUrl),
-      carfaxBadges: vehicleData.carfaxBadges && vehicleData.carfaxBadges.length > 0 
-        ? vehicleData.carfaxBadges 
-        : (existingVehicle?.carfaxBadges || null),
-      dealerVdpUrl: preserveField(vehicleData.dealerVdpUrl, existingVehicle?.dealerVdpUrl),
+      badges: normalizedVehicleData.badges?.length ? normalizedVehicleData.badges : existingVehicle?.badges || [],
+      location: preserveField(normalizedVehicleData.location, existingVehicle?.location),
+      dealership: preserveField(normalizedVehicleData.dealership, existingVehicle?.dealership),
+      description: preserveField(normalizedVehicleData.description, existingVehicle?.description) || existingVehicle?.description || `${normalizedVehicleData.year} ${normalizedVehicleData.make} ${normalizedVehicleData.model} ${normalizedVehicleData.trim || ''}`.trim(),
+      fullPageContent: preserveField(normalizedVehicleData.fullPageContent, existingVehicle?.fullPageContent),
+      vin: preserveField(writeDecision.normalizedVin, existingVehicle?.vin),
+      stockNumber: preserveField(normalizedVehicleData.stockNumber, existingVehicle?.stockNumber),
+      normalizedStockNumber: preserveField(writeDecision.normalizedStockNumber, existingVehicle?.normalizedStockNumber),
+      cargurusPrice: preserveField(normalizedVehicleData.cargurusPrice, existingVehicle?.cargurusPrice),
+      cargurusUrl: preserveField(normalizedVehicleData.cargurusUrl, existingVehicle?.cargurusUrl),
+      dealRating: preserveField(normalizedVehicleData.dealRating, existingVehicle?.dealRating),
+      carfaxUrl: groundedCarfaxUrlToSave,
+      carfaxBadges: writeDecision.normalizedCarfaxBadges.length > 0
+        ? writeDecision.normalizedCarfaxBadges
+        : existingNormalizedCarfaxBadges,
+      dealerVdpUrl: preserveField(writeDecision.normalizedDealerVdpUrl, existingVehicle?.dealerVdpUrl),
       lastScrapedAt: now,
-      exteriorColor: preserveField(vehicleData.exteriorColour, existingVehicle?.exteriorColor),
-      interiorColor: preserveField(vehicleData.interiorColour, existingVehicle?.interiorColor) || 'Black',
-      transmission: preserveField(vehicleData.transmission, existingVehicle?.transmission),
-      fuelType: preserveField(vehicleData.fuelType, existingVehicle?.fuelType),
-      drivetrain: preserveField(vehicleData.drivetrain, existingVehicle?.drivetrain),
-      engine: preserveField(vehicleData.engine, existingVehicle?.engine),
-      vdpDescription: preserveField(vehicleData.vdpDescription, existingVehicle?.vdpDescription),
-      techSpecs: preserveField(vehicleData.techSpecs, existingVehicle?.techSpecs),
-      highlights: preserveField(vehicleData.highlights, existingVehicle?.highlights),
+      exteriorColor: preserveField(writeDecision.fields.exteriorColor, existingVehicle?.exteriorColor),
+      interiorColor: preserveField(writeDecision.fields.interiorColor, existingVehicle?.interiorColor) || null,
+      transmission: preserveField(writeDecision.fields.transmission, existingVehicle?.transmission),
+      fuelType: preserveField(writeDecision.fields.fuelType, existingVehicle?.fuelType),
+      drivetrain: preserveField(writeDecision.fields.drivetrain, existingVehicle?.drivetrain),
+      engine: preserveField(writeDecision.fields.engine, existingVehicle?.engine),
+      vdpDescription: preserveField(normalizedVehicleData.vdpDescription, existingVehicle?.vdpDescription),
+      techSpecs: preserveField(normalizedVehicleData.techSpecs, existingVehicle?.techSpecs),
+      highlights: preserveField(normalizedVehicleData.highlights, existingVehicle?.highlights),
+      trim: preserveField(writeDecision.fields.trim, existingVehicle?.trim),
+    };
+    const verificationState = resolveVehicleVerificationState({
+      vin: vehicleRecordBase.vin ?? null,
+      stockNumber: vehicleRecordBase.stockNumber ?? null,
+      normalizedStockNumber: vehicleRecordBase.normalizedStockNumber ?? null,
+      dealerVdpUrl: vehicleRecordBase.dealerVdpUrl ?? null,
+      carfaxUrl: vehicleRecordBase.carfaxUrl ?? null,
+      carfaxBadges: vehicleRecordBase.carfaxBadges ?? null,
+      lastScrapedAt: vehicleRecordBase.lastScrapedAt ?? null,
+      deletedAt: vehicleRecordBase.deletedAt ?? null,
+      lifecycleStatus: vehicleRecordBase.lifecycleStatus ?? 'ACTIVE',
+      photoStatus: vehicleRecordBase.photoStatus ?? 'unknown',
+      verificationStatus: existingVehicle?.verificationStatus ?? null,
+    });
+    const vehicleRecord = {
+      ...vehicleRecordBase,
+      verificationStatus: verificationState.status,
+      verificationCheckedAt: now,
     };
 
     // Update existing vehicle
@@ -347,7 +392,7 @@ export async function upsertVehicleByVin(vehicleData: ScrapedVehicle): Promise<{
       lastScrapedAt: now,
       // Vehicle details for Facebook Marketplace
       exteriorColor: writeDecision.fields.exteriorColor,
-      interiorColor: writeDecision.fields.interiorColor || 'Black', // Default to Black if not found
+      interiorColor: writeDecision.fields.interiorColor || null,
       transmission: writeDecision.fields.transmission,
       fuelType: writeDecision.fields.fuelType,
       drivetrain: writeDecision.fields.drivetrain,
@@ -384,12 +429,17 @@ export async function upsertVehicleByVin(vehicleData: ScrapedVehicle): Promise<{
     const vehicleId = result[0].id;
     
     // Upload images to Object Storage
-    await uploadVehicleImagesToStorage(vehicleId, vehicleData.dealershipId, vehicleData.images);
+    await uploadVehicleImagesToStorage(vehicleId, normalizedVehicleData.dealershipId, normalizedVehicleData.images);
 
     // Queue Carfax report scrape if URL available (fire-and-forget to not block VDP loop)
-    if (vehicleData.carfaxUrl && vehicleData.vin && vehicleData.vin !== 'PENDING') {
-      scrapeAndStoreCarfaxReport(vehicleId, vehicleData.dealershipId, vehicleData.carfaxUrl, vehicleData.vin)
-        .catch(err => console.error(`  ✗ Carfax async scrape failed:`, err instanceof Error ? err.message : err));
+    if (vehicleRecord.carfaxUrl && writeDecision.normalizedVin && writeDecision.normalizedVin !== 'PENDING') {
+      scrapeAndStoreCarfaxReport(
+        vehicleId,
+        normalizedVehicleData.dealershipId,
+        vehicleRecord.carfaxUrl,
+        writeDecision.normalizedVin,
+        vehicleRecord.dealerVdpUrl as string | undefined,
+      ).catch(err => console.error(`  Carfax async scrape failed:`, err instanceof Error ? err.message : err));
     }
 
     return { action: 'inserted', id: vehicleId };
@@ -404,7 +454,8 @@ export async function scrapeAndStoreCarfaxReport(
   vehicleId: number,
   dealershipId: number,
   carfaxUrl: string,
-  vin: string
+  vin: string,
+  dealerVdpUrl?: string,
 ): Promise<void> {
   if (!carfaxUrl || !carfaxUrl.includes('carfax')) return;
 
@@ -425,14 +476,23 @@ export async function scrapeAndStoreCarfaxReport(
       }
     }
 
-    const reportData = await scrapeCarfaxReportPage(carfaxUrl);
+    let effectiveCarfaxUrl = carfaxUrl;
+    if (dealerVdpUrl && !/https?:\/\/vhr\.carfax\.(ca|com)\//i.test(carfaxUrl)) {
+      const resolved = await resolveCarfaxReportUrlFromDealerVdp(dealerVdpUrl, vin);
+      if (resolved.reportUrl) {
+        effectiveCarfaxUrl = resolved.reportUrl;
+        console.log(`  Resolved dynamic Carfax report URL from dealer VDP for VIN ${vin}`);
+      }
+    }
+
+    const reportData = await scrapeCarfaxReportPage(effectiveCarfaxUrl);
     if (!reportData) return;
 
     await storage.upsertCarfaxReport({
       vehicleId,
       dealershipId,
       vin: reportData.vin || vin,
-      reportUrl: carfaxUrl,
+      reportUrl: reportData.reportUrl || effectiveCarfaxUrl,
       accidentCount: reportData.accidentCount,
       ownerCount: reportData.ownerCount,
       serviceRecordCount: reportData.serviceRecordCount,
@@ -462,8 +522,10 @@ async function uploadVehicleImagesToStorage(vehicleId: number, dealershipId: num
     return;
   }
 
+  const isLocalCacheUrl = (url: string) => url.startsWith('/api/public/vehicle-image/');
+
   // Skip URLs that are already our own cached URLs
-  const externalUrls = cdnUrls.filter(u => !u.startsWith('/api/public/vehicle-image/'));
+  const externalUrls = cdnUrls.filter(u => !isLocalCacheUrl(u));
   if (externalUrls.length === 0) {
     console.log(`[ImageCache] Vehicle ${vehicleId}: Images already cached, skipping`);
     return;
@@ -475,8 +537,23 @@ async function uploadVehicleImagesToStorage(vehicleId: number, dealershipId: num
       .from(vehicleImages)
       .where(eq(vehicleImages.vehicleId, vehicleId));
 
-    if (existingCount[0]?.count >= externalUrls.length) {
-      console.log(`[ImageCache] Vehicle ${vehicleId}: ${existingCount[0].count} images already cached, skipping`);
+    const cachedCount = Number(existingCount[0]?.count ?? 0);
+    if (cachedCount >= externalUrls.length) {
+      let nextCachedIndex = 0;
+      const rewiredUrls = cdnUrls.map((url) => {
+        if (isLocalCacheUrl(url)) {
+          return url;
+        }
+
+        const localUrl = `/api/public/vehicle-image/${vehicleId}/${nextCachedIndex}`;
+        nextCachedIndex++;
+        return localUrl;
+      });
+
+      await db.update(vehicles)
+        .set({ images: rewiredUrls })
+        .where(eq(vehicles.id, vehicleId));
+      console.log(`[ImageCache] Vehicle ${vehicleId}: ${cachedCount} images already cached, rewired local image paths`);
       return;
     }
 
@@ -485,12 +562,17 @@ async function uploadVehicleImagesToStorage(vehicleId: number, dealershipId: num
     // Delete existing cached images for this vehicle (re-cache)
     await db.delete(vehicleImages).where(eq(vehicleImages.vehicleId, vehicleId));
 
-    const localUrls: string[] = [];
+    const resultUrls = [...cdnUrls];
+    let cachedCountForDb = 0;
     let successCount = 0;
 
-    for (let i = 0; i < externalUrls.length; i++) {
+    for (let i = 0; i < cdnUrls.length; i++) {
+      if (isLocalCacheUrl(cdnUrls[i])) {
+        continue;
+      }
+
       try {
-        const url = externalUrls[i];
+        const url = cdnUrls[i];
         const response = await fetch(url, {
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -523,27 +605,29 @@ async function uploadVehicleImagesToStorage(vehicleId: number, dealershipId: num
         await db.insert(vehicleImages).values({
           vehicleId,
           dealershipId,
-          imageIndex: successCount,
+          imageIndex: cachedCountForDb,
           data: buffer,
           contentType,
           originalUrl: url,
         });
 
-        localUrls.push(`/api/public/vehicle-image/${vehicleId}/${successCount}`);
+        resultUrls[i] = `/api/public/vehicle-image/${vehicleId}/${cachedCountForDb}`;
+        cachedCountForDb++;
         successCount++;
       } catch (imgError: any) {
-        console.log(`[ImageCache] Vehicle ${vehicleId} image ${i}: Download failed (${imgError.message}), skipping`);
+        console.log(`[ImageCache] Vehicle ${vehicleId} image ${i}: Download failed (${imgError.message}), keeping original`);
       }
     }
 
-    if (localUrls.length > 0) {
-      // Update vehicles.images with local URLs
-      await db.update(vehicles)
-        .set({ images: localUrls })
-        .where(eq(vehicles.id, vehicleId));
-      console.log(`[ImageCache] Vehicle ${vehicleId}: Cached ${successCount}/${externalUrls.length} images`);
+    // Update vehicles.images with local URLs plus original URL fallbacks
+    await db.update(vehicles)
+      .set({ images: resultUrls })
+      .where(eq(vehicles.id, vehicleId));
+
+    if (successCount > 0) {
+      console.log(`[ImageCache] Vehicle ${vehicleId}: Cached ${successCount}/${externalUrls.length} images, kept ${externalUrls.length - successCount} originals`);
     } else {
-      console.log(`[ImageCache] Vehicle ${vehicleId}: No images downloaded successfully`);
+      console.log(`[ImageCache] Vehicle ${vehicleId}: Cached 0/${externalUrls.length} images, kept ${externalUrls.length} originals`);
     }
   } catch (error) {
     console.error(`[ImageCache] Vehicle ${vehicleId}: Failed to cache images:`, error);
@@ -576,6 +660,8 @@ export interface ScrapedVehicle {
   cargurusPrice?: number;
   cargurusUrl?: string;
   // Vehicle details for Facebook Marketplace form
+  exteriorColor?: string | null;
+  interiorColor?: string | null;
   exteriorColour?: string | null;
   interiorColour?: string | null;
   transmission?: string | null;
@@ -585,6 +671,71 @@ export interface ScrapedVehicle {
   // VDP content for rich listings
   vdpDescription?: string | null;  // Full vehicle overview/description from VDP
   techSpecs?: string | null;       // JSON: { features: [], mechanical: [], exterior: [], interior: [], entertainment: [] }
+}
+
+export function normalizeScrapedVehicleAliases(vehicleData: ScrapedVehicle): ScrapedVehicle {
+  return {
+    ...vehicleData,
+    exteriorColor: vehicleData.exteriorColor ?? vehicleData.exteriorColour ?? null,
+    interiorColor: vehicleData.interiorColor ?? vehicleData.interiorColour ?? null,
+  };
+}
+
+const scrapedVehicleSchema = z.object({
+  year: z.number().int().min(1980).max(2100),
+  make: z.string().trim().min(1),
+  model: z.string().trim().min(1),
+  trim: z.string().trim().min(1),
+  highlights: z.string().trim().min(1).optional(),
+  type: z.string().trim().min(1),
+  price: z.number().int().min(0).nullable(),
+  odometer: z.number().int().min(0).nullable(),
+  images: z.array(z.string().trim().min(1)),
+  badges: z.array(z.string().trim().min(1)),
+  location: z.string().trim().min(1),
+  dealership: z.string().trim().min(1),
+  dealershipId: z.number().int().positive(),
+  description: z.string().trim().min(1),
+  fullPageContent: z.string().trim().min(1).optional(),
+  vin: z.string().trim().min(1).optional(),
+  stockNumber: z.string().trim().min(1).optional(),
+  carfaxUrl: z.string().trim().min(1).optional(),
+  carfaxBadges: z.array(z.string().trim().min(1)).optional(),
+  dealerVdpUrl: z.string().trim().min(1).optional(),
+  dealRating: z.string().trim().min(1).optional(),
+  cargurusPrice: z.number().int().min(0).optional(),
+  cargurusUrl: z.string().trim().min(1).optional(),
+  exteriorColor: z.string().trim().min(1).nullable().optional(),
+  interiorColor: z.string().trim().min(1).nullable().optional(),
+  exteriorColour: z.string().trim().min(1).nullable().optional(),
+  interiorColour: z.string().trim().min(1).nullable().optional(),
+  transmission: z.string().trim().min(1).nullable().optional(),
+  drivetrain: z.string().trim().min(1).nullable().optional(),
+  fuelType: z.string().trim().min(1).nullable().optional(),
+  engine: z.string().trim().min(1).nullable().optional(),
+  vdpDescription: z.string().trim().min(1).nullable().optional(),
+  techSpecs: z.string().trim().min(1).nullable().optional(),
+}).strict();
+
+export class ScrapedVehicleValidationError extends Error {
+  readonly issues: string[];
+
+  constructor(issues: string[]) {
+    super(`Scraped vehicle payload invalid: ${issues.join('; ')}`);
+    this.name = 'ScrapedVehicleValidationError';
+    this.issues = issues;
+  }
+}
+
+function validateScrapedVehiclePayload(vehicleData: ScrapedVehicle): ScrapedVehicle {
+  const parsed = scrapedVehicleSchema.safeParse(vehicleData);
+  if (parsed.success) return parsed.data;
+
+  const issues = parsed.error.issues.map((issue) => {
+    const path = issue.path.length > 0 ? issue.path.join('.') : 'root';
+    return `${path}:${issue.message}`;
+  });
+  throw new ScrapedVehicleValidationError(issues);
 }
 
 // Individual dealership URLs (better data quality - includes Carfax links and full image galleries)
@@ -1710,7 +1861,7 @@ export async function scrapeAllDealerships(): Promise<number> {
             location: vehicle.location,
             rawDescription: vehicle.description,
             fullPageContent: vehicle.fullPageContent
-          });
+          }, vehicle.dealershipId);
           
           return {
             ...vehicle,
@@ -1873,7 +2024,7 @@ async function scrapeDealershipIncrementally(targetDealershipId: number): Promis
       // This prevents mass deletion if a scrape has issues (e.g., filtering problems, partial failures)
       const existingVehicleCount = await db.select({ count: sql<number>`count(*)` })
         .from(vehicles)
-        .where(inArray(vehicles.dealershipId, dealershipIdsArray));
+        .where(buildIncrementalCleanupScopeClause(dealershipIdsArray));
       
       const currentCount = Number(existingVehicleCount[0]?.count || 0);
       const scrapedCount = result.total;
@@ -1904,7 +2055,7 @@ async function scrapeDealershipIncrementally(targetDealershipId: number): Promis
           .from(vehicles)
           .where(
             and(
-              inArray(vehicles.dealershipId, dealershipIdsArray),
+              buildIncrementalCleanupScopeClause(dealershipIdsArray),
               or(
                 lt(vehicles.lastScrapedAt, scrapeStartTime),
                 isNull(vehicles.lastScrapedAt)
@@ -1971,5 +2122,3 @@ async function scrapeDealershipIncrementally(targetDealershipId: number): Promis
     throw error;
   }
 }
-
-

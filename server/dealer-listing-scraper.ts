@@ -1119,10 +1119,9 @@ async function scrapeVehicleDetailPage(page: any, vdpUrl: string, retries = 2): 
             }
           }
         }
-        // Fallback: if interior color contains template placeholders (e.g. '{{ vehicle.interior_color }}')
-        // or is still null, hardcode to 'Black' - most vehicles have black interiors
-        if (!interiorColor || interiorColor.indexOf('{{') !== -1 || interiorColor.indexOf('vehicle.') !== -1) {
-          interiorColor = 'Black';
+        // Treat template placeholders / unresolved bindings as missing data, not as a guessed default.
+        if (interiorColor && (interiorColor.indexOf('{{') !== -1 || interiorColor.indexOf('vehicle.') !== -1)) {
+          interiorColor = null;
         }
 
         // Extract Engine
@@ -1605,16 +1604,35 @@ async function scrapeVehicleDetailPage(page: any, vdpUrl: string, retries = 2): 
           console.log(`    Gallery: ${extractionResult.debug.gallerySelector} (${extractionResult.totalSlides} slides)`);
         }
         
-        // If precision extraction returned zero valid images, fall back to legacy
-        if (precisionImages.length === 0 && data.images.length > 0) {
-          console.log(`    ⚠ No valid images after filtering, using legacy extraction`);
-          precisionImages = data.images;
+        // If precision found gallery images but strict filtering rejected them all,
+        // retry with relaxed gallery confidence before using the legacy broad extraction.
+        if (precisionImages.length === 0 && extractionResult.images.length > 0) {
+          const relaxedValidation = validateImages(
+            extractionResult.images,
+            data.vin,
+            data.stockNumber,
+            { allowLowConfidenceGalleryImages: true }
+          );
+
+          if (relaxedValidation.valid.length > 0) {
+            precisionImages = relaxedValidation.valid.map(img => img.url);
+            imageQuality = calculateImageQualityRating(precisionImages.length);
+            hasVinMatchingImages = relaxedValidation.hasVinMatches;
+            console.log(`    Precision relaxed: ${precisionImages.length} valid, ${relaxedValidation.suspicious.length} filtered, VIN match: ${relaxedValidation.vinMatchCount} (${relaxedValidation.confidence})`);
+          }
+        }
+
+        // Only fall back to legacy extraction if precision found literally zero images.
+        if (precisionImages.length === 0 && extractionResult.images.length === 0 && data.images.length > 0) {
+          precisionImages = data.images.slice(0, 30);
+          imageQuality = calculateImageQualityRating(precisionImages.length);
           hasVinMatchingImages = false;
+          console.warn(`[Images] Vehicle ${data.vin || 'unknown'}: precision extraction failed, using legacy fallback (${precisionImages.length} images)`);
         }
       } catch (precisionError) {
         console.log(`    ⚠ Precision extraction failed, using fallback: ${precisionError instanceof Error ? precisionError.message : String(precisionError)}`);
-        precisionImages = data.images;
-        imageQuality = calculateImageQualityRating(data.images.length);
+        precisionImages = data.images.slice(0, 30);
+        imageQuality = calculateImageQualityRating(precisionImages.length);
       }
       
       // Detect badges and body type from page text

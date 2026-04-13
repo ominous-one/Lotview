@@ -163,7 +163,14 @@ export function maximizeImageUrl(url: string): string {
   
   // AutoTrader CDN - known to support dynamic resizing
   if (/autotradercdn\.ca/i.test(url)) {
-    const base = url.split('?')[0];
+    const base = url
+      .split('?')[0]
+      // AutoTrader sometimes emits an invalid suffix after the extension:
+      // `foo.jpg-1024x786?...` -> this 404s and must be reduced to `foo.jpg`
+      .replace(/(\.(?:jpg|jpeg|png|webp))-\d+x\d+$/i, '$1')
+      // Other variants put the size before the extension:
+      // `foo-640x480.jpg?...` -> upgrade to a stable higher-resolution path
+      .replace(/-\d+x\d+(?=\.(?:jpg|jpeg|png|webp)$)/i, '-2048x1536');
     return `${base}?w=2048&h=1536&fit=bounds&auto=webp&quality=90`;
   }
   
@@ -774,7 +781,10 @@ export async function extractVehicleImages(
 export function validateImages(
   images: ExtractedImage[],
   expectedVin: string | null,
-  expectedStock: string | null
+  expectedStock: string | null,
+  options?: {
+    allowLowConfidenceGalleryImages?: boolean;
+  }
 ): {
   valid: ExtractedImage[];
   suspicious: ExtractedImage[];
@@ -782,28 +792,32 @@ export function validateImages(
   hasVinMatches: boolean;
   vinMatchCount: number;
 } {
+  const allowLowConfidenceGalleryImages = options?.allowLowConfidenceGalleryImages ?? false;
+  const gallerySources = new Set<ExtractedImage['source']>(['gallery-active', 'gallery-slide', 'gallery-thumbnail']);
   const vinMatches: ExtractedImage[] = [];
   const galleryImages: ExtractedImage[] = [];  // Both active and slide images
   const suspicious: ExtractedImage[] = [];
   
   for (const img of images) {
     const lower = img.url.toLowerCase();
+    const isGalleryImage = gallerySources.has(img.source);
     
     // Block suspicious URLs outright
     const isSuspiciousUrl =
-      /similar|recommend|related|also-like|other|comparison|compete/i.test(lower) ||
-      img.confidence === 'low';
+      /similar|recommend|related|also-like|other|comparison|compete/i.test(lower);
+    const isLowConfidenceNonGallery = img.confidence === 'low' && (!isGalleryImage || !allowLowConfidenceGalleryImages);
     
-    if (isSuspiciousUrl) {
+    if (isSuspiciousUrl || isLowConfidenceNonGallery) {
       suspicious.push(img);
       continue;
     }
     
-    // Categorize by VIN match or gallery source
+    // VIN matches boost confidence, but do not exclude other gallery images.
     if (img.matchesVin) {
       vinMatches.push(img);
-    } else if (img.source === 'gallery-active' || img.source === 'gallery-slide') {
-      // Accept BOTH active and slide images from the gallery
+    }
+
+    if (isGalleryImage) {
       galleryImages.push(img);
     } else {
       suspicious.push(img);
@@ -817,11 +831,21 @@ export function validateImages(
   let confidence: 'high' | 'medium' | 'low';
   
   if (hasVinMatches) {
-    // VIN matches found: ONLY accept VIN-matching images
-    valid = vinMatches;
-    // Move gallery images to suspicious since they don't match VIN
-    suspicious.push(...galleryImages);
-    confidence = vinMatchCount >= 5 ? 'high' : 'medium';
+    const seenUrls = new Set<string>();
+    valid = galleryImages.map((img) => {
+      const boostedConfidence = img.matchesVin ? 'high' : img.confidence;
+      const boostedImage = boostedConfidence === img.confidence ? img : { ...img, confidence: boostedConfidence };
+      seenUrls.add(boostedImage.url);
+      return boostedImage;
+    });
+
+    for (const vinImage of vinMatches) {
+      if (!seenUrls.has(vinImage.url)) {
+        valid.push(vinImage.confidence === 'high' ? vinImage : { ...vinImage, confidence: 'high' });
+      }
+    }
+
+    confidence = 'high';
   } else if (galleryImages.length >= 3) {
     // No VIN matches, but enough gallery images from slides to trust
     valid = galleryImages;
