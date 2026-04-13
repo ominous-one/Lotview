@@ -293,55 +293,87 @@ export async function upsertVehicleByVin(vehicleData: ScrapedVehicle): Promise<{
       .where(eq(vehicles.id, existingId));
     
     // Upload images to Object Storage if not already done
-    await uploadVehicleImagesToStorage(existingId, vehicleData.dealershipId, imagesToSave);
+    await uploadVehicleImagesToStorage(existingId, normalizedVehicleData.dealershipId, imagesToSave);
 
     // Queue Carfax report scrape if URL available (fire-and-forget to not block VDP loop)
-    const vinForCarfax = vehicleRecord.vin || vehicleData.vin;
+    const vinForCarfax = vehicleRecord.vin || writeDecision.normalizedVin;
     if (vehicleRecord.carfaxUrl && vinForCarfax && vinForCarfax !== 'PENDING') {
-      scrapeAndStoreCarfaxReport(existingId, vehicleData.dealershipId, vehicleRecord.carfaxUrl as string, vinForCarfax as string)
-        .catch(err => console.error(`  ✗ Carfax async scrape failed:`, err instanceof Error ? err.message : err));
+      scrapeAndStoreCarfaxReport(
+        existingId,
+        normalizedVehicleData.dealershipId,
+        vehicleRecord.carfaxUrl as string,
+        vinForCarfax as string,
+        vehicleRecord.dealerVdpUrl as string | undefined,
+      ).catch(err => console.error(`  Carfax async scrape failed:`, err instanceof Error ? err.message : err));
     }
 
-    return { action: 'updated', id: existingId };
+      return { action: 'updated', id: existingId };
   } else {
+    const writeDecision = assessInventoryWrite(normalizedVehicleData);
+    if (!writeDecision.allow) {
+      throw new InventoryWriteGuardError(writeDecision.blockers, writeDecision.warnings);
+    }
+
+    if (writeDecision.warnings.length > 0) {
+      console.warn(`[Scraper] Guarded insert for ${normalizedVehicleData.year} ${normalizedVehicleData.make} ${normalizedVehicleData.model}: ${writeDecision.warnings.join(', ')}`);
+    }
+
     // Build the vehicle record
-    const vehicleRecord = {
-      dealershipId: vehicleData.dealershipId,
-      year: vehicleData.year,
-      make: vehicleData.make,
-      model: vehicleData.model,
-      trim: vehicleData.trim,
-      type: vehicleData.type,
-      price: vehicleData.price || 0,
-      odometer: vehicleData.odometer || 0,
-      images: vehicleData.images,
-      photoStatus: computePhotoStatus(vehicleData.images, 10),
-      badges: vehicleData.badges,
-      location: vehicleData.location,
-      dealership: vehicleData.dealership,
-      description: vehicleData.description || `${vehicleData.year} ${vehicleData.make} ${vehicleData.model} ${vehicleData.trim}`.trim(),
-      fullPageContent: vehicleData.fullPageContent || null,
-      vin: vehicleData.vin || null,
-      stockNumber: vehicleData.stockNumber || null,
-      normalizedStockNumber: normalizeStockNumber(vehicleData.stockNumber),
-      cargurusPrice: vehicleData.cargurusPrice || null,
-      cargurusUrl: vehicleData.cargurusUrl || null,
-      dealRating: vehicleData.dealRating || null,
-      carfaxUrl: vehicleData.carfaxUrl || null,
-      carfaxBadges: vehicleData.carfaxBadges && vehicleData.carfaxBadges.length > 0 ? vehicleData.carfaxBadges : null,
-      dealerVdpUrl: vehicleData.dealerVdpUrl || null,
+    const vehicleRecordBase = {
+      dealershipId: normalizedVehicleData.dealershipId,
+      year: normalizedVehicleData.year,
+      make: normalizedVehicleData.make,
+      model: normalizedVehicleData.model,
+      trim: writeDecision.fields.trim || normalizedVehicleData.trim,
+      type: normalizedVehicleData.type,
+      price: normalizedVehicleData.price || 0,
+      odometer: normalizedVehicleData.odometer || 0,
+      images: normalizedVehicleData.images,
+      photoStatus: computePhotoStatus(normalizedVehicleData.images, 10),
+      badges: normalizedVehicleData.badges,
+      location: normalizedVehicleData.location,
+      dealership: normalizedVehicleData.dealership,
+      description: normalizedVehicleData.description || `${normalizedVehicleData.year} ${normalizedVehicleData.make} ${normalizedVehicleData.model} ${normalizedVehicleData.trim}`.trim(),
+      fullPageContent: normalizedVehicleData.fullPageContent || null,
+      vin: writeDecision.normalizedVin,
+      stockNumber: normalizedVehicleData.stockNumber || null,
+      normalizedStockNumber: writeDecision.normalizedStockNumber,
+      cargurusPrice: normalizedVehicleData.cargurusPrice || null,
+      cargurusUrl: normalizedVehicleData.cargurusUrl || null,
+      dealRating: normalizedVehicleData.dealRating || null,
+      carfaxUrl: writeDecision.groundedCarfaxUrl,
+      carfaxBadges: writeDecision.normalizedCarfaxBadges.length > 0 ? writeDecision.normalizedCarfaxBadges : null,
+      dealerVdpUrl: writeDecision.normalizedDealerVdpUrl,
       lastScrapedAt: now,
       // Vehicle details for Facebook Marketplace
-      exteriorColor: vehicleData.exteriorColour || null,
-      interiorColor: vehicleData.interiorColour || 'Black', // Default to Black if not found
-      transmission: vehicleData.transmission || null,
-      fuelType: vehicleData.fuelType || null,
-      drivetrain: vehicleData.drivetrain || null,
-      engine: vehicleData.engine || null,
+      exteriorColor: writeDecision.fields.exteriorColor,
+      interiorColor: writeDecision.fields.interiorColor || 'Black', // Default to Black if not found
+      transmission: writeDecision.fields.transmission,
+      fuelType: writeDecision.fields.fuelType,
+      drivetrain: writeDecision.fields.drivetrain,
+      engine: writeDecision.fields.engine,
       // VDP content for rich listings
-      vdpDescription: vehicleData.vdpDescription || null,
-      techSpecs: vehicleData.techSpecs || null,
-      highlights: vehicleData.highlights || null,
+      vdpDescription: normalizedVehicleData.vdpDescription || null,
+      techSpecs: normalizedVehicleData.techSpecs || null,
+      highlights: normalizedVehicleData.highlights || null,
+    };
+    const verificationState = resolveVehicleVerificationState({
+      vin: vehicleRecordBase.vin ?? null,
+      stockNumber: vehicleRecordBase.stockNumber ?? null,
+      normalizedStockNumber: vehicleRecordBase.normalizedStockNumber ?? null,
+      dealerVdpUrl: vehicleRecordBase.dealerVdpUrl ?? null,
+      carfaxUrl: vehicleRecordBase.carfaxUrl ?? null,
+      carfaxBadges: vehicleRecordBase.carfaxBadges ?? null,
+      lastScrapedAt: vehicleRecordBase.lastScrapedAt ?? null,
+      deletedAt: null,
+      lifecycleStatus: 'ACTIVE',
+      photoStatus: vehicleRecordBase.photoStatus ?? 'unknown',
+      verificationStatus: 'UNVERIFIED',
+    });
+    const vehicleRecord = {
+      ...vehicleRecordBase,
+      verificationStatus: verificationState.status,
+      verificationCheckedAt: now,
     };
 
     // Insert new vehicle
