@@ -228,12 +228,14 @@ app.use(helmet({
       baseUri: ["'self'"],
       objectSrc: ["'none'"],
       frameAncestors: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
+      // unsafe-inline required for GTM inline snippet in index.html
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://www.googletagmanager.com", "https://cdnjs.cloudflare.com"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com", "data:"],
+      // http: required for dealer inventory photos served over plain HTTP
       imgSrc: ["'self'", "data:", "blob:", "https:", "http:"],
-      connectSrc: ["'self'", "https:", "wss:"],
-      frameSrc: ["'self'", "https://www.facebook.com"],
+      connectSrc: ["'self'", "https:", "wss:", "https://www.googletagmanager.com"],
+      frameSrc: ["'self'", "https://www.facebook.com", "https://www.googletagmanager.com"],
       workerSrc: ["'self'", "blob:"],
       manifestSrc: ["'self'"],
       upgradeInsecureRequests: isProduction ? [] : null,
