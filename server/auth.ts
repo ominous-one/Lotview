@@ -1,9 +1,10 @@
-import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import type { Request, Response, NextFunction } from "express";
 import type { User } from "../shared/schema.ts";
 import { hasRole } from "../shared/authz.ts";
 import { getE2EUserFromToken, isSafeE2ERequest, seedE2E } from "./e2e-test-mode.ts";
+import { hashPassword, comparePassword, computeHmac } from "./utils/crypto";
+import { isNonceUsed, markNonceUsed, isPostingTokenUsed, markPostingTokenUsed } from "./services/redis";
 
 // JWT_SECRET must be set in production for security (SESSION_SECRET accepted as alias)
 const JWT_SECRET = process.env.JWT_SECRET || process.env.SESSION_SECRET;
@@ -29,13 +30,7 @@ export interface AuthRequest extends Request {
   };
 }
 
-export async function hashPassword(password: string): Promise<string> {
-  return await bcrypt.hash(password, 12);
-}
-
-export async function comparePassword(password: string, hash: string): Promise<boolean> {
-  return await bcrypt.compare(password, hash);
-}
+export { hashPassword, comparePassword } from "./utils/crypto";
 
 type AdditionalJwtClaims = Record<string, unknown>;
 
@@ -162,34 +157,26 @@ export function requireRole(...roles: string[]) {
 }
 
 // ===== HMAC SIGNATURE VALIDATION FOR CHROME EXTENSION =====
-// The extension signs requests with HMAC-SHA256 to prevent tampering
+// The extension signs requests with HMAC-SHA256 to prevent tampering.
+// SECURITY FIX: HMAC is now ALWAYS required for extension endpoints,
+// regardless of JWT presence. JWT verifies user identity; HMAC verifies
+// the extension itself is genuine. Both are required for defense in depth.
 
-const EXTENSION_HMAC_SECRET_ENV = process.env.EXTENSION_HMAC_SECRET;
-if (!EXTENSION_HMAC_SECRET_ENV && process.env.NODE_ENV === "production") {
-  throw new Error("EXTENSION_HMAC_SECRET environment variable is required in production");
-}
-const EXTENSION_HMAC_SECRET = EXTENSION_HMAC_SECRET_ENV || "extension-hmac-dev-secret";
 const NONCE_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
-const nonceCache = new Map<string, number>();
+// REDIS FIX: Nonces now stored in Redis for cross-instance consistency.
+// The in-memory nonceCache is kept as a fast-path local cache.
+const localNonceCache = new Map<string, number>();
 
-// Clean expired nonces periodically
+// Clean expired local nonces periodically
 const nonceCleanupInterval = setInterval(() => {
   const now = Date.now();
-  for (const [nonce, timestamp] of nonceCache.entries()) {
+  for (const [nonce, timestamp] of localNonceCache.entries()) {
     if (now - timestamp > NONCE_EXPIRY_MS * 2) {
-      nonceCache.delete(nonce);
+      localNonceCache.delete(nonce);
     }
   }
-}, 60 * 1000); // Clean every minute
+}, 60 * 1000);
 nonceCleanupInterval.unref?.();
-
-async function computeHmac(message: string): Promise<string> {
-  const crypto = await import("crypto");
-  return crypto
-    .createHmac("sha256", EXTENSION_HMAC_SECRET)
-    .update(message)
-    .digest("hex");
-}
 
 export async function extensionHmacMiddleware(req: AuthRequest, res: Response, next: NextFunction) {
   // Skip HMAC for login (extension doesn't have signing key yet)
@@ -197,16 +184,8 @@ export async function extensionHmacMiddleware(req: AuthRequest, res: Response, n
     return next();
   }
 
-  // HMAC is optional when JWT auth is present - JWT provides the security
-  // The extension uses a client-side generated key that doesn't match server secret
-  // Relying on JWT auth (which is validated by authMiddleware) is sufficient
-  const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith("Bearer ")) {
-    // JWT auth present - skip HMAC validation, let authMiddleware handle it
-    return next();
-  }
-
-  // If no JWT, require HMAC (fallback for future use cases)
+  // SECURITY: HMAC is always required for extension endpoints.
+  // JWT alone is not sufficient — HMAC verifies extension authenticity.
   const timestamp = req.headers["x-timestamp"] as string | undefined;
   const nonce = req.headers["x-nonce"] as string | undefined;
   const signature = req.headers["x-signature"] as string | undefined;
@@ -226,8 +205,12 @@ export async function extensionHmacMiddleware(req: AuthRequest, res: Response, n
     return res.status(401).json({ error: "Request expired" });
   }
 
-  // Check nonce hasn't been used (prevent replay within window)
-  if (nonceCache.has(nonce)) {
+  // Check nonce hasn't been used — Redis is authoritative, local cache is fast-path
+  if (localNonceCache.has(nonce)) {
+    return res.status(401).json({ error: "Nonce already used" });
+  }
+  const nonceExistsInRedis = await isNonceUsed(nonce);
+  if (nonceExistsInRedis) {
     return res.status(401).json({ error: "Nonce already used" });
   }
 
@@ -245,8 +228,9 @@ export async function extensionHmacMiddleware(req: AuthRequest, res: Response, n
     return res.status(401).json({ error: "Invalid signature" });
   }
 
-  // Mark nonce as used
-  nonceCache.set(nonce, now);
+  // Mark nonce as used in both local cache (fast-path) and Redis (authoritative)
+  localNonceCache.set(nonce, now);
+  await markNonceUsed(nonce, NONCE_EXPIRY_MS);
 
   next();
 }
@@ -256,17 +240,18 @@ export async function extensionHmacMiddleware(req: AuthRequest, res: Response, n
 // This prevents client-side limit bypass
 
 const POSTING_TOKEN_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
-const usedPostingTokens = new Map<string, number>(); // token -> timestamp
+// REDIS FIX: Posting tokens now stored in Redis for cross-instance consistency.
+const localPostingTokenCache = new Map<string, number>();
 
-// Clean expired tokens periodically (time-based, not size-based)
+// Clean expired local tokens periodically
 const postingTokenCleanupInterval = setInterval(() => {
   const now = Date.now();
-  for (const [token, timestamp] of usedPostingTokens.entries()) {
+  for (const [token, timestamp] of localPostingTokenCache.entries()) {
     if (now - timestamp > POSTING_TOKEN_EXPIRY_MS * 2) {
-      usedPostingTokens.delete(token);
+      localPostingTokenCache.delete(token);
     }
   }
-}, 60 * 1000); // Clean every minute
+}, 60 * 1000);
 postingTokenCleanupInterval.unref?.();
 
 export async function generatePostingToken(userId: number, vehicleId: number, platform: string): Promise<string> {
@@ -319,8 +304,12 @@ export async function validatePostingToken(
       return { valid: false, error: "Token expired" };
     }
 
-    // Check token hasn't been used
-    if (usedPostingTokens.has(token)) {
+    // Check token hasn't been used — Redis is authoritative, local cache is fast-path
+    if (localPostingTokenCache.has(token)) {
+      return { valid: false, error: "Token already used" };
+    }
+    const tokenUsedInRedis = await isPostingTokenUsed(token);
+    if (tokenUsedInRedis) {
       return { valid: false, error: "Token already used" };
     }
 
@@ -335,8 +324,9 @@ export async function validatePostingToken(
       return { valid: false, error: "Platform mismatch" };
     }
 
-    // Mark as used with timestamp for time-based cleanup
-    usedPostingTokens.set(token, Date.now());
+    // Mark as used in both local cache (fast-path) and Redis (authoritative)
+    localPostingTokenCache.set(token, Date.now());
+    await markPostingTokenUsed(token, POSTING_TOKEN_EXPIRY_MS);
 
     return { valid: true };
   } catch {
