@@ -17702,16 +17702,23 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
       );
       
       // Calendar Sync: Push to Google Calendar / Outlook if configured
+      // NOTE: Calendar sync fields (googleCalendarToken, outlookToken) must be added
+      // to the dealershipApiKeys schema. Until then, this sync will gracefully skip.
       try {
         const { syncAppointment } = await import('./services/calendar-sync');
         const apiKeys = await storage.getApiKeys(dealershipId);
-        if (apiKeys?.googleCalendarConnected || apiKeys?.outlookConnected) {
+
+        // Defensive: check if apiKeys exists and has calendar fields
+        const hasGoogleCalendar = apiKeys && 'googleCalendarToken' in apiKeys && apiKeys.googleCalendarToken;
+        const hasOutlook = apiKeys && 'outlookToken' in apiKeys && apiKeys.outlookToken;
+
+        if (hasGoogleCalendar || hasOutlook) {
           const appt = result.appointment || result;
           await syncAppointment(
             {
               dealershipId,
-              provider: apiKeys.googleCalendarConnected ? 'google' : 'outlook',
-              accessToken: apiKeys.googleCalendarToken || apiKeys.outlookToken || '',
+              provider: hasGoogleCalendar ? 'google' : 'outlook',
+              accessToken: hasGoogleCalendar ? apiKeys!.googleCalendarToken : apiKeys!.outlookToken || '',
             },
             {
               id: appt.id,
