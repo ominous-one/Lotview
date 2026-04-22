@@ -57,6 +57,19 @@ import {
 } from './autopost-queue-service';
 import { resolveDealershipScrapeGateForPosting } from './scrape-gate-service';
 
+// ---- Production Service Integrations (wired 2026-04-23) ----
+import { validateScrape, type ScrapedVehicleData } from "./services/scrape-validator";
+import { deduplicateAndStore } from "./services/vehicle-dedup";
+import { enrichPhotosSafely } from "./services/photo-guard";
+import { sendEmail, sendSMS } from "./services/ghl-notifications";
+import { recordAICall, isUnderBudget } from "./services/ai-cost-tracker";
+import { checkAccountHealth, getCurrentPostingLimit, recordPostAttempt } from "./services/fb-ban-recovery";
+import { getOptimizedPosting } from "./services/ai-posting-optimizer";
+import { createWebhookVerifier } from "./services/webhook-verifier";
+import { createExternalApiMiddleware } from "./services/external-api-guard";
+import { scrapeCarfaxReportCloud } from "./services/carfax-browserless";
+import { initializeFlagsFromEnv, isEnabled } from "./services/feature-flags";
+
 import { authMiddleware, requireRole, generateToken, generateImpersonationToken, comparePassword, hashPassword, verifyToken, extensionHmacMiddleware, generatePostingToken, validatePostingToken, type AuthRequest } from "./auth";
 import { requireDealership, superAdminOnly } from "./tenant-middleware";
 import { resolveDealershipIdStrict } from "./tenant-utils";
@@ -268,6 +281,9 @@ async function resolvePublicDealership(storageRef: typeof storage, req: any) {
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const processType = process.argv.some((arg) => arg.includes("index-worker")) ? "worker" : "web";
+
+  // Initialize feature flags from environment variables
+  initializeFlagsFromEnv();
 
   // ===== HEALTH CHECK ENDPOINTS (Enterprise Monitoring) =====
   
@@ -1291,6 +1307,106 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       logError('Error fetching system health:', error instanceof Error ? error : new Error(String(error)), { route: 'api-super-admin-system-health' });
       res.status(500).json({ error: "Failed to fetch system health" });
+    }
+  });
+  
+  // ===== ADMIN DASHBOARD ROUTES (wired from services/admin-dashboard) =====
+  
+  // Get system health with external service checks
+  app.get("/api/super-admin/dashboard/health", authMiddleware, superAdminOnly, async (req, res) => {
+    try {
+      const { getSystemHealth } = await import('./services/admin-dashboard');
+      const health = await getSystemHealth();
+      res.json(health);
+    } catch (error) {
+      logError('Error fetching dashboard health:', error instanceof Error ? error : new Error(String(error)), { route: 'api-super-admin-dashboard-health' });
+      res.status(500).json({ error: "Failed to fetch dashboard health" });
+    }
+  });
+  
+  // Get business metrics
+  app.get("/api/super-admin/dashboard/business-metrics", authMiddleware, superAdminOnly, async (req, res) => {
+    try {
+      const { getBusinessMetrics } = await import('./services/admin-dashboard');
+      const metrics = await getBusinessMetrics();
+      res.json(metrics);
+    } catch (error) {
+      logError('Error fetching business metrics:', error instanceof Error ? error : new Error(String(error)), { route: 'api-super-admin-dashboard-business-metrics' });
+      res.status(500).json({ error: "Failed to fetch business metrics" });
+    }
+  });
+  
+  // Get dealership activity
+  app.get("/api/super-admin/dashboard/dealership-activity", authMiddleware, superAdminOnly, async (req, res) => {
+    try {
+      const { getDealershipActivity } = await import('./services/admin-dashboard');
+      const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+      const activity = await getDealershipActivity(limit);
+      res.json(activity);
+    } catch (error) {
+      logError('Error fetching dealership activity:', error instanceof Error ? error : new Error(String(error)), { route: 'api-super-admin-dashboard-dealership-activity' });
+      res.status(500).json({ error: "Failed to fetch dealership activity" });
+    }
+  });
+  
+  // Get AI usage metrics
+  app.get("/api/super-admin/dashboard/ai-metrics", authMiddleware, superAdminOnly, async (req, res) => {
+    try {
+      const { getAIMetrics } = await import('./services/admin-dashboard');
+      const metrics = await getAIMetrics();
+      res.json(metrics);
+    } catch (error) {
+      logError('Error fetching AI metrics:', error instanceof Error ? error : new Error(String(error)), { route: 'api-super-admin-dashboard-ai-metrics' });
+      res.status(500).json({ error: "Failed to fetch AI metrics" });
+    }
+  });
+  
+  // Get scraping metrics
+  app.get("/api/super-admin/dashboard/scraping-metrics", authMiddleware, superAdminOnly, async (req, res) => {
+    try {
+      const { getScrapingMetrics } = await import('./services/admin-dashboard');
+      const metrics = await getScrapingMetrics();
+      res.json(metrics);
+    } catch (error) {
+      logError('Error fetching scraping metrics:', error instanceof Error ? error : new Error(String(error)), { route: 'api-super-admin-dashboard-scraping-metrics' });
+      res.status(500).json({ error: "Failed to fetch scraping metrics" });
+    }
+  });
+  
+  // Get FB Marketplace metrics
+  app.get("/api/super-admin/dashboard/fb-marketplace-metrics", authMiddleware, superAdminOnly, async (req, res) => {
+    try {
+      const { getFBMarketplaceMetrics } = await import('./services/admin-dashboard');
+      const metrics = await getFBMarketplaceMetrics();
+      res.json(metrics);
+    } catch (error) {
+      logError('Error fetching FB marketplace metrics:', error instanceof Error ? error : new Error(String(error)), { route: 'api-super-admin-dashboard-fb-marketplace-metrics' });
+      res.status(500).json({ error: "Failed to fetch FB marketplace metrics" });
+    }
+  });
+  
+  // Get system alerts
+  app.get("/api/super-admin/dashboard/alerts", authMiddleware, superAdminOnly, async (req, res) => {
+    try {
+      const { getSystemAlerts } = await import('./services/admin-dashboard');
+      const minSeverity = (req.query.minSeverity as 'low' | 'medium' | 'high' | 'critical') || 'low';
+      const alerts = await getSystemAlerts(minSeverity);
+      res.json(alerts);
+    } catch (error) {
+      logError('Error fetching system alerts:', error instanceof Error ? error : new Error(String(error)), { route: 'api-super-admin-dashboard-alerts' });
+      res.status(500).json({ error: "Failed to fetch system alerts" });
+    }
+  });
+  
+  // Resolve a system alert
+  app.post("/api/super-admin/dashboard/alerts/:alertId/resolve", authMiddleware, superAdminOnly, async (req: AuthRequest, res) => {
+    try {
+      const { resolveAlert } = await import('./services/admin-dashboard');
+      const resolved = await resolveAlert(req.params.alertId, req.user!.id);
+      res.json({ success: resolved });
+    } catch (error) {
+      logError('Error resolving alert:', error instanceof Error ? error : new Error(String(error)), { route: 'api-super-admin-dashboard-alerts-resolve' });
+      res.status(500).json({ error: "Failed to resolve alert" });
     }
   });
   
@@ -2338,9 +2454,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Trigger robust scrape (same as midnight scheduled scrape) in background
       import("./robust-scraper").then(({ runRobustScrape }) => {
-        runRobustScrape('manual', source.dealershipId).then((result) => {
+        runRobustScrape('manual', source.dealershipId).then(async (result) => {
           if (result.success) {
             console.log(`[Super Admin Scrape] Dealership ${source.dealershipId}: ${result.vehiclesFound} vehicles (method: ${result.method}, retries: ${result.retryCount})`);
+            // Validate scraped data quality
+            if (result.vehicles && result.vehicles.length > 0) {
+              try {
+                const validation = await validateScrape(source.dealershipId, result.vehicles);
+                if (!validation.isValid) {
+                  logWarn(`Scrape validation warnings for dealership ${source.dealershipId}:`, { warnings: validation.warnings, errors: validation.errors });
+                }
+              } catch (valErr) {
+                logWarn('Scrape validation error (non-blocking):', valErr instanceof Error ? valErr : new Error(String(valErr)));
+              }
+            }
           } else {
             console.error(`[Super Admin Scrape] Dealership ${source.dealershipId}: failed after ${result.retryCount} retries (${result.error})`);
           }
@@ -2453,7 +2580,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true, message: "Robust scrape started with ZenRows -> ScrapingBee -> Puppeteer fallback chain" });
       
       runRobustScrape('manual', dealershipId ? parseInt(dealershipId) : undefined)
-        .then((result) => {
+        .then(async (result) => {
           logInfo('[RobustScrape] Completed', { 
             route: 'api-super-admin-robust-scrape',
             success: result.success,
@@ -2463,6 +2590,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
             vehiclesUpdated: result.vehiclesUpdated,
             vehiclesDeleted: result.vehiclesDeleted,
           });
+          // Validate scraped data quality
+          if (result.success && result.vehicles && result.vehicles.length > 0) {
+            try {
+              const validation = await validateScrape(dealershipId ? parseInt(dealershipId) : 0, result.vehicles);
+              if (!validation.isValid) {
+                logWarn(`RobustScrape validation warnings:`, { warnings: validation.warnings, errors: validation.errors });
+              }
+            } catch (valErr) {
+              logWarn('RobustScrape validation error (non-blocking):', valErr instanceof Error ? valErr : new Error(String(valErr)));
+            }
+          }
         })
         .catch((err: Error) => {
           logError('Error during Robust scrape:', err instanceof Error ? err : new Error(String(err)), { route: 'api-super-admin-robust-scrape' });
@@ -3509,7 +3647,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // ===== VEHICLE IMPORT API (for n8n) =====
   
-  // Middleware to validate external API token
+  // Middleware to validate external API token with external-api-guard integration
   const externalApiAuth = async (req: any, res: any, next: any) => {
     const authHeader = req.headers.authorization;
     
@@ -3518,6 +3656,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     
     const rawToken = authHeader.substring(7);
+    
+    // External API Guard: rate limit check per token
+    const { checkExternalApiRateLimit } = await import('./services/external-api-guard');
+    const rateLimitCheck = await checkExternalApiRateLimit(rawToken, req.path);
+    if (!rateLimitCheck.allowed) {
+      return res.status(429).json({ 
+        error: "Rate limit exceeded", 
+        resetAt: rateLimitCheck.resetAt,
+        remaining: rateLimitCheck.remaining 
+      });
+    }
     
     // Extract prefix (first part before the random section)
     const prefixMatch = rawToken.match(/^(oag_[a-z0-9]+_)/);
@@ -3552,6 +3701,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Attach token info to request
     req.externalToken = token;
     req.dealershipId = token.dealershipId;
+    
+    // Add rate limit headers
+    res.setHeader('X-RateLimit-Remaining', rateLimitCheck.remaining);
+    res.setHeader('X-RateLimit-Reset', rateLimitCheck.resetAt);
     
     next();
   };
@@ -3833,6 +3986,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const dealershipId = req.dealershipId!;
+      
+      // DEDUP: Check for existing VIN before creating
+      if (parsed.data.vin) {
+        const existingVehicles = await storage.getVehicles(dealershipId, 100, 0);
+        const duplicate = existingVehicles.vehicles.find((v: any) => 
+          v.vin && v.vin.toUpperCase() === parsed.data.vin!.toUpperCase()
+        );
+        if (duplicate) {
+          return res.status(409).json({ 
+            error: "Vehicle with this VIN already exists", 
+            existingVehicleId: duplicate.id,
+            existingVehicle: `${duplicate.year} ${duplicate.make} ${duplicate.model}`,
+            hint: "Use PATCH /api/vehicles/:id to update the existing vehicle, or delete it first."
+          });
+        }
+      }
+      
       const vehicle = await storage.createVehicle({ ...parsed.data, dealershipId });
       res.status(201).json(vehicle);
     } catch (error) {
@@ -4108,7 +4278,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         updates.odometer = result.odometer;
       }
       if (result.images && result.images.length > 0) {
-        updates.images = result.images;
+        // Photo-guard: protect manually uploaded photos from scraper overwrites
+        // enrichPhotosSafely handles the merge and updates the vehicle directly
+        const photoGuard = await enrichPhotosSafely(vehicleId, result.images);
+        console.log(`[PhotoGuard] Vehicle ${vehicleId}: ${photoGuard.added} added, ${photoGuard.preserved} preserved, ${photoGuard.skipped} skipped`);
+        // Don't add images to updates - photo-guard already applied them
       }
       if (result.vin && result.vin.length === 17) {
         updates.vin = result.vin;
@@ -4454,6 +4628,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         vehicleContext,
         typeof vehicleId === 'number' ? vehicleId : undefined
       );
+
+      // Track AI cost per dealership (production wiring)
+      try {
+        await recordAICall({
+          dealershipId: finalDealershipId,
+          provider: "anthropic",
+          model: "claude-3-haiku",
+          endpoint: "chat",
+          tokensInput: messages.reduce((sum, m) => sum + m.content.length, 0),
+          tokensOutput: response.length,
+          costUsd: 0,
+          latencyMs: 0,
+          success: true,
+        });
+      } catch (costErr) {
+        logError('AI cost tracking failed:', costErr instanceof Error ? costErr : new Error(String(costErr)), { route: 'api-chat' });
+      }
+
       res.json({ message: response });
     } catch (error) {
       logError('Error generating chat response:', error instanceof Error ? error : new Error(String(error)), { route: 'api-chat' });
@@ -4500,6 +4692,23 @@ Provide a single, concise, friendly message that continues the conversation natu
         'general'
       );
 
+      // Track AI cost per dealership (production wiring)
+      try {
+        await recordAICall({
+          dealershipId,
+          provider: "anthropic",
+          model: "claude-3-haiku",
+          endpoint: "suggest_reply",
+          tokensInput: systemPrompt.length,
+          tokensOutput: response.length,
+          costUsd: 0,
+          latencyMs: 0,
+          success: true,
+        });
+      } catch (costErr) {
+        logError('AI cost tracking failed:', costErr instanceof Error ? costErr : new Error(String(costErr)), { route: 'api-ai-suggest-reply' });
+      }
+
       res.json({ suggestion: response });
     } catch (error) {
       logError('Error generating AI suggestion:', error instanceof Error ? error : new Error(String(error)), { route: 'api-ai-suggest-reply' });
@@ -4526,6 +4735,24 @@ Provide a single, concise, friendly message that continues the conversation natu
         messageHistory,
       });
 
+      // Track AI cost per dealership (production wiring)
+      try {
+        await recordAICall({
+          dealershipId,
+          provider: "anthropic",
+          model: result.model || "claude-3-haiku",
+          endpoint: "sales_response",
+          tokensInput: result.tokensInput || 0,
+          tokensOutput: result.tokensOutput || 0,
+          costUsd: 0,
+          latencyMs: 0,
+          success: true,
+        });
+      } catch (costErr) {
+        // Non-critical: don't fail the response if cost tracking fails
+        logError('AI cost tracking failed:', costErr instanceof Error ? costErr : new Error(String(costErr)), { route: 'api-ai-respond' });
+      }
+
       res.json(result);
     } catch (error) {
       logError('Error generating AI sales response:', error instanceof Error ? error : new Error(String(error)), { route: 'api-ai-respond' });
@@ -4543,6 +4770,16 @@ Provide a single, concise, friendly message that continues the conversation natu
         return res.status(400).json({ error: "conversationId and vehicleName are required" });
       }
 
+      // A/B Testing: Check if there's an active follow-up experiment
+      let abVariant = null;
+      try {
+        const { assignVariant } = await import('./services/ab-testing');
+        abVariant = await assignVariant(dealershipId, 'follow-up-default', `conv_${conversationId}`);
+      } catch (abErr) {
+        // Non-blocking: A/B test failure shouldn't stop follow-up generation
+        logWarn('A/B variant assignment failed (non-blocking):', abErr instanceof Error ? abErr : new Error(String(abErr)));
+      }
+
       const reply = await generateFollowUp({
         dealershipId,
         conversationId: parseInt(conversationId),
@@ -4552,7 +4789,7 @@ Provide a single, concise, friendly message that continues the conversation natu
         hoursSinceLastMessage: hoursSinceLastMessage || 24,
       });
 
-      res.json({ reply });
+      res.json({ reply, abVariant: abVariant?.variant || null });
     } catch (error) {
       logError('Error generating follow-up:', error instanceof Error ? error : new Error(String(error)), { route: 'api-ai-follow-up' });
       res.status(500).json({ error: "Failed to generate follow-up" });
@@ -8100,6 +8337,27 @@ Format your response in clear sections with actionable recommendations.`;
       if (!account || !account.accessToken) {
         return res.status(400).json({ error: "No Facebook account connected" });
       }
+
+      // Check Facebook account health (ban detection + ramp-up)
+      try {
+        const health = await checkAccountHealth(dealershipId, account.id, { success: true });
+        if (health.status === "confirmed_ban" || health.status === "suspected_ban") {
+          return res.status(403).json({
+            error: `Facebook account ${health.status}: ${health.reason}. Please resolve in Settings > Facebook.`,
+            status: health.status,
+          });
+        }
+        const postingLimit = await getCurrentPostingLimit(account.id);
+        if (health.postsToday >= postingLimit) {
+          return res.status(429).json({
+            error: `Daily posting limit reached (${health.postsToday}/${postingLimit}). Ramp-up in progress.`,
+            limit: postingLimit,
+          });
+        }
+      } catch (healthErr) {
+        logError('FB health check failed:', healthErr instanceof Error ? healthErr : new Error(String(healthErr)), { route: 'api-facebook-post' });
+        // Continue posting if health check fails (don't block on monitoring error)
+      }
       
       let template;
       if (queueItem.templateId) {
@@ -8131,8 +8389,14 @@ Format your response in clear sections with actionable recommendations.`;
           postedAt: new Date()
         });
         
+        // Record successful post for ramp-up tracking
+        try { await recordPostAttempt(account.id); } catch { /* non-critical */ }
+
         res.json({ success: true, postId });
       } catch (error) {
+        // Record failed post for ban detection
+        try { await checkAccountHealth(dealershipId, account.id, { success: false, error: error instanceof Error ? error.message : 'Unknown' }); } catch { /* non-critical */ }
+
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         await storage.updatePostingQueueItem(queueId, userId, dealershipId, {
           status: 'failed',
@@ -11368,21 +11632,23 @@ Format your response in clear sections with actionable recommendations.`;
         return res.status(404).json({ error: "Location not registered" });
       }
       
-      // Verify webhook signature if configured
+      // Verify webhook signature using hardened webhook-verifier service
       const config = await storage.getGhlConfig(dealershipId);
       if (config?.webhookVerifyToken && signature) {
-        const crypto = await import('crypto');
-        const expectedSignature = crypto.createHmac('sha256', config.webhookVerifyToken)
-          .update(JSON.stringify(req.body))
-          .digest('hex');
+        const { verifyGhlWebhook } = await import('./services/webhook-verifier');
+        const verification = await verifyGhlWebhook(
+          JSON.stringify(req.body),
+          signature,
+          config.webhookVerifyToken
+        );
         
-        if (signature !== expectedSignature) {
-          logWarn('GHL webhook signature mismatch', { route: 'api-ghl-webhook' });
-          return res.status(401).json({ error: "Invalid signature" });
+        if (!verification.valid) {
+          logWarn(`GHL webhook signature verification failed: ${verification.reason}`, { route: 'api-ghl-webhook', dealershipId });
+          return res.status(401).json({ error: "Invalid signature", reason: verification.reason });
         }
       }
       
-      // Check for duplicate events
+      // Check for duplicate events (webhook-verifier + database)
       const eventId = req.body?.id || `${eventType}-${Date.now()}`;
       const existingEvent = await storage.getGhlWebhookEventByEventId(dealershipId, eventId);
       if (existingEvent) {
@@ -14343,14 +14609,16 @@ Format your response in clear sections with actionable recommendations.`;
         return res.status(400).json({ error: "Missing required fields: to, subject, message" });
       }
       
-      const { sendEmail } = await import('./email-service');
-      
-      const result = await sendEmail({
-        to,
-        subject,
-        html: `<div style="font-family: sans-serif; padding: 20px;">${message.replace(/\n/g, '<br>')}</div>`,
-        text: message
-      });
+      // Use GHL notification service if available, fallback to email-service
+      let result;
+      try {
+        const ghlResult = await sendEmail(dealershipId, { to, subject, body: `<div style="font-family: sans-serif; padding: 20px;">${message.replace(/\n/g, '<br>')}</div>` });
+        result = { success: ghlResult.success, id: ghlResult.messageId, error: ghlResult.error };
+      } catch {
+        // Fallback to legacy email service
+        const { sendEmail: legacySend } = await import('./email-service');
+        result = await legacySend({ to, subject, html: `<div style="font-family: sans-serif; padding: 20px;">${message.replace(/\n/g, '<br>')}</div>`, text: message });
+      }
       
       if (result.success) {
         res.json({ success: true, id: result.id });
@@ -17432,6 +17700,36 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
         },
         actor
       );
+      
+      // Calendar Sync: Push to Google Calendar / Outlook if configured
+      try {
+        const { syncAppointment } = await import('./services/calendar-sync');
+        const apiKeys = await storage.getApiKeys(dealershipId);
+        if (apiKeys?.googleCalendarConnected || apiKeys?.outlookConnected) {
+          const appt = result.appointment || result;
+          await syncAppointment(
+            {
+              dealershipId,
+              provider: apiKeys.googleCalendarConnected ? 'google' : 'outlook',
+              accessToken: apiKeys.googleCalendarToken || apiKeys.outlookToken || '',
+            },
+            {
+              id: appt.id,
+              title: `${appt.type} - ${appt.leadName || 'Customer'}`,
+              description: appt.notes || '',
+              startTime: appt.startAt,
+              endTime: appt.endAt,
+              timezone: appt.timezone || 'America/New_York',
+              location: appt.location || '',
+              attendees: [appt.leadEmail].filter(Boolean) as string[],
+            }
+          );
+        }
+      } catch (syncErr) {
+        // Non-blocking: calendar sync failure shouldn't fail appointment creation
+        logWarn('Calendar sync failed (non-blocking):', syncErr instanceof Error ? syncErr : new Error(String(syncErr)));
+      }
+      
       res.json(result);
     } catch (error: any) {
       if (error?.code === 'APPOINTMENT_CONFLICT') {

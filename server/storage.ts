@@ -1,5 +1,5 @@
 import { db } from "./db.ts";
-import { hashPassword } from "./auth.ts";
+import { hashPassword } from "./utils/crypto";
 import crypto from "crypto";
 import { computeVehicleDataQualitySignals, type VehicleDataQualitySignals } from "./vehicle-data-quality.ts";
 

@@ -23,10 +23,10 @@ interface IntentDetectionResult {
 const OBJECTION_PATTERNS = {
   too_expensive: /(\btoo\s+expensive\b|\bpriced\s+high\b|\bcost\s+too\s+much\b|\bcan't\s+afford\b|\boutside\s+budget\b|out\s+of\s+budget\b|\boverpriced\b)/i,
   ill_think_about_it: /(\bthink\s+about\s+it\b|\blet\s+me\s+think\b|\bthink\s+it\s+over\b|\bmulling\s+it\s+over\b|\bconsider\s+it\b|\bconsidering\b)/i,
-  bad_credit: /(\bbad\s+credit\b|\npoor\s+credit\b|\bcredit\s+issue\b|\credit\s+problem\b)/i,
+  bad_credit: /(\bbad\s+credit\b|\bpoor\s+credit\b|\bcredit\s+issue\b|\bcredit\s+problem\b)/i,
   need_to_talk_to_spouse: /(\btalk\s+to\b|\bspouse\b|\bharder\b|\bwife\b|\bhusband\b|\bpartner\b|\bfamily\b|\bcheck\s+with\b)/i,
   found_cheaper: /(\bfound.*cheaper\b|\bseen.*cheaper\b|\bfound.*better\s+deal\b|\bcheaper\s+elsewhere\b)/i,
-  not_ready: /(\bnot\s+ready\b|\bnot\s+in\s+the\s+market\b|\bnot\s+buying\s+now\b|\bjust\s+looking\b|\nnot\s+ready\s+yet\b)/i,
+  not_ready: /(\bnot\s+ready\b|\bnot\s+in\s+the\s+market\b|\bnot\s+buying\s+now\b|\bjust\s+looking\b|\bnot\s+ready\s+yet\b)/i,
   need_to_sell_car_first: /(\bneed\s+to\s+sell\b|\bsell\s+my\s+car\b|\bneed\s+to\s+trade\b)/i,
 };
 
