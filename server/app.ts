@@ -12,8 +12,15 @@ import express, {
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { registerRoutes } from "./routes";
+import { registerModularRoutes } from "./routes/index";
 import { tenantMiddleware } from "./tenant-middleware";
 import { storage } from "./storage";
+import { validateEnvironment } from "./env-validation";
+import { getRedisClient, checkRedisHealth } from "./services/redis";
+import { closeDatabasePool } from "./db";
+
+// Validate environment variables before any other initialization
+validateEnvironment();
 
 const isProduction = process.env.NODE_ENV === "production";
 const useJsonLogs = isProduction || process.env.LOG_FORMAT === "json";
@@ -315,12 +322,14 @@ app.use((req, res, next) => {
   next();
 });
 
+// Request body parsing with size limits to prevent DoS
 app.use(express.json({
+  limit: "1mb",
   verify: (req, _res, buf) => {
     req.rawBody = buf;
   }
 }));
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({ extended: false, limit: "1mb" }));
 
 // Serve static files from public directory (logos, uploads, etc.)
 app.use(express.static(path.join(process.cwd(), 'public')));
@@ -379,12 +388,42 @@ app.use((req, res, next) => {
 
 export default async function runApp(
   setup: (app: Express, server: Server) => Promise<void>,
+  processType: string = "web",
 ) {
+  // Register modular routes first (extracted from monolithic routes.ts)
+  registerModularRoutes(app);
+
+  // Register legacy routes (remaining routes not yet extracted)
   const server = await registerRoutes(app);
 
   // importantly run the final setup after setting up all the other routes so
   // the catch-all route doesn't interfere with the other routes
   await setup(app, server);
+
+  // Graceful shutdown — drain connections before exiting
+  const gracefulShutdown = async (signal: string) => {
+    log(`Received ${signal}, shutting down gracefully...`);
+
+    server.close(async () => {
+      log("HTTP server closed, draining connections...");
+      try {
+        await closeDatabasePool();
+        log("Database pool closed");
+      } catch (err) {
+        logError("Error closing database pool:", err instanceof Error ? err : new Error(String(err)));
+      }
+      process.exit(0);
+    });
+
+    // Force exit after 30 seconds if graceful shutdown hangs
+    setTimeout(() => {
+      logError("Forced shutdown after 30 second timeout", new Error("Shutdown timeout"));
+      process.exit(1);
+    }, 30000);
+  };
+
+  process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+  process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
   // Global error handler - must be last middleware registered
   app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
