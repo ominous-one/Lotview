@@ -30,7 +30,7 @@ export async function addManualPhoto(
   const vehicle = await storage.getVehicle(vehicleId);
   if (!vehicle) throw new Error("Vehicle not found");
 
-  const photos = ((vehicle.photos as string[]) || []).filter(
+  const photos = ((vehicle.images as string[]) || []).filter(
     (p) => typeof p === "string"
   );
 
@@ -50,17 +50,17 @@ export async function addManualPhoto(
 }
 
 /**
- * Enrich photos from scrape results — WITHOUT overwriting manual photos.
- * Call this during the photo enrichment sweep.
+ * Enrich images from scrape results — WITHOUT overwriting manual photos.
+ * Call this during the image enrichment sweep.
  */
 export async function enrichPhotosSafely(
   vehicleId: number,
-  scrapedPhotos: string[]
+  scrapedImages: string[]
 ): Promise<{ added: number; preserved: number; skipped: number }> {
   const vehicle = await storage.getVehicle(vehicleId);
   if (!vehicle) return { added: 0, preserved: 0, skipped: 0 };
 
-  const existingPhotos = ((vehicle.photos as string[]) || []).filter(
+  const existingPhotos = ((vehicle.images as string[]) || []).filter(
     (p) => typeof p === "string"
   );
 
@@ -79,7 +79,7 @@ export async function enrichPhotosSafely(
   // Add new scraped photos that don't already exist
   const newPhotos: string[] = [];
   let skipped = 0;
-  for (const photo of scrapedPhotos) {
+  for (const photo of scrapedImages) {
     // Check against both scraped and manual (strip manual: prefix for comparison)
     const manualUrls = manualPhotos.map((p) => p.replace("manual:", ""));
     if (scrapedExisting.includes(photo) || manualUrls.includes(photo)) {
@@ -124,7 +124,7 @@ export async function getPhotoProvenance(vehicleId: number): Promise<{
     return { total: 0, manual: 0, scraped: 0, photos: [] };
   }
 
-  const photos = ((vehicle.photos as string[]) || []).filter(
+  const photos = ((vehicle.images as string[]) || []).filter(
     (p) => typeof p === "string"
   );
   const primaryPhoto = (vehicle.primaryPhotoUrl as string) || null;
@@ -176,7 +176,7 @@ export async function migratePhotoProvenance(dealershipId: number): Promise<{
 
   for (const vehicle of vehicles) {
     try {
-      const photos = ((vehicle.photos as string[]) || []).filter(
+      const photos = ((vehicle.images as string[]) || []).filter(
         (p) => typeof p === "string"
       );
 
