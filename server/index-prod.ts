@@ -144,6 +144,6 @@ function installGracefulShutdown(server: Server) {
     console.log("[Runtime] LOTVIEW_ENABLE_SCHEDULERS=false, skipping scheduler startup in this process");
   }
 
-  const server = await runApp(serveStatic);
+  const server = await runApp(serveStatic, "web");
   installGracefulShutdown(server);
 })();
