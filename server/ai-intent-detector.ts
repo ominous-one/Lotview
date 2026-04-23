@@ -1,15 +1,16 @@
 /**
- * AI Intent Detector - Classifies customer messages using Ollama (free local) or falls back to Claude
+ * AI Intent Detector - Classifies customer messages using pattern matching or OpenAI GPT
  * 
  * Goals:
- * - Detect OBJECTION (use templated response, $0 cost)
+ * - Detect OBJECTION (use pattern matching, $0 cost)
  * - Detect SIMPLE_QUESTION (use pattern matching, $0 cost)
- * - Detect COMPLEX (call Claude Haiku, ~$0.0005 cost)
+ * - Detect COMPLEX (call OpenAI GPT-4o-mini, ~$0.0001 cost)
  * 
- * Ollama runs locally on port 11434 — production falls back to Claude.
+ * Primary: OpenAI GPT-4o-mini (fast, cheap, accurate)
+ * Fallback: Ollama local (free)
  */
 
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 
 export type MessageIntent = "objection" | "simple_question" | "complex";
 
@@ -44,7 +45,18 @@ const SIMPLE_QUESTION_PATTERNS = {
 };
 
 /**
- * Detect intent using Ollama locally, with Claude fallback
+ * Get OpenAI client using API key hierarchy
+ */
+function getOpenAIClient(): OpenAI {
+  const apiKey = process.env.OPENAI_API_KEY || process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error("OPENAI_API_KEY not set for intent detection");
+  }
+  return new OpenAI({ apiKey });
+}
+
+/**
+ * Detect intent using pattern matching + OpenAI GPT-4o-mini
  */
 export async function detectIntent(message: string): Promise<IntentDetectionResult> {
   // First, try pattern matching locally (fastest, $0 cost)
@@ -53,20 +65,12 @@ export async function detectIntent(message: string): Promise<IntentDetectionResu
     return patternResult;
   }
 
-  // Try Ollama if available (free, local)
+  // Fall back to OpenAI GPT-4o-mini for complex classification
   try {
-    const ollamaResult = await detectIntentByOllama(message);
-    return ollamaResult;
+    const openaiResult = await detectIntentByOpenAI(message);
+    return openaiResult;
   } catch (error) {
-    console.log("[Intent Detector] Ollama unavailable, falling back to Claude Haiku");
-  }
-
-  // Fall back to Claude Haiku for complex classification
-  try {
-    const claudeResult = await detectIntentByClaude(message);
-    return claudeResult;
-  } catch (error) {
-    console.error("[Intent Detector] All methods failed:", error);
+    console.error("[Intent Detector] OpenAI failed:", error);
     // Default to complex when all else fails (safer to use API than deliver wrong answer)
     return {
       intent: "complex",
@@ -77,16 +81,99 @@ export async function detectIntent(message: string): Promise<IntentDetectionResu
 }
 
 /**
+ * OpenAI GPT-4o-mini based detection (~$0.0001 per call)
+ */
+async function detectIntentByOpenAI(message: string): Promise<IntentDetectionResult> {
+  const client = getOpenAIClient();
+
+  const response = await client.chat.completions.create({
+    model: "gpt-4o-mini",
+    max_tokens: 50,
+    temperature: 0.1, // Low temp for consistent classification
+    messages: [
+      {
+        role: "system",
+        content: `You are an intent classifier. Classify customer messages into ONE category:
+
+OBJECTION = Customer expressing doubt, price concern, or hesitation
+SIMPLE_QUESTION = Customer asking a factual question
+COMPLEX = Everything else requiring thoughtful, personalized response
+
+Respond with ONLY the category name.`,
+      },
+      {
+        role: "user",
+        content: `Classify this customer message into ONE category: OBJECTION, SIMPLE_QUESTION, or COMPLEX.
+
+Message: "${message}"
+
+Respond with ONLY the category name.`,
+      },
+    ],
+  });
+
+  const result = (response.choices[0]?.message?.content || "").trim().toUpperCase();
+
+  let intent: MessageIntent = "complex";
+  if (result.includes("OBJECTION")) {
+    intent = "objection";
+  } else if (result.includes("SIMPLE_QUESTION") || result.includes("SIMPLE")) {
+    intent = "simple_question";
+  }
+
+  return {
+    intent,
+    confidence: 0.9,
+    reason: `GPT-4o-mini classification: ${result}`,
+  };
+}
+
+// Try Ollama if available (free, local) - kept as optional fallback
+async function detectIntentByOllama(message: string): Promise<IntentDetectionResult> {
+  const response = await fetch("http://localhost:11434/api/generate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "llama3.2:1b",
+      prompt: `Classify this customer message into ONE category: OBJECTION, SIMPLE_QUESTION, or COMPLEX.\n\nMessage: "${message}"\n\nRespond with ONLY the category name.`,
+      stream: false,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Ollama error: ${response.status}`);
+  }
+
+  const data = await response.json() as { response: string };
+  const result = (data.response || "").trim().toUpperCase();
+
+  let intent: MessageIntent = "complex";
+  if (result.includes("OBJECTION")) {
+    intent = "objection";
+  } else if (result.includes("SIMPLE")) {
+    intent = "simple_question";
+  }
+
+  return {
+    intent,
+    confidence: 0.75,
+    reason: `Ollama classification: ${result}`,
+  };
+}
+
+/**
  * Pattern-based detection (fastest, $0 cost)
  */
 function detectIntentByPattern(message: string): IntentDetectionResult {
-  // Check objections first
+  const lowerMessage = message.toLowerCase();
+
+  // Check objections first (highest priority)
   for (const [key, pattern] of Object.entries(OBJECTION_PATTERNS)) {
     if (pattern.test(message)) {
       return {
         intent: "objection",
-        confidence: 0.85,
-        reason: `Matched objection pattern: ${key}`,
+        confidence: 0.9,
+        reason: `Pattern match: ${key}`,
       };
     }
   }
@@ -97,111 +184,16 @@ function detectIntentByPattern(message: string): IntentDetectionResult {
       return {
         intent: "simple_question",
         confidence: 0.85,
-        reason: `Matched simple question pattern: ${key}`,
+        reason: `Pattern match: ${key}`,
       };
     }
   }
 
-  // Default to low confidence (will try other methods)
+  // Default: uncertain, needs AI
   return {
     intent: "complex",
-    confidence: 0,
-    reason: "No pattern matches",
-  };
-}
-
-/**
- * Ollama-based detection (free, local-only)
- * Uses llama3.2:3b which is lightweight and fast
- */
-async function detectIntentByOllama(message: string): Promise<IntentDetectionResult> {
-  const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
-
-  // Build the prompt for Ollama
-  const prompt = `Classify this customer message into ONE of these categories:
-- OBJECTION: customer is expressing doubt, price concern, or hesitation (e.g., "too expensive", "I'll think about it", "bad credit", "need to talk to spouse")
-- SIMPLE_QUESTION: customer is asking a factual question (e.g., "what's the price?", "what color?", "when are you open?", "do you take trades?")
-- COMPLEX: everything else (requires a thoughtful, personalized response)
-
-Message: "${message}"
-
-Respond with ONLY the category name (OBJECTION, SIMPLE_QUESTION, or COMPLEX).`;
-
-  const response = await fetch(`${ollamaUrl}/api/generate`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "llama3.2:3b",
-      prompt,
-      stream: false,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Ollama returned ${response.status}`);
-  }
-
-  const data = (await response.json()) as { response: string };
-  const result = data.response.trim().toUpperCase();
-
-  let intent: MessageIntent = "complex";
-  if (result.includes("OBJECTION")) {
-    intent = "objection";
-  } else if (result.includes("SIMPLE_QUESTION")) {
-    intent = "simple_question";
-  }
-
-  return {
-    intent,
-    confidence: 0.7,
-    reason: `Ollama classification: ${result}`,
-  };
-}
-
-/**
- * Claude-based detection (fallback, uses API)
- * Uses Claude Haiku for cost-efficiency (~$0.0005 per call)
- */
-async function detectIntentByClaude(message: string): Promise<IntentDetectionResult> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    throw new Error("ANTHROPIC_API_KEY not set for fallback intent detection");
-  }
-
-  const client = new Anthropic({ apiKey });
-
-  const response = await client.messages.create({
-    model: "claude-3-haiku-20240307",
-    max_tokens: 50,
-    messages: [
-      {
-        role: "user",
-        content: `Classify this customer message into ONE category: OBJECTION, SIMPLE_QUESTION, or COMPLEX.
-
-OBJECTION = Customer expressing doubt, price concern, or hesitation (e.g., "too expensive", "I'll think about it", "bad credit")
-SIMPLE_QUESTION = Customer asking a factual question (e.g., "what's the price?", "what color?", "when are you open?")
-COMPLEX = Everything else requiring thoughtful, personalized response
-
-Message: "${message}"
-
-Respond with ONLY the category name.`,
-      },
-    ],
-  });
-
-  const result = (response.content[0]?.type === "text" ? response.content[0].text : "").trim().toUpperCase();
-
-  let intent: MessageIntent = "complex";
-  if (result.includes("OBJECTION")) {
-    intent = "objection";
-  } else if (result.includes("SIMPLE_QUESTION")) {
-    intent = "simple_question";
-  }
-
-  return {
-    intent,
-    confidence: 0.9,
-    reason: `Claude classification: ${result}`,
+    confidence: 0.3,
+    reason: "No pattern match",
   };
 }
 
