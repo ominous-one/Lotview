@@ -1411,6 +1411,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Get all users across all dealerships (super admin only)
+
+  // ===== CHANGE PASSWORD (Authenticated Users) =====
+
+  app.post("/api/auth/change-password", authMiddleware, async (req: AuthRequest, res) => {
+    try {
+      const userId = req.user!.id;
+      const { currentPassword, newPassword } = req.body;
+
+      // Validate input
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({ error: "Current password and new password are required" });
+      }
+
+      if (newPassword.length < 8) {
+        return res.status(400).json({ error: "New password must be at least 8 characters" });
+      }
+
+      // Get current user with password hash
+      const user = await storage.getUserById(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Verify current password
+      const { comparePassword } = await import("./auth");
+      const isValid = await comparePassword(currentPassword, user.passwordHash);
+      if (!isValid) {
+        return res.status(401).json({ error: "Current password is incorrect" });
+      }
+
+      // Hash and update new password
+      const { hashPassword } = await import("./auth");
+      const newHash = await hashPassword(newPassword);
+      await storage.updateUser(userId, { passwordHash: newHash });
+
+      logInfo("Password changed", { route: "api-auth-change-password", userId, email: user.email });
+      res.json({ success: true, message: "Password updated successfully" });
+    } catch (error) {
+      logError("Error changing password:", error instanceof Error ? error : new Error(String(error)), { route: "api-auth-change-password" });
+      res.status(500).json({ error: "Failed to change password" });
+    }
+  });
+
+
   app.get("/api/super-admin/users", authMiddleware, superAdminOnly, async (req, res) => {
     try {
       const dealershipId = req.query.dealershipId ? parseInt(req.query.dealershipId as string) : undefined;
