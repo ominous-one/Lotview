@@ -1,4 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import { db } from "./db";
 import { storage } from "./storage";
 import { vehicles, aiSettings } from "@shared/schema";
@@ -6,17 +6,17 @@ import { eq, and, gte, lte, ne, desc, sql, ilike, or } from "drizzle-orm";
 import type { Vehicle, Dealership, CarfaxReport, MessengerConversation, MessengerMessage, AiSettings } from "@shared/schema";
 import { buildSalesAgentSystemPrompt, buildVehicleContext, buildCarfaxContext, buildInventoryContext, buildFollowUpPrompt } from "./ai-prompts";
 import { buildPaymentContext } from "./ai-payment-calculator";
-import { detectIntent, matchObjectionPattern, matchQuestionPattern } from "./ai-intent-detector";
+import { detectIntent, matchObjectionPattern, matchQuestionPattern } from "./ai-intent-detector"; // Now uses OpenAI GPT-4o-mini
 
-function getAnthropicClient(): Anthropic {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+function getOpenAIClient(): OpenAI {
+  const apiKey = process.env.OPENAI_API_KEY || process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
   if (!apiKey) {
-    throw new Error("ANTHROPIC_API_KEY environment variable is not set");
+    throw new Error("OPENAI_API_KEY environment variable is not set");
   }
-  return new Anthropic({ apiKey });
+  return new OpenAI({ apiKey });
 }
 
-const SALES_MODEL = "claude-3-haiku-20240307";
+const SALES_MODEL = "gpt-4o-mini";
 
 export interface AiSalesRequest {
   dealershipId: number;
@@ -222,10 +222,10 @@ async function loadConversationHistory(
  * Takes a customer message + context and returns a sales-optimized reply.
  * 
  * HYBRID COST REDUCTION:
- * 1. Detect intent (free: local patterns, Ollama, or Claude fallback)
+ * 1. Detect intent (free: local patterns, then OpenAI GPT-4o-mini)
  * 2. If OBJECTION → use templated response ($0 cost)
  * 3. If SIMPLE_QUESTION → use pattern matching ($0 cost)
- * 4. If COMPLEX → call Claude Haiku (~$0.0005 cost)
+ * 4. If COMPLEX → call OpenAI GPT-4o-mini (~$0.0001 cost)
  */
 export async function generateSalesResponse(req: AiSalesRequest): Promise<AiSalesResponse> {
   const { dealershipId, vehicleId, conversationId, customerMessage, customerName } = req;
@@ -291,7 +291,7 @@ export async function generateSalesResponse(req: AiSalesRequest): Promise<AiSale
     }
     
     // Fallback if no matching template (shouldn't happen)
-    console.log("[AI Intent] ⚠️ No template found for objection, falling back to Claude Haiku");
+    console.log("[AI Intent] ⚠️ No template found for objection, falling back to OpenAI GPT-4o-mini");
   }
 
   // 1c. If it's a simple question, use pattern matching ($0 cost)
@@ -378,8 +378,8 @@ export async function generateSalesResponse(req: AiSalesRequest): Promise<AiSale
     }
   }
 
-  // 1d. Complex messages — use Claude Haiku (cheap, ~$0.0005)
-  console.log("[AI Intent] → Routing to Claude Haiku for complex response (cost: ~$0.0005)");
+  // 1d. Complex messages — use OpenAI GPT-4o-mini (cheap, ~$0.0001)
+  console.log("[AI Intent] → Routing to OpenAI GPT-4o-mini for complex response (cost: ~$0.0001)");
 
   // 2. Load vehicle data if we have a vehicleId, or search inventory from message
   let vehicle: Vehicle | undefined;
@@ -537,30 +537,35 @@ export async function generateSalesResponse(req: AiSalesRequest): Promise<AiSale
     aiSettings: dealerAiSettings,
   });
 
-  // 11. Build the messages array for Anthropic
-  const anthropicMessages: { role: "user" | "assistant"; content: string }[] = [];
+  // 11. Build the messages array for OpenAI
+  const openaiMessages: { role: "user" | "assistant"; content: string }[] = [];
 
   // Add conversation history (last 20 messages to stay within context)
   const recentHistory = history.slice(-20);
   for (const msg of recentHistory) {
-    anthropicMessages.push({ role: msg.role, content: msg.content });
+    openaiMessages.push({ role: msg.role, content: msg.content });
   }
 
   // Add the current customer message
-  anthropicMessages.push({ role: "user", content: customerMessage });
+  openaiMessages.push({ role: "user", content: customerMessage });
 
-  // 12. Call Anthropic Claude
-  const client = getAnthropicClient();
+  // 12. Call OpenAI GPT
+  const client = getOpenAIClient();
 
-  const response = await client.messages.create({
+  // Build messages with system prompt as first message
+  const messages = [
+    { role: "system" as const, content: systemPrompt },
+    ...openaiMessages,
+  ];
+
+  const response = await client.chat.completions.create({
     model: SALES_MODEL,
-    system: systemPrompt,
-    messages: anthropicMessages,
+    messages,
     max_tokens: 300, // Keep responses short for Messenger
     temperature: 0.8,
   });
 
-  const reply = (response.content[0]?.type === 'text' ? response.content[0].text : '').trim() ||
+  const reply = (response.choices[0]?.message?.content || '').trim() ||
     "Thanks for reaching out! Let me check on that and get back to you shortly.";
 
   const vehicleName = vehicle
@@ -591,18 +596,18 @@ export async function generateFollowUp(opts: {
 
   const prompt = buildFollowUpPrompt(opts);
 
-  const client = getAnthropicClient();
+  const client = getOpenAIClient();
 
-  const response = await client.messages.create({
+  const response = await client.chat.completions.create({
     model: SALES_MODEL,
-    system: "You are a friendly car sales consultant writing a follow-up message on Facebook Messenger. Keep it short, warm, and non-pushy. 1-2 sentences max.",
     messages: [
+      { role: "system", content: "You are a friendly car sales consultant writing a follow-up message on Facebook Messenger. Keep it short, warm, and non-pushy. 1-2 sentences max." },
       { role: "user", content: prompt },
     ],
     max_tokens: 150,
     temperature: 0.9,
   });
 
-  return (response.content[0]?.type === 'text' ? response.content[0].text : '').trim() ||
+  return (response.choices[0]?.message?.content || '').trim() ||
     `Hey${opts.customerName ? ` ${opts.customerName}` : ''}, just checking in — the ${opts.vehicleName} is still available if you're interested!`;
 }
