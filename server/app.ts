@@ -18,6 +18,7 @@ import { storage } from "./storage";
 import { validateEnvironment } from "./env-validation";
 import { getRedisClient, checkRedisHealth } from "./services/redis";
 import { closeDatabasePool } from "./db";
+import { runFirstRunSetup } from "./setup";
 
 // Validate environment variables before any other initialization
 validateEnvironment();
@@ -395,6 +396,9 @@ export default async function runApp(
 
   // Register legacy routes (remaining routes not yet extracted)
   const server = await registerRoutes(app);
+
+  // First-run auto-setup: creates super_admin, dealership, scrape source if missing
+  await runFirstRunSetup();
 
   // importantly run the final setup after setting up all the other routes so
   // the catch-all route doesn't interfere with the other routes
