@@ -3,7 +3,7 @@
  * Tracks every AI API call per dealership with token counting and cost calculation.
  * Enforces per-dealership budget limits to prevent runaway API bills.
  *
- * Supports: Anthropic Claude, OpenAI GPT, Ollama (free/local)
+ * Primary: OpenAI GPT-4o / GPT-4o-mini | Legacy tracking: Anthropic, Ollama
  * Cost basis: Per-provider pricing tables updated monthly.
  */
 
