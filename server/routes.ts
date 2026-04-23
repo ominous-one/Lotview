@@ -6363,7 +6363,7 @@ Format your response in clear sections with actionable recommendations.`;
   // ===== DEALERSHIP API KEYS ROUTES =====
 
   // Get dealership API keys - ADMIN ONLY
-  app.get("/api/dealership-api-keys", authMiddleware, requireRole("master"), async (req, res) => {
+  app.get("/api/dealership-api-keys", authMiddleware, superAdminOnly, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const apiKeys = await storage.getDealershipApiKeys(dealershipId);
@@ -6390,7 +6390,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Update dealership API keys - ADMIN ONLY
-  app.patch("/api/dealership-api-keys", authMiddleware, requireRole("master"), async (req, res) => {
+  app.patch("/api/dealership-api-keys", authMiddleware, superAdminOnly, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const updates = req.body;
@@ -9016,7 +9016,7 @@ Format your response in clear sections with actionable recommendations.`;
 
   // ===== Competitive Report (Workstream 2) =====
 
-  app.get('/api/manager/competitive-report/settings', authMiddleware, requireRole('manager'), async (req, res) => {
+  app.get('/api/manager/competitive-report/settings', authMiddleware, superAdminOnly, async (req, res) => {
     try {
       const dealershipId = requireResolvedDealershipId(req as AuthRequest);
       if (!dealershipId) {
@@ -9031,7 +9031,7 @@ Format your response in clear sections with actionable recommendations.`;
     }
   });
 
-  app.put('/api/manager/competitive-report/settings', authMiddleware, requireRole('manager'), async (req, res) => {
+  app.put('/api/manager/competitive-report/settings', authMiddleware, superAdminOnly, async (req, res) => {
     try {
       const dealershipId = requireResolvedDealershipId(req as AuthRequest);
       if (!dealershipId) {
@@ -9430,7 +9430,7 @@ Format your response in clear sections with actionable recommendations.`;
   // ===== MANAGER SETTINGS ROUTES =====
 
   // Get manager settings
-  app.get("/api/manager/settings", authMiddleware, requireRole("manager"), async (req, res) => {
+  app.get("/api/manager/settings", authMiddleware, superAdminOnly, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
       const userId = authReq.user!.id;
@@ -9444,7 +9444,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Save manager settings
-  app.post("/api/manager/settings", authMiddleware, requireRole("manager"), async (req, res) => {
+  app.post("/api/manager/settings", authMiddleware, superAdminOnly, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
       const userId = authReq.user!.id;
@@ -10280,7 +10280,7 @@ Format your response in clear sections with actionable recommendations.`;
   // ===== PBS DMS INTEGRATION ROUTES =====
   
   // Get PBS configuration
-  app.get("/api/pbs/config", authMiddleware, requireRole("master"), async (req, res) => {
+  app.get("/api/pbs/config", authMiddleware, superAdminOnly, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const config = await storage.getPbsConfig(dealershipId);
@@ -10292,7 +10292,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Create or update PBS configuration
-  app.post("/api/pbs/config", authMiddleware, requireRole("master"), async (req, res) => {
+  app.post("/api/pbs/config", authMiddleware, superAdminOnly, async (req, res) => {
     try {
       const { partnerId, username, password, webhookUrl, webhookSecret, pbsApiUrl } = req.body;
       
@@ -10337,7 +10337,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Delete PBS configuration
-  app.delete("/api/pbs/config/:id", authMiddleware, requireRole("master"), async (req, res) => {
+  app.delete("/api/pbs/config/:id", authMiddleware, superAdminOnly, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const id = parseInt(req.params.id);
@@ -10526,7 +10526,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Get PBS webhook events (for monitoring)
-  app.get("/api/pbs/webhook-events", authMiddleware, requireRole("master"), async (req, res) => {
+  app.get("/api/pbs/webhook-events", authMiddleware, superAdminOnly, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
@@ -10539,7 +10539,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Update webhook event status (mark as processed/failed)
-  app.patch("/api/pbs/webhook-events/:id", authMiddleware, requireRole("master"), async (req, res) => {
+  app.patch("/api/pbs/webhook-events/:id", authMiddleware, superAdminOnly, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const id = parseInt(req.params.id);
@@ -11248,7 +11248,7 @@ Format your response in clear sections with actionable recommendations.`;
   // ===== ADMIN ROUTES =====
   
   // Save GHL configuration (Legacy - use OAuth flow for new integrations)
-  app.post("/api/admin/ghl-config", authMiddleware, requireRole("master"), async (req, res) => {
+  app.post("/api/admin/ghl-config", authMiddleware, superAdminOnly, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { syncContacts, syncAppointments, syncOpportunities } = req.body;
@@ -11274,7 +11274,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Save GHL Webhook configuration
-  app.post("/api/admin/ghl-webhook-config", authMiddleware, requireRole("master"), async (req, res) => {
+  app.post("/api/admin/ghl-webhook-config", authMiddleware, superAdminOnly, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { webhookUrl, webhookName } = req.body;
@@ -11297,7 +11297,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get GHL Webhook configuration
-  app.get("/api/admin/ghl-webhook-config", authMiddleware, requireRole("master"), async (req, res) => {
+  app.get("/api/admin/ghl-webhook-config", authMiddleware, superAdminOnly, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const config = await storage.getActiveGHLWebhookConfig(dealershipId);
@@ -11309,7 +11309,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Save AI prompt template
-  app.post("/api/admin/ai-prompt", authMiddleware, requireRole("master"), async (req, res) => {
+  app.post("/api/admin/ai-prompt", authMiddleware, superAdminOnly, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { name, promptText, isActive } = req.body;
@@ -11523,7 +11523,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // GHL Config: Get sync configuration
-  app.get("/api/ghl/config", authMiddleware, requireRole("master"), async (req, res) => {
+  app.get("/api/ghl/config", authMiddleware, superAdminOnly, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const config = await storage.getGhlConfig(dealershipId);
@@ -11535,7 +11535,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // GHL Config: Update sync configuration
-  app.post("/api/ghl/config", authMiddleware, requireRole("master"), async (req, res) => {
+  app.post("/api/ghl/config", authMiddleware, superAdminOnly, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { 
@@ -11773,7 +11773,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // GHL Webhook Events: List for debugging
-  app.get("/api/ghl/webhook-events", authMiddleware, requireRole("master"), async (req, res) => {
+  app.get("/api/ghl/webhook-events", authMiddleware, superAdminOnly, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { status, limit } = req.query;
