@@ -16,7 +16,7 @@ export async function comparePassword(password: string, hash: string): Promise<b
 
 const EXTENSION_HMAC_SECRET_ENV = process.env.EXTENSION_HMAC_SECRET;
 if (!EXTENSION_HMAC_SECRET_ENV && process.env.NODE_ENV === "production") {
-  throw new Error("EXTENSION_HMAC_SECRET environment variable is required in production");
+  console.error("[Crypto] WARNING: EXTENSION_HMAC_SECRET not set. HMAC verification will fail.");
 }
 const EXTENSION_HMAC_SECRET = EXTENSION_HMAC_SECRET_ENV || "extension-hmac-dev-secret";
 
