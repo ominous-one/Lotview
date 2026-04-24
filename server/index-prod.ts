@@ -27,17 +27,29 @@ const SHUTDOWN_TIMEOUT_MS = 30_000;
 export async function serveStatic(app: Express, server: Server) {
   const distDir = path.dirname(fileURLToPath(import.meta.url));
   const distPath = path.resolve(distDir, "public");
+  const altPath = path.resolve(distDir); // vite puts files in dist/ directly
 
-  if (!fs.existsSync(distPath)) {
-    throw new Error(
-      `Could not find the build directory: ${distPath}, make sure to build the client first`,
-    );
+  // Try dist/public first, then dist/ directly
+  let servePath = distPath;
+  if (!fs.existsSync(servePath)) {
+    if (fs.existsSync(altPath)) {
+      servePath = altPath;
+      console.log(`[Static] Using ${servePath} (dist/public not found)`);
+    } else {
+      console.warn(`[Static] No client build found at ${distPath} or ${altPath}. API will still work, but frontend won't load.`);
+      return;
+    }
   }
 
-  app.use(express.static(distPath));
+  app.use(express.static(servePath));
 
   app.use("*", (_req, res) => {
-    res.sendFile(path.resolve(distPath, "index.html"));
+    const indexPath = path.resolve(servePath, "index.html");
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      res.status(404).json({ error: "Client build not found. API is operational, but frontend is not built." });
+    }
   });
 }
 
@@ -134,16 +146,36 @@ function installGracefulShutdown(server: Server) {
   });
 }
 
+// Global error handlers - prevent crashes from any unhandled errors
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("[Unhandled Rejection] at:", promise, "reason:", reason);
+});
+process.on("uncaughtException", (error) => {
+  console.error("[Uncaught Exception]:", error);
+});
+
 (async () => {
-  logRuntimeReadinessSummary();
-  ensureProductionRuntimeRequirements({ processType: "web" });
+  try {
+    logRuntimeReadinessSummary();
+    ensureProductionRuntimeRequirements({ processType: "web" });
 
-  if (shouldStartSchedulers()) {
-    await startProductionSchedulers();
-  } else {
-    console.log("[Runtime] LOTVIEW_ENABLE_SCHEDULERS=false, skipping scheduler startup in this process");
+    if (shouldStartSchedulers()) {
+      await startProductionSchedulers();
+    } else {
+      console.log("[Runtime] LOTVIEW_ENABLE_SCHEDULERS=false, skipping scheduler startup in this process");
+    }
+
+    const server = await runApp(serveStatic, "web");
+    installGracefulShutdown(server);
+
+    const port = parseInt(process.env.PORT || "5000", 10);
+    server.listen(port, "0.0.0.0", () => {
+      console.log(`[Server] Running on port ${port}`);
+    });
+  } catch (error) {
+    console.error("[FATAL] Server startup failed:", error instanceof Error ? error.message : String(error));
+    console.error(error instanceof Error ? error.stack : "");
+    // Keep process alive so logs are visible, then exit after 5 seconds
+    setTimeout(() => process.exit(1), 5000);
   }
-
-  const server = await runApp(serveStatic, "web");
-  installGracefulShutdown(server);
 })();
