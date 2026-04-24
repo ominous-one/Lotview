@@ -27,8 +27,11 @@ const effectiveDbConfig = (!dbConfig.connectionString && !dbConfig.host)
       : null)
   : dbConfig;
 
+// NEVER throw at module load time — this crashes the entire server bundle.
+// Instead, log the error and create a dummy pool that will fail gracefully.
 if (!effectiveDbConfig) {
-  throw new Error('Database configuration not found. Please ensure the database is provisioned.');
+  console.error('[DB] CRITICAL: No database configuration found. Set DATABASE_URL or PGHOST/PGUSER/PGPASSWORD/PGDATABASE.');
+  console.error('[DB] Server will start in DEGRADED mode. Database operations will fail.');
 }
 
 // Production connection pool tuned for 100 dealerships.
@@ -40,24 +43,39 @@ const poolSize = parseInt(
   10
 );
 
-export const pool = new Pool({
-  ...effectiveDbConfig,
-  max: poolSize,
-  connectionTimeoutMillis: 5000,
-  statement_timeout: 30000,
-  query_timeout: 30000,
-  idleTimeoutMillis: 10000,
-  keepAlive: true,
-});
+// Create pool only if config is available. Otherwise create a dummy that logs errors.
+export const pool = effectiveDbConfig
+  ? new Pool({
+      ...effectiveDbConfig,
+      max: poolSize,
+      connectionTimeoutMillis: 5000,
+      statement_timeout: 30000,
+      query_timeout: 30000,
+      idleTimeoutMillis: 10000,
+      keepAlive: true,
+    })
+  : new Proxy({} as Pool, {
+      get(_target, prop) {
+        if (prop === 'end') return () => Promise.resolve();
+        if (prop === 'on') return () => {};
+        return () => {
+          throw new Error('[DB] Database not configured. Set DATABASE_URL env var.');
+        };
+      },
+    }) as Pool;
 
-// Log pool exhaustion warnings
-pool.on('error', (err: Error) => {
-  console.error('[DB] Unexpected pool error:', err.message);
-});
+// Log pool exhaustion warnings (only if real pool)
+if (effectiveDbConfig && 'on' in pool) {
+  pool.on('error', (err: Error) => {
+    console.error('[DB] Unexpected pool error:', err.message);
+  });
+}
 
-export const db = drizzle(pool, { schema });
+export const db = effectiveDbConfig ? drizzle(pool, { schema }) : null as any;
 
 // Graceful pool shutdown helper
 export async function closeDatabasePool(): Promise<void> {
-  await pool.end();
+  if (effectiveDbConfig) {
+    await pool.end();
+  }
 }
