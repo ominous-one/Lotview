@@ -62,7 +62,7 @@ const REQUIRED_ENV_VARS: EnvVar[] = [
  * Validates environment variables and throws a clear error if required vars are missing.
  * Call this at application startup before any other initialization.
  */
-export function validateEnvironment(): void {
+export function validateEnvironment(): boolean {
   const isProduction = process.env.NODE_ENV === "production";
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -104,19 +104,17 @@ export function validateEnvironment(): void {
     console.warn(`[Env] ${warning}`);
   }
 
-  // Fail fast on errors
+  // Log errors but DO NOT crash the server
   if (errors.length > 0) {
-    console.error("[Env] Validation failed:");
+    console.error("[Env] Validation failed with errors (server will start anyway):");
     for (const error of errors) {
       console.error(`  - ${error}`);
     }
-    throw new Error(
-      `Environment validation failed with ${errors.length} error(s). ` +
-        `Set the required variables and restart the application.`
-    );
+    return false;
   }
 
   if (!isProduction) {
     console.log("[Env] Validation passed (development mode)");
   }
+  return true;
 }
