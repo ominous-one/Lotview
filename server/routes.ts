@@ -3051,6 +3051,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+
+  // ===== FIRST-RUN SETUP (One-time API call by super_admin) =====
+
+  app.post("/api/setup/first-run", authMiddleware, superAdminOnly, async (req: AuthRequest, res) => {
+    try {
+      const results: Record<string, any> = {};
+
+      // Dynamic import to avoid startup module-load issues
+      const setupModule = await import("./setup");
+      if (typeof setupModule.runFirstRunSetup === "function") {
+        await setupModule.runFirstRunSetup();
+        results.setupTriggered = true;
+      } else {
+        results.error = "Setup module export not found";
+      }
+
+      // Check current state
+      const { db } = await import("./db");
+      const schema = await import("@shared/schema");
+      const { eq } = await import("drizzle-orm");
+
+      const admins = await db.select().from(schema.users).where(eq(schema.users.role, "super_admin"));
+      results.superAdminExists = admins.length > 0;
+      if (admins.length > 0) results.superAdminEmail = admins[0].email;
+
+      const dealer = await db.select().from(schema.dealerships).where(eq(schema.dealerships.slug, "olympic-hyundai"));
+      results.dealershipExists = dealer.length > 0;
+      if (dealer.length > 0) results.dealershipId = dealer[0].id;
+
+      if (dealer.length > 0) {
+        const sources = await db.select().from(schema.scrapeSources).where(eq(schema.scrapeSources.dealershipId, dealer[0].id));
+        results.scrapeSourceExists = sources.length > 0;
+      }
+
+      res.json({ success: true, results, message: "Setup complete. Check results to see what was created." });
+    } catch (error) {
+      logError("First-run setup API failed", error instanceof Error ? error : new Error(String(error)), { route: "api-setup-first-run" });
+      res.status(500).json({ 
+        error: "Setup failed", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
   // ===== USER MANAGEMENT ROUTES (Master Only) =====
   
   // Get all users (master only)
