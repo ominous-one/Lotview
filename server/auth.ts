@@ -1,8 +1,8 @@
 import jwt from "jsonwebtoken";
 import type { Request, Response, NextFunction } from "express";
-import type { User } from "../shared/schema.ts";
-import { hasRole } from "../shared/authz.ts";
-import { getE2EUserFromToken, isSafeE2ERequest, seedE2E } from "./e2e-test-mode.ts";
+import type { User } from "../shared/schema";
+import { hasRole } from "../shared/authz";
+import { getE2EUserFromToken, isSafeE2ERequest, seedE2E } from "./e2e-test-mode";
 import { hashPassword, comparePassword, computeHmac } from "./utils/crypto";
 import { isNonceUsed, markNonceUsed, isPostingTokenUsed, markPostingTokenUsed } from "./services/redis";
 
