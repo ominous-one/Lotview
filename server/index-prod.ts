@@ -1,149 +1,60 @@
-import fs from "node:fs";
-import { type Server } from "node:http";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-
-import express, { type Express } from "express";
-
-import runApp, { log } from "./app";
-import { pool } from "./db";
-import { createFBMarketplaceScheduler } from "./fb-marketplace-service";
-import {
-  startInventoryScheduler,
-  startMarketAnalysisScheduler,
-  startFacebookCatalogScheduler,
-  startGhlSyncScheduler,
-  startAutomationScheduler,
-  startReengagementScheduler,
-  startScheduledMessageScheduler,
-  startCompetitiveReportScheduler,
-} from "./scheduler";
-import { startNotificationsScheduler } from "./scheduler.notifications";
-import { startPostingScheduler } from "./posting-scheduler";
-import { ensureProductionRuntimeRequirements, logRuntimeReadinessSummary } from "./runtime-readiness";
+import { type Server } from "http";
+import runApp from "./app";
 
 const SHUTDOWN_TIMEOUT_MS = 30_000;
 
-export async function serveStatic(app: Express, server: Server) {
-  const distDir = path.dirname(fileURLToPath(import.meta.url));
-  const distPath = path.resolve(distDir, "public");
-
-  if (!fs.existsSync(distPath)) {
-    throw new Error(
-      `Could not find the build directory: ${distPath}, make sure to build the client first`,
-    );
-  }
-
-  app.use(express.static(distPath));
-
-  app.use("*", (_req, res) => {
-    res.sendFile(path.resolve(distPath, "index.html"));
-  });
-}
-
-function shouldStartSchedulers() {
-  if (process.env.LOTVIEW_ENABLE_SCHEDULERS !== 'false') {
-    const schedulerProcess = process.env.LOTVIEW_SCHEDULER_PROCESS || 'worker';
-    return schedulerProcess === 'web';
-  }
-
-  return false;
-}
-
-async function startProductionSchedulers() {
-  console.log("[Runtime] Starting production schedulers");
-  startInventoryScheduler();
-  startPostingScheduler();
-  await createFBMarketplaceScheduler();
-  startMarketAnalysisScheduler();
-  startCompetitiveReportScheduler();
-  startFacebookCatalogScheduler();
-  startGhlSyncScheduler();
-  startAutomationScheduler();
-  startReengagementScheduler();
-  startScheduledMessageScheduler();
-  startNotificationsScheduler();
-}
-
 function installGracefulShutdown(server: Server) {
   let shuttingDown = false;
-  let shutdownTimer: NodeJS.Timeout | undefined;
 
   const shutdown = async (signal: NodeJS.Signals) => {
-    if (shuttingDown) {
-      log(`Ignoring ${signal}; shutdown already in progress`, "shutdown");
-      return;
-    }
-
+    if (shuttingDown) return;
     shuttingDown = true;
-    log(`Received ${signal}; starting graceful shutdown`, "shutdown");
+    console.log(`[Shutdown] ${signal} received`);
 
-    shutdownTimer = setTimeout(() => {
-      console.error(JSON.stringify({
-        timestamp: new Date().toISOString(),
-        level: "error",
-        source: "shutdown",
-        message: `Graceful shutdown timed out after ${SHUTDOWN_TIMEOUT_MS}ms`,
-      }));
+    const timer = setTimeout(() => {
+      console.error("[Shutdown] Timeout, forcing exit");
       process.exit(1);
     }, SHUTDOWN_TIMEOUT_MS);
-    shutdownTimer.unref();
+    timer.unref();
 
     try {
       await new Promise<void>((resolve, reject) => {
-        server.close((error) => {
-          if (error) {
-            reject(error);
-            return;
-          }
-          resolve();
+        server.close((err) => {
+          if (err) reject(err);
+          else resolve();
         });
       });
-      log("HTTP server closed", "shutdown");
-
-      await pool.end();
-      log("Database pool closed", "shutdown");
-
-      if (shutdownTimer) {
-        clearTimeout(shutdownTimer);
-      }
-
-      log("Graceful shutdown complete", "shutdown");
+      console.log("[Shutdown] Server closed");
+      clearTimeout(timer);
       process.exit(0);
     } catch (error) {
-      if (shutdownTimer) {
-        clearTimeout(shutdownTimer);
-      }
-
-      console.error(JSON.stringify({
-        timestamp: new Date().toISOString(),
-        level: "error",
-        source: "shutdown",
-        message: error instanceof Error ? error.message : "Graceful shutdown failed",
-        stack: error instanceof Error ? error.stack : undefined,
-      }));
+      clearTimeout(timer);
+      console.error("[Shutdown] Error:", error);
       process.exit(1);
     }
   };
 
-  process.once("SIGTERM", () => {
-    void shutdown("SIGTERM");
-  });
-  process.once("SIGINT", () => {
-    void shutdown("SIGINT");
-  });
+  process.once("SIGTERM", () => void shutdown("SIGTERM"));
+  process.once("SIGINT", () => void shutdown("SIGINT"));
 }
 
+process.on("unhandledRejection", (reason) => {
+  console.error("[Unhandled Rejection]", reason);
+});
+
+process.on("uncaughtException", (error) => {
+  console.error("[Uncaught Exception]", error);
+});
+
 (async () => {
-  logRuntimeReadinessSummary();
-  ensureProductionRuntimeRequirements({ processType: "web" });
-
-  if (shouldStartSchedulers()) {
-    await startProductionSchedulers();
-  } else {
-    console.log("[Runtime] LOTVIEW_ENABLE_SCHEDULERS=false, skipping scheduler startup in this process");
+  try {
+    console.log("[Boot] Starting server...");
+    const server = await runApp(undefined, "web");
+    installGracefulShutdown(server);
+    console.log("[Boot] Server started");
+  } catch (error) {
+    console.error("[Boot] Fatal:", error instanceof Error ? error.message : String(error));
+    console.error(error instanceof Error ? error.stack : "");
+    setTimeout(() => process.exit(1), 5000);
   }
-
-  const server = await runApp(serveStatic);
-  installGracefulShutdown(server);
 })();
