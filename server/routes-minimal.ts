@@ -3,18 +3,84 @@ import { db } from "./db";
 import { users, dealerships, scrapeSources } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
+// ===== PASSWORD UTILS (async, so module load is safe) =====
+async function hashPassword(password: string): Promise<string> {
+  try {
+    const bcrypt = await import("bcrypt");
+    return await bcrypt.default.hash(password, 10);
+  } catch {
+    // Fallback when bcrypt not available
+    const { createHash } = await import("crypto");
+    return createHash("sha256").update(password + "lotview-salt").digest("hex");
+  }
+}
+
+async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  try {
+    const bcrypt = await import("bcrypt");
+    return await bcrypt.default.compare(password, hash);
+  } catch {
+    const { createHash } = await import("crypto");
+    const test = createHash("sha256").update(password + "lotview-salt").digest("hex");
+    return test === hash;
+  }
+}
+
+// ===== JWT UTILS =====
+function generateToken(user: any): string {
+  const jwt = require("jsonwebtoken");
+  const secret = process.env.JWT_SECRET || process.env.SESSION_SECRET || "lotview-dev-secret-CHANGE-ME";
+  return jwt.sign(
+    { userId: user.id, email: user.email, role: user.role },
+    secret,
+    { expiresIn: "7d", issuer: "lotview", audience: "lotview-users" }
+  );
+}
+
+function verifyToken(token: string): any {
+  try {
+    const jwt = require("jsonwebtoken");
+    const secret = process.env.JWT_SECRET || process.env.SESSION_SECRET || "lotview-dev-secret-CHANGE-ME";
+    return jwt.verify(token, secret, { issuer: "lotview", audience: "lotview-users" });
+  } catch {
+    return null;
+  }
+}
+
+// ===== AUTH MIDDLEWARE =====
+function authMiddleware(req: Request, res: Response, next: any) {
+  const token = req.headers.authorization?.replace("Bearer ", "");
+  if (!token) {
+    return res.status(401).json({ error: "No token provided" });
+  }
+  const decoded = verifyToken(token);
+  if (!decoded) {
+    return res.status(401).json({ error: "Invalid or expired token" });
+  }
+  (req as any).user = decoded;
+  next();
+}
+
+function superAdminOnly(req: Request, res: Response, next: any) {
+  const user = (req as any).user;
+  if (!user || user.role !== "super_admin") {
+    return res.status(403).json({ error: "Super admin access required" });
+  }
+  next();
+}
+
 /**
- * Minimal safe routes — Phase 1 of bulletproof rebuild.
- * Only includes endpoints that don't import crash-prone modules.
+ * Minimal safe routes — Phase 2
+ * Includes auth, setup, password change, dealership, scrape sources
  */
 
 export default async function registerMinimalRoutes(app: Express) {
   // ===== HEALTH =====
   app.get("/api/health", (_req: Request, res: Response) => {
-    res.json({ status: "ok", time: new Date().toISOString() });
+    res.json({ status: "ok", time: new Date().toISOString(), uptime: process.uptime() });
   });
 
-  // ===== AUTH =====
+  // ===== AUTH: LOGIN =====
   app.post("/api/auth/login", async (req: Request, res: Response) => {
     try {
       const { email, password } = req.body;
@@ -27,14 +93,16 @@ export default async function registerMinimalRoutes(app: Express) {
         return res.status(401).json({ error: "Invalid credentials" });
       }
 
-      // Simple password check (in production, use bcrypt)
-      // For now, just check if user exists and is active
+      const isValid = await verifyPassword(password, user[0].passwordHash);
+      if (!isValid) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+
       if (!user[0].isActive) {
         return res.status(403).json({ error: "Account deactivated" });
       }
 
-      // Generate simple JWT (in production, use proper JWT library)
-      const token = "placeholder-token-" + user[0].id + "-" + Date.now();
+      const token = generateToken(user[0]);
 
       res.json({
         token,
@@ -51,7 +119,41 @@ export default async function registerMinimalRoutes(app: Express) {
     }
   });
 
-  // ===== FIRST-RUN SETUP =====
+  // ===== AUTH: CHANGE PASSWORD =====
+  app.post("/api/auth/change-password", authMiddleware, async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user?.userId;
+      const { currentPassword, newPassword } = req.body;
+
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({ error: "Current password and new password required" });
+      }
+
+      if (newPassword.length < 8) {
+        return res.status(400).json({ error: "New password must be at least 8 characters" });
+      }
+
+      const user = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      if (user.length === 0) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const isValid = await verifyPassword(currentPassword, user[0].passwordHash);
+      if (!isValid) {
+        return res.status(401).json({ error: "Current password is incorrect" });
+      }
+
+      const newHash = await hashPassword(newPassword);
+      await db.update(users).set({ passwordHash: newHash, updatedAt: new Date() }).where(eq(users.id, userId));
+
+      res.json({ success: true, message: "Password updated successfully" });
+    } catch (error) {
+      console.error("[Change Password Error]", error);
+      res.status(500).json({ error: "Failed to change password" });
+    }
+  });
+
+  // ===== SETUP: FIRST-RUN =====
   app.post("/api/setup/first-run", async (req: Request, res: Response) => {
     try {
       const results: any = {};
@@ -61,9 +163,9 @@ export default async function registerMinimalRoutes(app: Express) {
       results.superAdminExists = admins.length > 0;
 
       if (admins.length === 0) {
-        const email = process.env.SUPER_ADMIN_EMAIL || req.body?.email;
+        const email = (process.env.SUPER_ADMIN_EMAIL || req.body?.email || "").trim().toLowerCase();
         const password = process.env.SUPER_ADMIN_PASSWORD || req.body?.password;
-        const name = process.env.SUPER_ADMIN_NAME || "Super Admin";
+        const name = process.env.SUPER_ADMIN_NAME || req.body?.name || "Super Admin";
 
         if (!email || !password) {
           return res.status(400).json({
@@ -71,10 +173,11 @@ export default async function registerMinimalRoutes(app: Express) {
           });
         }
 
+        const passwordHash = await hashPassword(password);
         const [admin] = await db.insert(users).values({
           email,
           name,
-          passwordHash: "placeholder-hash-" + Date.now(),
+          passwordHash,
           role: "super_admin",
           isActive: true,
           createdAt: new Date(),
@@ -128,7 +231,18 @@ export default async function registerMinimalRoutes(app: Express) {
     }
   });
 
-  // ===== DEALERSHIP INFO =====
+  // ===== USERS =====
+  app.get("/api/users", authMiddleware, superAdminOnly, async (_req: Request, res: Response) => {
+    try {
+      const allUsers = await db.select().from(users);
+      res.json(allUsers);
+    } catch (error) {
+      console.error("[Users Error]", error);
+      res.status(500).json({ error: "Failed to fetch users" });
+    }
+  });
+
+  // ===== DEALERSHIPS =====
   app.get("/api/dealerships", async (_req: Request, res: Response) => {
     try {
       const all = await db.select().from(dealerships);
@@ -150,7 +264,7 @@ export default async function registerMinimalRoutes(app: Express) {
     }
   });
 
-  app.post("/api/scrape-sources", async (req: Request, res: Response) => {
+  app.post("/api/scrape-sources", authMiddleware, superAdminOnly, async (req: Request, res: Response) => {
     try {
       const { dealershipId, sourceName, sourceUrl, sourceType } = req.body;
       const [source] = await db.insert(scrapeSources).values({
@@ -177,7 +291,9 @@ export default async function registerMinimalRoutes(app: Express) {
       path: req.path,
       available: [
         "POST /api/auth/login",
+        "POST /api/auth/change-password",
         "POST /api/setup/first-run",
+        "GET /api/users",
         "GET /api/dealerships",
         "GET /api/scrape-sources",
         "POST /api/scrape-sources",
@@ -185,5 +301,5 @@ export default async function registerMinimalRoutes(app: Express) {
     });
   });
 
-  console.log("[Routes] Minimal routes registered");
+  console.log("[Routes] Phase 2 routes registered (auth + setup + password change)");
 }
