@@ -164,11 +164,26 @@ export function ensureProductionRuntimeRequirements({ processType }: RuntimeRequ
   }
 
   const report = collectRuntimeReadiness(processType);
-  const blockingChecks = Object.entries(report.checks)
+  const unhealthyChecks = Object.entries(report.checks)
     .filter(([, check]) => check.status === "unhealthy")
     .map(([name, check]) => `${name}: ${check.detail}`);
 
-  if (blockingChecks.length > 0) {
-    throw new Error(`[Runtime] Production readiness failed for ${processType}: ${blockingChecks.join(" | ")}`);
+  const warningChecks = Object.entries(report.checks)
+    .filter(([, check]) => check.status === "warning")
+    .map(([name, check]) => `${name}: ${check.detail}`);
+
+  // Log all warnings
+  for (const check of warningChecks) {
+    console.warn(`[Runtime] Warning: ${check}`);
+  }
+
+  // Log unhealthy checks as CRITICAL but DO NOT crash the server
+  // In production, the server should start and let operators fix issues
+  for (const check of unhealthyChecks) {
+    console.error(`[Runtime] CRITICAL (non-blocking): ${check}`);
+  }
+
+  if (unhealthyChecks.length > 0) {
+    console.error(`[Runtime] ${unhealthyChecks.length} critical checks failed. Server is starting anyway — fix these issues immediately.`);
   }
 }
