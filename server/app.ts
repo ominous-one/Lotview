@@ -20,7 +20,10 @@ import { getRedisClient, checkRedisHealth } from "./services/redis";
 import { closeDatabasePool } from "./db";
 
 // Validate environment variables before any other initialization
-validateEnvironment();
+const envValid = validateEnvironment();
+  if (!envValid) {
+    console.warn("[App] Environment validation failed — server will start but some features may not work");
+  }
 
 const isProduction = process.env.NODE_ENV === "production";
 const useJsonLogs = isProduction || process.env.LOG_FORMAT === "json";
