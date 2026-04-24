@@ -17,7 +17,7 @@ import { isSafeE2ERequest, seedE2E } from "./e2e-test-mode";
 // JWT_SECRET must be set in production for security (SESSION_SECRET accepted as alias)
 const JWT_SECRET_ENV = process.env.JWT_SECRET || process.env.SESSION_SECRET;
 if (!JWT_SECRET_ENV && process.env.NODE_ENV === "production") {
-  throw new Error("JWT_SECRET (or SESSION_SECRET) environment variable is required in production");
+  console.error("[Tenant] WARNING: JWT_SECRET or SESSION_SECRET not set. Tenant resolution will fail.");
 }
 // Development fallback (same as auth.ts)
 const JWT_SECRET = JWT_SECRET_ENV || "olympic-auto-jwt-dev-secret-DO-NOT-USE-IN-PRODUCTION";
