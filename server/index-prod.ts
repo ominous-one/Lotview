@@ -169,9 +169,7 @@ process.on("uncaughtException", (error) => {
     installGracefulShutdown(server);
 
     const port = parseInt(process.env.PORT || "5000", 10);
-    server.listen(port, "0.0.0.0", () => {
-      console.log(`[Server] Running on port ${port}`);
-    });
+    console.log(`[Server] Started on port ${port}`);
   } catch (error) {
     console.error("[FATAL] Server startup failed:", error instanceof Error ? error.message : String(error));
     console.error(error instanceof Error ? error.stack : "");
