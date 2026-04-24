@@ -1,9 +1,10 @@
 import express from "express";
+import http from "http";
 
 const app = express();
 
 export default async function runApp(_serveStatic?: any, _processType?: string): Promise<any> {
-  const server = require("node:http").createServer(app);
+  const server = http.createServer(app);
   const startupLog: string[] = [];
   const startupErrors: string[] = [];
 
@@ -18,41 +19,12 @@ export default async function runApp(_serveStatic?: any, _processType?: string):
     }
   }
 
-  // Phase 1: Basic middleware (using only express builtins)
-  try {
-    app.use(express.json({ limit: "1mb" }));
-    app.use(express.urlencoded({ extended: true, limit: "1mb" }));
-    logStep("Body parsing");
-  } catch (e) {
-    logStep("Body parsing", e as Error);
-  }
+  // Phase 1: Basic middleware
+  app.use(express.json({ limit: "1mb" }));
+  app.use(express.urlencoded({ extended: true, limit: "1mb" }));
+  logStep("Body parsing");
 
-  // Phase 2: Try to load helmet, cors, rate-limit dynamically
-  try {
-    const helmet = await import("helmet");
-    app.use(helmet.default());
-    logStep("Helmet");
-  } catch (e) {
-    logStep("Helmet", "Not installed or failed to load");
-  }
-
-  try {
-    const cors = await import("cors");
-    app.use(cors.default({ origin: true, credentials: true }));
-    logStep("CORS");
-  } catch (e) {
-    logStep("CORS", "Not installed or failed to load");
-  }
-
-  try {
-    const { rateLimit } = await import("express-rate-limit");
-    app.use("/api/", rateLimit({ windowMs: 15 * 60 * 1000, max: 100 }));
-    logStep("Rate limiting");
-  } catch (e) {
-    logStep("Rate limiting", "Not installed or failed to load");
-  }
-
-  // Phase 3: Health endpoint
+  // Phase 2: Health endpoint
   app.get("/api/health", (_req, res) => {
     res.json({
       status: "ok",
@@ -65,72 +37,54 @@ export default async function runApp(_serveStatic?: any, _processType?: string):
     });
   });
 
-  // Phase 4: Dynamically load all server modules
-  const moduleList = [
-    { name: "Database", path: "./db" },
-    { name: "Auth", path: "./auth" },
-    { name: "Storage", path: "./storage" },
-    { name: "Routes", path: "./routes" },
-    { name: "Tenant Middleware", path: "./tenant-middleware" },
-    { name: "Error Utils", path: "./error-utils" },
-    { name: "Crypto Utils", path: "./utils/crypto" },
+  // Phase 3: Dynamically load modules one by one
+  const modules = [
+    "./db",
+    "./auth",
+    "./storage",
+    "./routes",
+    "./tenant-middleware",
+    "./error-utils",
+    "./utils/crypto",
   ];
 
   const loaded: Record<string, any> = {};
-
-  for (const mod of moduleList) {
+  for (const modPath of modules) {
     try {
-      const m = await import(mod.path);
-      loaded[mod.name] = m;
-      logStep(mod.name);
+      const modName = modPath.replace("./", "").replace("/", "_");
+      const m = await import(modPath);
+      loaded[modName] = m;
+      logStep(modName);
     } catch (e) {
-      logStep(mod.name, e as Error);
+      logStep(modPath.replace("./", ""), (e as Error).message);
     }
   }
 
-  // Phase 5: Mount routes if loaded successfully
-  if (loaded["Routes"] && loaded["Routes"].default) {
+  // Phase 4: Mount routes if available
+  if (loaded["routes"] && loaded["routes"].default) {
     try {
-      loaded["Routes"].default(app);
+      loaded["routes"].default(app);
       logStep("Routes mounted");
     } catch (e) {
-      logStep("Routes mounted", e as Error);
+      logStep("Routes mounted", (e as Error).message);
     }
   } else {
     app.use("/api", (req, res) => {
       res.status(503).json({
-        error: "API routes temporarily unavailable",
+        error: "API routes unavailable",
         path: req.path,
         startupErrors,
       });
     });
-    logStep("Routes mounted (fallback)");
+    logStep("Routes fallback");
   }
 
-  // Phase 6: Try to load services
-  const services = [
-    "redis", "queue", "feature-flags", "ghl-notifications",
-    "ai-cost-tracker", "fb-ban-recovery", "scrape-validator",
-    "vehicle-dedup", "webhook-verifier", "external-api-guard",
-    "admin-dashboard", "calendar-sync", "ab-testing", "photo-guard",
-    "ai-posting-optimizer", "scheduler-integration",
-  ];
-
-  for (const svc of services) {
-    try {
-      await import(`./services/${svc}`);
-      logStep(`Service: ${svc}`);
-    } catch (e) {
-      logStep(`Service: ${svc}`, "Not loaded");
-    }
-  }
-
-  // Phase 7: Static files (production only)
+  // Phase 5: Static files
   if (process.env.NODE_ENV === "production") {
     try {
-      const path = await import("node:path");
-      const { fileURLToPath } = await import("node:url");
-      const fs = await import("node:fs");
+      const path = await import("path");
+      const { fileURLToPath } = await import("url");
+      const fs = await import("fs");
       const distDir = path.dirname(fileURLToPath(import.meta.url));
       const distPath = path.resolve(distDir, "public");
       const altPath = path.resolve(distDir);
@@ -143,29 +97,29 @@ export default async function runApp(_serveStatic?: any, _processType?: string):
       if (fs.existsSync(servePath)) {
         app.use(express.static(servePath));
         app.use("*", (_req, res) => {
-          const indexPath = path.resolve(servePath, "index.html");
-          if (fs.existsSync(indexPath)) {
-            res.sendFile(indexPath);
+          const idxPath = path.resolve(servePath, "index.html");
+          if (fs.existsSync(idxPath)) {
+            res.sendFile(idxPath);
           } else {
-            res.status(404).json({ error: "Frontend not built. API operational." });
+            res.status(404).json({ error: "Frontend not built" });
           }
         });
         logStep("Static files");
       } else {
-        logStep("Static files", "No build directory found");
+        logStep("Static files", "No build directory");
       }
     } catch (e) {
-      logStep("Static files", e as Error);
+      logStep("Static files", (e as Error).message);
     }
   }
 
-  // Phase 8: Global error handler
+  // Phase 6: Error handler
   app.use((err: any, _req: any, res: any, _next: any) => {
-    console.error("[Express Error]", err);
-    res.status(500).json({ error: "Internal error", requestId: Date.now() });
+    console.error("[Error]", err);
+    res.status(500).json({ error: "Internal error" });
   });
 
-  // Phase 9: Start server
+  // Phase 7: Start server
   const port = parseInt(process.env.PORT || "5000", 10);
   server.listen(port, "0.0.0.0", () => {
     console.log(`[Server] Port ${port}`);
