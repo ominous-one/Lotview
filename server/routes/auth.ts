@@ -19,7 +19,7 @@ import {
   hashPassword,
   type AuthRequest,
 } from "../auth";
-import { authLimiter, sensitiveLimiter } from "../app";
+import { authLimiter, sensitiveLimiter } from "../middleware/http-rate-limiters";
 import { isSafeE2ERequest, seedE2E } from "../e2e-test-mode";
 
 const router = Router();
