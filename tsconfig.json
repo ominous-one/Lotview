@@ -1,0 +1,38 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "allowJs": false,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": false,
+    "forceConsistentCasingInFileNames": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["client/src/*"],
+      "@shared/*": ["shared/*"]
+    },
+    "types": ["node", "jest", "vitest/globals"]
+  },
+  "include": [
+    "client/src/**/*.ts",
+    "client/src/**/*.tsx",
+    "server/**/*.ts",
+    "shared/**/*.ts",
+    "scripts/**/*.ts",
+    "tests/**/*.ts",
+    "vite.config.ts",
+    "vitest.smoke.config.ts",
+    "drizzle.config.ts"
+  ],
+  "exclude": ["node_modules", "dist"]
+}
