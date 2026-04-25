@@ -1,0 +1,184 @@
+# ─── Lotview SaaS - Production Docker Compose ───
+# Usage:
+#   docker-compose up -d              # Start all services
+#   docker-compose -f docker-compose.yml up -d --build  # Rebuild
+#   docker-compose logs -f web       # View web logs
+#   docker-compose exec db psql -U lotview -d lotview  # DB access
+
+version: "3.8"
+
+services:
+  # ─── PostgreSQL Database ───
+  db:
+    image: postgres:16-alpine
+    container_name: lotview-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-lotview}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-lotview_secure_password_2026}
+      POSTGRES_DB: ${DB_NAME:-lotview}
+      PGUSER: ${DB_USER:-lotview}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-lotview} -d ${DB_NAME:-lotview}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - lotview-network
+
+  # ─── Redis Cache + Queue ───
+  redis:
+    image: redis:7-alpine
+    container_name: lotview-redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - lotview-network
+
+  # ─── Web Application (API + Static Files) ───
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    container_name: lotview-web
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # ── Core ──
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgres://${DB_USER:-lotview}:${DB_PASSWORD:-lotview_secure_password_2026}@db:5432/${DB_NAME:-lotview}
+      REDIS_URL: redis://redis:6379
+
+      # ── Auth ──
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      SESSION_SECRET: ${SESSION_SECRET:-${JWT_SECRET}}
+
+      # ── GHL (GoHighLevel) ──
+      GHL_CLIENT_ID: ${GHL_CLIENT_ID:-}
+      GHL_CLIENT_SECRET: ${GHL_CLIENT_SECRET:-}
+      GHL_API_KEY: ${GHL_API_KEY:-}
+
+      # ── OpenAI ──
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+
+      # ── Facebook ──
+      FACEBOOK_APP_ID: ${FACEBOOK_APP_ID:-}
+      FACEBOOK_APP_SECRET: ${FACEBOOK_APP_SECRET:-}
+
+      # ── Browserless / Scraping ──
+      BROWSERLESS_TOKEN: ${BROWSERLESS_TOKEN:-}
+
+      # ── Storage ──
+      GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:-}
+      GOOGLE_CLOUD_BUCKET: ${GOOGLE_CLOUD_BUCKET:-}
+
+      # ── Feature Flags ──
+      FEATURE_VEHICLE_DEDUP: ${FEATURE_VEHICLE_DEDUP:-false}
+      FEATURE_CLOUD_CARFAX: ${FEATURE_CLOUD_CARFAX:-false}
+      FEATURE_AI_POSTING_OPTIMIZER: ${FEATURE_AI_POSTING_OPTIMIZER:-false}
+      FEATURE_GHL_FALLBACK_SMS: ${FEATURE_GHL_FALLBACK_SMS:-false}
+      FEATURE_APPOINTMENT_REMINDERS: ${FEATURE_APPOINTMENT_REMINDERS:-false}
+
+      # ── Scheduler Control ──
+      LOTVIEW_ENABLE_SCHEDULERS: ${LOTVIEW_ENABLE_SCHEDULERS:-true}
+      LOTVIEW_SCHEDULER_PROCESS: web
+
+      # ── Logging ──
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+
+      # ── CORS ──
+      CORS_ORIGIN: ${CORS_ORIGIN:-}
+
+    ports:
+      - "3000:3000"
+    networks:
+      - lotview-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  # ─── Background Worker (Schedulers + Queue Processing) ───
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    container_name: lotview-worker
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://${DB_USER:-lotview}:${DB_PASSWORD:-lotview_secure_password_2026}@db:5432/${DB_NAME:-lotview}
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      SESSION_SECRET: ${SESSION_SECRET:-${JWT_SECRET}}
+      LOTVIEW_ENABLE_SCHEDULERS: ${LOTVIEW_ENABLE_SCHEDULERS:-true}
+      LOTVIEW_SCHEDULER_PROCESS: worker
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    command: ["node", "dist/index-worker.js"]
+    networks:
+      - lotview-network
+    # Workers don't expose ports but need health check internally
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://web:3000/api/health"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+
+  # ─── Optional: Nginx Reverse Proxy (SSL termination + rate limiting) ───
+  # Uncomment for production with SSL:
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: lotview-nginx
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+  #     - ./docker/nginx/ssl:/etc/nginx/ssl:ro
+  #   depends_on:
+  #     - web
+  #   networks:
+  #     - lotview-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  lotview-network:
+    driver: bridge
