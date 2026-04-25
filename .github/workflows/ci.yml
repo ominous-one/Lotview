@@ -16,9 +16,9 @@ jobs:
         with:
           node-version: "20"
           cache: "npm"
-      - run: npm ci --ignore-scripts
+      - run: npm install --ignore-scripts
       - run: npm run lint
-      - run: npx tsc --noEmit
+      - run: npm run check
 
   test-server:
     name: Server Tests
@@ -53,27 +53,72 @@ jobs:
         with:
           node-version: "20"
           cache: "npm"
-      - run: npm ci --ignore-scripts
+      - run: npm install --ignore-scripts
       - run: npm run test:server
         env:
           NODE_ENV: test
           DATABASE_URL: postgres://lotview:lotview_test@localhost:5432/lotview_test
           REDIS_URL: redis://localhost:6379
           JWT_SECRET: test-jwt-secret-32-chars-long!!!
+          SESSION_SECRET: test-session-secret-32-chars-long
           OPENAI_API_KEY: test-openai-key
           ANTHROPIC_API_KEY: test-anthropic-key
 
-  build:
-    name: Production Build
+  smoke-tests:
+    name: Smoke Tests
     runs-on: ubuntu-latest
-    needs: [lint-and-typecheck, test-server]
+    needs: lint-and-typecheck
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: lotview
+          POSTGRES_PASSWORD: lotview_test
+          POSTGRES_DB: lotview_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: "npm"
-      - run: npm ci --ignore-scripts
+      - run: npm install --ignore-scripts
+      - run: npm run test:smoke
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgres://lotview:lotview_test@localhost:5432/lotview_test
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: test-jwt-secret-32-chars-long!!!
+          SESSION_SECRET: test-session-secret-32-chars-long
+          OPENAI_API_KEY: test-openai-key
+          ANTHROPIC_API_KEY: test-anthropic-key
+
+  build:
+    name: Production Build
+    runs-on: ubuntu-latest
+    needs: [lint-and-typecheck, test-server, smoke-tests]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm install --ignore-scripts
       - run: npm run build
       - uses: actions/upload-artifact@v4
         with:
@@ -97,6 +142,7 @@ jobs:
       - uses: docker/build-push-action@v5
         with:
           context: .
+          file: ./Dockerfile
           push: true
           tags: |
             ghcr.io/${{ github.repository }}:latest
