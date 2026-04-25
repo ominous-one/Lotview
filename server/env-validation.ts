@@ -20,10 +20,10 @@ const REQUIRED_ENV_VARS: EnvVar[] = [
   { name: "PGPASSWORD", required: false },
   { name: "PGDATABASE", required: false },
 
-  // Security
-  { name: "JWT_SECRET", required: false, productionOnly: true },
-  { name: "SESSION_SECRET", required: false, productionOnly: true },
-  { name: "EXTENSION_HMAC_SECRET", required: false, productionOnly: true },
+  // Security — required in production for token signing and request verification
+  { name: "JWT_SECRET", required: true, productionOnly: true },
+  { name: "SESSION_SECRET", required: true, productionOnly: true },
+  { name: "EXTENSION_HMAC_SECRET", required: true, productionOnly: true },
 
   // AI
   { name: "ANTHROPIC_API_KEY", required: false },
@@ -48,8 +48,8 @@ const REQUIRED_ENV_VARS: EnvVar[] = [
   { name: "FACEBOOK_APP_ID", required: false },
   { name: "FACEBOOK_APP_SECRET", required: false, productionOnly: true },
 
-  // GHL Webhook
-  { name: "GHL_WEBHOOK_SECRET", required: false, productionOnly: true },
+  // GHL Webhook — required in production to verify inbound webhook signatures
+  { name: "GHL_WEBHOOK_SECRET", required: true, productionOnly: true },
 
   // Browserless
   { name: "BROWSERLESS_API_KEY", required: false },

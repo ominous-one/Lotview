@@ -6,7 +6,8 @@
 
 import { Router } from "express";
 import { storage } from "../storage";
-import { authMiddleware, superAdminOnly } from "../tenant-middleware";
+import { authMiddleware } from "../auth";
+import { superAdminOnly } from "../tenant-middleware";
 import { logError } from "../error-utils";
 import { getSystemHealth, getBusinessMetrics, getDealershipActivity, getAIMetrics, getScrapingMetrics, getFBMarketplaceMetrics, getSystemAlerts, resolveAlert } from "../services/admin-dashboard";
 

@@ -219,6 +219,9 @@ function redactForLogs(value: unknown): unknown {
 }
 
 function shouldLogResponseBody(path: string): boolean {
+  // Never log response bodies in production — too risky for PII
+  if (isProduction) return false;
+
   return !(
     path.startsWith('/api/auth/') ||
     path.startsWith('/api/extension/login') ||
@@ -235,9 +238,13 @@ app.use(helmet({
       baseUri: ["'self'"],
       objectSrc: ["'none'"],
       frameAncestors: ["'self'"],
-      // unsafe-inline required for GTM inline snippet in index.html
-      scriptSrc: ["'self'", "'unsafe-inline'", "https://www.googletagmanager.com", "https://cdnjs.cloudflare.com"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
+      // unsafe-inline only in dev; production uses strict CSP (all JS is external bundles)
+      scriptSrc: isProduction
+        ? ["'self'", "https://www.googletagmanager.com", "https://cdnjs.cloudflare.com"]
+        : ["'self'", "'unsafe-inline'", "https://www.googletagmanager.com", "https://cdnjs.cloudflare.com"],
+      styleSrc: isProduction
+        ? ["'self'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"]
+        : ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com", "data:"],
       // http: required for dealer inventory photos served over plain HTTP
       imgSrc: ["'self'", "data:", "blob:", "https:", "http:"],
@@ -393,8 +400,20 @@ export default async function runApp(
   // Register modular routes first (extracted from monolithic routes.ts)
   registerModularRoutes(app);
 
-  // Register legacy routes (remaining routes not yet extracted)
-  const server = await registerRoutes(app);
+  // Legacy routes — gated behind env var during migration.
+  // When all routes are extracted, set ENABLE_LEGACY_ROUTES=false
+  // to prevent duplicate endpoint registration.
+  const enableLegacy = process.env.ENABLE_LEGACY_ROUTES !== "false";
+  let server: Server;
+
+  if (enableLegacy) {
+    console.log("[Routes] Legacy routes enabled (migration in progress)");
+    server = await registerRoutes(app);
+  } else {
+    // No legacy routes — create server directly
+    const http = await import("node:http");
+    server = http.createServer(app);
+  }
 
   // importantly run the final setup after setting up all the other routes so
   // the catch-all route doesn't interfere with the other routes

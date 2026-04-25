@@ -45,11 +45,12 @@ router.get("/", async (req, res) => {
 
     if (wantsFullView) {
       const { vehicles: vehiclesList, total } = await storage.getVehicles(dealershipId, limit, offset);
-      const vehiclesWithViews = vehiclesList.map(vehicle => ({
+      // Resolve actual view counts from storage (no fake data in production)
+      const vehiclesWithViews = await Promise.all(vehiclesList.map(async (vehicle) => ({
         ...vehicle,
         images: (vehicle.localImages && vehicle.localImages.length > 0) ? vehicle.localImages : vehicle.images,
-        views: Math.floor(Math.random() * (35 - 5 + 1)) + 5
-      }));
+        views: await storage.getVehicleViews(vehicle.id, dealershipId, 24),
+      })));
       return res.json({
         data: vehiclesWithViews,
         pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
@@ -57,10 +58,10 @@ router.get("/", async (req, res) => {
     }
 
     const { vehicles: vehiclesList, total } = await storage.getPublicInventoryVehicles(dealershipId, limit, offset);
-    const vehiclesWithViews = vehiclesList.map(vehicle => ({
+    const vehiclesWithViews = await Promise.all(vehiclesList.map(async (vehicle) => ({
       ...vehicle,
-      views: Math.floor(Math.random() * (35 - 5 + 1)) + 5
-    }));
+      views: await storage.getVehicleViews(vehicle.id, dealershipId, 24),
+    })));
     res.json({
       data: vehiclesWithViews,
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
@@ -75,15 +76,16 @@ router.get("/", async (req, res) => {
 router.get("/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const dealershipId = req.dealershipId!;
+    if (!req.dealershipId) {
+      return res.status(400).json({ error: "Dealership context required" });
+    }
+    const dealershipId = req.dealershipId;
     const vehicle = await storage.getVehicleById(id, dealershipId);
     if (!vehicle) {
       return res.status(404).json({ error: "Vehicle not found" });
     }
-    res.json({
-      ...vehicle,
-      views: Math.floor(Math.random() * (35 - 5 + 1)) + 5
-    });
+    const views = await storage.getVehicleViews(id, dealershipId, 24);
+    res.json({ ...vehicle, views });
   } catch (error) {
     logError("Error fetching vehicle:", error instanceof Error ? error : new Error(String(error)), { route: "api-vehicles-id" });
     res.status(500).json({ error: "Failed to fetch vehicle" });

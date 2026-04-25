@@ -7,7 +7,7 @@
   "scripts": {
     "dev:client": "vite dev --port 5000",
     "dev": "cross-env NODE_ENV=development tsx server/index-dev.ts",
-    "build": "npx vite build && npx esbuild server/index-prod.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/index.js && npx esbuild server/index-worker.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/index-worker.js",
+    "build": "npx vite build && npx esbuild server/index-prod.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/index.js && npx esbuild server/index-worker.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/index-worker.js && npx esbuild server/scripts/run-daily-scrape.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/scripts/run-daily-scrape.js && npx esbuild server/scripts/run-carfax-refresh.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/scripts/run-carfax-refresh.js",
     "start": "cross-env NODE_ENV=production node dist/index.js",
     "start:worker": "cross-env NODE_ENV=production node dist/index-worker.js",
     "check": "tsc",

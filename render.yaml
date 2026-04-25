@@ -1,22 +1,25 @@
 # Lotview SaaS — Render Blueprint
 # Deploy the entire stack to Render.com with one click
 #
-# Usage:
-#   1. Push this repo to GitHub
-#   2. Connect repo in Render Dashboard → Blueprints
-#   3. Render provisions: Web Service + Worker + PostgreSQL + Redis
+# Architecture:
+#   - Web Service: HTTP API + static files (no schedulers)
+#   - Worker: Background jobs + queue processing + scheduled tasks
+#   - PostgreSQL: Database
+#   - Redis: Cache + sessions + job queues
 #
-# Or deploy manually:
-#   render blueprint apply render.yaml
+# The worker owns ALL background work (scrapes, Carfax refresh, FB posting, AI,
+# GHL sync, re-engagement). The web service only serves HTTP requests.
+# This prevents duplicate job execution.
 
 services:
   # ─── Web Service (API + Static Files) ───
+  # Serves HTTP only. No schedulers run here.
   - type: web
     name: lotview-api
     runtime: docker
     repo: https://github.com/ominous-one/Lotview
     branch: main
-    dockerfilePath: ./Dockerfile.render
+    dockerfilePath: ./Dockerfile
     dockerContext: .
     env: docker
     plan: standard
@@ -41,7 +44,7 @@ services:
       - key: SESSION_SECRET
         generateValue: true
       - key: LOTVIEW_ENABLE_SCHEDULERS
-        value: "true"
+        value: "false"
       - key: LOTVIEW_SCHEDULER_PROCESS
         value: "web"
       - key: LOG_FORMAT
@@ -55,16 +58,18 @@ services:
         - server/**
         - shared/**
         - client/**
-        - Dockerfile.render
+        - Dockerfile
         - package.json
 
   # ─── Background Worker (Schedulers + Queue Processing) ───
+  # Owns ALL scheduled tasks and background jobs.
+  # Prevents duplicate execution by running schedulers only here.
   - type: worker
     name: lotview-worker
     runtime: docker
     repo: https://github.com/ominous-one/Lotview
     branch: main
-    dockerfilePath: ./Dockerfile.render
+    dockerfilePath: ./Dockerfile
     dockerContext: .
     env: docker
     plan: starter
@@ -104,53 +109,8 @@ services:
       paths:
         - server/**
         - shared/**
-        - Dockerfile.render
+        - Dockerfile
         - package.json
-
-  # ─── Cron Job: Daily Inventory Scrape ───
-  - type: cron
-    name: lotview-daily-scrape
-    runtime: docker
-    repo: https://github.com/ominous-one/Lotview
-    branch: main
-    dockerfilePath: ./Dockerfile.render
-    dockerContext: .
-    env: docker
-    plan: starter
-    schedule: "0 6 * * *"  # 6 AM UTC daily
-    dockerCommand: node dist/scripts/run-daily-scrape.js
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: DATABASE_URL
-        fromDatabase:
-          name: lotview-db
-          property: connectionString
-      - key: REDIS_URL
-        fromService:
-          type: redis
-          name: lotview-redis
-          property: connectionString
-
-  # ─── Cron Job: Hourly Carfax Refresh ───
-  - type: cron
-    name: lotview-carfax-refresh
-    runtime: docker
-    repo: https://github.com/ominous-one/Lotview
-    branch: main
-    dockerfilePath: ./Dockerfile.render
-    dockerContext: .
-    env: docker
-    plan: starter
-    schedule: "0 * * * *"  # Every hour
-    dockerCommand: node dist/scripts/run-carfax-refresh.js
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: DATABASE_URL
-        fromDatabase:
-          name: lotview-db
-          property: connectionString
 
 databases:
   # ─── PostgreSQL Database ───

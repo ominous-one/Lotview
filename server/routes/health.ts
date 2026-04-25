@@ -50,9 +50,12 @@ router.get("/api/ready", async (_req, res) => {
   const redisStart = Date.now();
   try {
     const redisHealth = await checkRedisHealth();
-    checks.redis = { ok: redisHealth.status === "connected", latencyMs: Date.now() - redisStart };
-    if (!checks.redis.ok) {
-      checks.redis.error = redisHealth.error || "Redis not connected";
+    checks.redis = {
+      ok: redisHealth.healthy,
+      latencyMs: redisHealth.latencyMs,
+      error: redisHealth.error,
+    };
+    if (!redisHealth.healthy) {
       allHealthy = false;
     }
   } catch (err) {
@@ -63,12 +66,12 @@ router.get("/api/ready", async (_req, res) => {
   // Queue check
   const queueStart = Date.now();
   try {
-    const queueHealth = await getQueueHealth();
-    checks.queues = { ok: queueHealth.status === "healthy", latencyMs: Date.now() - queueStart };
-    if (!checks.queues.ok) {
-      checks.queues.error = queueHealth.error || "Queue unhealthy";
-      allHealthy = false;
-    }
+    const queueCounts = await getQueueHealth();
+    checks.queues = {
+      ok: true,
+      latencyMs: Date.now() - queueStart,
+      details: queueCounts,
+    };
   } catch (err) {
     checks.queues = { ok: false, latencyMs: Date.now() - queueStart, error: (err as Error).message };
     allHealthy = false;
