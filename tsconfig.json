@@ -21,7 +21,7 @@
       "@/*": ["client/src/*"],
       "@shared/*": ["shared/*"]
     },
-    "types": ["node", "jest", "vitest/globals"]
+    "types": ["node", "jest"]
   },
   "include": [
     "client/src/**/*.ts",
