@@ -1,13 +1,17 @@
-# ─── Multi-stage Dockerfile for Lotview SaaS ───
-# Stage 1: Dependencies
+# ─── Lotview SaaS — Render-Optimized Dockerfile ───
+# Multi-stage build optimized for Render.com's infrastructure
+#
+# Build: docker build -f Dockerfile.render -t lotview .
+# Run:   docker run -p 10000:10000 lotview
+
+# ─── Stage 1: Dependencies ───
 FROM node:20-alpine AS deps
-RUN apk add --no-cache libc6-compat python3 make g++
+RUN apk add --no-cache libc6-compat
 WORKDIR /app
-
 COPY package.json package-lock.json* ./
-RUN npm ci --only=production --ignore-scripts
+RUN npm ci --ignore-scripts
 
-# Stage 2: Builder
+# ─── Stage 2: Build ───
 FROM node:20-alpine AS builder
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
@@ -18,42 +22,37 @@ RUN npm ci --ignore-scripts
 COPY . .
 RUN npm run build
 
-# Stage 3: Production Runner
+# ─── Stage 3: Production ───
 FROM node:20-alpine AS runner
 RUN apk add --no-cache curl
 WORKDIR /app
 
 ENV NODE_ENV=production
-ENV PORT=3000
+# Render sets PORT=10000 by default
+ENV PORT=10000
 
-# Create non-root user for security
-RUN addgroup --system --gid 1001 lotview && \
-    adduser --system --uid 1001 --ingroup lotview lotview
-
-# Copy only necessary files
+# Copy production dependencies
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/package.json ./package.json
-
-# Shared schema needed at runtime for Drizzle
 COPY --from=builder /app/shared ./shared
 COPY --from=builder /app/server ./server
 
-# Drizzle config if present
-COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts 2>/dev/null || true
+# Copy scripts
+COPY --from=builder /app/scripts ./scripts
 
-# Scripts
-COPY --from=builder /app/scripts ./scripts 2>/dev/null || true
-
-# Set proper ownership
-RUN chown -R lotview:lotview /app
+# Create non-root user
+RUN addgroup --system --gid 1001 lotview && \
+    adduser --system --uid 1001 --ingroup lotview lotview && \
+    chown -R lotview:lotview /app
 USER lotview
 
-EXPOSE 3000
+EXPOSE 10000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD curl -fs http://localhost:3000/api/health || exit 1
+# Health check for Render
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD curl -fs http://localhost:${PORT}/api/health || exit 1
 
+# Default: run web server (worker overrides via dockerCommand in render.yaml)
 CMD ["node", "dist/index.js"]
