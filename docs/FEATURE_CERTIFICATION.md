@@ -1,0 +1,46 @@
+# Lotview Feature Certification
+
+No feature counts as working because the code exists.
+
+A feature only counts as working when CI, staging, logs, tests, and a real user flow prove it.
+
+## Certification Levels
+
+| Status | Meaning |
+|---|---|
+| Not Started | Code may or may not exist. No proof. |
+| Code Exists | Feature has code but no verified proof. Not production-ready. |
+| CI Verified | Lint, typecheck, build, and tests pass in CI. |
+| Staging Verified | Feature works in staging with realistic dealer data. |
+| Observable | Logs, errors, metrics, and recovery path exist. |
+| User-Flow Verified | A real user can complete the workflow end-to-end. |
+| Production Ready | All proof is complete. |
+
+## Required Proof
+
+Every production feature must have CI proof, automated tests, staging proof, logs or monitoring, real user-flow proof, failure or recovery behavior, an owner, and a last verified date.
+
+## Feature Certification Matrix
+
+| Feature | Status | CI Proof | Tests | Staging Proof | Logs/Monitoring | Real User Flow | Owner | Notes |
+|---|---|---|---|---|---|---|---|---|
+| Login/Auth | Code Exists | No | Partial | No | Partial | No | TBD | Verify sessions, JWT, failed login, password reset. |
+| RBAC | Not Started | No | No | No | No | No | TBD | Prove role permissions. |
+| Tenant Isolation | Not Started | No | No | No | No | No | TBD | Critical SaaS blocker. |
+| Health Endpoint | Code Exists | No | Partial | No | Partial | Partial | TBD | Verify health, ready, and version endpoints. |
+| Frontend Boot | Not Verified | No | No | No | No | No | TBD | Vite entrypoint must be proven. |
+| Vehicle Inventory CRUD | Code Exists | No | Partial | No | Partial | No | TBD | Test create, update, delete, and search. |
+| VIN Decode | Code Exists | No | Partial | No | Partial | No | TBD | Test known VIN fixtures. |
+| Scraper | Code Exists | No | Partial | No | Partial | No | TBD | Prove source-truth reconciliation. |
+| Source Truth Reconciliation | Code Exists | No | Partial | No | Partial | No | TBD | Protect manually verified data. |
+| Worker/Schedulers | Code Exists | No | No | No | Partial | No | TBD | Prove no duplicate jobs. |
+| Facebook Posting | Code Exists | No | No | No | No | No | TBD | Run in draft/review mode first. |
+| GHL Sync | Code Exists | No | No | No | No | No | TBD | Prove no duplicate contacts. |
+| AI Lead Response | Code Exists | No | No | No | No | No | TBD | Must pass guardrail tests. |
+| Admin Dashboard | Code Exists | No | No | No | Partial | No | TBD | Test permissions and audit logs. |
+| Billing/Plans | Not Started | No | No | No | No | No | TBD | Needed before self-serve SaaS. |
+| Render Deploy | Not Verified | No | No | No | No | No | TBD | Workflow needs proof. |
+
+## Launch Rule
+
+No real dealership users until all critical features are CI verified, staging verified, observable, and user-flow verified.
