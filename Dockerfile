@@ -1,24 +1,22 @@
 # ─── Lotview SaaS — Render-Optimized Dockerfile ───
-# Multi-stage build optimized for Render.com's infrastructure
+# Multi-stage build optimized for Render.com's infrastructure.
 #
-# Build: docker build -f Dockerfile.render -t lotview .
+# Build: docker build -t lotview .
 # Run:   docker run -p 10000:10000 lotview
 
 # ─── Stage 1: Dependencies ───
 FROM node:20-alpine AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm ci --ignore-scripts
+COPY package.json ./
+RUN npm install --ignore-scripts --omit=dev
 
 # ─── Stage 2: Build ───
 FROM node:20-alpine AS builder
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
-
-COPY package.json package-lock.json* ./
-RUN npm ci --ignore-scripts
-
+COPY package.json ./
+RUN npm install --ignore-scripts
 COPY . .
 RUN npm run build
 
@@ -31,15 +29,13 @@ ENV NODE_ENV=production
 # Render sets PORT=10000 by default
 ENV PORT=10000
 
-# Copy production dependencies
+# Copy production runtime only
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/shared ./shared
 COPY --from=builder /app/server ./server
-
-# Copy scripts
 COPY --from=builder /app/scripts ./scripts
 
 # Create non-root user
