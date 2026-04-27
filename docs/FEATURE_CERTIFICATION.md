@@ -20,6 +20,10 @@ A feature only counts as working when CI, staging, logs, tests, and a real user 
 
 Every production feature must have CI proof, automated tests, staging proof, logs or monitoring, real user-flow proof, failure or recovery behavior, an owner, and a last verified date.
 
+## Current Verification Probe
+
+This branch exists only to trigger GitHub Actions against current main and expose the next real blocker.
+
 ## Feature Certification Matrix
 
 | Feature | Status | CI Proof | Tests | Staging Proof | Logs/Monitoring | Real User Flow | Owner | Notes |
