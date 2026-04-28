@@ -42,7 +42,7 @@
       "status": "ci_verified",
       "exposure": "production",
       "owner": "engineering",
-      "paths": ["scripts/verify-production-gates.ts", ".github/workflows/production-gates.yml"],
+      "paths": ["scripts/verify-production-gates.ts", ".github/workflows/production-gates.yml", "config/feature-registry.json"],
       "proof": {
         "ci": true,
         "tests": true,
@@ -59,7 +59,7 @@
       "status": "code_exists",
       "exposure": "staging_only",
       "owner": "engineering",
-      "paths": ["server/routes", "server/auth"],
+      "paths": ["server/routes"],
       "proof": {
         "ci": false,
         "tests": false,
@@ -110,7 +110,7 @@
       "status": "code_exists",
       "exposure": "staging_only",
       "owner": "engineering",
-      "paths": ["server/routes", "server/storage"],
+      "paths": ["server/routes", "server/storage.ts"],
       "proof": {
         "ci": false,
         "tests": false,
