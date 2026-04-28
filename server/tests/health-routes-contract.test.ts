@@ -1,24 +1,28 @@
+import express, { type Express } from "express";
 import request from "supertest";
-import express from "express";
+import { beforeAll, describe, expect, it, jest } from "@jest/globals";
 
-import healthRouter from "../routes/health";
+let app: Express;
 
-jest.mock("../db", () => ({
-  db: {
-    execute: jest.fn().mockResolvedValue([{ ok: 1 }]),
-  },
-}));
+beforeAll(async () => {
+  await (jest as any).unstable_mockModule("../db", () => ({
+    db: {
+      execute: jest.fn().mockResolvedValue([{ ok: 1 }]),
+    },
+  }));
 
-jest.mock("../services/redis", () => ({
-  checkRedisHealth: jest.fn().mockResolvedValue({ healthy: true, latencyMs: 1 }),
-}));
+  await (jest as any).unstable_mockModule("../services/redis", () => ({
+    checkRedisHealth: jest.fn().mockResolvedValue({ healthy: true, latencyMs: 1 }),
+  }));
 
-jest.mock("../services/queue", () => ({
-  getQueueHealth: jest.fn().mockResolvedValue({ waiting: 0, active: 0, failed: 0 }),
-}));
+  await (jest as any).unstable_mockModule("../services/queue", () => ({
+    getQueueHealth: jest.fn().mockResolvedValue({ waiting: 0, active: 0, failed: 0 }),
+  }));
 
-const app = express();
-app.use(healthRouter);
+  const { default: healthRouter } = await import("../routes/health");
+  app = express();
+  app.use(healthRouter);
+});
 
 describe("health and observability routes", () => {
   it("returns lightweight health status", async () => {
