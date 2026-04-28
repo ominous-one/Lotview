@@ -7,3 +7,15 @@ export async function calculatePayment(price: number, downPayment: number, rate:
   const numPayments = term * 12;
   return principal * monthlyRate * Math.pow(1 + monthlyRate, numPayments) / (Math.pow(1 + monthlyRate, numPayments) - 1);
 }
+
+export async function calculatePayments(..._args: unknown[]): Promise<null> {
+  return null;
+}
+
+export function formatPaymentForChat(_payments: unknown): string {
+  return "Payment options are not configured for this dealership.";
+}
+
+export async function buildPaymentContext(..._args: unknown[]): Promise<string | undefined> {
+  return undefined;
+}

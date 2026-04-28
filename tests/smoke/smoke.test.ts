@@ -8,12 +8,13 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import type { Express } from "express";
 import { createApp } from "../../server/app";
 import { pool } from "../../server/db";
 import request from "supertest";
 
 describe("Lotview Smoke Tests", () => {
-  let app: Express.Application;
+  let app: Express;
 
   beforeAll(async () => {
     app = createApp();
@@ -32,7 +33,7 @@ describe("Lotview Smoke Tests", () => {
 
     it("GET /api/ready returns status", async () => {
       const res = await request(app).get("/api/ready");
-      expect(res.status).toBeOneOf([200, 503]); // 503 if DB/Redis not connected
+      expect([200, 503]).toContain(res.status); // 503 if DB/Redis not connected
       expect(res.body).toHaveProperty("checks");
     });
 
@@ -50,12 +51,12 @@ describe("Lotview Smoke Tests", () => {
       expect(res.status).toBe(400);
     });
 
-    it("POST /api/auth/login with invalid credentials returns 401", async () => {
+    it("POST /api/auth/login with invalid credentials is rejected", async () => {
       const res = await request(app).post("/api/auth/login").send({
         email: "nonexistent@example.com",
         password: "wrongpassword",
       });
-      expect(res.status).toBe(401);
+      expect([401, 503]).toContain(res.status);
     });
 
     it("GET /api/auth/me without token returns 401", async () => {

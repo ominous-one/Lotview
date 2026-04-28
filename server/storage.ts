@@ -6339,7 +6339,7 @@ export class DatabaseStorage implements IStorage {
     const limit = pagination?.limit || 50;
     const offset = pagination?.offset || 0;
     
-    let query = db.select()
+    const query = db.select()
       .from(crmContacts)
       .where(and(...conditions))
       .limit(limit)

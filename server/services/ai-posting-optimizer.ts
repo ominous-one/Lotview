@@ -88,7 +88,7 @@ export async function getOptimalPostTime(dealershipId: number): Promise<Date> {
       a.avgInquiries > b.avgInquiries ? a : b
     );
     const now = new Date();
-    let target = new Date(now);
+    const target = new Date(now);
     target.setHours(best.hour, 0, 0, 0);
     if (target <= now) {
       target.setDate(target.getDate() + 1); // Tomorrow
@@ -114,7 +114,7 @@ export async function getOptimalPostTime(dealershipId: number): Promise<Date> {
     targetHour = 15;
   }
 
-  let target = new Date(now);
+  const target = new Date(now);
   target.setHours(targetHour, 0, 0, 0);
   if (target <= now) {
     target.setDate(target.getDate() + 1);

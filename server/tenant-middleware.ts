@@ -26,25 +26,23 @@ const JWT_SECRET = JWT_SECRET_ENV || "olympic-auto-jwt-dev-secret-DO-NOT-USE-IN-
 type TenantResolutionSource = 'jwt' | 'hostname' | 'subdomain' | 'header' | 'default' | 'none';
 
 // Extend Express Request type to include dealership context and user
-declare global {
-  namespace Express {
-    interface Request {
-      dealershipId?: number;
-      tenantSource?: TenantResolutionSource;
-      dealership?: {
-        id: number;
-        name: string;
-        slug: string;
-        subdomain?: string;
-      };
-      user?: {
-        id: number;
-        email: string;
-        role: string;
-        name: string;
-        dealershipId?: number | null;
-      };
-    }
+declare module "express-serve-static-core" {
+  interface Request {
+    dealershipId?: number;
+    tenantSource?: TenantResolutionSource;
+    dealership?: {
+      id: number;
+      name: string;
+      slug: string;
+      subdomain?: string;
+    };
+    user?: {
+      id: number;
+      email: string;
+      role: string;
+      name: string;
+      dealershipId?: number | null;
+    };
   }
 }
 
@@ -213,39 +211,41 @@ export function tenantMiddleware(storage: any) {
       // Strategy 2: Resolve by exact hostname/domain mapping first, then legacy subdomain fallback
       if (!dealershipId) {
         const normalizedHostname = req.hostname.split(':')[0].toLowerCase();
-        try {
-          const tenantDomain = typeof storage.getTenantDomainByHostname === 'function'
-            ? await storage.getTenantDomainByHostname(normalizedHostname)
-            : undefined;
-          const hostnameDealership = await storage.getDealershipByHostname(normalizedHostname);
-          if (hostnameDealership) {
-            if (
-              tenantDomain?.kind === 'redirect_alias' &&
-              (req.method === 'GET' || req.method === 'HEAD') &&
-              acceptsHtml(req)
-            ) {
-              const primaryTenantDomain = typeof storage.getPrimaryTenantDomainForDealership === 'function'
-                ? await storage.getPrimaryTenantDomainForDealership(hostnameDealership.id)
-                : undefined;
+        if (!isDevOrPreviewHost(normalizedHostname)) {
+          try {
+            const tenantDomain = typeof storage.getTenantDomainByHostname === 'function'
+              ? await storage.getTenantDomainByHostname(normalizedHostname)
+              : undefined;
+            const hostnameDealership = await storage.getDealershipByHostname(normalizedHostname);
+            if (hostnameDealership) {
+              if (
+                tenantDomain?.kind === 'redirect_alias' &&
+                (req.method === 'GET' || req.method === 'HEAD') &&
+                acceptsHtml(req)
+              ) {
+                const primaryTenantDomain = typeof storage.getPrimaryTenantDomainForDealership === 'function'
+                  ? await storage.getPrimaryTenantDomainForDealership(hostnameDealership.id)
+                  : undefined;
 
-              if (primaryTenantDomain?.hostname && primaryTenantDomain.hostname !== normalizedHostname) {
-                const redirectUrl = `${req.protocol}://${primaryTenantDomain.hostname}${req.originalUrl || req.url || '/'} `;
-                return res.redirect(308, redirectUrl.trim());
+                if (primaryTenantDomain?.hostname && primaryTenantDomain.hostname !== normalizedHostname) {
+                  const redirectUrl = `${req.protocol}://${primaryTenantDomain.hostname}${req.originalUrl || req.url || '/'} `;
+                  return res.redirect(308, redirectUrl.trim());
+                }
               }
-            }
 
-            dealershipId = hostnameDealership.id;
-            source = 'hostname';
-            req.dealership = hostnameDealership;
-            console.log(`[Tenant] Resolved dealership ${hostnameDealership.id} (${hostnameDealership.name}) from hostname ${normalizedHostname}`);
+              dealershipId = hostnameDealership.id;
+              source = 'hostname';
+              req.dealership = hostnameDealership;
+              console.log(`[Tenant] Resolved dealership ${hostnameDealership.id} (${hostnameDealership.name}) from hostname ${normalizedHostname}`);
+            }
+          } catch (error: any) {
+            console.error('[Tenant] Hostname lookup error:', error?.message || error, 'Stack:', error?.stack);
+            return res.status(500).json({
+              error: 'Failed to resolve dealership from hostname',
+              hostname: normalizedHostname,
+              details: error?.message || 'Unknown error'
+            });
           }
-        } catch (error: any) {
-          console.error('[Tenant] Hostname lookup error:', error?.message || error, 'Stack:', error?.stack);
-          return res.status(500).json({
-            error: 'Failed to resolve dealership from hostname',
-            hostname: normalizedHostname,
-            details: error?.message || 'Unknown error'
-          });
         }
       }
 

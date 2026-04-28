@@ -1,1 +1,3 @@
-404: Not Found
+export function createFbReplyRouter(): null {
+  return null;
+}

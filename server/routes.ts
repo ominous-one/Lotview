@@ -4377,7 +4377,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = await batchUpdateCarfaxData(dealershipId);
       
       // Cloud Carfax Scraper: For vehicles still missing Carfax, try browserless.io cloud scraper
-      let cloudScraperResult = { updated: 0, errors: 0 };
+      const cloudScraperResult = { updated: 0, errors: 0 };
       try {
         const { isEnabled } = await import('./services/feature-flags');
         if (await isEnabled('cloud_carfax_scraper', dealershipId)) {
@@ -8745,7 +8745,7 @@ Format your response in clear sections with actionable recommendations.`;
       }
       
       // Get market listings from database (no pagination - need full dataset for analytics)
-      let { listings: marketListings } = await storage.getMarketListings(dealershipId, {
+      const { listings: marketListings } = await storage.getMarketListings(dealershipId, {
         make,
         model,
         yearMin: searchYearMin,
@@ -16746,7 +16746,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
       }
       
       // Get or create user's FB account for extension postings
-      let accounts = await db
+      const accounts = await db
         .select()
         .from(fbMarketplaceAccounts)
         .where(and(
@@ -16848,7 +16848,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
       const dealershipId = req.dealershipId!;
       const { search, status } = req.query;
 
-      let query = db
+      const query = db
         .select({
           id: vehicles.id,
           year: vehicles.year,
@@ -16981,7 +16981,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
       }
 
       // Get user's first FB account (or create a placeholder for extension postings)
-      let account = await db
+      const account = await db
         .select()
         .from(fbMarketplaceAccounts)
         .where(and(
@@ -17334,7 +17334,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
         // Record the posting in the database
         try {
           // Get or create FB account for this user
-          let account = await db
+          const account = await db
             .select()
             .from(fbMarketplaceAccounts)
             .where(and(
