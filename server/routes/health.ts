@@ -8,9 +8,29 @@ import { db } from "../db";
 import { sql } from "drizzle-orm";
 import { checkRedisHealth } from "../services/redis";
 import { getQueueHealth } from "../services/queue";
-import { log } from "../app";
 
 const router = Router();
+
+type ReadinessCheck = {
+  ok: boolean;
+  latencyMs: number;
+  error?: string;
+  details?: unknown;
+};
+
+function getActiveHandleCount(): number {
+  const runtimeProcess = process as NodeJS.Process & {
+    _getActiveHandles?: () => unknown[];
+  };
+  return runtimeProcess._getActiveHandles?.().length ?? 0;
+}
+
+function getActiveRequestCount(): number {
+  const runtimeProcess = process as NodeJS.Process & {
+    _getActiveRequests?: () => unknown[];
+  };
+  return runtimeProcess._getActiveRequests?.().length ?? 0;
+}
 
 /**
  * GET /api/health
@@ -30,23 +50,21 @@ router.get("/api/health", (_req, res) => {
 /**
  * GET /api/ready
  * Deep readiness check — verifies database, Redis, and critical services.
- * Used by orchestrators (Kubernetes, Docker Compose) before routing traffic.
+ * Used by orchestrators before routing traffic.
  */
 router.get("/api/ready", async (_req, res) => {
-  const checks: Record<string, { ok: boolean; latencyMs: number; error?: string }> = {};
+  const checks: Record<string, ReadinessCheck> = {};
   let allHealthy = true;
 
-  // Database check
   const dbStart = Date.now();
   try {
     await db.execute(sql`SELECT 1`);
     checks.database = { ok: true, latencyMs: Date.now() - dbStart };
   } catch (err) {
-    checks.database = { ok: false, latencyMs: Date.now() - dbStart, error: (err as Error).message };
+    checks.database = { ok: false, latencyMs: Date.now() - dbStart, error: err instanceof Error ? err.message : String(err) };
     allHealthy = false;
   }
 
-  // Redis check
   const redisStart = Date.now();
   try {
     const redisHealth = await checkRedisHealth();
@@ -55,15 +73,12 @@ router.get("/api/ready", async (_req, res) => {
       latencyMs: redisHealth.latencyMs,
       error: redisHealth.error,
     };
-    if (!redisHealth.healthy) {
-      allHealthy = false;
-    }
+    if (!redisHealth.healthy) allHealthy = false;
   } catch (err) {
-    checks.redis = { ok: false, latencyMs: Date.now() - redisStart, error: (err as Error).message };
+    checks.redis = { ok: false, latencyMs: Date.now() - redisStart, error: err instanceof Error ? err.message : String(err) };
     allHealthy = false;
   }
 
-  // Queue check
   const queueStart = Date.now();
   try {
     const queueCounts = await getQueueHealth();
@@ -73,12 +88,11 @@ router.get("/api/ready", async (_req, res) => {
       details: queueCounts,
     };
   } catch (err) {
-    checks.queues = { ok: false, latencyMs: Date.now() - queueStart, error: (err as Error).message };
+    checks.queues = { ok: false, latencyMs: Date.now() - queueStart, error: err instanceof Error ? err.message : String(err) };
     allHealthy = false;
   }
 
-  const statusCode = allHealthy ? 200 : 503;
-  res.status(statusCode).json({
+  res.status(allHealthy ? 200 : 503).json({
     status: allHealthy ? "ready" : "not_ready",
     checks,
     timestamp: new Date().toISOString(),
@@ -87,20 +101,19 @@ router.get("/api/ready", async (_req, res) => {
 
 /**
  * GET /api/metrics
- * Basic runtime metrics for monitoring systems (Prometheus-compatible).
+ * Basic runtime metrics for monitoring systems.
  */
 router.get("/api/metrics", (_req, res) => {
   const memUsage = process.memoryUsage();
   const metrics = [
-    `# Lotview Runtime Metrics`,
+    "# Lotview Runtime Metrics",
     `lotview_uptime_seconds ${process.uptime()}`,
     `lotview_memory_rss_bytes ${memUsage.rss}`,
     `lotview_memory_heap_total_bytes ${memUsage.heapTotal}`,
     `lotview_memory_heap_used_bytes ${memUsage.heapUsed}`,
     `lotview_memory_external_bytes ${memUsage.external || 0}`,
-    `lotview_event_loop_lag_seconds ${(process.hrtime()[1] / 1e9).toFixed(6)}`,
-    `lotview_active_handles ${process._getActiveHandles?.().length || 0}`,
-    `lotview_active_requests ${process._getActiveRequests?.().length || 0}`,
+    `lotview_active_handles ${getActiveHandleCount()}`,
+    `lotview_active_requests ${getActiveRequestCount()}`,
   ].join("\n");
 
   res.set("Content-Type", "text/plain");
@@ -119,7 +132,7 @@ router.get("/api/version", (_req, res) => {
     platform: process.platform,
     arch: process.arch,
     env: process.env.NODE_ENV,
-    commit: process.env.GIT_COMMIT || "unknown",
+    commit: process.env.GIT_COMMIT || process.env.RELEASE_SHA || "unknown",
     buildTime: process.env.BUILD_TIME || "unknown",
   });
 });
