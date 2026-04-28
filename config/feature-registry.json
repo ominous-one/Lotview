@@ -1,0 +1,210 @@
+{
+  "schemaVersion": 1,
+  "policy": "A feature is production-ready only when CI proof, automated tests, staging proof, observability, real user-flow proof, and rollback/recovery proof are all present. Exposed production features without proof must fail verification.",
+  "features": [
+    {
+      "id": "frontend.boot",
+      "name": "Frontend Boot",
+      "status": "ci_verified",
+      "exposure": "production",
+      "owner": "engineering",
+      "paths": ["client/src/main.tsx", "client/src/main.test.ts", "vitest.frontend.config.ts"],
+      "proof": {
+        "ci": true,
+        "tests": true,
+        "staging": false,
+        "observability": false,
+        "realUserFlow": false,
+        "rollback": false
+      },
+      "notes": "Basic app shell is smoke-tested. Real SaaS UI flows still require Playwright/staging proof."
+    },
+    {
+      "id": "health.observability",
+      "name": "Health, Readiness, Metrics, Version",
+      "status": "ci_verified",
+      "exposure": "production",
+      "owner": "engineering",
+      "paths": ["server/routes/health.ts", "server/tests/health-routes-contract.test.ts"],
+      "proof": {
+        "ci": true,
+        "tests": true,
+        "staging": false,
+        "observability": true,
+        "realUserFlow": false,
+        "rollback": false
+      },
+      "notes": "Route contracts exist. Live Render and staging proof still required."
+    },
+    {
+      "id": "production.gates",
+      "name": "Production Gates",
+      "status": "ci_verified",
+      "exposure": "production",
+      "owner": "engineering",
+      "paths": ["scripts/verify-production-gates.ts", ".github/workflows/production-gates.yml"],
+      "proof": {
+        "ci": true,
+        "tests": true,
+        "staging": false,
+        "observability": false,
+        "realUserFlow": false,
+        "rollback": false
+      },
+      "notes": "Build-time guardrails exist. Keep expanding gate checks as features are certified."
+    },
+    {
+      "id": "auth.login",
+      "name": "Authentication and Login",
+      "status": "code_exists",
+      "exposure": "staging_only",
+      "owner": "engineering",
+      "paths": ["server/routes", "server/auth"],
+      "proof": {
+        "ci": false,
+        "tests": false,
+        "staging": false,
+        "observability": false,
+        "realUserFlow": false,
+        "rollback": false
+      },
+      "notes": "Must not be called production-ready until session/JWT/reset/rate-limit/protected-route tests exist."
+    },
+    {
+      "id": "rbac.permissions",
+      "name": "RBAC and Permissions",
+      "status": "not_started",
+      "exposure": "disabled",
+      "owner": "engineering",
+      "paths": [],
+      "proof": {
+        "ci": false,
+        "tests": false,
+        "staging": false,
+        "observability": false,
+        "realUserFlow": false,
+        "rollback": false
+      },
+      "notes": "Critical SaaS blocker. Requires explicit permissions and route tests."
+    },
+    {
+      "id": "tenant.isolation",
+      "name": "Tenant Isolation",
+      "status": "not_started",
+      "exposure": "disabled",
+      "owner": "engineering",
+      "paths": [],
+      "proof": {
+        "ci": false,
+        "tests": false,
+        "staging": false,
+        "observability": false,
+        "realUserFlow": false,
+        "rollback": false
+      },
+      "notes": "No real dealership launch until cross-tenant tests prove Dealer A cannot access Dealer B."
+    },
+    {
+      "id": "inventory.crud",
+      "name": "Inventory CRUD",
+      "status": "code_exists",
+      "exposure": "staging_only",
+      "owner": "engineering",
+      "paths": ["server/routes", "server/storage"],
+      "proof": {
+        "ci": false,
+        "tests": false,
+        "staging": false,
+        "observability": false,
+        "realUserFlow": false,
+        "rollback": false
+      },
+      "notes": "Needs route, tenant, UI, duplicate VIN, and source-truth tests."
+    },
+    {
+      "id": "scraper.robust",
+      "name": "Robust Scraper",
+      "status": "fail_closed",
+      "exposure": "disabled",
+      "owner": "engineering",
+      "paths": ["server/robust-scraper.ts", "server/tests/feature-gates.test.ts"],
+      "proof": {
+        "ci": true,
+        "tests": true,
+        "staging": false,
+        "observability": true,
+        "realUserFlow": false,
+        "rollback": false
+      },
+      "notes": "Compiles and fails closed. Not certified as a working scraper."
+    },
+    {
+      "id": "facebook.marketplace",
+      "name": "Facebook Marketplace Posting",
+      "status": "fail_closed",
+      "exposure": "disabled",
+      "owner": "engineering",
+      "paths": ["server/fb-marketplace-service.ts", "server/tests/feature-gates.test.ts"],
+      "proof": {
+        "ci": true,
+        "tests": true,
+        "staging": false,
+        "observability": true,
+        "realUserFlow": false,
+        "rollback": false
+      },
+      "notes": "Must remain draft/human-approved until token, duplicate, image, posting, and failure tests exist."
+    },
+    {
+      "id": "ai.lead_response",
+      "name": "AI Lead Response",
+      "status": "code_exists",
+      "exposure": "staging_only",
+      "owner": "engineering",
+      "paths": ["server/ai-sales-agent.ts", "server/ai-training-defaults.ts"],
+      "proof": {
+        "ci": false,
+        "tests": false,
+        "staging": false,
+        "observability": false,
+        "realUserFlow": false,
+        "rollback": false
+      },
+      "notes": "Needs inventory-grounding, finance guardrail, prompt injection, escalation, and human approval tests."
+    },
+    {
+      "id": "ghl.crm_sync",
+      "name": "GHL CRM Sync",
+      "status": "code_exists",
+      "exposure": "staging_only",
+      "owner": "engineering",
+      "paths": ["server"],
+      "proof": {
+        "ci": false,
+        "tests": false,
+        "staging": false,
+        "observability": false,
+        "realUserFlow": false,
+        "rollback": false
+      },
+      "notes": "Needs OAuth, token refresh, webhook verification, sync log, and duplicate-contact tests."
+    },
+    {
+      "id": "billing.plans",
+      "name": "Billing and Plans",
+      "status": "not_started",
+      "exposure": "disabled",
+      "owner": "engineering",
+      "paths": [],
+      "proof": {
+        "ci": false,
+        "tests": false,
+        "staging": false,
+        "observability": false,
+        "realUserFlow": false,
+        "rollback": false
+      },
+      "notes": "Required for self-serve SaaS but not required for controlled pilot."
+    }
+  ]
+}
