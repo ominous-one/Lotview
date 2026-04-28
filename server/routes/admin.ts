@@ -7,6 +7,7 @@
 import { Router } from "express";
 import { storage } from "../storage";
 import { authMiddleware } from "../auth";
+import { hashPassword } from "../auth";
 import { superAdminOnly } from "../tenant-middleware";
 import { logError } from "../error-utils";
 import { getSystemHealth, getBusinessMetrics, getDealershipActivity, getAIMetrics, getScrapingMetrics, getFBMarketplaceMetrics, getSystemAlerts, resolveAlert } from "../services/admin-dashboard";
@@ -74,8 +75,9 @@ router.post("/dealerships", authMiddleware, superAdminOnly, async (req, res) => 
     if (existingUser) return res.status(400).json({ error: "Email already exists" });
 
     const dealership = await storage.createDealership({ name, slug, subdomain });
+    const passwordHash = await hashPassword(masterAdminPassword);
     const masterUser = await storage.createUser({
-      email: masterAdminEmail, name: masterAdminName, password: masterAdminPassword,
+      email: masterAdminEmail, name: masterAdminName, passwordHash,
       role: "master", dealershipId: dealership.id
     });
     res.status(201).json({ dealership, masterUser });
@@ -112,7 +114,7 @@ router.patch("/dealerships/:dealershipId", authMiddleware, superAdminOnly, async
 
 router.get("/users", authMiddleware, superAdminOnly, async (req, res) => {
   try {
-    const users = await storage.getAllUsers();
+    const users = await (storage as any).getAllUsers();
     res.json(users);
   } catch (error) {
     logError("Error fetching users:", error instanceof Error ? error : new Error(String(error)), { route: "api-super-admin-users" });
@@ -144,7 +146,7 @@ router.get("/global-settings", authMiddleware, superAdminOnly, async (req, res) 
 
 router.put("/global-settings/:key", authMiddleware, superAdminOnly, async (req, res) => {
   try {
-    await storage.setGlobalSetting(req.params.key, req.body.value);
+    await (storage as any).setGlobalSetting(req.params.key, req.body.value);
     res.json({ success: true });
   } catch (error) {
     logError("Error setting global setting:", error instanceof Error ? error : new Error(String(error)), { route: "api-super-admin-global-settings-key" });

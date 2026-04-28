@@ -2,6 +2,6 @@ export async function generateFollowUp(_dealershipId: number, _conversationId: n
   return "";
 }
 
-export async function createFollowUpTasksForAppointmentEvent(): Promise<never> {
+export async function createFollowUpTasksForAppointmentEvent(..._args: unknown[]): Promise<any> {
   throw new Error("Appointment follow-up tasks are not configured");
 }

@@ -1,6 +1,10 @@
 export interface RobustScrapeResult {
   success: boolean;
   vehiclesFound: number;
+  vehiclesInserted?: number;
+  vehiclesUpdated?: number;
+  vehiclesDeleted?: number;
+  vehicles?: any[];
   method: string;
   retryCount: number;
   error?: string;
@@ -25,6 +29,10 @@ export async function runRobustScrape(
     return {
       success: false,
       vehiclesFound: 0,
+      vehiclesInserted: 0,
+      vehiclesUpdated: 0,
+      vehiclesDeleted: 0,
+      vehicles: [],
       method: "disabled_pending_certification",
       retryCount: 0,
       error: `Robust scraper disabled pending certification (source=${source}, dealershipId=${dealershipId ?? "all"})`,
@@ -34,8 +42,20 @@ export async function runRobustScrape(
   return {
     success: false,
     vehiclesFound: 0,
+    vehiclesInserted: 0,
+    vehiclesUpdated: 0,
+    vehiclesDeleted: 0,
+    vehicles: [],
     method: "not_certified",
     retryCount: 0,
     error: "Robust scraper feature flag is enabled, but no certified implementation is registered.",
+  };
+}
+
+export async function batchUpdateCarfaxData(..._args: unknown[]): Promise<any> {
+  return {
+    success: false,
+    vehicles: [],
+    error: "Carfax batch update is not configured",
   };
 }

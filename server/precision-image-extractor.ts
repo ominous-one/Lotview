@@ -7,11 +7,11 @@ export async function extractImages(_html: string): Promise<string[]> {
   return [];
 }
 
-export async function extractVehicleImages(): Promise<{ images: ExtractedVehicleImage[]; disabled: true }> {
+export async function extractVehicleImages(..._args: unknown[]): Promise<{ images: ExtractedVehicleImage[]; disabled: true }> {
   return { images: [], disabled: true };
 }
 
-export function validateImages(images: ExtractedVehicleImage[] | string[]): {
+export function validateImages(images: ExtractedVehicleImage[] | string[], ..._args: unknown[]): {
   valid: ExtractedVehicleImage[];
   rejected: ExtractedVehicleImage[];
 } {

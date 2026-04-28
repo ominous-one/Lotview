@@ -1,12 +1,12 @@
-export async function postToMarketplace(_vehicle: any): Promise<{ success: false; error: string }> {
-  return { success: false, error: "facebook_marketplace_automation_not_configured" };
+export async function postToMarketplace(..._args: unknown[]): Promise<any> {
+  return { success: false, error: "facebook_marketplace_automation_not_configured", listingUrl: null };
 }
 
 export const facebookMarketplaceAutomation = {
-  async postToMarketplace(): Promise<{ success: false; error: string }> {
-    return { success: false, error: "facebook_marketplace_automation_not_configured" };
+  async postToMarketplace(..._args: unknown[]): Promise<any> {
+    return { success: false, error: "facebook_marketplace_automation_not_configured", listingUrl: null };
   },
-  async testConnection(): Promise<{ success: false; message: string }> {
+  async testConnection(..._args: unknown[]): Promise<any> {
     return { success: false, message: "facebook_marketplace_automation_not_configured" };
   },
 };

@@ -2,7 +2,7 @@ export async function enrichInventory(_dealershipId: number): Promise<any> {
   return { enriched: 0, disabled: true };
 }
 
-export async function runPhotoEnrichmentSweep(): Promise<{
+export async function runPhotoEnrichmentSweep(..._args: unknown[]): Promise<{
   processed: 0;
   updated: 0;
   skipped: 0;

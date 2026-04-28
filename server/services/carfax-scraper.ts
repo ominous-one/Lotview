@@ -12,6 +12,8 @@ export interface CarfaxReport {
   accidentCount: number;
   ownerCount: number;
   serviceRecordCount: number;
+  confidenceScore?: number;
+  sellingPoints?: string[];
   damageReported: boolean;
   lienReported: boolean;
   odometerLastReported: number | null;

@@ -41,7 +41,7 @@ export async function addManualPhoto(
   const manualPhoto = `manual:${photoUrl}`;
   const updatedPhotos = [...photos, manualPhoto];
 
-  await storage.updateVehicle(vehicleId, {
+  await (storage as any).updateVehicle(vehicleId, {
     photos: updatedPhotos,
     updatedAt: new Date(),
   });
@@ -56,9 +56,9 @@ export async function addManualPhoto(
 export async function enrichPhotosSafely(
   vehicleId: number,
   scrapedPhotos: string[]
-): Promise<{ added: number; preserved: number; skipped: number }> {
-  const vehicle = await storage.getVehicle(vehicleId);
-  if (!vehicle) return { added: 0, preserved: 0, skipped: 0 };
+): Promise<{ added: number; preserved: number; skipped: number; enrichedPhotos: string[] }> {
+  const vehicle = await (storage as any).getVehicle(vehicleId);
+  if (!vehicle) return { added: 0, preserved: 0, skipped: 0, enrichedPhotos: [] };
 
   const existingPhotos = ((vehicle.photos as string[]) || []).filter(
     (p) => typeof p === "string"
@@ -96,7 +96,7 @@ export async function enrichPhotosSafely(
   const cappedPhotos = finalPhotos.slice(0, 25);
 
   if (cappedPhotos.length !== existingPhotos.length) {
-    await storage.updateVehicle(vehicleId, {
+    await (storage as any).updateVehicle(vehicleId, {
       photos: cappedPhotos,
       updatedAt: new Date(),
     });
@@ -106,6 +106,7 @@ export async function enrichPhotosSafely(
     added: newPhotos.length,
     preserved: manualPhotos.length,
     skipped,
+    enrichedPhotos: cappedPhotos,
   };
 }
 
@@ -119,7 +120,7 @@ export async function getPhotoProvenance(vehicleId: number): Promise<{
   scraped: number;
   photos: Array<{ url: string; source: "manual" | "scraped"; isPrimary: boolean }>;
 }> {
-  const vehicle = await storage.getVehicle(vehicleId);
+  const vehicle = await (storage as any).getVehicle(vehicleId);
   if (!vehicle) {
     return { total: 0, manual: 0, scraped: 0, photos: [] };
   }

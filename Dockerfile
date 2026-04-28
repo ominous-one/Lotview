@@ -8,16 +8,17 @@
 FROM node:20-alpine AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
-COPY package.json ./
-RUN npm install --ignore-scripts --omit=dev
+COPY package.json package-lock.json ./
+RUN npm ci --ignore-scripts --omit=dev
 
 # ─── Stage 2: Build ───
 FROM node:20-alpine AS builder
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
-COPY package.json ./
-RUN npm install --ignore-scripts
+COPY package.json package-lock.json ./
+RUN npm ci --ignore-scripts
 COPY . .
+RUN mkdir -p public
 RUN npm run build
 
 # ─── Stage 3: Production ───

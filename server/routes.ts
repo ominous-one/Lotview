@@ -3282,7 +3282,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Honeypot: quietly succeed but do not store
-      if (parsed.data.website && parsed.data.website.trim().length > 0) {
+      const website = typeof parsed.data.website === "string" ? parsed.data.website : "";
+      if (website.trim().length > 0) {
         return res.json({ ok: true });
       }
 
@@ -4382,7 +4383,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const { isEnabled } = await import('./services/feature-flags');
         if (await isEnabled('cloud_carfax_scraper', dealershipId)) {
           const { vehicles: allVehicles } = await storage.getVehicles(dealershipId);
-          const vehiclesNeedingCarfax = allVehicles.vehicles
+          const vehiclesNeedingCarfax = allVehicles
             .filter((v: any) => v.vin && !v.carfaxUrl)
             .slice(0, 20); // Limit to 20 per batch to control costs
           
@@ -6860,7 +6861,7 @@ Format your response in clear sections with actionable recommendations.`;
               handoffName: name || undefined,
               handoffSent: true,
               handoffSentAt: new Date(),
-              ghlContactId: result.contactId || undefined,
+              ghlContactId: typeof result.contactId === "string" ? result.contactId : undefined,
             });
           } catch (updateError) {
             // Non-fatal - conversation may not exist yet
@@ -7543,10 +7544,11 @@ Format your response in clear sections with actionable recommendations.`;
       
       const account = await storage.createFacebookAccount({
         ...validated.data,
+        accountName: (validated.data as any).accountName || req.body.accountName || "Facebook Account",
         userId,
         dealershipId,
         isActive: true,
-      });
+      } as any);
       
       res.status(201).json(account);
     } catch (error) {
@@ -7635,7 +7637,7 @@ Format your response in clear sections with actionable recommendations.`;
         ...validated.data,
         userId,
         dealershipId,
-      });
+      } as any);
       
       res.status(201).json(template);
     } catch (error) {
@@ -7740,7 +7742,7 @@ Format your response in clear sections with actionable recommendations.`;
         userId,
         dealershipId,
         status: 'queued',
-      });
+      } as any);
       
       res.status(201).json(item);
     } catch (error) {
@@ -14746,6 +14748,8 @@ Format your response in clear sections with actionable recommendations.`;
       // Use GHL notification service if available, fallback to email-service
       let result;
       try {
+        const dealershipId = req.dealershipId ?? req.user?.dealershipId;
+        if (!dealershipId) throw new Error("Dealership context required for GHL email");
         const ghlResult = await sendEmail(dealershipId, { to, subject, body: `<div style="font-family: sans-serif; padding: 20px;">${message.replace(/\n/g, '<br>')}</div>` });
         result = { success: ghlResult.success, id: ghlResult.messageId, error: ghlResult.error };
       } catch {

@@ -153,6 +153,8 @@ export async function isEnabled(flagKey: string, dealershipId?: number): Promise
   return flag.defaultValue;
 }
 
+export const isFeatureEnabled = isEnabled;
+
 /**
  * Enable a feature flag globally.
  */

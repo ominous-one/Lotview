@@ -42,6 +42,10 @@ export interface ScrapedVehicleData {
   description?: string | null;
   status?: string | null;
   sourceUrl?: string | null;
+  sourceId?: string;
+  sourceType?: string;
+  scrapedAt?: Date;
+  data?: Record<string, unknown>;
   [key: string]: unknown;
 }
 
@@ -50,6 +54,9 @@ export interface DedupResult {
   merged: number;
   skipped: number;
   errors: number;
+  vehicleId?: number;
+  action?: "created" | "merged" | "duplicate_skipped" | "insert" | "merge" | "skip";
+  confidence?: number;
   details: Array<{
     vin: string;
     action: "insert" | "merge" | "skip";
@@ -65,8 +72,9 @@ export interface DedupResult {
  */
 export async function deduplicateAndStore(
   dealershipId: number,
-  vehicles: ScrapedVehicleData[]
+  vehicles: ScrapedVehicleData[] | ScrapedVehicleData
 ): Promise<DedupResult> {
+  const vehiclesToProcess = Array.isArray(vehicles) ? vehicles : [vehicles];
   const result: DedupResult = {
     inserted: 0,
     merged: 0,
@@ -82,7 +90,7 @@ export async function deduplicateAndStore(
     if (v.vin) existingByVin.set(v.vin.toUpperCase(), v);
   }
 
-  for (const scraped of vehicles) {
+  for (const scraped of vehiclesToProcess) {
     try {
       if (!scraped.vin) {
         result.skipped++;
@@ -183,12 +191,12 @@ export async function mergeDuplicates(
 
   // Update keeper with merged data
   if (Object.keys(merged).length > 0) {
-    await storage.updateVehicle(keeper.id, merged);
+    await (storage as any).updateVehicle(keeper.id, merged);
   }
 
   // Remove duplicates
   for (const v of toRemove) {
-    await storage.deleteVehicle(v.id);
+    await (storage as any).deleteVehicle(v.id);
   }
 
   logInfo(`[Dedup] Merged ${toRemove.length} duplicates for VIN ${vin}`, {
@@ -257,7 +265,7 @@ async function mergeVehicle(
   updates.updatedAt = new Date();
 
   if (Object.keys(updates).length > 0) {
-    await storage.updateVehicle(existing.id, updates);
+    await (storage as any).updateVehicle(existing.id, updates);
   }
 }
 
@@ -279,5 +287,5 @@ async function insertVehicle(scraped: ScrapedVehicleData, dealershipId: number):
     lastScrapedAt: new Date(),
     createdAt: new Date(),
     updatedAt: new Date(),
-  });
+  } as any);
 }

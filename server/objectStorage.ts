@@ -11,15 +11,15 @@ export class ObjectStorageService {
     throw new Error("Object storage is not configured");
   }
 
-  async uploadVehicleImages(): Promise<string[]> {
+  async uploadVehicleImages(..._args: unknown[]): Promise<string[]> {
     throw new Error("Object storage is not configured");
   }
 
-  async uploadLogoFromBuffer(): Promise<never> {
+  async uploadLogoFromBuffer(..._args: unknown[]): Promise<never> {
     throw new Error("Object storage is not configured");
   }
 
-  async deleteObject(): Promise<void> {
+  async deleteObject(..._args: unknown[]): Promise<void> {
     return;
   }
 }

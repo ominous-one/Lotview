@@ -41,7 +41,11 @@ function isDatabaseConnectionError(error: unknown): boolean {
     return false;
   }
 
-  return error.message.includes("ECONNREFUSED") || error.message.includes("Connection terminated");
+  return (
+    error.message.includes("ECONNREFUSED") ||
+    error.message.includes("Connection terminated") ||
+    error.message.includes("Failed query:")
+  );
 }
 
 // ---- Login ----

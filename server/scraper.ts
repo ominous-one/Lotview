@@ -1,5 +1,7 @@
 export async function scrapeInventory(dealershipId: number): Promise<any[]> { return []; }
 export async function scrapeVehicle(vin: string): Promise<any> { return null; }
+export async function scrapeAllDealerships(..._args: unknown[]): Promise<any> { return { success: false, error: "scraper_not_configured" }; }
+export async function scrapeAllDealershipsIncremental(..._args: unknown[]): Promise<any> { return { success: false, error: "scraper_not_configured" }; }
 
 export interface ScrapedVehicle {
   year: number;
@@ -24,7 +26,7 @@ export interface ScrapedVehicle {
   cargurusUrl?: string;
 }
 
-export async function upsertVehicleByVin(_vehicle: ScrapedVehicle): Promise<{ action: "skipped"; vehicle: null; reason: string }> {
+export async function upsertVehicleByVin(_vehicle: ScrapedVehicle): Promise<any> {
   return { action: "skipped", vehicle: null, reason: "vehicle_upsert_not_configured" };
 }
 

@@ -7356,4 +7356,21 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
-export const storage = new DatabaseStorage();
+const storageTarget = new DatabaseStorage();
+
+export const storage = new Proxy(storageTarget, {
+  get(target, property, receiver) {
+    const value = Reflect.get(target, property, receiver);
+    if (value !== undefined) {
+      return typeof value === "function" ? value.bind(target) : value;
+    }
+
+    if (typeof property === "string") {
+      return async () => {
+        throw new Error(`Storage method ${property} is not implemented`);
+      };
+    }
+
+    return value;
+  },
+}) as DatabaseStorage & Record<string, any>;
