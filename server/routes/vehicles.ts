@@ -6,7 +6,7 @@
  * Base: /api/vehicles
  */
 
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
 import { z } from "zod";
 import { fromZodError } from "zod-validation-error";
 import { storage } from "../storage";
@@ -21,6 +21,15 @@ import { scrapeCarfaxReportCloud } from "../services/carfax-browserless";
 
 const router = Router();
 initializeFlagsFromEnv();
+
+function requireRouteDealership(req: Request, res: Response): number | undefined {
+  if (!req.dealershipId) {
+    res.status(400).json({ error: "Dealership context required" });
+    return undefined;
+  }
+
+  return req.dealershipId;
+}
 
 /*
  * ─── PUBLIC ROUTES (no auth required) ───
@@ -96,7 +105,8 @@ router.get("/:id", async (req, res) => {
 router.get("/:id/carfax", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const dealershipId = req.dealershipId!;
+    const dealershipId = requireRouteDealership(req, res);
+    if (!dealershipId) return;
     const vehicle = await storage.getVehicleById(id, dealershipId);
     if (!vehicle) return res.status(404).json({ error: "Vehicle not found" });
     const report = await storage.getCarfaxReport(id, dealershipId);
@@ -112,7 +122,8 @@ router.get("/:id/carfax", async (req, res) => {
 router.get("/:id/carfax/summary", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const dealershipId = req.dealershipId!;
+    const dealershipId = requireRouteDealership(req, res);
+    if (!dealershipId) return;
     const vehicle = await storage.getVehicleById(id, dealershipId);
     if (!vehicle) return res.status(404).json({ error: "Vehicle not found" });
     const report = await storage.getCarfaxReport(id, dealershipId);
@@ -138,7 +149,8 @@ router.post("/:id/view", async (req, res) => {
   try {
     const vehicleId = parseInt(req.params.id);
     const sessionId = req.body.sessionId || `session-${Date.now()}`;
-    const dealershipId = req.dealershipId!;
+    const dealershipId = requireRouteDealership(req, res);
+    if (!dealershipId) return;
     const view = await storage.trackVehicleView({ vehicleId, sessionId, dealershipId });
     res.status(201).json(view);
   } catch (error) {
@@ -151,7 +163,8 @@ router.post("/:id/view", async (req, res) => {
 router.get("/:id/views", async (req, res) => {
   try {
     const vehicleId = parseInt(req.params.id);
-    const dealershipId = req.dealershipId!;
+    const dealershipId = requireRouteDealership(req, res);
+    if (!dealershipId) return;
     const views = await storage.getVehicleViews(vehicleId, dealershipId);
     res.json(views);
   } catch (error) {

@@ -93,7 +93,7 @@
       "status": "code_exists",
       "exposure": "disabled",
       "owner": "engineering",
-      "paths": ["server/tenant-middleware.ts", "server/tenant-utils.ts", "server/tests/tenant-context-boundary.test.ts"],
+      "paths": ["server/tenant-middleware.ts", "server/tenant-utils.ts", "server/routes/vehicles.ts", "server/tests/tenant-context-boundary.test.ts", "server/tests/vehicle-route-tenant-contract.test.ts"],
       "proof": {
         "ci": true,
         "tests": true,
@@ -102,7 +102,7 @@
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "Tenant context boundary has automated tests for header spoofing, legacy tokens, explicit super-admin selection, and owner guard behavior. Full route/storage cross-tenant isolation remains a critical blocker."
+      "notes": "Tenant context boundary has automated tests for header spoofing, legacy tokens, explicit super-admin selection, owner guard behavior, and vehicle route tenant-context fail-closed behavior. Full route/storage cross-tenant isolation across all resources remains a critical blocker."
     },
     {
       "id": "inventory.crud",
