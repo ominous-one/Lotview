@@ -212,16 +212,16 @@
       "status": "code_exists",
       "exposure": "staging_only",
       "owner": "engineering",
-      "paths": ["server"],
+      "paths": ["server", "server/routes.ts", "server/tests/ghl-route-boundary-contract.test.ts"],
       "proof": {
-        "ci": false,
-        "tests": false,
+        "ci": true,
+        "tests": true,
         "staging": false,
         "observability": false,
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "Needs OAuth, token refresh, webhook verification, sync log, and duplicate-contact tests."
+      "notes": "GHL/API-key integration routes now require explicit integrations read/write RBAC and dealership context; GHL mutation routes are restricted to master users until write flows are certified. Still needs OAuth, token refresh, webhook verification, sync log, duplicate-contact, staging, observability, rollback, and real user-flow proof."
     },
     {
       "id": "billing.plans",
