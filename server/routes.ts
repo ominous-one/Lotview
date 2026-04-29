@@ -70,7 +70,7 @@ import { createExternalApiMiddleware } from "./services/external-api-guard";
 import { scrapeCarfaxReportCloud } from "./services/carfax-browserless";
 import { initializeFlagsFromEnv, isEnabled } from "./services/feature-flags";
 
-import { authMiddleware, requireRole, generateToken, generateImpersonationToken, comparePassword, hashPassword, verifyToken, extensionHmacMiddleware, generatePostingToken, validatePostingToken, type AuthRequest } from "./auth";
+import { authMiddleware, requireRole, requirePermission, generateToken, generateImpersonationToken, comparePassword, hashPassword, verifyToken, extensionHmacMiddleware, generatePostingToken, validatePostingToken, type AuthRequest } from "./auth";
 import { requireDealership, superAdminOnly } from "./tenant-middleware";
 import { resolveDealershipIdStrict } from "./tenant-utils";
 import { isSafeE2ERequest, seedE2E } from "./e2e-test-mode";
@@ -4472,7 +4472,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // The facebookPages table is still populated by OAuth callbacks for page management.
   
   // Get all connected Facebook pages (protected)
-  app.get("/api/facebook-pages", authMiddleware, requireDealership, async (req, res) => {
+  app.get("/api/facebook-pages", authMiddleware, requirePermission("integrations.read"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const pages = await storage.getFacebookPages(dealershipId);
@@ -4484,7 +4484,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Connect a Facebook page (protected) - prefer OAuth flow via /api/facebook/oauth/*
-  app.post("/api/facebook-pages", authMiddleware, requireDealership, async (req, res) => {
+  app.post("/api/facebook-pages", authMiddleware, requirePermission("integrations.write"), requireDealership, async (req, res) => {
     try {
       const parsed = insertFacebookPageSchema.safeParse({
         ...req.body,
@@ -4503,10 +4503,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update Facebook page (template, etc.) - protected
-  app.patch("/api/facebook-pages/:id", authMiddleware, async (req, res) => {
+  app.patch("/api/facebook-pages/:id", authMiddleware, requirePermission("integrations.write"), requireDealership, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
-      const page = await storage.updateFacebookPage(id, req.body);
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id) || id < 1) {
+        return res.status(400).json({ error: "Invalid page id" });
+      }
+
+      const {
+        id: _ignoredId,
+        dealershipId: _ignoredDealershipId,
+        ...updates
+      } = req.body as Record<string, unknown>;
+      const page = await storage.updateFacebookPage(id, updates, req.dealershipId!);
       
       if (!page) {
         return res.status(404).json({ error: "Page not found" });
