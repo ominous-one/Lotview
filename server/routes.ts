@@ -21,8 +21,10 @@ import {
   ghlContactSync,
   ghlAppointmentSync,
   dealershipContacts,
+  callScoringCriteria,
   callScoringResponses,
   callScoringSheets,
+  callScoringTemplates,
   dealershipApiKeys,
   passwordResetTokens,
   users,
@@ -166,6 +168,18 @@ async function buildDealershipWebhookUrl(dealershipId: number): Promise<string> 
 
 function requireResolvedDealershipId(req: AuthRequest): number | null {
   return resolveDealershipIdStrict(req);
+}
+
+async function getCallScoringCriterionTemplateScope(criterionId: number): Promise<{ templateDealershipId: number | null } | undefined> {
+  const result = await db.select({
+    templateDealershipId: callScoringTemplates.dealershipId,
+  })
+    .from(callScoringCriteria)
+    .innerJoin(callScoringTemplates, eq(callScoringCriteria.templateId, callScoringTemplates.id))
+    .where(eq(callScoringCriteria.id, criterionId))
+    .limit(1);
+
+  return result[0];
 }
 
 function computeResetTokenLookupHash(token: string): string {
@@ -12799,9 +12813,9 @@ Format your response in clear sections with actionable recommendations.`;
   // ===== CALL SCORING TEMPLATES =====
   
   // Get all templates (system defaults + dealership specific)
-  app.get("/api/call-scoring/templates", authMiddleware, async (req: AuthRequest, res) => {
+  app.get("/api/call-scoring/templates", authMiddleware, requirePermission("leads.read"), requireDealership, async (req: AuthRequest, res) => {
     try {
-      const dealershipId = req.dealershipId || req.user?.dealershipId || null;
+      const dealershipId = req.dealershipId!;
       const templates = await storage.getCallScoringTemplates(dealershipId);
       res.json(templates);
     } catch (error) {
@@ -12811,15 +12825,19 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Get single template with criteria
-  app.get("/api/call-scoring/templates/:id", authMiddleware, async (req: AuthRequest, res) => {
+  app.get("/api/call-scoring/templates/:id", authMiddleware, requirePermission("leads.read"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ error: "Invalid template ID" });
       }
+      const dealershipId = req.dealershipId!;
       
       const template = await storage.getCallScoringTemplate(id);
       if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      if (template.dealershipId !== null && template.dealershipId !== dealershipId) {
         return res.status(404).json({ error: "Template not found" });
       }
       
@@ -12832,12 +12850,9 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Create dealership-specific template
-  app.post("/api/call-scoring/templates", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), async (req: AuthRequest, res) => {
+  app.post("/api/call-scoring/templates", authMiddleware, requirePermission("leads.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
-      const dealershipId = req.dealershipId || req.user?.dealershipId;
-      if (!dealershipId) {
-        return res.status(400).json({ error: "Dealership ID is required" });
-      }
+      const dealershipId = req.dealershipId!;
       
       const { department, name, description, isDefault } = req.body;
       if (!department || !name) {
@@ -12863,16 +12878,17 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Clone system template for dealership customization
-  app.post("/api/call-scoring/templates/:id/clone", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), async (req: AuthRequest, res) => {
+  app.post("/api/call-scoring/templates/:id/clone", authMiddleware, requirePermission("leads.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const templateId = parseInt(req.params.id);
       if (isNaN(templateId)) {
         return res.status(400).json({ error: "Invalid template ID" });
       }
+      const dealershipId = req.dealershipId!;
       
-      const dealershipId = req.dealershipId || req.user?.dealershipId;
-      if (!dealershipId) {
-        return res.status(400).json({ error: "Dealership ID is required" });
+      const sourceTemplate = await storage.getCallScoringTemplate(templateId);
+      if (!sourceTemplate || (sourceTemplate.dealershipId !== null && sourceTemplate.dealershipId !== dealershipId)) {
+        return res.status(404).json({ error: "Template not found" });
       }
       
       const userId = req.user?.id;
@@ -12891,12 +12907,13 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Update template
-  app.patch("/api/call-scoring/templates/:id", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), async (req: AuthRequest, res) => {
+  app.patch("/api/call-scoring/templates/:id", authMiddleware, requirePermission("leads.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ error: "Invalid template ID" });
       }
+      const dealershipId = req.dealershipId!;
       
       const template = await storage.getCallScoringTemplate(id);
       if (!template) {
@@ -12905,6 +12922,9 @@ Format your response in clear sections with actionable recommendations.`;
       
       if (template.dealershipId === null) {
         return res.status(403).json({ error: "Cannot modify system default templates" });
+      }
+      if (template.dealershipId !== dealershipId) {
+        return res.status(404).json({ error: "Template not found" });
       }
       
       const { name, description, isActive, isDefault, department } = req.body;
@@ -12924,12 +12944,13 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Delete template (only dealership-specific, not system defaults)
-  app.delete("/api/call-scoring/templates/:id", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), async (req: AuthRequest, res) => {
+  app.delete("/api/call-scoring/templates/:id", authMiddleware, requirePermission("leads.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ error: "Invalid template ID" });
       }
+      const dealershipId = req.dealershipId!;
       
       const template = await storage.getCallScoringTemplate(id);
       if (!template) {
@@ -12938,6 +12959,9 @@ Format your response in clear sections with actionable recommendations.`;
       
       if (template.dealershipId === null) {
         return res.status(403).json({ error: "Cannot delete system default templates" });
+      }
+      if (template.dealershipId !== dealershipId) {
+        return res.status(404).json({ error: "Template not found" });
       }
       
       await storage.deleteCallScoringTemplate(id);
@@ -12951,11 +12975,17 @@ Format your response in clear sections with actionable recommendations.`;
   // ===== TEMPLATE CRITERIA =====
   
   // Get criteria for a template
-  app.get("/api/call-scoring/templates/:templateId/criteria", authMiddleware, async (req: AuthRequest, res) => {
+  app.get("/api/call-scoring/templates/:templateId/criteria", authMiddleware, requirePermission("leads.read"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const templateId = parseInt(req.params.templateId);
       if (isNaN(templateId)) {
         return res.status(400).json({ error: "Invalid template ID" });
+      }
+      const dealershipId = req.dealershipId!;
+
+      const template = await storage.getCallScoringTemplate(templateId);
+      if (!template || (template.dealershipId !== null && template.dealershipId !== dealershipId)) {
+        return res.status(404).json({ error: "Template not found" });
       }
       
       const criteria = await storage.getTemplateCriteria(templateId);
@@ -12967,12 +12997,13 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Add criterion to template
-  app.post("/api/call-scoring/templates/:templateId/criteria", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), async (req: AuthRequest, res) => {
+  app.post("/api/call-scoring/templates/:templateId/criteria", authMiddleware, requirePermission("leads.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const templateId = parseInt(req.params.templateId);
       if (isNaN(templateId)) {
         return res.status(400).json({ error: "Invalid template ID" });
       }
+      const dealershipId = req.dealershipId!;
       
       const template = await storage.getCallScoringTemplate(templateId);
       if (!template) {
@@ -12981,6 +13012,9 @@ Format your response in clear sections with actionable recommendations.`;
       
       if (template.dealershipId === null) {
         return res.status(403).json({ error: "Cannot modify system default templates" });
+      }
+      if (template.dealershipId !== dealershipId) {
+        return res.status(404).json({ error: "Template not found" });
       }
       
       const { category, label, description, weight, maxScore, ratingType, sortOrder, aiInstruction, isRequired } = req.body;
@@ -13009,11 +13043,23 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Update criterion
-  app.patch("/api/call-scoring/criteria/:id", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), async (req: AuthRequest, res) => {
+  app.patch("/api/call-scoring/criteria/:id", authMiddleware, requirePermission("leads.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ error: "Invalid criterion ID" });
+      }
+      const dealershipId = req.dealershipId!;
+
+      const criterionScope = await getCallScoringCriterionTemplateScope(id);
+      if (!criterionScope) {
+        return res.status(404).json({ error: "Criterion not found" });
+      }
+      if (criterionScope.templateDealershipId === null) {
+        return res.status(403).json({ error: "Cannot modify system default criteria" });
+      }
+      if (criterionScope.templateDealershipId !== dealershipId) {
+        return res.status(404).json({ error: "Criterion not found" });
       }
       
       const { category, label, description, weight, maxScore, ratingType, sortOrder, aiInstruction, isRequired } = req.body;
@@ -13041,11 +13087,23 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Delete criterion
-  app.delete("/api/call-scoring/criteria/:id", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), async (req: AuthRequest, res) => {
+  app.delete("/api/call-scoring/criteria/:id", authMiddleware, requirePermission("leads.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ error: "Invalid criterion ID" });
+      }
+      const dealershipId = req.dealershipId!;
+
+      const criterionScope = await getCallScoringCriterionTemplateScope(id);
+      if (!criterionScope) {
+        return res.status(404).json({ error: "Criterion not found" });
+      }
+      if (criterionScope.templateDealershipId === null) {
+        return res.status(403).json({ error: "Cannot delete system default criteria" });
+      }
+      if (criterionScope.templateDealershipId !== dealershipId) {
+        return res.status(404).json({ error: "Criterion not found" });
       }
       
       const deleted = await storage.deleteCriterion(id);
@@ -13061,11 +13119,23 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Reorder criteria
-  app.post("/api/call-scoring/templates/:templateId/criteria/reorder", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), async (req: AuthRequest, res) => {
+  app.post("/api/call-scoring/templates/:templateId/criteria/reorder", authMiddleware, requirePermission("leads.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const templateId = parseInt(req.params.templateId);
       if (isNaN(templateId)) {
         return res.status(400).json({ error: "Invalid template ID" });
+      }
+      const dealershipId = req.dealershipId!;
+
+      const template = await storage.getCallScoringTemplate(templateId);
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      if (template.dealershipId === null) {
+        return res.status(403).json({ error: "Cannot reorder system default criteria" });
+      }
+      if (template.dealershipId !== dealershipId) {
+        return res.status(404).json({ error: "Template not found" });
       }
       
       const { criteriaIds } = req.body;
@@ -13084,15 +13154,19 @@ Format your response in clear sections with actionable recommendations.`;
   // ===== CALL SCORING SHEETS =====
   
   // Get scoring sheet for a call
-  app.get("/api/call-recordings/:callId/scoring", authMiddleware, async (req: AuthRequest, res) => {
+  app.get("/api/call-recordings/:callId/scoring", authMiddleware, requirePermission("leads.read"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const callId = parseInt(req.params.callId);
       if (isNaN(callId)) {
         return res.status(400).json({ error: "Invalid call ID" });
       }
+      const dealershipId = req.dealershipId!;
       
       const result = await storage.getCallScoringSheetWithResponses(callId);
       if (!result) {
+        return res.status(404).json({ error: "Scoring sheet not found" });
+      }
+      if (result.sheet.dealershipId !== dealershipId) {
         return res.status(404).json({ error: "Scoring sheet not found" });
       }
       
@@ -13104,23 +13178,23 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Create or update scoring sheet
-  app.post("/api/call-recordings/:callId/scoring", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), async (req: AuthRequest, res) => {
+  app.post("/api/call-recordings/:callId/scoring", authMiddleware, requirePermission("leads.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const callId = parseInt(req.params.callId);
       if (isNaN(callId)) {
         return res.status(400).json({ error: "Invalid call ID" });
       }
       
-      const dealershipId = req.dealershipId || req.user?.dealershipId;
-      if (!dealershipId) {
-        return res.status(400).json({ error: "Dealership ID is required" });
-      }
+      const dealershipId = req.dealershipId!;
       
       const { templateId, status, employeeId, employeeName, employeeDepartment, reviewerNotes, coachingNotes, reviewerTotalScore, finalScore } = req.body;
       
       let sheet = await storage.getCallScoringSheet(callId);
       
       if (sheet) {
+        if (sheet.dealershipId !== dealershipId) {
+          return res.status(404).json({ error: "Scoring sheet not found" });
+        }
         sheet = await storage.updateCallScoringSheet(sheet.id, {
           status,
           reviewerId: req.user?.id,
@@ -13136,6 +13210,14 @@ Format your response in clear sections with actionable recommendations.`;
       } else {
         if (!templateId) {
           return res.status(400).json({ error: "Template ID is required for new scoring sheet" });
+        }
+        const callRecording = await storage.getCallRecordingById(callId, dealershipId);
+        if (!callRecording) {
+          return res.status(404).json({ error: "Call recording not found" });
+        }
+        const template = await storage.getCallScoringTemplate(templateId);
+        if (!template || (template.dealershipId !== null && template.dealershipId !== dealershipId)) {
+          return res.status(404).json({ error: "Template not found" });
         }
         
         sheet = await storage.createCallScoringSheet({
@@ -13160,12 +13242,13 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Update individual response score
-  app.patch("/api/call-scoring/responses/:id", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), async (req: AuthRequest, res) => {
+  app.patch("/api/call-scoring/responses/:id", authMiddleware, requirePermission("leads.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ error: "Invalid response ID" });
       }
+      const dealershipId = req.dealershipId!;
       
       const { reviewerScore, comment, timestamp } = req.body;
       
@@ -13183,9 +13266,8 @@ Format your response in clear sections with actionable recommendations.`;
         return res.status(404).json({ error: "Response not found" });
       }
 
-      const authReq = req as AuthRequest;
-      if (req.dealershipId && responseWithSheet[0].sheetDealershipId !== req.dealershipId) {
-        return res.status(403).json({ error: "Access denied: response belongs to another dealership" });
+      if (responseWithSheet[0].sheetDealershipId !== dealershipId) {
+        return res.status(404).json({ error: "Response not found" });
       }
 
       const updated = await db.update(callScoringResponses)
@@ -13201,12 +13283,13 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Bulk update responses (for batch saving)
-  app.post("/api/call-recordings/:callId/scoring/responses", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), async (req: AuthRequest, res) => {
+  app.post("/api/call-recordings/:callId/scoring/responses", authMiddleware, requirePermission("leads.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const callId = parseInt(req.params.callId);
       if (isNaN(callId)) {
         return res.status(400).json({ error: "Invalid call ID" });
       }
+      const dealershipId = req.dealershipId!;
       
       const { responses } = req.body;
       if (!Array.isArray(responses)) {
@@ -13215,6 +13298,9 @@ Format your response in clear sections with actionable recommendations.`;
       
       const sheet = await storage.getCallScoringSheet(callId);
       if (!sheet) {
+        return res.status(404).json({ error: "Scoring sheet not found" });
+      }
+      if (sheet.dealershipId !== dealershipId) {
         return res.status(404).json({ error: "Scoring sheet not found" });
       }
       
