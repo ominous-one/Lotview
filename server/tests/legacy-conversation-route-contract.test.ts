@@ -24,6 +24,30 @@ describe("legacy conversation route tenant and RBAC contract", () => {
     expect(routesSource).toContain(
       'app.post("/api/messenger-conversations/:id/reply", authMiddleware, requirePermission("messages.write"), requireRole("manager", "admin", "master", "super_admin"), requireDealership'
     );
+    expect(routesSource).toContain(
+      'app.get("/api/messenger-conversations/:id/messages", authMiddleware, requirePermission("messages.read"), requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership'
+    );
+    expect(routesSource).toContain(
+      'app.post("/api/messenger-conversations/:id/assign", authMiddleware, requirePermission("messages.write"), requireRole("manager", "admin", "master", "super_admin"), requireDealership'
+    );
+    expect(routesSource).toContain(
+      'app.get("/api/salespeople", authMiddleware, requirePermission("messages.read"), requireRole("manager", "admin", "master", "super_admin"), requireDealership'
+    );
+  });
+
+  it("requires explicit permissions and dealership context for messenger AI controls", () => {
+    expect(routesSource).toContain(
+      'app.post("/api/messenger-conversations/:id/toggle-ai", authMiddleware, requirePermission("ai.configure"), requireRole("manager", "admin", "master", "super_admin"), requireDealership'
+    );
+    expect(routesSource).toContain(
+      'app.post("/api/messenger-conversations/:id/toggle-watch-mode", authMiddleware, requirePermission("messages.write"), requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership'
+    );
+    expect(routesSource).toContain(
+      'app.patch("/api/messenger-conversations/:id/metadata", authMiddleware, requirePermission("messages.write"), requireRole("manager", "admin", "master", "super_admin"), requireDealership'
+    );
+    expect(routesSource).toContain(
+      'app.patch("/api/messenger-messages/:id/training", authMiddleware, requirePermission("ai.configure"), requireRole("manager", "admin", "master", "super_admin"), requireDealership'
+    );
   });
 
   it("requires message write permission, role floor, and dealership context for outbound conversation messages", () => {
