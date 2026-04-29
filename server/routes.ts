@@ -17770,7 +17770,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
 
   // ===== WS4E: Appointments (canonical internal calendar) =====
 
-  app.get("/api/appointments", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+  app.get("/api/appointments", authMiddleware, requirePermission("leads.read"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const start = req.query.start ? new Date(req.query.start as string) : null;
@@ -17798,7 +17798,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
     }
   });
 
-  app.post("/api/appointments", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+  app.post("/api/appointments", authMiddleware, requirePermission("leads.write"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const actor = req.user ? { actorType: 'USER' as const, actorUserId: req.user.id } : { actorType: 'SYSTEM' as const };
@@ -17895,7 +17895,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
     }
   });
 
-  app.get("/api/appointments/:id", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+  app.get("/api/appointments/:id", authMiddleware, requirePermission("leads.read"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const id = req.params.id;
@@ -17923,7 +17923,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
     }
   });
 
-  app.post("/api/appointments/:id/reschedule", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+  app.post("/api/appointments/:id/reschedule", authMiddleware, requirePermission("leads.write"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const id = req.params.id;
@@ -17954,7 +17954,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
     }
   });
 
-  app.post("/api/appointments/:id/cancel", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+  app.post("/api/appointments/:id/cancel", authMiddleware, requirePermission("leads.write"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const id = req.params.id;
@@ -17987,7 +17987,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
     }
   });
 
-  app.post("/api/appointments/:id/request-reschedule", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+  app.post("/api/appointments/:id/request-reschedule", authMiddleware, requirePermission("leads.write"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const id = req.params.id;
@@ -18013,7 +18013,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
     }
   });
 
-  app.post("/api/appointments/:id/no-show", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+  app.post("/api/appointments/:id/no-show", authMiddleware, requirePermission("leads.write"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const id = req.params.id;
@@ -18039,7 +18039,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
     }
   });
 
-  app.post("/api/appointments/:id/complete", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+  app.post("/api/appointments/:id/complete", authMiddleware, requirePermission("leads.write"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const id = req.params.id;
@@ -18065,7 +18065,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
     }
   });
 
-  app.post("/api/appointments/:id/reassign", authMiddleware, requireDealership, requireRole('master', 'manager', 'sales_manager'), async (req: AuthRequest, res) => {
+  app.post("/api/appointments/:id/reassign", authMiddleware, requirePermission("leads.write"), requireDealership, requireRole('master', 'manager', 'sales_manager'), async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const id = req.params.id;
@@ -18089,7 +18089,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
   });
 
   // Follow-up tasks feed
-  app.get('/api/follow-up-tasks', authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+  app.get('/api/follow-up-tasks', authMiddleware, requirePermission("leads.read"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const role = req.user?.role;
@@ -18115,7 +18115,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
     }
   });
 
-  app.post('/api/appointments/:id/follow-up/no-response', authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+  app.post('/api/appointments/:id/follow-up/no-response', authMiddleware, requirePermission("leads.write"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const id = req.params.id;
