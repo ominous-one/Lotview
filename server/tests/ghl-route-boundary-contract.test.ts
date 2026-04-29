@@ -11,6 +11,12 @@ describe("GHL integration route RBAC and tenant contract", () => {
     expect(routesSource).toContain(
       'app.patch("/api/dealership-api-keys", authMiddleware, requirePermission("integrations.write"), requireRole("master"), requireDealership'
     );
+    expect(routesSource).toContain(
+      'app.get("/api/dealership/webhook-secret", authMiddleware, requirePermission("integrations.read"), requireRole("admin"), requireDealership'
+    );
+    expect(routesSource).toContain(
+      'app.post("/api/dealership/webhook-secret", authMiddleware, requirePermission("integrations.write"), requireRole("admin"), requireDealership'
+    );
   });
 
   it("requires integration permission and dealership context for GHL admin configuration routes", () => {

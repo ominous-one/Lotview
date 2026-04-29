@@ -6538,7 +6538,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Generate or regenerate webhook secret for automated scraping (Zapier/n8n)
-  app.post("/api/dealership/webhook-secret", authMiddleware, requireRole("admin"), requireDealership, async (req: AuthRequest, res) => {
+  app.post("/api/dealership/webhook-secret", authMiddleware, requirePermission("integrations.write"), requireRole("admin"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       
@@ -6580,7 +6580,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get webhook secret info (masked) for the current dealership
-  app.get("/api/dealership/webhook-secret", authMiddleware, requireRole("admin"), requireDealership, async (req: AuthRequest, res) => {
+  app.get("/api/dealership/webhook-secret", authMiddleware, requirePermission("integrations.read"), requireRole("admin"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const apiKeys = await storage.getDealershipApiKeys(dealershipId);

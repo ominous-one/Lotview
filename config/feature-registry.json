@@ -221,7 +221,7 @@
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "GHL/API-key integration routes now require explicit integrations read/write RBAC and dealership context; GHL mutation routes are restricted to master users until write flows are certified. Still needs OAuth, token refresh, webhook verification, sync log, duplicate-contact, staging, observability, rollback, and real user-flow proof."
+      "notes": "GHL/API-key integration routes now require explicit integrations read/write RBAC and dealership context, including dealership webhook-secret reads/regeneration; GHL mutation routes are restricted to master users until write flows are certified. Still needs OAuth, token refresh, webhook verification, sync log, duplicate-contact, staging, observability, rollback, and real user-flow proof."
     },
     {
       "id": "billing.plans",
