@@ -7197,12 +7197,9 @@ Format your response in clear sections with actionable recommendations.`;
   // ===== DEALERSHIP CONTACTS/WEBSITE ROUTES =====
   
   // Get dealership website URL (for managers to view their site)
-  app.get("/api/dealership/website-url", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), async (req, res) => {
+  app.get("/api/dealership/website-url", authMiddleware, requirePermission("integrations.read"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
-      const dealershipId = req.dealershipId || req.user?.dealershipId;
-      if (!dealershipId) {
-        return res.status(400).json({ error: "Dealership not found" });
-      }
+      const dealershipId = req.dealershipId!;
       
       // Query dealership_contacts for website URL
       const contacts = await db.query.dealershipContacts.findFirst({
