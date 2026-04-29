@@ -84,6 +84,11 @@ for (const workflowFile of workflowFiles) {
   const content = read(workflowFile);
   check(`${workflowFile} does not hide failures with shell fallbacks`, !content.includes("|| true"));
   check(`${workflowFile} does not reference missing Dockerfile.render`, !content.includes("Dockerfile.render"));
+  check(
+    `${workflowFile} opts into Node 24 JavaScript actions runtime`,
+    content.includes("FORCE_JAVASCRIPT_ACTIONS_TO_NODE24"),
+    "GitHub Actions will force Node 24 for JavaScript actions on June 2, 2026; opt in now so CI proves compatibility before the deadline.",
+  );
 }
 
 const envTemplate = read(".env.template");
