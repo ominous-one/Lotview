@@ -80,6 +80,15 @@ const workflowFiles = [
   ".github/workflows/production-gates.yml",
 ].filter(exists);
 
+const deprecatedActionPins = [
+  "actions/checkout@v4",
+  "actions/setup-node@v4",
+  "actions/upload-artifact@v4",
+  "docker/setup-buildx-action@v3",
+  "docker/login-action@v3",
+  "docker/build-push-action@v5",
+];
+
 for (const workflowFile of workflowFiles) {
   const content = read(workflowFile);
   check(`${workflowFile} does not hide failures with shell fallbacks`, !content.includes("|| true"));
@@ -89,6 +98,13 @@ for (const workflowFile of workflowFiles) {
     content.includes("FORCE_JAVASCRIPT_ACTIONS_TO_NODE24"),
     "GitHub Actions will force Node 24 for JavaScript actions on June 2, 2026; opt in now so CI proves compatibility before the deadline.",
   );
+  for (const actionPin of deprecatedActionPins) {
+    check(
+      `${workflowFile} does not use deprecated ${actionPin}`,
+      !content.includes(actionPin),
+      "Use current action major versions that run on the Node 24 JavaScript actions runtime.",
+    );
+  }
 }
 
 const envTemplate = read(".env.template");
