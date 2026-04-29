@@ -139,6 +139,23 @@
       "notes": "VIN format and check-digit validation are covered by automated tests. Provider decode, batch decode, cache/rate limiting, and provider reconciliation still require proof."
     },
     {
+      "id": "scraper.olympic_hyundai",
+      "name": "Olympic Hyundai Scraper",
+      "status": "code_exists",
+      "exposure": "staging_only",
+      "owner": "engineering",
+      "paths": ["server/services/scraper-olympic-hyundai.ts", "server/tests/scraper-olympic-hyundai-extraction.test.ts"],
+      "proof": {
+        "ci": true,
+        "tests": true,
+        "staging": false,
+        "observability": false,
+        "realUserFlow": false,
+        "rollback": false
+      },
+      "notes": "Extraction tests prove missing year/make/model source facts are not fabricated. Live pagination, source-truth reconciliation, quarantine, observability, and staging proof remain required."
+    },
+    {
       "id": "scraper.robust",
       "name": "Robust Scraper",
       "status": "fail_closed",

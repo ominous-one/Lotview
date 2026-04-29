@@ -31,7 +31,7 @@ Every production feature must have CI proof, automated tests, staging proof, log
 | Frontend Boot | Not Verified | No | No | No | No | No | TBD | Vite entrypoint must be proven. |
 | Vehicle Inventory CRUD | Code Exists | No | Partial | No | Partial | No | TBD | Test create, update, delete, and search. |
 | VIN Decode | Code Exists | Partial | Partial | No | Partial | No | engineering | VIN format and check-digit validation now have automated tests. Provider decode, batch/cache/rate-limit, and reconciliation proof remain required. |
-| Scraper | Code Exists | No | Partial | No | Partial | No | TBD | Prove source-truth reconciliation. |
+| Scraper | Code Exists | Partial | Partial | No | Partial | No | engineering | Olympic Hyundai extraction no longer fabricates missing year/make/model in tested fixtures. Prove pagination, quarantine, live source-truth reconciliation, and staging flow before launch. |
 | Source Truth Reconciliation | Code Exists | No | Partial | No | Partial | No | TBD | Protect manually verified data. |
 | Worker/Schedulers | Code Exists | No | No | No | Partial | No | TBD | Prove no duplicate jobs. |
 | Facebook Posting | Code Exists | No | No | No | No | No | TBD | Run in draft/review mode first. |
