@@ -5784,7 +5784,7 @@ Provide a single, concise, friendly message that continues the conversation natu
   // ===== CHAT PROMPT ROUTES =====
 
   // Get all chat prompts - Manager and above
-  app.get("/api/chat-prompts", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), async (req, res) => {
+  app.get("/api/chat-prompts", authMiddleware, requirePermission("ai.configure"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const prompts = await storage.getChatPrompts(dealershipId);
@@ -5797,7 +5797,7 @@ Provide a single, concise, friendly message that continues the conversation natu
 
   // Get chat prompt by scenario - Manager and above
   // Public endpoint: returns only the greeting field for the active prompt (no auth required)
-  app.get("/api/chat-prompts/:scenario/active", async (req, res) => {
+  app.get("/api/chat-prompts/:scenario/active", requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { scenario } = req.params;
@@ -5812,7 +5812,7 @@ Provide a single, concise, friendly message that continues the conversation natu
     }
   });
 
-  app.get("/api/chat-prompts/:scenario", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), async (req, res) => {
+  app.get("/api/chat-prompts/:scenario", authMiddleware, requirePermission("ai.configure"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const scenario = req.params.scenario;
@@ -5830,7 +5830,7 @@ Provide a single, concise, friendly message that continues the conversation natu
   });
 
   // Create or update chat prompt - Manager and above
-  app.post("/api/chat-prompts", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), async (req, res) => {
+  app.post("/api/chat-prompts", authMiddleware, requirePermission("ai.configure"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { scenario, systemPrompt, greeting, name } = req.body;
@@ -5870,7 +5870,7 @@ Provide a single, concise, friendly message that continues the conversation natu
   });
 
   // Update a specific prompt by ID (for training mode)
-  app.patch("/api/chat-prompts/:id", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
+  app.patch("/api/chat-prompts/:id", authMiddleware, requirePermission("ai.configure"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const promptId = parseInt(req.params.id);
@@ -5898,7 +5898,7 @@ Provide a single, concise, friendly message that continues the conversation natu
   });
 
   // Training feedback endpoint - analyzes edited AI responses and suggests prompt improvements
-  app.post("/api/chat/training-feedback", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
+  app.post("/api/chat/training-feedback", authMiddleware, requirePermission("ai.configure"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { originalResponse, editedResponse, conversationContext, currentPrompt } = req.body;
@@ -5989,7 +5989,7 @@ IMPORTANT: The suggestedPrompt should be a complete, ready-to-use system prompt.
   // ===== ENHANCED PROMPT MANAGEMENT API FOR SUPER ADMIN =====
   
   // Get all prompts (including inactive) for admin
-  app.get("/api/admin/prompts", authMiddleware, requireRole("master", "super_admin"), async (req, res) => {
+  app.get("/api/admin/prompts", authMiddleware, requirePermission("ai.configure"), requireRole("master", "super_admin"), async (req, res) => {
     try {
       const authReq = req as AuthRequest;
       const queryDealershipId = req.query.dealershipId ? parseInt(req.query.dealershipId as string) : null;
@@ -6013,7 +6013,7 @@ IMPORTANT: The suggestedPrompt should be a complete, ready-to-use system prompt.
   });
 
   // Get single prompt by ID
-  app.get("/api/admin/prompts/:id", authMiddleware, requireRole("master", "super_admin"), async (req, res) => {
+  app.get("/api/admin/prompts/:id", authMiddleware, requirePermission("ai.configure"), requireRole("master", "super_admin"), async (req, res) => {
     try {
       const authReq = req as AuthRequest;
       const queryDealershipId = req.query.dealershipId ? parseInt(req.query.dealershipId as string) : null;
@@ -6042,7 +6042,7 @@ IMPORTANT: The suggestedPrompt should be a complete, ready-to-use system prompt.
   });
 
   // Create new prompt with all fields
-  app.post("/api/admin/prompts", authMiddleware, requireRole("master", "super_admin"), async (req, res) => {
+  app.post("/api/admin/prompts", authMiddleware, requirePermission("ai.configure"), requireRole("master", "super_admin"), async (req, res) => {
     try {
       const authReq = req as AuthRequest;
       const bodyDealershipId = req.body.dealershipId ? parseInt(req.body.dealershipId) : null;
@@ -6091,7 +6091,7 @@ IMPORTANT: The suggestedPrompt should be a complete, ready-to-use system prompt.
   });
 
   // Update prompt by ID
-  app.put("/api/admin/prompts/:id", authMiddleware, requireRole("master", "super_admin"), async (req, res) => {
+  app.put("/api/admin/prompts/:id", authMiddleware, requirePermission("ai.configure"), requireRole("master", "super_admin"), async (req, res) => {
     try {
       const authReq = req as AuthRequest;
       const bodyDealershipId = req.body.dealershipId ? parseInt(req.body.dealershipId) : null;
@@ -6133,7 +6133,7 @@ IMPORTANT: The suggestedPrompt should be a complete, ready-to-use system prompt.
   });
 
   // Delete prompt
-  app.delete("/api/admin/prompts/:id", authMiddleware, requireRole("master", "super_admin"), async (req, res) => {
+  app.delete("/api/admin/prompts/:id", authMiddleware, requirePermission("ai.configure"), requireRole("master", "super_admin"), async (req, res) => {
     try {
       const authReq = req as AuthRequest;
       const queryDealershipId = req.query.dealershipId ? parseInt(req.query.dealershipId as string) : null;
@@ -6163,7 +6163,7 @@ IMPORTANT: The suggestedPrompt should be a complete, ready-to-use system prompt.
   });
 
   // Sync prompt to GHL
-  app.post("/api/admin/prompts/:id/sync-ghl", authMiddleware, requireRole("master", "super_admin"), async (req, res) => {
+  app.post("/api/admin/prompts/:id/sync-ghl", authMiddleware, requirePermission("ai.configure"), requireRole("master", "super_admin"), async (req, res) => {
     try {
       const authReq = req as AuthRequest;
       const bodyDealershipId = req.body.dealershipId ? parseInt(req.body.dealershipId) : null;
@@ -6240,7 +6240,7 @@ IMPORTANT: The suggestedPrompt should be a complete, ready-to-use system prompt.
   });
 
   // AI-powered prompt enhancement endpoint
-  app.post("/api/admin/enhance-prompt", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), async (req, res) => {
+  app.post("/api/admin/enhance-prompt", authMiddleware, requirePermission("ai.configure"), requireRole("manager", "admin", "master", "super_admin"), async (req, res) => {
     try {
       const authReq = req as AuthRequest;
       const bodyDealershipId = req.body?.dealershipId ? parseInt(String(req.body.dealershipId), 10) : null;
@@ -6390,7 +6390,7 @@ Your task is to improve any customer-facing message to be more effective, engagi
   });
 
   // Generate AI insights for conversations - ADMIN ONLY
-  app.post("/api/chat-insights", authMiddleware, requireRole("master"), async (req, res) => {
+  app.post("/api/chat-insights", authMiddleware, requirePermission("ai.configure"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { scenario } = req.body;
