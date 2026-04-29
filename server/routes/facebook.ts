@@ -6,7 +6,7 @@
 
 import { Router } from "express";
 import { storage } from "../storage";
-import { authMiddleware, requireRole } from "../auth";
+import { authMiddleware, requirePermission, requireRole } from "../auth";
 import { requireDealership } from "../tenant-middleware";
 import { logError, logWarn } from "../error-utils";
 import { checkAccountHealth, getCurrentPostingLimit, recordPostAttempt } from "../services/fb-ban-recovery";
@@ -18,7 +18,7 @@ const router = Router();
 
 /* ─── Facebook Pages ─── */
 
-router.get("/pages", authMiddleware, requireDealership, async (req, res) => {
+router.get("/pages", authMiddleware, requirePermission("integrations.read"), requireDealership, async (req, res) => {
   try {
     const pages = await storage.getFacebookPages(req.dealershipId!);
     res.json(pages);
@@ -28,7 +28,7 @@ router.get("/pages", authMiddleware, requireDealership, async (req, res) => {
   }
 });
 
-router.post("/pages", authMiddleware, requireDealership, async (req, res) => {
+router.post("/pages", authMiddleware, requirePermission("integrations.write"), requireDealership, async (req, res) => {
   try {
     const page = await storage.createFacebookPage({ ...req.body, dealershipId: req.dealershipId! });
     res.status(201).json(page);
@@ -38,10 +38,16 @@ router.post("/pages", authMiddleware, requireDealership, async (req, res) => {
   }
 });
 
-router.patch("/pages/:id", authMiddleware, async (req, res) => {
+router.patch("/pages/:id", authMiddleware, requirePermission("integrations.write"), requireDealership, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const page = await storage.updateFacebookPage(id, req.body);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: "Invalid page id" });
+    }
+    const requestBody = typeof req.body === "object" && req.body !== null ? req.body : {};
+    const { dealershipId: _ignoredDealershipId, ...updates } = requestBody;
+    const page = await storage.updateFacebookPage(id, updates, req.dealershipId!);
+    if (!page) return res.status(404).json({ error: "Page not found" });
     res.json(page);
   } catch (error) {
     logError("Error updating FB page:", error instanceof Error ? error : new Error(String(error)), { route: "api-facebook-pages-id" });

@@ -34,7 +34,7 @@ Every production feature must have CI proof, automated tests, staging proof, log
 | Scraper | Code Exists | Partial | Partial | No | Partial | No | engineering | Olympic Hyundai extraction no longer fabricates missing year/make/model in tested fixtures. Prove pagination, quarantine, live source-truth reconciliation, and staging flow before launch. |
 | Source Truth Reconciliation | Code Exists | No | Partial | No | Partial | No | TBD | Protect manually verified data. |
 | Worker/Schedulers | Code Exists | No | No | No | Partial | No | TBD | Prove no duplicate jobs. |
-| Facebook Posting | Code Exists | No | No | No | No | No | TBD | Run in draft/review mode first. |
+| Facebook Posting | Code Exists | Partial | Partial | No | No | No | engineering | Facebook Pages route has integrations read/write RBAC and tenant-scoped update tests. Marketplace posting still must run in draft/review mode first. |
 | GHL Sync | Code Exists | No | No | No | No | No | TBD | Prove no duplicate contacts. |
 | AI Lead Response | Code Exists | No | No | No | No | No | TBD | Must pass guardrail tests. |
 | Admin Dashboard | Code Exists | No | No | No | Partial | No | TBD | Test permissions and audit logs. |

@@ -178,7 +178,7 @@
       "status": "fail_closed",
       "exposure": "disabled",
       "owner": "engineering",
-      "paths": ["server/fb-marketplace-service.ts", "server/tests/feature-gates.test.ts"],
+      "paths": ["server/fb-marketplace-service.ts", "server/routes/facebook.ts", "server/tests/feature-gates.test.ts", "server/tests/facebook-route-tenant-contract.test.ts"],
       "proof": {
         "ci": true,
         "tests": true,
@@ -187,7 +187,7 @@
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "Must remain draft/human-approved until token, duplicate, image, posting, and failure tests exist."
+      "notes": "Facebook Pages route has explicit integrations read/write RBAC and tenant-scoped update tests. Marketplace posting must remain draft/human-approved until token, duplicate, image, posting, and failure tests exist."
     },
     {
       "id": "ai.lead_response",
