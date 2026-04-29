@@ -5127,7 +5127,7 @@ Provide a single, concise, friendly message that continues the conversation natu
   });
 
   // Send FWC follow-up message (SMS, Email, or Facebook)
-  app.post("/api/conversations/:id/fwc-message", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
+  app.post("/api/conversations/:id/fwc-message", authMiddleware, requirePermission("messages.write"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const conversationId = parseInt(req.params.id);
@@ -5203,7 +5203,7 @@ Provide a single, concise, friendly message that continues the conversation natu
   });
 
   // Send SMS or Email from conversation (auto-creates FWC contact if needed)
-  app.post("/api/conversations/:id/send-message", authMiddleware, requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
+  app.post("/api/conversations/:id/send-message", authMiddleware, requirePermission("messages.write"), requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const conversationId = parseInt(req.params.id);
@@ -5530,7 +5530,7 @@ Provide a single, concise, friendly message that continues the conversation natu
   
   // Get all conversations (both website chat and messenger) with role-based filtering
   // General Manager/Sales Manager see all, salespeople see only their connected pages' messenger
-  app.get("/api/all-conversations", authMiddleware, requireRole("salesperson", "manager", "admin", "master", "super_admin"), async (req, res) => {
+  app.get("/api/all-conversations", authMiddleware, requirePermission("messages.read"), requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const userId = req.user?.id;
@@ -5605,7 +5605,7 @@ Provide a single, concise, friendly message that continues the conversation natu
   // ===== SCHEDULED MESSAGES ROUTES =====
 
   // Get scheduled messages for a conversation
-  app.get("/api/messenger-conversations/:id/scheduled", authMiddleware, requireRole("salesperson", "manager", "admin", "master", "super_admin"), async (req, res) => {
+  app.get("/api/messenger-conversations/:id/scheduled", authMiddleware, requirePermission("messages.read"), requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const conversationId = parseInt(req.params.id);
@@ -5619,7 +5619,7 @@ Provide a single, concise, friendly message that continues the conversation natu
   });
 
   // Get all pending scheduled messages for dealership
-  app.get("/api/scheduled-messages", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), async (req, res) => {
+  app.get("/api/scheduled-messages", authMiddleware, requirePermission("messages.read"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const status = req.query.status as string | undefined;
@@ -5633,7 +5633,7 @@ Provide a single, concise, friendly message that continues the conversation natu
   });
 
   // Cancel a scheduled message
-  app.post("/api/scheduled-messages/:id/cancel", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), async (req, res) => {
+  app.post("/api/scheduled-messages/:id/cancel", authMiddleware, requirePermission("messages.write"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const messageId = parseInt(req.params.id);
