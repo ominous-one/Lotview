@@ -36,7 +36,7 @@ import {
   requestAccessLeads,
   insertRequestAccessLeadSchema
 } from "@shared/schema";
-import { hasCapability, hasRole, isKnownRole, normalizeRole } from "@shared/authz";
+import { hasCapability, hasPermission, hasRole, isKnownRole, normalizeRole } from "@shared/authz";
 import { eq, desc, sql, and, gt, gte, lte, isNull, asc, or, inArray } from "drizzle-orm";
 import { fromZodError } from "zod-validation-error";
 import { z } from "zod";
@@ -3578,7 +3578,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Valid permissions
-      const validPerms = ["import:vehicles", "read:vehicles", "update:vehicles", "delete:vehicles"];
+      const validPerms = ["import:vehicles", "read:vehicles", "update:vehicles", "delete:vehicles", "automation:trigger"];
       if (!permissions.every(p => validPerms.includes(p))) {
         return res.status(400).json({ error: `Invalid permissions. Valid: ${validPerms.join(", ")}` });
       }
@@ -13704,23 +13704,50 @@ Format your response in clear sections with actionable recommendations.`;
         dealershipId: bodyDealershipId 
       } = req.body;
 
-      // Determine dealership from authenticated session OR valid API token only
-      // No unauthenticated access allowed - dealershipId in body is NOT sufficient
+      // Determine dealership from an active staff JWT OR valid external API token only.
+      // Tenant middleware context by itself is not authentication for this write path.
       let dealershipId: number | null = null;
-      
-      // Check for authenticated session first (logged-in user)
-      if ((req as any).dealershipId) {
-        dealershipId = (req as any).dealershipId;
+
+      if (!req.headers.authorization?.startsWith('Bearer ')) {
+        return res.status(401).json({
+          error: "Authentication required: provide staff JWT or Bearer token with 'automation:trigger' permission"
+        });
       }
-      // Check for API token in Authorization header (for external webhooks like n8n, Zapier, GHL)
-      else if (req.headers.authorization?.startsWith('Bearer ')) {
-        const tokenPrefix = req.headers.authorization.slice(7, 15); // First 8 chars after "Bearer "
+
+      const fullToken = req.headers.authorization.slice(7);
+      const decoded = verifyToken(fullToken);
+
+      if (decoded?.id) {
+        const user = await storage.getUserById(decoded.id);
+        if (!user || !user.isActive) {
+          return res.status(401).json({ error: "Invalid or inactive user" });
+        }
+        if (!hasPermission(user.role, "messages.write") || !hasRole(user.role, 'manager', 'admin', 'master', 'super_admin')) {
+          return res.status(403).json({ error: "Insufficient permissions" });
+        }
+
+        if (user.role === 'super_admin') {
+          dealershipId = parseDealershipIdParam(bodyDealershipId);
+        } else {
+          dealershipId = user.dealershipId ?? null;
+        }
+      } else {
+        const prefixMatch = fullToken.match(/^(oag_[a-z0-9]+_)/);
+        if (!prefixMatch) {
+          return res.status(401).json({ error: "Invalid API token format" });
+        }
+
+        const tokenPrefix = prefixMatch[1];
         const tokenData = await storage.getExternalApiTokenByPrefix(tokenPrefix);
         if (tokenData) {
-          // Validate the full token using bcrypt
-          const bcrypt = await import('bcryptjs');
-          const fullToken = req.headers.authorization.slice(7);
-          const isValid = await bcrypt.compare(fullToken, tokenData.tokenHash);
+          if (!tokenData.isActive) {
+            return res.status(401).json({ error: "API token is deactivated" });
+          }
+          if (tokenData.expiresAt && tokenData.expiresAt < new Date()) {
+            return res.status(401).json({ error: "API token has expired" });
+          }
+
+          const isValid = await comparePassword(fullToken, tokenData.tokenHash);
           if (isValid && tokenData.permissions.includes('automation:trigger')) {
             dealershipId = tokenData.dealershipId;
             await storage.updateExternalApiTokenLastUsed(tokenData.id);
@@ -13731,10 +13758,10 @@ Format your response in clear sections with actionable recommendations.`;
           return res.status(401).json({ error: "Unknown API token" });
         }
       }
-      
+
       if (!dealershipId) {
-        return res.status(401).json({ 
-          error: "Authentication required: provide session cookie or Bearer token with 'automation:trigger' permission" 
+        return res.status(400).json({
+          error: "Dealership ID is required"
         });
       }
       
