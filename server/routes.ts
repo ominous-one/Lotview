@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, NextFunction, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { db } from "./db";
@@ -13544,8 +13544,15 @@ Format your response in clear sections with actionable recommendations.`;
     return req.dealershipId || null;
   };
 
+  const requireAutomationDealershipContext = (req: Request, res: Response, next: NextFunction) => {
+    if (!resolveAutomationDealershipId(req)) {
+      return res.status(400).json({ error: "Dealership ID is required" });
+    }
+    next();
+  };
+
   // Get all follow-up sequences for dealership
-  app.get("/api/automation/sequences", authMiddleware, async (req, res) => {
+  app.get("/api/automation/sequences", authMiddleware, requirePermission("messages.read"), requireAutomationDealershipContext, async (req, res) => {
     try {
       const dealershipId = resolveAutomationDealershipId(req);
       if (!dealershipId) {
@@ -13560,7 +13567,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get a specific sequence
-  app.get("/api/automation/sequences/:id", authMiddleware, async (req, res) => {
+  app.get("/api/automation/sequences/:id", authMiddleware, requirePermission("messages.read"), requireAutomationDealershipContext, async (req, res) => {
     try {
       const dealershipId = resolveAutomationDealershipId(req);
       if (!dealershipId) {
@@ -13579,7 +13586,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Create a new sequence
-  app.post("/api/automation/sequences", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), async (req, res) => {
+  app.post("/api/automation/sequences", authMiddleware, requirePermission("messages.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireAutomationDealershipContext, async (req, res) => {
     try {
       const dealershipId = resolveAutomationDealershipId(req);
       if (!dealershipId) {
@@ -13597,7 +13604,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Update a sequence
-  app.patch("/api/automation/sequences/:id", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), async (req, res) => {
+  app.patch("/api/automation/sequences/:id", authMiddleware, requirePermission("messages.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireAutomationDealershipContext, async (req, res) => {
     try {
       const dealershipId = resolveAutomationDealershipId(req);
       if (!dealershipId) {
@@ -13616,7 +13623,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Delete a sequence
-  app.delete("/api/automation/sequences/:id", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), async (req, res) => {
+  app.delete("/api/automation/sequences/:id", authMiddleware, requirePermission("messages.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireAutomationDealershipContext, async (req, res) => {
     try {
       const dealershipId = resolveAutomationDealershipId(req);
       if (!dealershipId) {
