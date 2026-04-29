@@ -76,7 +76,7 @@
       "status": "code_exists",
       "exposure": "disabled",
       "owner": "engineering",
-      "paths": ["shared/authz.ts", "server/auth.ts", "server/routes.ts", "server/routes/vehicles.ts", "server/tests/rbac-permissions.test.ts", "server/tests/user-management-route-contract.test.ts", "server/tests/legacy-conversation-route-contract.test.ts", "server/tests/vehicle-route-tenant-contract.test.ts", "server/tests/financing-settings-route-contract.test.ts", "server/tests/crm-route-rbac-contract.test.ts", "server/tests/fb-inbox-route-rbac-contract.test.ts", "server/tests/appointment-route-rbac-contract.test.ts"],
+      "paths": ["shared/authz.ts", "server/auth.ts", "server/routes.ts", "server/routes/vehicles.ts", "server/tests/rbac-permissions.test.ts", "server/tests/user-management-route-contract.test.ts", "server/tests/legacy-conversation-route-contract.test.ts", "server/tests/vehicle-route-tenant-contract.test.ts", "server/tests/financing-settings-route-contract.test.ts", "server/tests/crm-route-rbac-contract.test.ts", "server/tests/fb-inbox-route-rbac-contract.test.ts", "server/tests/appointment-route-rbac-contract.test.ts", "server/tests/automation-runtime-route-rbac-contract.test.ts"],
       "proof": {
         "ci": true,
         "tests": true,
@@ -85,7 +85,7 @@
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "Explicit SaaS permission matrix, permission guard tests, user management route contracts, modular vehicle inventory-write route contracts, full inventory view read guard, financing/fee settings billing read/write route contracts, CRM lead/message route contracts, appointment/follow-up lead route contracts, FB inbox message/AI-control route contracts, legacy conversation message read/write route contracts, scheduled-message route contracts, and messenger management/AI-control route contracts exist. Full route migration, sensitive action audit proof, staging proof, and user-flow proof remain critical blockers."
+      "notes": "Explicit SaaS permission matrix, permission guard tests, user management route contracts, modular vehicle inventory-write route contracts, full inventory view read guard, financing/fee settings billing read/write route contracts, CRM lead/message route contracts, appointment/follow-up lead route contracts, automation runtime lead/message route contracts, FB inbox message/AI-control route contracts, legacy conversation message read/write route contracts, scheduled-message route contracts, and messenger management/AI-control route contracts exist. Full route migration, sensitive action audit proof, staging proof, and user-flow proof remain critical blockers."
     },
     {
       "id": "tenant.isolation",
@@ -93,7 +93,7 @@
       "status": "code_exists",
       "exposure": "disabled",
       "owner": "engineering",
-      "paths": ["server/tenant-middleware.ts", "server/tenant-utils.ts", "server/routes.ts", "server/routes/vehicles.ts", "server/tests/legacy-conversation-route-contract.test.ts", "server/tests/tenant-context-boundary.test.ts", "server/tests/vehicle-route-tenant-contract.test.ts", "server/tests/financing-settings-route-contract.test.ts", "server/tests/ai-runtime-route-contract.test.ts", "server/tests/crm-route-rbac-contract.test.ts", "server/tests/fb-inbox-route-rbac-contract.test.ts", "server/tests/appointment-route-rbac-contract.test.ts"],
+      "paths": ["server/tenant-middleware.ts", "server/tenant-utils.ts", "server/routes.ts", "server/routes/vehicles.ts", "server/tests/legacy-conversation-route-contract.test.ts", "server/tests/tenant-context-boundary.test.ts", "server/tests/vehicle-route-tenant-contract.test.ts", "server/tests/financing-settings-route-contract.test.ts", "server/tests/ai-runtime-route-contract.test.ts", "server/tests/crm-route-rbac-contract.test.ts", "server/tests/fb-inbox-route-rbac-contract.test.ts", "server/tests/appointment-route-rbac-contract.test.ts", "server/tests/automation-runtime-route-rbac-contract.test.ts"],
       "proof": {
         "ci": true,
         "tests": true,
@@ -102,7 +102,7 @@
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "Tenant context boundary has automated tests for header spoofing, legacy tokens, explicit super-admin selection, owner guard behavior, vehicle route tenant-context fail-closed behavior, financing/fee settings dealership context, AI runtime/settings dealership context, CRM lead/message route dealership context, appointment/follow-up route dealership context, FB inbox route dealership context, and legacy conversation/scheduled-message/messenger-management route dealership context. Full route/storage cross-tenant isolation across all resources remains a critical blocker."
+      "notes": "Tenant context boundary has automated tests for header spoofing, legacy tokens, explicit super-admin selection, owner guard behavior, vehicle route tenant-context fail-closed behavior, financing/fee settings dealership context, AI runtime/settings dealership context, CRM lead/message route dealership context, appointment/follow-up route dealership context, automation runtime route dealership context, FB inbox route dealership context, and legacy conversation/scheduled-message/messenger-management route dealership context. Full route/storage cross-tenant isolation across all resources remains a critical blocker."
     },
     {
       "id": "inventory.crud",
