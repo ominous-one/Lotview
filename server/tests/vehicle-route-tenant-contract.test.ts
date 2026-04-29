@@ -1,6 +1,7 @@
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import request from "supertest";
 import { beforeAll, beforeEach, describe, expect, it, jest } from "@jest/globals";
+import { hasPermission, type Permission } from "../../shared/authz";
 
 const storageMock = {
   getPublicInventoryVehicles: jest.fn() as any,
@@ -37,7 +38,28 @@ beforeAll(async () => {
   }));
 
   await (jest as any).unstable_mockModule("../auth", () => ({
-    authMiddleware: (_req: Request, _res: Response, next: NextFunction) => next(),
+    authMiddleware: (req: Request, _res: Response, next: NextFunction) => {
+      const role = req.headers["x-test-role"];
+      if (typeof role === "string") {
+        req.user = {
+          id: 10,
+          email: `${role}@lotview.test`,
+          role,
+          name: role,
+          dealershipId: req.dealershipId ?? 1,
+        };
+      }
+      return next();
+    },
+    requirePermission: (permission: Permission) => (req: Request, res: Response, next: NextFunction) => {
+      if (!req.user) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      if (!hasPermission(req.user.role, permission)) {
+        return res.status(403).json({ error: "Insufficient permissions" });
+      }
+      return next();
+    },
     requireRole: () => (_req: Request, _res: Response, next: NextFunction) => next(),
   }));
 
@@ -128,5 +150,50 @@ describe("vehicle route tenant contracts", () => {
 
     expect(storageMock.getVehicleById).toHaveBeenCalledWith(42, 1);
     expect(storageMock.getVehicleViews).not.toHaveBeenCalled();
+  });
+
+  it("blocks read-only users from creating inventory", async () => {
+    await request(appWithDealerOne)
+      .post("/api/vehicles")
+      .set("x-test-role", "read_only")
+      .send({ vin: "1HGCM82633A004352" })
+      .expect(403)
+      .expect({ error: "Insufficient permissions" });
+
+    expect(storageMock.createVehicle).not.toHaveBeenCalled();
+  });
+
+  it("blocks sales reps from updating inventory", async () => {
+    await request(appWithDealerOne)
+      .patch("/api/vehicles/42")
+      .set("x-test-role", "sales_rep")
+      .send({ price: "25000" })
+      .expect(403)
+      .expect({ error: "Insufficient permissions" });
+
+    expect(storageMock.updateVehicle).not.toHaveBeenCalled();
+  });
+
+  it("blocks read-only users from deleting inventory", async () => {
+    await request(appWithDealerOne)
+      .delete("/api/vehicles/42")
+      .set("x-test-role", "read_only")
+      .expect(403)
+      .expect({ error: "Insufficient permissions" });
+
+    expect(storageMock.deleteVehicle).not.toHaveBeenCalled();
+  });
+
+  it("lets dealer managers reach inventory write handlers through explicit permission", async () => {
+    storageMock.updateVehicle.mockResolvedValue(undefined);
+
+    await request(appWithDealerOne)
+      .patch("/api/vehicles/42")
+      .set("x-test-role", "dealer_manager")
+      .send({ price: 25000 })
+      .expect(404)
+      .expect({ error: "Vehicle not found" });
+
+    expect(storageMock.updateVehicle).toHaveBeenCalledWith(42, expect.objectContaining({ price: 25000 }), 1);
   });
 });

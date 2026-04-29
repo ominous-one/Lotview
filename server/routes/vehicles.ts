@@ -10,7 +10,7 @@ import { Router, type Request, type Response } from "express";
 import { z } from "zod";
 import { fromZodError } from "zod-validation-error";
 import { storage } from "../storage";
-import { authMiddleware, requireRole } from "../auth";
+import { authMiddleware, requirePermission, requireRole } from "../auth";
 import { requireDealership } from "../tenant-middleware";
 import { logError, logWarn } from "../error-utils";
 import { insertVehicleSchema } from "@shared/schema";
@@ -174,11 +174,11 @@ router.get("/:id/views", async (req, res) => {
 });
 
 /*
- * ─── PROTECTED ROUTES (master role) ───
+ * ─── PROTECTED ROUTES (explicit RBAC permissions) ───
  */
 
 // POST /api/vehicles — Create vehicle
-router.post("/", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
+router.post("/", authMiddleware, requirePermission("inventory.write"), requireDealership, async (req, res) => {
   try {
     const parsed = insertVehicleSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -227,7 +227,7 @@ router.post("/", authMiddleware, requireRole("master"), requireDealership, async
 });
 
 // PATCH /api/vehicles/:id — Update vehicle
-router.patch("/:id", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
+router.patch("/:id", authMiddleware, requirePermission("inventory.write"), requireDealership, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const parsed = insertVehicleSchema.partial().safeParse(req.body);
@@ -246,7 +246,7 @@ router.patch("/:id", authMiddleware, requireRole("master"), requireDealership, a
 });
 
 // POST /api/vehicles/:id/soft-delete — Soft delete
-router.post("/:id/soft-delete", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: any, res) => {
+router.post("/:id/soft-delete", authMiddleware, requirePermission("inventory.write"), requireDealership, async (req: any, res) => {
   try {
     const id = parseInt(req.params.id);
     const dealershipId = req.dealershipId!;
@@ -262,7 +262,7 @@ router.post("/:id/soft-delete", authMiddleware, requireRole("manager", "admin", 
 });
 
 // DELETE /api/vehicles/:id — Hard delete
-router.delete("/:id", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
+router.delete("/:id", authMiddleware, requirePermission("inventory.write"), requireDealership, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const dealershipId = req.dealershipId!;
@@ -385,7 +385,7 @@ router.post("/batch-carfax-update", authMiddleware, requireRole("manager"), requ
 });
 
 // PATCH /api/vehicles/:id/vdp-content — Update VDP content
-router.patch("/:id/vdp-content", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: any, res) => {
+router.patch("/:id/vdp-content", authMiddleware, requirePermission("inventory.write"), requireDealership, async (req: any, res) => {
   try {
     const id = parseInt(req.params.id);
     const dealershipId = req.dealershipId!;
@@ -571,7 +571,7 @@ router.post("/:id/photo-score", authMiddleware, requireRole("manager", "admin", 
 });
 
 // POST /api/vehicles/:id/smart-merge — Preview/apply smart merge
-router.post("/:id/smart-merge", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: any, res) => {
+router.post("/:id/smart-merge", authMiddleware, requirePermission("inventory.write"), requireDealership, async (req: any, res) => {
   try {
     const id = parseInt(req.params.id);
     const dealershipId = req.dealershipId!;
