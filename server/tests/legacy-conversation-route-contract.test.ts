@@ -26,6 +26,30 @@ describe("legacy conversation route tenant and RBAC contract", () => {
     );
   });
 
+  it("requires message write permission, role floor, and dealership context for outbound conversation messages", () => {
+    expect(routesSource).toContain(
+      'app.post("/api/conversations/:id/fwc-message", authMiddleware, requirePermission("messages.write"), requireRole("manager", "admin", "master", "super_admin"), requireDealership'
+    );
+    expect(routesSource).toContain(
+      'app.post("/api/conversations/:id/send-message", authMiddleware, requirePermission("messages.write"), requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership'
+    );
+  });
+
+  it("requires message permissions, role floor, and dealership context for combined and scheduled message routes", () => {
+    expect(routesSource).toContain(
+      'app.get("/api/all-conversations", authMiddleware, requirePermission("messages.read"), requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership'
+    );
+    expect(routesSource).toContain(
+      'app.get("/api/messenger-conversations/:id/scheduled", authMiddleware, requirePermission("messages.read"), requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership'
+    );
+    expect(routesSource).toContain(
+      'app.get("/api/scheduled-messages", authMiddleware, requirePermission("messages.read"), requireRole("manager", "admin", "master", "super_admin"), requireDealership'
+    );
+    expect(routesSource).toContain(
+      'app.post("/api/scheduled-messages/:id/cancel", authMiddleware, requirePermission("messages.write"), requireRole("manager", "admin", "master", "super_admin"), requireDealership'
+    );
+  });
+
   it("does not perform ad hoc header tenant selection inside conversation read routes", () => {
     const conversationReadSection = routesSource.slice(
       routesSource.indexOf("// Get all conversations"),
