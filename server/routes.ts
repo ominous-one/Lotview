@@ -14079,7 +14079,7 @@ Format your response in clear sections with actionable recommendations.`;
   // ===== CRM CONTACTS =====
   
   // Get all CRM contacts (with RBAC - salespeople see own, managers see all)
-  app.get("/api/crm/contacts", authMiddleware, requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
+  app.get("/api/crm/contacts", authMiddleware, requirePermission("leads.read"), requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const userId = req.user?.id;
@@ -14118,7 +14118,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Create a new CRM contact
-  app.post("/api/crm/contacts", authMiddleware, requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
+  app.post("/api/crm/contacts", authMiddleware, requirePermission("leads.write"), requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const userId = req.user?.id;
@@ -14153,7 +14153,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Get a single CRM contact by ID
-  app.get("/api/crm/contacts/:id", authMiddleware, requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
+  app.get("/api/crm/contacts/:id", authMiddleware, requirePermission("leads.read"), requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const id = parseInt(req.params.id);
@@ -14179,7 +14179,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Update a CRM contact
-  app.patch("/api/crm/contacts/:id", authMiddleware, requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
+  app.patch("/api/crm/contacts/:id", authMiddleware, requirePermission("leads.write"), requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const id = parseInt(req.params.id);
@@ -14216,7 +14216,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Delete a CRM contact
-  app.delete("/api/crm/contacts/:id", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
+  app.delete("/api/crm/contacts/:id", authMiddleware, requirePermission("leads.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const id = parseInt(req.params.id);
@@ -14237,7 +14237,7 @@ Format your response in clear sections with actionable recommendations.`;
   // ===== CRM TAGS =====
   
   // Get all CRM tags for dealership
-  app.get("/api/crm/tags", authMiddleware, requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
+  app.get("/api/crm/tags", authMiddleware, requirePermission("leads.read"), requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const tags = await storage.getCrmTags(dealershipId);
@@ -14249,7 +14249,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Create a new CRM tag
-  app.post("/api/crm/tags", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
+  app.post("/api/crm/tags", authMiddleware, requirePermission("leads.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const userId = req.user?.id;
@@ -14273,7 +14273,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Update a CRM tag
-  app.patch("/api/crm/tags/:id", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
+  app.patch("/api/crm/tags/:id", authMiddleware, requirePermission("leads.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const id = parseInt(req.params.id);
@@ -14292,7 +14292,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Delete a CRM tag
-  app.delete("/api/crm/tags/:id", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
+  app.delete("/api/crm/tags/:id", authMiddleware, requirePermission("leads.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const id = parseInt(req.params.id);
@@ -14311,7 +14311,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Add tag to contact
-  app.post("/api/crm/contacts/:id/tags/:tagId", authMiddleware, requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
+  app.post("/api/crm/contacts/:id/tags/:tagId", authMiddleware, requirePermission("leads.write"), requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const contactId = parseInt(req.params.id);
       const tagId = parseInt(req.params.tagId);
@@ -14326,7 +14326,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Remove tag from contact
-  app.delete("/api/crm/contacts/:id/tags/:tagId", authMiddleware, requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
+  app.delete("/api/crm/contacts/:id/tags/:tagId", authMiddleware, requirePermission("leads.write"), requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const contactId = parseInt(req.params.id);
       const tagId = parseInt(req.params.tagId);
@@ -14345,7 +14345,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Get tags for a contact
-  app.get("/api/crm/contacts/:id/tags", authMiddleware, requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
+  app.get("/api/crm/contacts/:id/tags", authMiddleware, requirePermission("leads.read"), requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const contactId = parseInt(req.params.id);
       const tags = await storage.getContactTags(contactId);
@@ -14359,7 +14359,7 @@ Format your response in clear sections with actionable recommendations.`;
   // ===== CRM ACTIVITIES =====
   
   // Get activity timeline for a contact
-  app.get("/api/crm/contacts/:id/activities", authMiddleware, requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
+  app.get("/api/crm/contacts/:id/activities", authMiddleware, requirePermission("leads.read"), requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const contactId = parseInt(req.params.id);
@@ -14374,7 +14374,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Log a new activity for a contact
-  app.post("/api/crm/contacts/:id/activities", authMiddleware, requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
+  app.post("/api/crm/contacts/:id/activities", authMiddleware, requirePermission("leads.write"), requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const contactId = parseInt(req.params.id);
@@ -14402,7 +14402,7 @@ Format your response in clear sections with actionable recommendations.`;
   // ===== CRM TASKS =====
   
   // Get CRM tasks
-  app.get("/api/crm/tasks", authMiddleware, requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
+  app.get("/api/crm/tasks", authMiddleware, requirePermission("leads.read"), requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const userId = req.user?.id;
@@ -14434,7 +14434,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Get a single CRM task by ID
-  app.get("/api/crm/tasks/:id", authMiddleware, requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
+  app.get("/api/crm/tasks/:id", authMiddleware, requirePermission("leads.read"), requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const id = parseInt(req.params.id);
@@ -14453,7 +14453,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Create a new CRM task
-  app.post("/api/crm/tasks", authMiddleware, requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
+  app.post("/api/crm/tasks", authMiddleware, requirePermission("leads.write"), requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const userId = req.user?.id;
@@ -14478,7 +14478,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Update a CRM task
-  app.patch("/api/crm/tasks/:id", authMiddleware, requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
+  app.patch("/api/crm/tasks/:id", authMiddleware, requirePermission("leads.write"), requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const id = parseInt(req.params.id);
@@ -14505,7 +14505,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Delete a CRM task
-  app.delete("/api/crm/tasks/:id", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
+  app.delete("/api/crm/tasks/:id", authMiddleware, requirePermission("leads.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const id = parseInt(req.params.id);
@@ -14526,7 +14526,7 @@ Format your response in clear sections with actionable recommendations.`;
   // ===== CRM MESSAGE TEMPLATES =====
   
   // Get all message templates for the dealership
-  app.get("/api/crm/message-templates", authMiddleware, requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
+  app.get("/api/crm/message-templates", authMiddleware, requirePermission("messages.read"), requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const channel = req.query.channel as string | undefined;
@@ -14540,7 +14540,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Get a specific message template
-  app.get("/api/crm/message-templates/:id", authMiddleware, requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
+  app.get("/api/crm/message-templates/:id", authMiddleware, requirePermission("messages.read"), requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const id = parseInt(req.params.id);
@@ -14559,7 +14559,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Create a new message template
-  app.post("/api/crm/message-templates", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
+  app.post("/api/crm/message-templates", authMiddleware, requirePermission("messages.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const userId = req.user?.id;
@@ -14593,7 +14593,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Update a message template
-  app.patch("/api/crm/message-templates/:id", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
+  app.patch("/api/crm/message-templates/:id", authMiddleware, requirePermission("messages.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const id = parseInt(req.params.id);
@@ -14612,7 +14612,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Delete a message template
-  app.delete("/api/crm/message-templates/:id", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
+  app.delete("/api/crm/message-templates/:id", authMiddleware, requirePermission("messages.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const id = parseInt(req.params.id);
@@ -14633,7 +14633,7 @@ Format your response in clear sections with actionable recommendations.`;
   // ===== CRM MESSAGING =====
   
   // Send a message to a contact (email, sms, or facebook)
-  app.post("/api/crm/contacts/:id/message", authMiddleware, requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
+  app.post("/api/crm/contacts/:id/message", authMiddleware, requirePermission("messages.write"), requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const contactId = parseInt(req.params.id);
@@ -14673,7 +14673,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Get AI-suggested message for a contact
-  app.post("/api/crm/contacts/:id/suggest-message", authMiddleware, requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
+  app.post("/api/crm/contacts/:id/suggest-message", authMiddleware, requirePermission("messages.write"), requirePermission("ai.use"), requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const contactId = parseInt(req.params.id);
@@ -14706,7 +14706,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Get message history for a contact
-  app.get("/api/crm/contacts/:id/messages", authMiddleware, requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
+  app.get("/api/crm/contacts/:id/messages", authMiddleware, requirePermission("messages.read"), requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const contactId = parseInt(req.params.id);
