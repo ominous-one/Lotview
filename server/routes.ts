@@ -4688,7 +4688,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ===== CHAT ROUTES =====
   
   // Chat endpoint for AI responses
-  app.post("/api/chat", async (req, res) => {
+  app.post("/api/chat", requireDealership, async (req, res) => {
     try {
       const { messages, vehicleContext, scenario, vehicleId } = req.body;
 
@@ -4743,7 +4743,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // AI suggest reply for conversations (manager dashboard)
-  app.post("/api/ai/suggest-reply", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
+  app.post("/api/ai/suggest-reply", authMiddleware, requirePermission("ai.use"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
       const { messages, context } = req.body;
       const dealershipId = req.dealershipId!;
@@ -4806,7 +4806,7 @@ Provide a single, concise, friendly message that continues the conversation natu
   });
 
   // AI Sales Agent - Generate sales-optimized response for customer messages
-  app.post("/api/ai/respond", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
+  app.post("/api/ai/respond", authMiddleware, requirePermission("ai.use"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { vehicleId, conversationId, customerMessage, customerName, messageHistory } = req.body;
@@ -4850,7 +4850,7 @@ Provide a single, concise, friendly message that continues the conversation natu
   });
 
   // AI Sales Agent - Generate follow-up message for cold conversations
-  app.post("/api/ai/follow-up", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
+  app.post("/api/ai/follow-up", authMiddleware, requirePermission("ai.use"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { conversationId, customerName, vehicleName, lastMessagePreview, hoursSinceLastMessage } = req.body;
@@ -4897,7 +4897,7 @@ Provide a single, concise, friendly message that continues the conversation natu
   });
 
   // AI Payment Calculator - Calculate payment options for a vehicle
-  app.get("/api/ai/payments/:vehicleId", authMiddleware, requireDealership, async (req, res) => {
+  app.get("/api/ai/payments/:vehicleId", authMiddleware, requirePermission("ai.use"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const vehicleId = parseInt(req.params.vehicleId);
@@ -17399,7 +17399,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
   // ===== AI SETTINGS (Bot Training & Customization) =====
 
   // GET /api/ai-settings — get current dealership's AI settings
-  app.get("/api/ai-settings", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
+  app.get("/api/ai-settings", authMiddleware, requirePermission("ai.configure"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { aiSettings: aiSettingsTable } = await import("@shared/schema");
@@ -17444,7 +17444,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
   });
 
   // PUT /api/ai-settings — update AI settings
-  app.put("/api/ai-settings", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
+  app.put("/api/ai-settings", authMiddleware, requirePermission("ai.configure"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { aiSettings: aiSettingsTable } = await import("@shared/schema");
@@ -17509,7 +17509,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
   });
 
   // POST /api/ai-settings/test — test AI with current settings
-  app.post("/api/ai-settings/test", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
+  app.post("/api/ai-settings/test", authMiddleware, requirePermission("ai.configure"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { customerMessage } = req.body;
@@ -17532,7 +17532,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
   });
 
   // GET /api/ai/conversations — returns AI conversations with messages for chat log viewer
-  app.get("/api/ai/conversations", authMiddleware, requireRole("salesperson", "manager", "admin", "master", "super_admin"), async (req: AuthRequest, res) => {
+  app.get("/api/ai/conversations", authMiddleware, requirePermission("ai.use"), requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const userId = req.user?.id;

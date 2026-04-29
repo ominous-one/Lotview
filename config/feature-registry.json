@@ -93,7 +93,7 @@
       "status": "code_exists",
       "exposure": "disabled",
       "owner": "engineering",
-      "paths": ["server/tenant-middleware.ts", "server/tenant-utils.ts", "server/routes.ts", "server/routes/vehicles.ts", "server/tests/legacy-conversation-route-contract.test.ts", "server/tests/tenant-context-boundary.test.ts", "server/tests/vehicle-route-tenant-contract.test.ts", "server/tests/financing-settings-route-contract.test.ts"],
+      "paths": ["server/tenant-middleware.ts", "server/tenant-utils.ts", "server/routes.ts", "server/routes/vehicles.ts", "server/tests/legacy-conversation-route-contract.test.ts", "server/tests/tenant-context-boundary.test.ts", "server/tests/vehicle-route-tenant-contract.test.ts", "server/tests/financing-settings-route-contract.test.ts", "server/tests/ai-runtime-route-contract.test.ts"],
       "proof": {
         "ci": true,
         "tests": true,
@@ -102,7 +102,7 @@
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "Tenant context boundary has automated tests for header spoofing, legacy tokens, explicit super-admin selection, owner guard behavior, vehicle route tenant-context fail-closed behavior, financing/fee settings dealership context, and legacy conversation/scheduled-message/messenger-management route dealership context. Full route/storage cross-tenant isolation across all resources remains a critical blocker."
+      "notes": "Tenant context boundary has automated tests for header spoofing, legacy tokens, explicit super-admin selection, owner guard behavior, vehicle route tenant-context fail-closed behavior, financing/fee settings dealership context, AI runtime/settings dealership context, and legacy conversation/scheduled-message/messenger-management route dealership context. Full route/storage cross-tenant isolation across all resources remains a critical blocker."
     },
     {
       "id": "inventory.crud",
@@ -195,7 +195,7 @@
       "status": "code_exists",
       "exposure": "staging_only",
       "owner": "engineering",
-      "paths": ["server/ai-sales-agent.ts", "server/ai-training-defaults.ts", "server/routes.ts", "server/tests/ai-prompt-route-contract.test.ts"],
+      "paths": ["server/ai-sales-agent.ts", "server/ai-training-defaults.ts", "server/routes.ts", "server/tests/ai-prompt-route-contract.test.ts", "server/tests/ai-runtime-route-contract.test.ts"],
       "proof": {
         "ci": true,
         "tests": true,
@@ -204,7 +204,7 @@
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "AI prompt management routes require explicit ai.configure RBAC and dealership context where dealership-scoped. Still needs inventory-grounding, finance guardrail, prompt injection, escalation, human approval, observability, staging, and real user-flow proof."
+      "notes": "AI prompt management routes require explicit ai.configure RBAC and dealership context where dealership-scoped. AI runtime generation routes require explicit ai.use RBAC, AI settings require ai.configure RBAC, and public chat fails closed without dealership context. Still needs inventory-grounding, finance guardrail, prompt injection, escalation, human approval, observability, staging, and real user-flow proof."
     },
     {
       "id": "ghl.crm_sync",
