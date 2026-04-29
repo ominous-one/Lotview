@@ -6364,7 +6364,7 @@ Your task is to improve any customer-facing message to be more effective, engagi
   });
 
   // Get GHL workflows for linking
-  app.get("/api/admin/ghl/workflows", authMiddleware, requireRole("master"), async (req, res) => {
+  app.get("/api/admin/ghl/workflows", authMiddleware, requirePermission("integrations.read"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       
@@ -6461,7 +6461,7 @@ Format your response in clear sections with actionable recommendations.`;
   // ===== DEALERSHIP API KEYS ROUTES =====
 
   // Get dealership API keys - ADMIN ONLY
-  app.get("/api/dealership-api-keys", authMiddleware, requireRole("master"), async (req, res) => {
+  app.get("/api/dealership-api-keys", authMiddleware, requirePermission("integrations.read"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const apiKeys = await storage.getDealershipApiKeys(dealershipId);
@@ -6488,7 +6488,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Update dealership API keys - ADMIN ONLY
-  app.patch("/api/dealership-api-keys", authMiddleware, requireRole("master"), async (req, res) => {
+  app.patch("/api/dealership-api-keys", authMiddleware, requirePermission("integrations.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const updates = req.body;
@@ -11372,7 +11372,7 @@ Format your response in clear sections with actionable recommendations.`;
   // ===== ADMIN ROUTES =====
   
   // Save GHL configuration (Legacy - use OAuth flow for new integrations)
-  app.post("/api/admin/ghl-config", authMiddleware, requireRole("master"), async (req, res) => {
+  app.post("/api/admin/ghl-config", authMiddleware, requirePermission("integrations.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { syncContacts, syncAppointments, syncOpportunities } = req.body;
@@ -11398,7 +11398,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Save GHL Webhook configuration
-  app.post("/api/admin/ghl-webhook-config", authMiddleware, requireRole("master"), async (req, res) => {
+  app.post("/api/admin/ghl-webhook-config", authMiddleware, requirePermission("integrations.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { webhookUrl, webhookName } = req.body;
@@ -11421,7 +11421,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get GHL Webhook configuration
-  app.get("/api/admin/ghl-webhook-config", authMiddleware, requireRole("master"), async (req, res) => {
+  app.get("/api/admin/ghl-webhook-config", authMiddleware, requirePermission("integrations.read"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const config = await storage.getActiveGHLWebhookConfig(dealershipId);
@@ -11453,7 +11453,7 @@ Format your response in clear sections with actionable recommendations.`;
   // ===== GOHIGHLEVEL INTEGRATION ROUTES =====
   
   // GHL OAuth: Initiate connection - generates authorization URL
-  app.get("/api/ghl/auth/connect", authMiddleware, requireRole("master"), async (req, res) => {
+  app.get("/api/ghl/auth/connect", authMiddleware, requirePermission("integrations.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const clientId = process.env.GHL_CLIENT_ID;
@@ -11599,7 +11599,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // GHL Account: Get connected account status
-  app.get("/api/ghl/account", authMiddleware, requireRole("master", "sales_manager"), async (req, res) => {
+  app.get("/api/ghl/account", authMiddleware, requirePermission("integrations.read"), requireRole("master", "sales_manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const account = await storage.getGhlAccountByDealership(dealershipId);
@@ -11628,7 +11628,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // GHL Account: Disconnect
-  app.delete("/api/ghl/account", authMiddleware, requireRole("master"), async (req, res) => {
+  app.delete("/api/ghl/account", authMiddleware, requirePermission("integrations.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const account = await storage.getGhlAccountByDealership(dealershipId);
@@ -11647,7 +11647,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // GHL Config: Get sync configuration
-  app.get("/api/ghl/config", authMiddleware, requireRole("master"), async (req, res) => {
+  app.get("/api/ghl/config", authMiddleware, requirePermission("integrations.read"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const config = await storage.getGhlConfig(dealershipId);
@@ -11659,7 +11659,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // GHL Config: Update sync configuration
-  app.post("/api/ghl/config", authMiddleware, requireRole("master"), async (req, res) => {
+  app.post("/api/ghl/config", authMiddleware, requirePermission("integrations.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { 
@@ -11897,7 +11897,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // GHL Webhook Events: List for debugging
-  app.get("/api/ghl/webhook-events", authMiddleware, requireRole("master"), async (req, res) => {
+  app.get("/api/ghl/webhook-events", authMiddleware, requirePermission("integrations.read"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { status, limit } = req.query;
@@ -11914,7 +11914,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // GHL API Logs: View for debugging
-  app.get("/api/ghl/api-logs", authMiddleware, requireRole("master"), async (req, res) => {
+  app.get("/api/ghl/api-logs", authMiddleware, requirePermission("integrations.read"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { limit } = req.query;
@@ -11930,7 +11930,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // GHL Contacts: Search contacts via GHL API
-  app.get("/api/ghl/contacts/search", authMiddleware, requireRole("master", "sales_manager"), async (req, res) => {
+  app.get("/api/ghl/contacts/search", authMiddleware, requirePermission("integrations.read"), requireRole("master", "sales_manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { query, limit } = req.query;
@@ -11951,7 +11951,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // GHL Contacts: Get single contact
-  app.get("/api/ghl/contacts/:contactId", authMiddleware, requireRole("master", "sales_manager"), async (req, res) => {
+  app.get("/api/ghl/contacts/:contactId", authMiddleware, requirePermission("integrations.read"), requireRole("master", "sales_manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { contactId } = req.params;
@@ -11975,7 +11975,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // GHL Contacts: Create contact
-  app.post("/api/ghl/contacts", authMiddleware, requireRole("master", "sales_manager"), async (req, res) => {
+  app.post("/api/ghl/contacts", authMiddleware, requirePermission("integrations.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       
@@ -11995,7 +11995,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // GHL Contacts: Update contact
-  app.patch("/api/ghl/contacts/:contactId", authMiddleware, requireRole("master", "sales_manager"), async (req, res) => {
+  app.patch("/api/ghl/contacts/:contactId", authMiddleware, requirePermission("integrations.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { contactId } = req.params;
@@ -12019,7 +12019,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // GHL Appointments: Get calendar appointments
-  app.get("/api/ghl/appointments", authMiddleware, requireRole("master", "sales_manager", "service_manager"), async (req, res) => {
+  app.get("/api/ghl/appointments", authMiddleware, requirePermission("integrations.read"), requireRole("master", "sales_manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { calendarId, startDate, endDate } = req.query;
@@ -12048,7 +12048,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // GHL Appointments: Create appointment
-  app.post("/api/ghl/appointments", authMiddleware, requireRole("master", "sales_manager", "service_manager"), async (req, res) => {
+  app.post("/api/ghl/appointments", authMiddleware, requirePermission("integrations.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       
@@ -12068,7 +12068,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // GHL Pipelines: List available pipelines
-  app.get("/api/ghl/pipelines", authMiddleware, requireRole("master", "sales_manager"), async (req, res) => {
+  app.get("/api/ghl/pipelines", authMiddleware, requirePermission("integrations.read"), requireRole("master", "sales_manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       
@@ -12088,7 +12088,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // GHL Calendars: List available calendars
-  app.get("/api/ghl/calendars", authMiddleware, requireRole("master", "sales_manager", "service_manager"), async (req, res) => {
+  app.get("/api/ghl/calendars", authMiddleware, requirePermission("integrations.read"), requireRole("master", "sales_manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       
@@ -12108,7 +12108,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // GHL Opportunities: List opportunities
-  app.get("/api/ghl/opportunities", authMiddleware, requireRole("master", "sales_manager"), async (req, res) => {
+  app.get("/api/ghl/opportunities", authMiddleware, requirePermission("integrations.read"), requireRole("master", "sales_manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { pipelineId } = req.query;
@@ -12129,7 +12129,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // GHL Opportunities: Create opportunity
-  app.post("/api/ghl/opportunities", authMiddleware, requireRole("master", "sales_manager"), async (req, res) => {
+  app.post("/api/ghl/opportunities", authMiddleware, requirePermission("integrations.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       
@@ -12149,7 +12149,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // GHL Sync Stats: Get sync statistics for dashboard
-  app.get("/api/ghl/sync/stats", authMiddleware, requireRole("master", "sales_manager"), async (req, res) => {
+  app.get("/api/ghl/sync/stats", authMiddleware, requirePermission("integrations.read"), requireRole("master", "sales_manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       
@@ -12193,7 +12193,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // GHL Sync Run: Manually trigger a sync
-  app.post("/api/ghl/sync/run", authMiddleware, requireRole("master"), async (req, res) => {
+  app.post("/api/ghl/sync/run", authMiddleware, requirePermission("integrations.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       
@@ -12254,7 +12254,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // GHL Disconnect: Remove GHL integration
-  app.delete("/api/ghl/disconnect", authMiddleware, requireRole("master"), async (req, res) => {
+  app.delete("/api/ghl/disconnect", authMiddleware, requirePermission("integrations.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       
@@ -12274,7 +12274,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // GHL Contact Sync Records: List sync status
-  app.get("/api/ghl/sync/contacts", authMiddleware, requireRole("master"), async (req, res) => {
+  app.get("/api/ghl/sync/contacts", authMiddleware, requirePermission("integrations.read"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { status, limit } = req.query;
@@ -12301,7 +12301,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // GHL Test Connection: Verify API access
-  app.post("/api/ghl/test-connection", authMiddleware, requireRole("master"), async (req, res) => {
+  app.post("/api/ghl/test-connection", authMiddleware, requirePermission("integrations.read"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       

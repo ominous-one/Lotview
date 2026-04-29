@@ -35,7 +35,7 @@ Every production feature must have CI proof, automated tests, staging proof, log
 | Source Truth Reconciliation | Code Exists | No | Partial | No | Partial | No | TBD | Protect manually verified data. |
 | Worker/Schedulers | Code Exists | No | No | No | Partial | No | TBD | Prove no duplicate jobs. |
 | Facebook Posting | Code Exists | Partial | Partial | No | No | No | engineering | Modular and legacy Facebook Pages routes now require integrations read/write RBAC and tenant-scoped page updates; account/template/queue/post surfaces require dealership context. Marketplace posting still must run in draft/review mode first. |
-| GHL Sync | Code Exists | No | No | No | No | No | TBD | Prove no duplicate contacts. |
+| GHL Sync | Code Exists | Partial | Partial | No | No | No | engineering | GHL/API-key integration routes require integrations read/write RBAC and dealership context; GHL mutation routes are restricted to master users until write flows are certified. Still prove OAuth, token refresh, webhook verification, sync logs, duplicate-contact prevention, staging, observability, rollback, and real user flow. |
 | AI Lead Response | Code Exists | Partial | Partial | No | No | No | engineering | AI prompt management routes require explicit ai.configure RBAC and dealership context where dealership-scoped. Must still pass guardrail, inventory-grounding, prompt-injection, escalation, human approval, observability, staging, and real user-flow proof. |
 | Admin Dashboard | Code Exists | No | No | No | Partial | No | TBD | Test permissions and audit logs. |
 | Billing/Plans | Not Started | No | No | No | No | No | TBD | Needed before self-serve SaaS. |
