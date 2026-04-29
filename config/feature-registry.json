@@ -51,7 +51,7 @@
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "Build-time guardrails exist and now verify GitHub Actions workflows opt into the Node 24 JavaScript actions runtime before GitHub's June 2, 2026 enforcement date. Keep expanding gate checks as features are certified."
+      "notes": "Build-time guardrails exist and now verify GitHub Actions workflows opt into the Node 24 JavaScript actions runtime and avoid deprecated Node 20 action major pins before GitHub's June 2, 2026 enforcement date. Keep expanding gate checks as features are certified."
     },
     {
       "id": "auth.login",
