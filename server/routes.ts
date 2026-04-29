@@ -14844,7 +14844,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Send call scoring alert email
-  app.post("/api/email/call-scoring-alert", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
+  app.post("/api/email/call-scoring-alert", authMiddleware, requirePermission("messages.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const { managerEmail, managerName, salespersonName, callDate, overallScore, maxScore, department, callId, needsReview } = req.body;
       
@@ -14881,7 +14881,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Send lead notification email
-  app.post("/api/email/lead-notification", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
+  app.post("/api/email/lead-notification", authMiddleware, requirePermission("messages.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const { salesEmail, salesName, customerName, customerPhone, customerEmail, vehicleInterest, source } = req.body;
       
