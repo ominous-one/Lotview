@@ -4530,7 +4530,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // DEPRECATED: Priority vehicles - replaced by remarketing system
   // These endpoints are maintained for backward compatibility only
-  app.get("/api/facebook-pages/:id/priority-vehicles", authMiddleware, requireDealership, async (req, res) => {
+  app.get("/api/facebook-pages/:id/priority-vehicles", authMiddleware, requirePermission("integrations.read"), requireDealership, async (req, res) => {
     try {
       const pageId = parseInt(req.params.id);
       const dealershipId = req.dealershipId!;
@@ -4543,7 +4543,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // DEPRECATED: Set priority vehicles - replaced by remarketing system
-  app.post("/api/facebook-pages/:id/priority-vehicles", authMiddleware, requireDealership, async (req, res) => {
+  app.post("/api/facebook-pages/:id/priority-vehicles", authMiddleware, requirePermission("integrations.write"), requireDealership, async (req, res) => {
     try {
       const pageId = parseInt(req.params.id);
       const dealershipId = req.dealershipId!;

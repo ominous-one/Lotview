@@ -187,7 +187,7 @@
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "Modular and legacy Facebook Pages routes require explicit integrations read/write RBAC and tenant-scoped updates. Facebook account, template, queue, manual post, and config routes require dealership context before storage. Marketplace posting must remain draft/human-approved until token, duplicate, image, posting, and failure tests exist."
+      "notes": "Modular and legacy Facebook Pages routes require explicit integrations read/write RBAC, including priority vehicle reads/writes, and tenant-scoped updates. Facebook account, template, queue, manual post, and config routes require dealership context before storage. Marketplace posting must remain draft/human-approved until token, duplicate, image, posting, and failure tests exist."
     },
     {
       "id": "ai.lead_response",

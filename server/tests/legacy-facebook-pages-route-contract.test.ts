@@ -14,6 +14,12 @@ describe("legacy Facebook Pages route contract", () => {
     expect(routesSource).toContain(
       'app.patch("/api/facebook-pages/:id", authMiddleware, requirePermission("integrations.write"), requireDealership'
     );
+    expect(routesSource).toContain(
+      'app.get("/api/facebook-pages/:id/priority-vehicles", authMiddleware, requirePermission("integrations.read"), requireDealership'
+    );
+    expect(routesSource).toContain(
+      'app.post("/api/facebook-pages/:id/priority-vehicles", authMiddleware, requirePermission("integrations.write"), requireDealership'
+    );
   });
 
   it("scopes legacy page updates to the authenticated dealership", () => {
