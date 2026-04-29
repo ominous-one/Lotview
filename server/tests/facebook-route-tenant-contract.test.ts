@@ -1,12 +1,18 @@
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
 import request from "supertest";
 import { beforeAll, beforeEach, describe, expect, it, jest } from "@jest/globals";
-import { hasPermission, type Permission } from "../../shared/authz";
+import { hasPermission, hasRole, type Permission } from "../../shared/authz";
 
 const storageMock = {
   getFacebookPages: jest.fn() as any,
   createFacebookPage: jest.fn() as any,
   updateFacebookPage: jest.fn() as any,
+  getFacebookAccountsByUser: jest.fn() as any,
+  createFacebookAccount: jest.fn() as any,
+  getAdTemplatesByUser: jest.fn() as any,
+  createAdTemplate: jest.fn() as any,
+  getPostingQueueByUser: jest.fn() as any,
+  createPostingQueueItem: jest.fn() as any,
 };
 
 let appWithoutTenant: Express;
@@ -58,7 +64,15 @@ beforeAll(async () => {
       }
       return next();
     },
-    requireRole: () => (_req: Request, _res: Response, next: NextFunction) => next(),
+    requireRole: (...roles: string[]) => (req: Request, res: Response, next: NextFunction) => {
+      if (!req.user) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      if (!hasRole(req.user.role, ...(roles as Parameters<typeof hasRole>[1][]))) {
+        return res.status(403).json({ error: "Insufficient permissions" });
+      }
+      return next();
+    },
   }));
 
   await (jest as any).unstable_mockModule("../tenant-middleware", () => ({
@@ -208,5 +222,99 @@ describe("Facebook Pages route tenant and RBAC contracts", () => {
       .expect({ error: "Page not found" });
 
     expect(storageMock.updateFacebookPage).toHaveBeenCalledWith(9, { pageName: "Updated Page" }, 1);
+  });
+
+  it("requires dealership context before listing Facebook accounts", async () => {
+    await request(appWithoutTenant)
+      .get("/api/facebook/accounts")
+      .set("x-test-role", "salesperson")
+      .expect(400)
+      .expect({ error: "No dealership context found. Please specify via subdomain or authentication." });
+
+    expect(storageMock.getFacebookAccountsByUser).not.toHaveBeenCalled();
+  });
+
+  it("passes user and dealership context into Facebook account listing", async () => {
+    storageMock.getFacebookAccountsByUser.mockResolvedValue([{ id: 3, userId: 10, dealershipId: 1 }]);
+
+    await request(appWithDealerOne)
+      .get("/api/facebook/accounts")
+      .set("x-test-role", "salesperson")
+      .expect(200)
+      .expect([{ id: 3, userId: 10, dealershipId: 1 }]);
+
+    expect(storageMock.getFacebookAccountsByUser).toHaveBeenCalledWith(10, 1);
+  });
+
+  it("requires dealership context before listing ad templates", async () => {
+    await request(appWithoutTenant)
+      .get("/api/facebook/templates")
+      .set("x-test-role", "salesperson")
+      .expect(400)
+      .expect({ error: "No dealership context found. Please specify via subdomain or authentication." });
+
+    expect(storageMock.getAdTemplatesByUser).not.toHaveBeenCalled();
+  });
+
+  it("forces user and dealership context when creating ad templates", async () => {
+    storageMock.createAdTemplate.mockResolvedValue({ id: 4, userId: 10, dealershipId: 1, templateName: "Retail" });
+
+    await request(appWithDealerOne)
+      .post("/api/facebook/templates")
+      .set("x-test-role", "salesperson")
+      .send({ templateName: "Retail", dealershipId: 99, userId: 999 })
+      .expect(201)
+      .expect({ id: 4, userId: 10, dealershipId: 1, templateName: "Retail" });
+
+    expect(storageMock.createAdTemplate).toHaveBeenCalledWith({
+      templateName: "Retail",
+      dealershipId: 1,
+      userId: 10,
+    });
+  });
+
+  it("requires dealership context before listing posting queue items", async () => {
+    await request(appWithoutTenant)
+      .get("/api/facebook/queue")
+      .set("x-test-role", "salesperson")
+      .expect(400)
+      .expect({ error: "No dealership context found. Please specify via subdomain or authentication." });
+
+    expect(storageMock.getPostingQueueByUser).not.toHaveBeenCalled();
+  });
+
+  it("forces user and dealership context when creating posting queue items", async () => {
+    storageMock.createPostingQueueItem.mockResolvedValue({ id: 5, userId: 10, dealershipId: 1, vehicleId: 42 });
+
+    await request(appWithDealerOne)
+      .post("/api/facebook/queue")
+      .set("x-test-role", "salesperson")
+      .send({ vehicleId: 42, dealershipId: 99, userId: 999 })
+      .expect(201)
+      .expect({ id: 5, userId: 10, dealershipId: 1, vehicleId: 42 });
+
+    expect(storageMock.createPostingQueueItem).toHaveBeenCalledWith({
+      vehicleId: 42,
+      dealershipId: 1,
+      userId: 10,
+    });
+  });
+
+  it("requires dealership context before manual marketplace post", async () => {
+    await request(appWithoutTenant)
+      .post("/api/facebook/post/5")
+      .set("x-test-role", "salesperson")
+      .expect(400)
+      .expect({ error: "No dealership context found. Please specify via subdomain or authentication." });
+
+    expect(storageMock.getPostingQueueByUser).not.toHaveBeenCalled();
+  });
+
+  it("requires dealership context before returning Facebook config status", async () => {
+    await request(appWithoutTenant)
+      .get("/api/facebook/config/status")
+      .set("x-test-role", "salesperson")
+      .expect(400)
+      .expect({ error: "No dealership context found. Please specify via subdomain or authentication." });
   });
 });
