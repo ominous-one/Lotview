@@ -85,7 +85,7 @@
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "Explicit SaaS permission matrix, permission guard tests, and modular vehicle inventory-write route contracts exist. Full route migration, sensitive action audit proof, staging proof, and user-flow proof remain critical blockers."
+      "notes": "Explicit SaaS permission matrix, permission guard tests, modular vehicle inventory-write route contracts, and full inventory view read guard exist. Full route migration, sensitive action audit proof, staging proof, and user-flow proof remain critical blockers."
     },
     {
       "id": "tenant.isolation",

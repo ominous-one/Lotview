@@ -19,6 +19,19 @@ const storageMock = {
 let appWithoutTenant: Express;
 let appWithDealerOne: Express;
 
+function applyTestUserFromHeader(req: Request): void {
+  const role = req.headers["x-test-role"];
+  if (typeof role !== "string") return;
+
+  req.user = {
+    id: 10,
+    email: `${role}@lotview.test`,
+    role,
+    name: role,
+    dealershipId: req.dealershipId ?? 1,
+  };
+}
+
 function buildApp(router: express.Router, dealershipId?: number): Express {
   const app = express();
   app.use(express.json());
@@ -26,6 +39,7 @@ function buildApp(router: express.Router, dealershipId?: number): Express {
     if (dealershipId !== undefined) {
       req.dealershipId = dealershipId;
     }
+    applyTestUserFromHeader(req);
     next();
   });
   app.use("/api/vehicles", router);
@@ -39,16 +53,7 @@ beforeAll(async () => {
 
   await (jest as any).unstable_mockModule("../auth", () => ({
     authMiddleware: (req: Request, _res: Response, next: NextFunction) => {
-      const role = req.headers["x-test-role"];
-      if (typeof role === "string") {
-        req.user = {
-          id: 10,
-          email: `${role}@lotview.test`,
-          role,
-          name: role,
-          dealershipId: req.dealershipId ?? 1,
-        };
-      }
+      applyTestUserFromHeader(req);
       return next();
     },
     requirePermission: (permission: Permission) => (req: Request, res: Response, next: NextFunction) => {
@@ -150,6 +155,47 @@ describe("vehicle route tenant contracts", () => {
 
     expect(storageMock.getVehicleById).toHaveBeenCalledWith(42, 1);
     expect(storageMock.getVehicleViews).not.toHaveBeenCalled();
+  });
+
+  it("keeps full inventory view behind authenticated inventory read permission", async () => {
+    await request(appWithDealerOne)
+      .get("/api/vehicles?view=full")
+      .expect(401)
+      .expect({ error: "Authentication required for full inventory view" });
+
+    expect(storageMock.getVehicles).not.toHaveBeenCalled();
+    expect(storageMock.getPublicInventoryVehicles).not.toHaveBeenCalled();
+  });
+
+  it("blocks unknown roles from full inventory view", async () => {
+    await request(appWithDealerOne)
+      .get("/api/vehicles?view=full")
+      .set("x-test-role", "unknown_role")
+      .expect(403)
+      .expect({ error: "Insufficient permissions" });
+
+    expect(storageMock.getVehicles).not.toHaveBeenCalled();
+    expect(storageMock.getPublicInventoryVehicles).not.toHaveBeenCalled();
+  });
+
+  it("allows inventory readers to access full inventory view", async () => {
+    storageMock.getVehicles.mockResolvedValue({
+      vehicles: [{ id: 42, localImages: ["local.jpg"], images: ["remote.jpg"] }],
+      total: 1,
+    });
+    storageMock.getVehicleViews.mockResolvedValue(3);
+
+    await request(appWithDealerOne)
+      .get("/api/vehicles?view=full")
+      .set("x-test-role", "read_only")
+      .expect(200)
+      .expect({
+        data: [{ id: 42, localImages: ["local.jpg"], images: ["local.jpg"], views: 3 }],
+        pagination: { page: 1, limit: 100, total: 1, totalPages: 1 },
+      });
+
+    expect(storageMock.getVehicles).toHaveBeenCalledWith(1, 100, 0);
+    expect(storageMock.getPublicInventoryVehicles).not.toHaveBeenCalled();
   });
 
   it("blocks read-only users from creating inventory", async () => {

@@ -11,6 +11,7 @@ import { z } from "zod";
 import { fromZodError } from "zod-validation-error";
 import { storage } from "../storage";
 import { authMiddleware, requirePermission, requireRole } from "../auth";
+import { hasPermission } from "@shared/authz";
 import { requireDealership } from "../tenant-middleware";
 import { logError, logWarn } from "../error-utils";
 import { insertVehicleSchema } from "@shared/schema";
@@ -53,6 +54,13 @@ router.get("/", async (req, res) => {
     const offset = (page - 1) * limit;
 
     if (wantsFullView) {
+      if (!req.user) {
+        return res.status(401).json({ error: "Authentication required for full inventory view" });
+      }
+      if (!hasPermission(req.user.role, "inventory.read")) {
+        return res.status(403).json({ error: "Insufficient permissions" });
+      }
+
       const { vehicles: vehiclesList, total } = await storage.getVehicles(dealershipId, limit, offset);
       // Resolve actual view counts from storage (no fake data in production)
       const vehiclesWithViews = await Promise.all(vehiclesList.map(async (vehicle) => ({
