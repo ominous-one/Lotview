@@ -1,4 +1,5 @@
 import { storage } from './storage';
+import { validateVIN } from './vin-validation';
 
 export interface VINDecodeResult {
   vin: string;
@@ -312,14 +313,15 @@ async function decodeVINWithNHTSA(vin: string, attempt: number = 1): Promise<VIN
 }
 
 export async function decodeVIN(vin: string, dealershipId?: number): Promise<VINDecodeResult> {
-  const cleanVIN = vin.trim().toUpperCase();
+  const validation = validateVIN(vin);
+  const cleanVIN = validation.vin;
   const startTime = Date.now();
   
-  if (cleanVIN.length !== 17) {
+  if (!validation.isValid) {
     return {
       vin: cleanVIN,
-      errorCode: 'INVALID_VIN_LENGTH',
-      errorMessage: 'VIN must be exactly 17 characters'
+      errorCode: validation.errorCode,
+      errorMessage: validation.errorMessage
     };
   }
   

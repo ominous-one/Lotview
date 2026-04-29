@@ -30,7 +30,7 @@ Every production feature must have CI proof, automated tests, staging proof, log
 | Health Endpoint | Code Exists | No | Partial | No | Partial | Partial | TBD | Verify health, ready, and version endpoints. |
 | Frontend Boot | Not Verified | No | No | No | No | No | TBD | Vite entrypoint must be proven. |
 | Vehicle Inventory CRUD | Code Exists | No | Partial | No | Partial | No | TBD | Test create, update, delete, and search. |
-| VIN Decode | Code Exists | No | Partial | No | Partial | No | TBD | Test known VIN fixtures. |
+| VIN Decode | Code Exists | Partial | Partial | No | Partial | No | engineering | VIN format and check-digit validation now have automated tests. Provider decode, batch/cache/rate-limit, and reconciliation proof remain required. |
 | Scraper | Code Exists | No | Partial | No | Partial | No | TBD | Prove source-truth reconciliation. |
 | Source Truth Reconciliation | Code Exists | No | Partial | No | Partial | No | TBD | Protect manually verified data. |
 | Worker/Schedulers | Code Exists | No | No | No | Partial | No | TBD | Prove no duplicate jobs. |

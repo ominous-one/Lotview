@@ -122,6 +122,23 @@
       "notes": "Needs route, tenant, UI, duplicate VIN, and source-truth tests."
     },
     {
+      "id": "vin.validation",
+      "name": "VIN Validation Foundation",
+      "status": "ci_verified",
+      "exposure": "production",
+      "owner": "engineering",
+      "paths": ["server/vin-validation.ts", "server/vin-decoder.ts", "server/services/scrape-validator.ts", "server/tests/vin-validation.test.ts"],
+      "proof": {
+        "ci": true,
+        "tests": true,
+        "staging": false,
+        "observability": false,
+        "realUserFlow": false,
+        "rollback": false
+      },
+      "notes": "VIN format and check-digit validation are covered by automated tests. Provider decode, batch decode, cache/rate limiting, and provider reconciliation still require proof."
+    },
+    {
       "id": "scraper.robust",
       "name": "Robust Scraper",
       "status": "fail_closed",
