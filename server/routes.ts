@@ -4925,7 +4925,7 @@ Provide a single, concise, friendly message that continues the conversation natu
   });
 
   // Save conversation (public - conversations are saved automatically)
-  app.post("/api/conversations", async (req, res) => {
+  app.post("/api/conversations", requireDealership, async (req, res) => {
     try {
       const { category, vehicleId, vehicleName, messages, sessionId } = req.body;
 
@@ -4965,20 +4965,9 @@ Provide a single, concise, friendly message that continues the conversation natu
   });
 
   // Get all conversations (with optional category filter) - ADMIN ONLY
-  app.get("/api/conversations", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), async (req, res) => {
+  app.get("/api/conversations", authMiddleware, requirePermission("messages.read"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
-      const authReq = req as AuthRequest;
-      const headerDealershipId = req.headers['x-dealership-id'] ? parseInt(req.headers['x-dealership-id'] as string) : null;
-      
-      // Super admins can specify dealershipId via header
-      let dealershipId: number;
-      if (authReq.user?.role === "super_admin" && headerDealershipId) {
-        dealershipId = headerDealershipId;
-      } else if (req.dealershipId) {
-        dealershipId = req.dealershipId;
-      } else {
-        return res.status(400).json({ error: "Dealership ID is required" });
-      }
+      const dealershipId = req.dealershipId!;
       
       const category = req.query.category as string | undefined;
       
@@ -5014,19 +5003,9 @@ Provide a single, concise, friendly message that continues the conversation natu
   });
 
   // Get conversation by ID - ADMIN ONLY
-  app.get("/api/conversations/:id", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), async (req, res) => {
+  app.get("/api/conversations/:id", authMiddleware, requirePermission("messages.read"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
-      const authReq = req as AuthRequest;
-      const headerDealershipId = req.headers['x-dealership-id'] ? parseInt(req.headers['x-dealership-id'] as string) : null;
-      
-      let dealershipId: number;
-      if (authReq.user?.role === "super_admin" && headerDealershipId) {
-        dealershipId = headerDealershipId;
-      } else if (req.dealershipId) {
-        dealershipId = req.dealershipId;
-      } else {
-        return res.status(400).json({ error: "Dealership ID is required" });
-      }
+      const dealershipId = req.dealershipId!;
       
       const id = parseInt(req.params.id);
       const conversation = await storage.getConversationById(id, dealershipId);
@@ -5049,7 +5028,7 @@ Provide a single, concise, friendly message that continues the conversation natu
   
   // Get all messenger conversations (role-based filtering)
   // Managers see all, salespeople see only their connected pages
-  app.get("/api/messenger-conversations", authMiddleware, requireRole("salesperson", "manager", "admin", "master", "super_admin"), async (req, res) => {
+  app.get("/api/messenger-conversations", authMiddleware, requirePermission("messages.read"), requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const userId = req.user?.id;
@@ -5064,7 +5043,7 @@ Provide a single, concise, friendly message that continues the conversation natu
   });
 
   // Send a reply to a Messenger conversation - Manager and above only
-  app.post("/api/messenger-conversations/:id/reply", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), async (req, res) => {
+  app.post("/api/messenger-conversations/:id/reply", authMiddleware, requirePermission("messages.write"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const conversationId = parseInt(req.params.id);
