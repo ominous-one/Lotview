@@ -70,7 +70,7 @@ import { createExternalApiMiddleware } from "./services/external-api-guard";
 import { scrapeCarfaxReportCloud } from "./services/carfax-browserless";
 import { initializeFlagsFromEnv, isEnabled } from "./services/feature-flags";
 
-import { authMiddleware, requireRole, requirePermission, generateToken, generateImpersonationToken, comparePassword, hashPassword, verifyToken, extensionHmacMiddleware, generatePostingToken, validatePostingToken, type AuthRequest } from "./auth";
+import { authMiddleware, requireRole, requirePermission, requireCapability, generateToken, generateImpersonationToken, comparePassword, hashPassword, verifyToken, extensionHmacMiddleware, generatePostingToken, validatePostingToken, type AuthRequest } from "./auth";
 import { requireDealership, superAdminOnly } from "./tenant-middleware";
 import { resolveDealershipIdStrict } from "./tenant-utils";
 import { isSafeE2ERequest, seedE2E } from "./e2e-test-mode";
@@ -7221,7 +7221,7 @@ Format your response in clear sections with actionable recommendations.`;
   // ===== DEALERSHIP BRANDING ROUTES (General Manager) =====
   
   // Get dealership branding
-  app.get("/api/dealership/branding", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
+  app.get("/api/dealership/branding", authMiddleware, requireCapability("tenant.settings.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const branding = await storage.getDealershipBranding(dealershipId);
@@ -7240,7 +7240,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Upload dealership logo (using persistent object storage)
-  app.post("/api/dealership/branding/logo", authMiddleware, requireRole("master"), requireDealership, logoUpload.single('logo'), async (req, res) => {
+  app.post("/api/dealership/branding/logo", authMiddleware, requireCapability("tenant.settings.write"), requireRole("master"), requireDealership, logoUpload.single('logo'), async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       
@@ -7277,7 +7277,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Delete dealership logo
-  app.delete("/api/dealership/branding/logo", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
+  app.delete("/api/dealership/branding/logo", authMiddleware, requireCapability("tenant.settings.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       

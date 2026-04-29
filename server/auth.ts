@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
 import type { Request, Response, NextFunction } from "express";
 import type { User } from "../shared/schema.ts";
-import { hasPermission, hasRole, type Permission } from "../shared/authz.ts";
+import { hasCapability, hasPermission, hasRole, type Capability, type Permission } from "../shared/authz.ts";
 import { getE2EUserFromToken, isSafeE2ERequest, seedE2E } from "./e2e-test-mode.ts";
 import { hashPassword, comparePassword, computeHmac } from "./utils/crypto";
 import { isNonceUsed, markNonceUsed, isPostingTokenUsed, markPostingTokenUsed } from "./services/redis";
@@ -163,6 +163,20 @@ export function requirePermission(permission: Permission) {
     }
 
     if (!hasPermission(req.user.role, permission)) {
+      return res.status(403).json({ error: "Insufficient permissions" });
+    }
+
+    next();
+  };
+}
+
+export function requireCapability(capability: Capability) {
+  return (req: AuthRequest, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+
+    if (!hasCapability(req.user.role, capability)) {
       return res.status(403).json({ error: "Insufficient permissions" });
     }
 
