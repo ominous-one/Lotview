@@ -13635,7 +13635,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get follow-up queue items
-  app.get("/api/automation/queue", authMiddleware, async (req, res) => {
+  app.get("/api/automation/queue", authMiddleware, requirePermission("messages.read"), requireDealership, async (req, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const status = req.query.status as string | undefined;
@@ -13649,7 +13649,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Cancel a queue item
-  app.post("/api/automation/queue/:id/cancel", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), async (req, res) => {
+  app.post("/api/automation/queue/:id/cancel", authMiddleware, requirePermission("messages.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const id = parseInt(req.params.id);
@@ -13665,7 +13665,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Manually trigger a follow-up for a contact
-  app.post("/api/automation/trigger", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), async (req, res) => {
+  app.post("/api/automation/trigger", authMiddleware, requirePermission("messages.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const { createAutomationService } = await import('./automation-service');
@@ -13775,7 +13775,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get automation logs
-  app.get("/api/automation/logs", authMiddleware, async (req, res) => {
+  app.get("/api/automation/logs", authMiddleware, requirePermission("messages.read"), requireDealership, async (req, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const limit = parseInt(req.query.limit as string) || 100;
@@ -13789,7 +13789,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Run automation engine manually (for testing)
-  app.post("/api/automation/run", authMiddleware, requireRole('admin', 'master', 'super_admin'), async (req, res) => {
+  app.post("/api/automation/run", authMiddleware, requirePermission("messages.write"), requireRole('admin', 'master', 'super_admin'), requireDealership, async (req, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const { createAutomationService } = await import('./automation-service');
@@ -13805,7 +13805,7 @@ Format your response in clear sections with actionable recommendations.`;
   // ===== RE-ENGAGEMENT CAMPAIGNS =====
   
   // Get all re-engagement campaigns
-  app.get("/api/automation/reengagement-campaigns", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), async (req, res) => {
+  app.get("/api/automation/reengagement-campaigns", authMiddleware, requirePermission("messages.read"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const campaigns = await storage.getReengagementCampaigns(dealershipId);
@@ -13817,7 +13817,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get single re-engagement campaign
-  app.get("/api/automation/reengagement-campaigns/:id", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), async (req, res) => {
+  app.get("/api/automation/reengagement-campaigns/:id", authMiddleware, requirePermission("messages.read"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const id = parseInt(req.params.id);
@@ -13833,7 +13833,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Create re-engagement campaign
-  app.post("/api/automation/reengagement-campaigns", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), async (req, res) => {
+  app.post("/api/automation/reengagement-campaigns", authMiddleware, requirePermission("messages.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const campaign = await storage.createReengagementCampaign({
@@ -13848,7 +13848,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Update re-engagement campaign
-  app.patch("/api/automation/reengagement-campaigns/:id", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), async (req, res) => {
+  app.patch("/api/automation/reengagement-campaigns/:id", authMiddleware, requirePermission("messages.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const id = parseInt(req.params.id);
@@ -13864,7 +13864,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Delete re-engagement campaign
-  app.delete("/api/automation/reengagement-campaigns/:id", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), async (req, res) => {
+  app.delete("/api/automation/reengagement-campaigns/:id", authMiddleware, requirePermission("messages.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const id = parseInt(req.params.id);
@@ -13882,7 +13882,7 @@ Format your response in clear sections with actionable recommendations.`;
   // ===== SEQUENCE ANALYTICS =====
 
   // Get sequence performance summary
-  app.get("/api/automation/analytics/summary", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), async (req, res) => {
+  app.get("/api/automation/analytics/summary", authMiddleware, requirePermission("messages.read"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const startDate = req.query.startDate ? new Date(req.query.startDate as string) : undefined;
@@ -13896,7 +13896,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get sequence executions (with optional filters)
-  app.get("/api/automation/analytics/executions", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), async (req, res) => {
+  app.get("/api/automation/analytics/executions", authMiddleware, requirePermission("messages.read"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const sequenceId = req.query.sequenceId ? parseInt(req.query.sequenceId as string) : undefined;
@@ -13911,7 +13911,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get messages for a specific execution
-  app.get("/api/automation/analytics/executions/:executionId/messages", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), async (req, res) => {
+  app.get("/api/automation/analytics/executions/:executionId/messages", authMiddleware, requirePermission("messages.read"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const executionId = parseInt(req.params.executionId);
@@ -13924,7 +13924,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get conversions for analytics
-  app.get("/api/automation/analytics/conversions", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), async (req, res) => {
+  app.get("/api/automation/analytics/conversions", authMiddleware, requirePermission("messages.read"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const sequenceId = req.query.sequenceId ? parseInt(req.query.sequenceId as string) : undefined;
@@ -13941,7 +13941,7 @@ Format your response in clear sections with actionable recommendations.`;
   // ===== CONTACT ACTIVITY =====
 
   // Get all contact activity
-  app.get("/api/automation/contact-activity", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), async (req, res) => {
+  app.get("/api/automation/contact-activity", authMiddleware, requirePermission("leads.read"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const limit = parseInt(req.query.limit as string) || 100;
@@ -13955,7 +13955,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get inactive contacts for re-engagement
-  app.get("/api/automation/inactive-contacts", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), async (req, res) => {
+  app.get("/api/automation/inactive-contacts", authMiddleware, requirePermission("leads.read"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const inactiveDays = parseInt(req.query.inactiveDays as string) || 90;
@@ -13969,7 +13969,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Log/upsert contact activity
-  app.post("/api/automation/contact-activity", authMiddleware, async (req, res) => {
+  app.post("/api/automation/contact-activity", authMiddleware, requirePermission("leads.write"), requireDealership, async (req, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const activity = await storage.upsertContactActivity({
@@ -13984,7 +13984,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Update contact activity
-  app.patch("/api/automation/contact-activity/:id", authMiddleware, requireRole('manager', 'admin', 'master', 'super_admin'), async (req, res) => {
+  app.patch("/api/automation/contact-activity/:id", authMiddleware, requirePermission("leads.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const id = parseInt(req.params.id);
@@ -14000,7 +14000,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Record a sequence execution event
-  app.post("/api/automation/sequence-executions", authMiddleware, async (req, res) => {
+  app.post("/api/automation/sequence-executions", authMiddleware, requirePermission("messages.write"), requireDealership, async (req, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const execution = await storage.createSequenceExecution({
@@ -14015,7 +14015,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Update sequence execution status
-  app.patch("/api/automation/sequence-executions/:id", authMiddleware, async (req, res) => {
+  app.patch("/api/automation/sequence-executions/:id", authMiddleware, requirePermission("messages.write"), requireDealership, async (req, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const id = parseInt(req.params.id);
@@ -14031,7 +14031,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Record a sequence message
-  app.post("/api/automation/sequence-messages", authMiddleware, async (req, res) => {
+  app.post("/api/automation/sequence-messages", authMiddleware, requirePermission("messages.write"), requireDealership, async (req, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const message = await storage.createSequenceMessage({
@@ -14046,7 +14046,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Update sequence message status
-  app.patch("/api/automation/sequence-messages/:id", authMiddleware, async (req, res) => {
+  app.patch("/api/automation/sequence-messages/:id", authMiddleware, requirePermission("messages.write"), requireDealership, async (req, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const id = parseInt(req.params.id);
@@ -14062,7 +14062,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Record a conversion event
-  app.post("/api/automation/conversions", authMiddleware, async (req, res) => {
+  app.post("/api/automation/conversions", authMiddleware, requirePermission("leads.write"), requireDealership, async (req, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
       const conversion = await storage.createSequenceConversion({
