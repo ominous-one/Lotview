@@ -2368,7 +2368,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ===== SUPER ADMIN SCRAPE SOURCES ROUTES =====
 
   // Get all scrape sources across all dealerships (super admin only)
-  app.get("/api/super-admin/scrape-sources", authMiddleware, superAdminOnly, async (req, res) => {
+  app.get("/api/super-admin/scrape-sources", authMiddleware, requirePermission("integrations.read"), superAdminOnly, async (req, res) => {
     try {
       const sources = await storage.getAllScrapeSources();
       res.json(sources);
@@ -2379,7 +2379,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create a new scrape source (super admin only)
-  app.post("/api/super-admin/scrape-sources", authMiddleware, superAdminOnly, async (req, res) => {
+  app.post("/api/super-admin/scrape-sources", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
       const { dealershipId, sourceName, sourceUrl, sourceType, scrapeFrequency, filterGroupId } = req.body;
       
@@ -2405,7 +2405,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update a scrape source (super admin only)
-  app.patch("/api/super-admin/scrape-sources/:id", authMiddleware, superAdminOnly, async (req, res) => {
+  app.patch("/api/super-admin/scrape-sources/:id", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const updates = req.body;
@@ -2423,7 +2423,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete a scrape source (super admin only)
-  app.delete("/api/super-admin/scrape-sources/:id", authMiddleware, superAdminOnly, async (req, res) => {
+  app.delete("/api/super-admin/scrape-sources/:id", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       
@@ -2440,7 +2440,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Trigger scrape for a source (super admin only) - uses ZenRows robust scraper
-  app.post("/api/super-admin/scrape-sources/:id/scrape", authMiddleware, superAdminOnly, async (req, res) => {
+  app.post("/api/super-admin/scrape-sources/:id/scrape", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       
@@ -7362,7 +7362,7 @@ Format your response in clear sections with actionable recommendations.`;
   // ===== SCRAPE SOURCES ROUTES (General Manager) =====
   
   // Get all scrape sources for dealership
-  app.get("/api/scrape-sources", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
+  app.get("/api/scrape-sources", authMiddleware, requirePermission("integrations.read"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const sources = await storage.getScrapeSources(dealershipId);
@@ -7374,7 +7374,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Create scrape source
-  app.post("/api/scrape-sources", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
+  app.post("/api/scrape-sources", authMiddleware, requirePermission("integrations.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { sourceName, sourceUrl, sourceType, scrapeFrequency } = req.body;
@@ -7407,7 +7407,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Update scrape source
-  app.patch("/api/scrape-sources/:id", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
+  app.patch("/api/scrape-sources/:id", authMiddleware, requirePermission("integrations.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const dealershipId = req.dealershipId!;
@@ -7435,7 +7435,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Delete scrape source
-  app.delete("/api/scrape-sources/:id", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
+  app.delete("/api/scrape-sources/:id", authMiddleware, requirePermission("integrations.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const dealershipId = req.dealershipId!;
@@ -7448,7 +7448,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Trigger manual scrape for a source - uses ZenRows robust scraper (same as midnight sync)
-  app.post("/api/scrape-sources/:id/scrape", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
+  app.post("/api/scrape-sources/:id/scrape", authMiddleware, requirePermission("integrations.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const dealershipId = req.dealershipId!;
