@@ -90,19 +90,19 @@
     {
       "id": "tenant.isolation",
       "name": "Tenant Isolation",
-      "status": "not_started",
+      "status": "code_exists",
       "exposure": "disabled",
       "owner": "engineering",
-      "paths": [],
+      "paths": ["server/tenant-middleware.ts", "server/tenant-utils.ts", "server/tests/tenant-context-boundary.test.ts"],
       "proof": {
-        "ci": false,
-        "tests": false,
+        "ci": true,
+        "tests": true,
         "staging": false,
         "observability": false,
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "No real dealership launch until cross-tenant tests prove Dealer A cannot access Dealer B."
+      "notes": "Tenant context boundary has automated tests for header spoofing, legacy tokens, explicit super-admin selection, and owner guard behavior. Full route/storage cross-tenant isolation remains a critical blocker."
     },
     {
       "id": "inventory.crud",

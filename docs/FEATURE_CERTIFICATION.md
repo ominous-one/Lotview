@@ -26,7 +26,7 @@ Every production feature must have CI proof, automated tests, staging proof, log
 |---|---|---|---|---|---|---|---|---|
 | Login/Auth | Code Exists | No | Partial | No | Partial | No | TBD | Verify sessions, JWT, failed login, password reset. |
 | RBAC | Not Started | No | No | No | No | No | TBD | Prove role permissions. |
-| Tenant Isolation | Not Started | No | No | No | No | No | TBD | Critical SaaS blocker. |
+| Tenant Isolation | Code Exists | Partial | Partial | No | No | No | engineering | Tenant context boundary tests cover header spoofing, legacy tokens, explicit super-admin tenant selection, and owner guard behavior. Full route/storage cross-tenant tests remain required. |
 | Health Endpoint | Code Exists | No | Partial | No | Partial | Partial | TBD | Verify health, ready, and version endpoints. |
 | Frontend Boot | Not Verified | No | No | No | No | No | TBD | Vite entrypoint must be proven. |
 | Vehicle Inventory CRUD | Code Exists | No | Partial | No | Partial | No | TBD | Test create, update, delete, and search. |
