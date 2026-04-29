@@ -36,7 +36,7 @@ Every production feature must have CI proof, automated tests, staging proof, log
 | Worker/Schedulers | Code Exists | No | No | No | Partial | No | TBD | Prove no duplicate jobs. |
 | Facebook Posting | Code Exists | Partial | Partial | No | No | No | engineering | Modular and legacy Facebook Pages routes now require integrations read/write RBAC and tenant-scoped page updates; account/template/queue/post surfaces require dealership context. Marketplace posting still must run in draft/review mode first. |
 | GHL Sync | Code Exists | No | No | No | No | No | TBD | Prove no duplicate contacts. |
-| AI Lead Response | Code Exists | No | No | No | No | No | TBD | Must pass guardrail tests. |
+| AI Lead Response | Code Exists | Partial | Partial | No | No | No | engineering | AI prompt management routes require explicit ai.configure RBAC and dealership context where dealership-scoped. Must still pass guardrail, inventory-grounding, prompt-injection, escalation, human approval, observability, staging, and real user-flow proof. |
 | Admin Dashboard | Code Exists | No | No | No | Partial | No | TBD | Test permissions and audit logs. |
 | Billing/Plans | Not Started | No | No | No | No | No | TBD | Needed before self-serve SaaS. |
 | Render Deploy | Not Verified | No | No | No | No | No | TBD | Workflow needs proof. |

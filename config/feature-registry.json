@@ -195,16 +195,16 @@
       "status": "code_exists",
       "exposure": "staging_only",
       "owner": "engineering",
-      "paths": ["server/ai-sales-agent.ts", "server/ai-training-defaults.ts"],
+      "paths": ["server/ai-sales-agent.ts", "server/ai-training-defaults.ts", "server/routes.ts", "server/tests/ai-prompt-route-contract.test.ts"],
       "proof": {
-        "ci": false,
-        "tests": false,
+        "ci": true,
+        "tests": true,
         "staging": false,
         "observability": false,
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "Needs inventory-grounding, finance guardrail, prompt injection, escalation, and human approval tests."
+      "notes": "AI prompt management routes require explicit ai.configure RBAC and dealership context where dealership-scoped. Still needs inventory-grounding, finance guardrail, prompt injection, escalation, human approval, observability, staging, and real user-flow proof."
     },
     {
       "id": "ghl.crm_sync",
