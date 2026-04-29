@@ -6880,7 +6880,7 @@ Format your response in clear sections with actionable recommendations.`;
   // ===== FINANCING RULES ROUTES (Master Only) =====
   
   // Get all credit score tiers
-  app.get("/api/financing/credit-tiers", authMiddleware, requireRole("master"), async (req, res) => {
+  app.get("/api/financing/credit-tiers", authMiddleware, requirePermission("billing.read"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const tiers = await storage.getCreditScoreTiers(dealershipId);
@@ -6892,7 +6892,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Create credit score tier
-  app.post("/api/financing/credit-tiers", authMiddleware, requireRole("master"), async (req, res) => {
+  app.post("/api/financing/credit-tiers", authMiddleware, requirePermission("billing.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const { tierName, minScore, maxScore, interestRate } = req.body;
       
@@ -6930,7 +6930,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Update credit score tier
-  app.patch("/api/financing/credit-tiers/:id", authMiddleware, requireRole("master"), async (req, res) => {
+  app.patch("/api/financing/credit-tiers/:id", authMiddleware, requirePermission("billing.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const { minScore, maxScore, interestRate } = req.body;
@@ -6966,7 +6966,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Delete credit score tier
-  app.delete("/api/financing/credit-tiers/:id", authMiddleware, requireRole("master"), async (req, res) => {
+  app.delete("/api/financing/credit-tiers/:id", authMiddleware, requirePermission("billing.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const dealershipId = req.dealershipId!;
@@ -6979,7 +6979,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Get all model year terms
-  app.get("/api/financing/model-year-terms", authMiddleware, requireRole("master"), async (req, res) => {
+  app.get("/api/financing/model-year-terms", authMiddleware, requirePermission("billing.read"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const terms = await storage.getModelYearTerms(dealershipId);
@@ -6991,7 +6991,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Create model year term
-  app.post("/api/financing/model-year-terms", authMiddleware, requireRole("master"), async (req, res) => {
+  app.post("/api/financing/model-year-terms", authMiddleware, requirePermission("billing.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const { minModelYear, maxModelYear, availableTerms } = req.body;
       
@@ -7031,7 +7031,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Update model year term
-  app.patch("/api/financing/model-year-terms/:id", authMiddleware, requireRole("master"), async (req, res) => {
+  app.patch("/api/financing/model-year-terms/:id", authMiddleware, requirePermission("billing.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const { minModelYear, maxModelYear, availableTerms } = req.body;
@@ -7068,7 +7068,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Delete model year term
-  app.delete("/api/financing/model-year-terms/:id", authMiddleware, requireRole("master"), async (req, res) => {
+  app.delete("/api/financing/model-year-terms/:id", authMiddleware, requirePermission("billing.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const dealershipId = req.dealershipId!;
@@ -7083,7 +7083,7 @@ Format your response in clear sections with actionable recommendations.`;
   // ===== DEALERSHIP FEES ROUTES (General Manager) =====
   
   // Get all fees for dealership
-  app.get("/api/dealership-fees", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
+  app.get("/api/dealership-fees", authMiddleware, requirePermission("billing.read"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const fees = await storage.getDealershipFees(dealershipId);
@@ -7136,7 +7136,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Create dealership fee
-  app.post("/api/dealership-fees", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
+  app.post("/api/dealership-fees", authMiddleware, requirePermission("billing.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { feeName, feeAmount, isPercentage, includeInPayment, displayOrder } = req.body;
@@ -7163,7 +7163,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Update dealership fee
-  app.patch("/api/dealership-fees/:id", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
+  app.patch("/api/dealership-fees/:id", authMiddleware, requirePermission("billing.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const dealershipId = req.dealershipId!;
@@ -7182,7 +7182,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Delete dealership fee
-  app.delete("/api/dealership-fees/:id", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
+  app.delete("/api/dealership-fees/:id", authMiddleware, requirePermission("billing.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const dealershipId = req.dealershipId!;
