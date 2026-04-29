@@ -7,9 +7,9 @@
  */
 
 export interface ScrapedVehicle {
-  year: number;
-  make: string;
-  model: string;
+  year?: number;
+  make?: string;
+  model?: string;
   trim?: string;
   vin?: string;
   stockNumber?: string;
@@ -44,6 +44,20 @@ export const OLYMPIC_HYUNDAI_CONFIG = {
   },
   rateLimit: { requestsPerMinute: 30, delayMs: 2000 },
 };
+
+function cleanText(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function parseVehicleYear(value: unknown): number | undefined {
+  const raw = typeof value === "number" ? String(value) : cleanText(value);
+  if (!raw) return undefined;
+
+  const year = parseInt(raw, 10);
+  return year >= 1981 && year <= new Date().getFullYear() + 2 ? year : undefined;
+}
 
 /**
  * Core extraction engine — handles TAdvantage data-attribute format.
@@ -82,17 +96,17 @@ export function extractVehiclesFromHtml(html: string, baseUrl: string): ScrapedV
     const imgMatch = tag.match(/data-image="([^"]*)"/i);
 
     vehicles.push({
-      year: yearMatch ? parseInt(yearMatch[1]) : 2024,
-      make: makeMatch ? makeMatch[1] : "Hyundai",
-      model: modelMatch ? modelMatch[1] : "",
-      trim: trimMatch ? trimMatch[1] : undefined,
+      year: parseVehicleYear(yearMatch?.[1]),
+      make: cleanText(makeMatch?.[1]),
+      model: cleanText(modelMatch?.[1]),
+      trim: cleanText(trimMatch?.[1]),
       vin,
-      stockNumber: stockMatch ? stockMatch[1] : undefined,
+      stockNumber: cleanText(stockMatch?.[1]),
       price: priceMatch ? parseInt(priceMatch[1].replace(/,/g, "")) : undefined,
       msrp: msrpMatch ? parseInt(msrpMatch[1].replace(/,/g, "")) : undefined,
       odometer: odoMatch ? parseInt(odoMatch[1].replace(/,/g, "")) : undefined,
-      exteriorColor: colorMatch ? colorMatch[1] : undefined,
-      interiorColor: intColorMatch ? intColorMatch[1] : undefined,
+      exteriorColor: cleanText(colorMatch?.[1]),
+      interiorColor: cleanText(intColorMatch?.[1]),
       images: imgMatch ? [imgMatch[1].startsWith("http") ? imgMatch[1] : `${baseUrl}${imgMatch[1]}`] : [],
       sourceUrl: baseUrl,
       scrapedAt: new Date(),
@@ -114,25 +128,25 @@ export function extractVehiclesFromHtml(html: string, baseUrl: string): ScrapedV
               if (vin && seenVins.has(vin)) continue;
               if (vin) seenVins.add(vin);
               vehicles.push({
-                year: parseInt(item.vehicleModelDate) || 0,
-                make: item.manufacturer?.name || item.brand?.name || "Hyundai",
-                model: item.model || "",
-                trim: item.vehicleConfiguration || item.trim || undefined,
+                year: parseVehicleYear(item.vehicleModelDate),
+                make: cleanText(item.manufacturer?.name) || cleanText(item.brand?.name),
+                model: cleanText(item.model),
+                trim: cleanText(item.vehicleConfiguration) || cleanText(item.trim),
                 vin: vin || undefined,
-                stockNumber: item.sku || undefined,
+                stockNumber: cleanText(item.sku),
                 price: item.offers?.price ? parseFloat(item.offers.price) : undefined,
                 msrp: item.msrp ? parseFloat(item.msrp) : undefined,
                 odometer: item.mileageFromOdometer?.value ? parseInt(item.mileageFromOdometer.value) : undefined,
-                exteriorColor: item.color || undefined,
-                interiorColor: item.vehicleInteriorColor || undefined,
-                bodyStyle: item.bodyType || undefined,
-                transmission: item.vehicleTransmission || undefined,
-                engine: item.vehicleEngine?.name || undefined,
-                drivetrain: item.driveWheelConfiguration?.name || undefined,
-                fuelType: item.fuelType || undefined,
+                exteriorColor: cleanText(item.color),
+                interiorColor: cleanText(item.vehicleInteriorColor),
+                bodyStyle: cleanText(item.bodyType),
+                transmission: cleanText(item.vehicleTransmission),
+                engine: cleanText(item.vehicleEngine?.name),
+                drivetrain: cleanText(item.driveWheelConfiguration?.name),
+                fuelType: cleanText(item.fuelType),
                 images: item.image ? [item.image] : [],
-                description: item.description || undefined,
-                sourceUrl: item.url || baseUrl,
+                description: cleanText(item.description),
+                sourceUrl: cleanText(item.url) || baseUrl,
                 scrapedAt: new Date(),
               });
             }
@@ -249,16 +263,23 @@ export async function scrapeOlympicHyundai(
       const { deduplicateAndStore } = await import("./vehicle-dedup");
       let stored = 0;
       for (const vehicle of allVehicles) {
+        if (!vehicle.vin) {
+          errors.push(`Skipped vehicle without VIN from ${vehicle.sourceUrl}`);
+          continue;
+        }
+
         try {
           const result = await deduplicateAndStore(dealershipId, {
-            vin: vehicle.vin || `TEMP_${Date.now()}_${stored}`,
+            vin: vehicle.vin,
             sourceId: `olympic_${Date.now()}_${stored}`,
             sourceType: "olympichyundai",
             scrapedAt: vehicle.scrapedAt,
             data: { ...vehicle, dealershipId },
           });
           if (result.action !== "duplicate_skipped") stored++;
-        } catch { /* skip failed stores */ }
+        } catch (err) {
+          errors.push(`Store failed for VIN ${vehicle.vin}: ${err instanceof Error ? err.message : String(err)}`);
+        }
       }
       console.log(`   ✅ Stored ${stored}/${allVehicles.length} vehicles\n`);
     } catch {
