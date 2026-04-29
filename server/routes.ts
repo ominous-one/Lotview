@@ -5385,7 +5385,7 @@ Provide a single, concise, friendly message that continues the conversation natu
   });
 
   // Get messages for a specific conversation
-  app.get("/api/messenger-conversations/:id/messages", authMiddleware, requireRole("salesperson", "manager", "admin", "master", "super_admin"), async (req, res) => {
+  app.get("/api/messenger-conversations/:id/messages", authMiddleware, requirePermission("messages.read"), requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const conversationId = parseInt(req.params.id);
@@ -5407,7 +5407,7 @@ Provide a single, concise, friendly message that continues the conversation natu
   });
 
   // Assign a conversation to a salesperson - Manager and above only
-  app.post("/api/messenger-conversations/:id/assign", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), async (req, res) => {
+  app.post("/api/messenger-conversations/:id/assign", authMiddleware, requirePermission("messages.write"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const conversationId = parseInt(req.params.id);
@@ -5436,7 +5436,7 @@ Provide a single, concise, friendly message that continues the conversation natu
   });
 
   // Get salespeople for assignment dropdown
-  app.get("/api/salespeople", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), async (req, res) => {
+  app.get("/api/salespeople", authMiddleware, requirePermission("messages.read"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const users = await storage.getAllUsers(dealershipId);
@@ -5652,7 +5652,7 @@ Provide a single, concise, friendly message that continues the conversation natu
   });
 
   // Toggle AI for a conversation
-  app.post("/api/messenger-conversations/:id/toggle-ai", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), async (req, res) => {
+  app.post("/api/messenger-conversations/:id/toggle-ai", authMiddleware, requirePermission("ai.configure"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const conversationId = parseInt(req.params.id);
@@ -5676,7 +5676,7 @@ Provide a single, concise, friendly message that continues the conversation natu
   });
 
   // Toggle Watch Mode (manual takeover - AI watches but doesn't respond)
-  app.post("/api/messenger-conversations/:id/toggle-watch-mode", authMiddleware, requireRole("salesperson", "manager", "admin", "master", "super_admin"), async (req, res) => {
+  app.post("/api/messenger-conversations/:id/toggle-watch-mode", authMiddleware, requirePermission("messages.write"), requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const conversationId = parseInt(req.params.id);
@@ -5703,7 +5703,7 @@ Provide a single, concise, friendly message that continues the conversation natu
   });
 
   // Update conversation metadata (tags, lead status, pipeline stage, etc.) - Manager and above
-  app.patch("/api/messenger-conversations/:id/metadata", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), async (req, res) => {
+  app.patch("/api/messenger-conversations/:id/metadata", authMiddleware, requirePermission("messages.write"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const conversationId = parseInt(req.params.id);
@@ -5753,7 +5753,7 @@ Provide a single, concise, friendly message that continues the conversation natu
   // ===== TRAINING MODE ROUTES =====
 
   // Update AI prompt for a message (Training Mode)
-  app.patch("/api/messenger-messages/:id/training", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), async (req, res) => {
+  app.patch("/api/messenger-messages/:id/training", authMiddleware, requirePermission("ai.configure"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const messageId = parseInt(req.params.id);

@@ -85,7 +85,7 @@
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "Explicit SaaS permission matrix, permission guard tests, modular vehicle inventory-write route contracts, full inventory view read guard, legacy conversation message read/write route contracts, and scheduled-message route contracts exist. Full route migration, sensitive action audit proof, staging proof, and user-flow proof remain critical blockers."
+      "notes": "Explicit SaaS permission matrix, permission guard tests, modular vehicle inventory-write route contracts, full inventory view read guard, legacy conversation message read/write route contracts, scheduled-message route contracts, and messenger management/AI-control route contracts exist. Full route migration, sensitive action audit proof, staging proof, and user-flow proof remain critical blockers."
     },
     {
       "id": "tenant.isolation",
@@ -102,7 +102,7 @@
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "Tenant context boundary has automated tests for header spoofing, legacy tokens, explicit super-admin selection, owner guard behavior, vehicle route tenant-context fail-closed behavior, and legacy conversation/scheduled-message route dealership context. Full route/storage cross-tenant isolation across all resources remains a critical blocker."
+      "notes": "Tenant context boundary has automated tests for header spoofing, legacy tokens, explicit super-admin selection, owner guard behavior, vehicle route tenant-context fail-closed behavior, and legacy conversation/scheduled-message/messenger-management route dealership context. Full route/storage cross-tenant isolation across all resources remains a critical blocker."
     },
     {
       "id": "inventory.crud",
