@@ -1,6 +1,6 @@
 import { jest } from "@jest/globals";
 import type { NextFunction, Response } from "express";
-import { requirePermission, type AuthRequest } from "../auth";
+import { requireCapability, requirePermission, type AuthRequest } from "../auth";
 import {
   getDefaultRouteForRole,
   getPermissionsForRole,
@@ -121,6 +121,43 @@ describe("requirePermission", () => {
     const next = jest.fn() as NextFunction;
 
     requirePermission("admin.impersonate")(req, res, next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(res.status).not.toHaveBeenCalled();
+  });
+});
+
+describe("requireCapability", () => {
+  it("requires an authenticated user", () => {
+    const req = createRequest();
+    const res = createResponse();
+    const next = jest.fn() as NextFunction;
+
+    requireCapability("tenant.settings.write")(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith({ error: "Not authenticated" });
+  });
+
+  it("blocks roles that do not have the requested capability", () => {
+    const req = createRequest("manager");
+    const res = createResponse();
+    const next = jest.fn() as NextFunction;
+
+    requireCapability("tenant.settings.write")(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({ error: "Insufficient permissions" });
+  });
+
+  it("allows roles that have the requested capability", () => {
+    const req = createRequest("master");
+    const res = createResponse();
+    const next = jest.fn() as NextFunction;
+
+    requireCapability("tenant.settings.write")(req, res, next);
 
     expect(next).toHaveBeenCalledTimes(1);
     expect(res.status).not.toHaveBeenCalled();
