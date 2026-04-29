@@ -17595,7 +17595,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
 
   // ====== FB INBOX (Sales Manager UI) ======
 
-  app.get("/api/fb-inbox/settings", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+  app.get("/api/fb-inbox/settings", authMiddleware, requirePermission("ai.configure"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const settings = await storage.getFbReplySettings(dealershipId);
@@ -17606,7 +17606,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
     }
   });
 
-  app.put("/api/fb-inbox/settings", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+  app.put("/api/fb-inbox/settings", authMiddleware, requirePermission("ai.configure"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const body = req.body || {};
@@ -17639,7 +17639,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
     }
   });
 
-  app.get("/api/fb-inbox/threads", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+  app.get("/api/fb-inbox/threads", authMiddleware, requirePermission("messages.read"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const limit = Math.min(parseInt((req.query.limit as string) || "50", 10) || 50, 200);
@@ -17652,7 +17652,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
     }
   });
 
-  app.get("/api/fb-inbox/threads/:id", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+  app.get("/api/fb-inbox/threads/:id", authMiddleware, requirePermission("messages.read"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const id = parseInt(req.params.id, 10);
@@ -17665,7 +17665,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
     }
   });
 
-  app.get("/api/fb-inbox/threads/:id/messages", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+  app.get("/api/fb-inbox/threads/:id/messages", authMiddleware, requirePermission("messages.read"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const id = parseInt(req.params.id, 10);
@@ -17678,7 +17678,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
     }
   });
 
-  app.post("/api/fb-inbox/threads/:id/pause", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+  app.post("/api/fb-inbox/threads/:id/pause", authMiddleware, requirePermission("messages.write"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const id = parseInt(req.params.id, 10);
@@ -17692,7 +17692,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
   });
 
   // UX: abort a pending/queued automation attempt by pausing the thread + logging intent.
-  app.post("/api/fb-inbox/threads/:id/abort", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+  app.post("/api/fb-inbox/threads/:id/abort", authMiddleware, requirePermission("messages.write"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const id = parseInt(req.params.id, 10);
@@ -17727,7 +17727,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
     }
   });
 
-  app.post("/api/fb-inbox/threads/:id/auto-send", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+  app.post("/api/fb-inbox/threads/:id/auto-send", authMiddleware, requirePermission("ai.configure"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const id = parseInt(req.params.id, 10);
@@ -17740,7 +17740,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
     }
   });
 
-  app.post("/api/fb-inbox/threads/:id/dnc", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+  app.post("/api/fb-inbox/threads/:id/dnc", authMiddleware, requirePermission("messages.write"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const id = parseInt(req.params.id, 10);
@@ -17753,7 +17753,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
     }
   });
 
-  app.get("/api/fb-inbox/audit", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+  app.get("/api/fb-inbox/audit", authMiddleware, requirePermission("messages.read"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const threadId = req.query.threadId ? parseInt(req.query.threadId as string, 10) : undefined;
