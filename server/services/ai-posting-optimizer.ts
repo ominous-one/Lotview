@@ -36,9 +36,13 @@ interface HourlyEngagement {
  */
 export async function getOptimizedPosting(
   dealershipId: number,
-  vehicleId: number
+  vehicleId: number | any,
+  titleTemplate?: string,
+  descriptionTemplate?: string
 ): Promise<PostingRecommendation | null> {
-  const vehicle = await storage.getVehicle(vehicleId);
+  const vehicle = typeof vehicleId === "object" && vehicleId !== null
+    ? vehicleId
+    : await storage.getVehicle(vehicleId);
   if (!vehicle || vehicle.dealershipId !== dealershipId) return null;
 
   const photos = ((vehicle.photos as string[]) || []).filter((p) => typeof p === "string");
@@ -50,10 +54,10 @@ export async function getOptimizedPosting(
   const recommendedPrice = applyPricePsychology(vehicle.price);
 
   // 3. Title optimization
-  const title = optimizeTitle(vehicle);
+  const title = titleTemplate || optimizeTitle(vehicle);
 
   // 4. Description optimization
-  const description = optimizeDescription(vehicle);
+  const description = descriptionTemplate || optimizeDescription(vehicle);
 
   // 5. Photo selection (best 10)
   const photoIndices = selectBestPhotos(photos);
@@ -88,7 +92,7 @@ export async function getOptimalPostTime(dealershipId: number): Promise<Date> {
       a.avgInquiries > b.avgInquiries ? a : b
     );
     const now = new Date();
-    let target = new Date(now);
+    const target = new Date(now);
     target.setHours(best.hour, 0, 0, 0);
     if (target <= now) {
       target.setDate(target.getDate() + 1); // Tomorrow
@@ -114,7 +118,7 @@ export async function getOptimalPostTime(dealershipId: number): Promise<Date> {
     targetHour = 15;
   }
 
-  let target = new Date(now);
+  const target = new Date(now);
   target.setHours(targetHour, 0, 0, 0);
   if (target <= now) {
     target.setDate(target.getDate() + 1);

@@ -176,7 +176,7 @@ function detectCustomerIntent(message: string): string[] {
   return intents;
 }
 
-function calculateConfidenceScore(vehicle: AiTrainingVehicle): number {
+export function calculateConfidenceScore(vehicle: AiTrainingVehicle): number {
   let score = 50;
   const { carfax } = vehicle;
 

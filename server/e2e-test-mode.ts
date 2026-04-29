@@ -136,7 +136,6 @@ async function ensureUser(params: {
   const inserted = await db
     .insert(users)
     // drizzle types don't love explicit serial PK inserts; keep it permissive.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .values({
       id: params.id as any,
       email: params.email,

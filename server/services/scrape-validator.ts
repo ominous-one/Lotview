@@ -39,6 +39,8 @@ export interface ScrapedVehicle {
   [key: string]: unknown;
 }
 
+export type ScrapedVehicleData = ScrapedVehicle;
+
 export interface ScrapeValidationResult {
   isValid: boolean;
   isPartial: boolean;

@@ -76,12 +76,12 @@ function extractVehicles(html) {
     .filter(p => p > 1000 && p < 500000);
 
   // Extract year/make/model
-  const vehicleRegex = /(20\d{2})\s+(Hyundai|Honda|Toyota|Kia|Ford|Chevrolet)\s+([A-Za-z0-9\s-]+?)(?:<|\n|"|\'|\(|\[|\s{2,}|$)/gi;
+  const vehicleRegex = /(20\d{2})\s+(Hyundai|Honda|Toyota|Kia|Ford|Chevrolet)\s+([A-Za-z0-9\s-]+?)(?:[[<\n"'(]|\s{2,}|$)/gi;
   let match;
   while ((match = vehicleRegex.exec(html)) !== null) {
     const year = parseInt(match[1]);
     const make = match[2];
-    let model = match[3].trim().split(/[<\n\'"\(\[]/)[0].trim();
+    let model = match[3].trim().split(/[[<\n"'(]/)[0].trim();
     if (model.length > 30) model = model.slice(0, 30);
 
     const key = `${year}-${make}-${model}`;

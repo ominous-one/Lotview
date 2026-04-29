@@ -1,1 +1,5 @@
-export function schedulePost(dealershipId: number, vehicleId: number, time: Date): void { }
+export function schedulePost(_dealershipId: number, _vehicleId: number, _time: Date): void { }
+
+export function startPostingScheduler(): void {
+  return;
+}

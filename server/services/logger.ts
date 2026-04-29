@@ -9,7 +9,7 @@ import { randomUUID } from "node:crypto";
 
 export type LogLevel = "debug" | "info" | "warn" | "error" | "fatal";
 
-interface LogContext {
+export interface LogContext {
   requestId?: string;
   dealershipId?: number;
   userId?: number;

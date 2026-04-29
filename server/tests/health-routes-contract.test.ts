@@ -7,16 +7,16 @@ let app: Express;
 beforeAll(async () => {
   await (jest as any).unstable_mockModule("../db", () => ({
     db: {
-      execute: jest.fn().mockResolvedValue([{ ok: 1 }]),
+      execute: (jest.fn() as any).mockResolvedValue([{ ok: 1 }]),
     },
   }));
 
   await (jest as any).unstable_mockModule("../services/redis", () => ({
-    checkRedisHealth: jest.fn().mockResolvedValue({ healthy: true, latencyMs: 1 }),
+    checkRedisHealth: (jest.fn() as any).mockResolvedValue({ healthy: true, latencyMs: 1 }),
   }));
 
   await (jest as any).unstable_mockModule("../services/queue", () => ({
-    getQueueHealth: jest.fn().mockResolvedValue({ waiting: 0, active: 0, failed: 0 }),
+    getQueueHealth: (jest.fn() as any).mockResolvedValue({ waiting: 0, active: 0, failed: 0 }),
   }));
 
   const { default: healthRouter } = await import("../routes/health");

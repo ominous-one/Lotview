@@ -33,6 +33,9 @@ export interface AiSalesResponse {
   vehicleName?: string;
   paymentInfo?: string;
   suggestedAlternatives?: { id: number; name: string; price: number }[];
+  model?: string;
+  tokensInput?: number;
+  tokensOutput?: number;
 }
 
 /**
@@ -502,7 +505,7 @@ export async function generateSalesResponse(req: AiSalesRequest): Promise<AiSale
         enabled: true,
         createdAt: new Date(),
         updatedAt: new Date(),
-      } as AiSettings;
+      } as unknown as AiSettings;
     }
   } catch {
     // Table might not exist yet, fall back to defaults
@@ -586,6 +589,7 @@ export async function generateFollowUp(opts: {
   vehicleName: string;
   lastMessagePreview: string;
   hoursSinceLastMessage: number;
+  abVariant?: string;
 }): Promise<string> {
   const { dealershipId } = opts;
 

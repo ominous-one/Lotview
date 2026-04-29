@@ -193,6 +193,7 @@ router.post("/signup", async (req, res) => {
     // Create dealership
     const dealership = await storage.createDealership({
       name: dealershipName,
+      slug: subdomain,
       subdomain,
       websiteUrl,
       phone: phone || null,
@@ -231,7 +232,7 @@ router.post("/signup", async (req, res) => {
     await storage.createScrapeSource({
       dealershipId: dealership.id,
       sourceName: `${dealershipName} Website`,
-      url: websiteUrl,
+      sourceUrl: websiteUrl,
       isActive: true,
       priority: 1,
       schedule: "daily",

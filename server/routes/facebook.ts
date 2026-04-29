@@ -171,7 +171,7 @@ router.post("/post/:queueId", authMiddleware, requireRole("salesperson"), async 
     } catch { /* continue if health check fails */ }
 
     // AI OPTIMIZER
-    let template = queueItem.templateId
+    const template = queueItem.templateId
       ? await storage.getAdTemplateById(queueItem.templateId, userId, dealershipId)
       : (await storage.getAdTemplatesByUser(userId, dealershipId)).find(t => t.isDefault) || (await storage.getAdTemplatesByUser(userId, dealershipId))[0];
 

@@ -86,12 +86,12 @@ function extractVehicles(html) {
   // Deduplicate prices per vehicle — take the lower (sale) price when multiple exist
   const uniquePrices = [...new Set(priceMatches)].map(p => parseInt(p.replace(/[$,]/g, ""))).filter(p => p > 1000 && p < 500000);
   const prices = uniquePrices.sort((a, b) => a - b); // Prefer lower (sale) prices
-  const vehicleRegex = /(20\d{2})\s+(Hyundai|Honda|Toyota|Kia|Ford|Chevrolet)\s+([A-Za-z0-9\s-]+?)(?:<|\n|"|\'|\(|\[|\s{2,}|$)/gi;
+  const vehicleRegex = /(20\d{2})\s+(Hyundai|Honda|Toyota|Kia|Ford|Chevrolet)\s+([A-Za-z0-9\s-]+?)(?:[[<\n"'(]|\s{2,}|$)/gi;
   let match;
   while ((match = vehicleRegex.exec(html)) !== null) {
     const year = parseInt(match[1]);
     const make = match[2];
-    let model = match[3].trim().split(/[<\n\'"\(\[]/)[0].trim();
+    let model = match[3].trim().split(/[[<\n"'(]/)[0].trim();
     if (model.length > 30) model = model.slice(0, 30);
     const key = `${year}-${make}-${model}`;
     if (!seen.has(key) && year >= 2015 && year <= 2027 && model.length > 1) {

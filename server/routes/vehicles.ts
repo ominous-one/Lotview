@@ -337,11 +337,11 @@ router.post("/batch-carfax-update", authMiddleware, requireRole("manager"), requ
     const result = await batchUpdateCarfaxData(dealershipId);
 
     // Cloud Carfax fallback
-    let cloudResult = { updated: 0, errors: 0 };
+    const cloudResult = { updated: 0, errors: 0 };
     try {
       if (await isEnabled("cloud_carfax_scraper", dealershipId)) {
         const { vehicles: allVehicles } = await storage.getVehicles(dealershipId);
-        const needingCarfax = allVehicles.vehicles.filter((v: any) => v.vin && !v.carfaxUrl).slice(0, 20);
+        const needingCarfax = allVehicles.filter((v: any) => v.vin && !v.carfaxUrl).slice(0, 20);
         for (const vehicle of needingCarfax) {
           try {
             const cloud = await scrapeCarfaxReportCloud(vehicle.vin!, dealershipId);

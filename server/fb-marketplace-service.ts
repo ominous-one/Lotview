@@ -3,6 +3,46 @@ export interface FBMarketplaceScheduler {
   reason: string;
 }
 
+const notConfigured = "facebook_marketplace_not_configured";
+
+export class FBMarketplaceService {
+  constructor(private readonly dealershipId: number) {}
+
+  async createAccount(..._args: unknown[]): Promise<number> {
+    throw new Error(notConfigured);
+  }
+
+  async initiateAuth(..._args: unknown[]): Promise<any> {
+    return { success: false, error: notConfigured, dealershipId: this.dealershipId };
+  }
+
+  async verifyAndSaveSession(..._args: unknown[]): Promise<boolean> {
+    return false;
+  }
+
+  async getAccountStats(..._args: unknown[]): Promise<any> {
+    return {
+      dealershipId: this.dealershipId,
+      totalAccounts: 0,
+      activeAccounts: 0,
+      totalPosts: 0,
+      postsToday: 0,
+    };
+  }
+
+  async queueVehicleForPosting(..._args: unknown[]): Promise<number> {
+    throw new Error(notConfigured);
+  }
+
+  async processQueue(..._args: unknown[]): Promise<any> {
+    return { success: false, processed: 0, error: notConfigured };
+  }
+
+  async getAccountsByUserId(..._args: unknown[]): Promise<any[]> {
+    return [];
+  }
+}
+
 /**
  * Fail-closed placeholder for Facebook Marketplace scheduling.
  *

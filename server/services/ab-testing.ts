@@ -141,7 +141,8 @@ export async function recordMetric(
   dealershipId: number,
   experimentId: string,
   variant: "a" | "b",
-  event: "sent" | "opened" | "replied" | "clicked"
+  event: "sent" | "opened" | "replied" | "clicked" | string,
+  value: number = 1
 ): Promise<void> {
   const redis = getRedisClient();
   const key = `abtest:${dealershipId}:${experimentId}`;
@@ -155,7 +156,7 @@ export async function recordMetric(
   // Update metric
   const prefix = variant === "a" ? "a" : "b";
   const field = `${prefix}${event.charAt(0).toUpperCase()}${event.slice(1)}` as keyof ABMetrics;
-  (exp.metrics as Record<string, number>)[field] = ((exp.metrics as Record<string, number>)[field] || 0) + 1;
+  (exp.metrics as unknown as Record<string, number>)[field] = ((exp.metrics as unknown as Record<string, number>)[field] || 0) + value;
 
   await redis.setex(key, 86400 * 90, JSON.stringify(exp));
 

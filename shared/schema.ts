@@ -29,10 +29,10 @@ export const insertDealershipSchema = createInsertSchema(dealerships).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof dealerships.$inferInsert & Record<string, any>>;
 
-export type InsertDealership = z.infer<typeof insertDealershipSchema>;
-export type Dealership = typeof dealerships.$inferSelect;
+export type InsertDealership = typeof dealerships.$inferInsert & Record<string, any>;
+export type Dealership = typeof dealerships.$inferSelect & Record<string, any>;
 
 export const tenantDomains = pgTable("tenant_domains", {
   id: uuid("id").default(sql`gen_random_uuid()`).primaryKey(),
@@ -53,10 +53,10 @@ export const insertTenantDomainSchema = createInsertSchema(tenantDomains).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof tenantDomains.$inferInsert & Record<string, any>>;
 
-export type InsertTenantDomain = z.infer<typeof insertTenantDomainSchema>;
-export type TenantDomain = typeof tenantDomains.$inferSelect;
+export type InsertTenantDomain = typeof tenantDomains.$inferInsert & Record<string, any>;
+export type TenantDomain = typeof tenantDomains.$inferSelect & Record<string, any>;
 
 // ====== MARKETING LEADS ======
 
@@ -76,10 +76,10 @@ export const requestAccessLeads = pgTable("request_access_leads", {
 export const insertRequestAccessLeadSchema = createInsertSchema(requestAccessLeads).omit({
   id: true,
   createdAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof requestAccessLeads.$inferInsert & Record<string, any>>;
 
-export type InsertRequestAccessLead = z.infer<typeof insertRequestAccessLeadSchema>;
-export type RequestAccessLead = typeof requestAccessLeads.$inferSelect;
+export type InsertRequestAccessLead = typeof requestAccessLeads.$inferInsert & Record<string, any>;
+export type RequestAccessLead = typeof requestAccessLeads.$inferSelect & Record<string, any>;
 
 // Dealership subscriptions - Billing and plan management
 export const dealershipSubscriptions = pgTable("dealership_subscriptions", {
@@ -99,10 +99,10 @@ export const insertDealershipSubscriptionSchema = createInsertSchema(dealershipS
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof dealershipSubscriptions.$inferInsert & Record<string, any>>;
 
-export type InsertDealershipSubscription = z.infer<typeof insertDealershipSubscriptionSchema>;
-export type DealershipSubscription = typeof dealershipSubscriptions.$inferSelect;
+export type InsertDealershipSubscription = typeof dealershipSubscriptions.$inferInsert & Record<string, any>;
+export type DealershipSubscription = typeof dealershipSubscriptions.$inferSelect & Record<string, any>;
 
 // Dealership API keys - Master user manages these per dealership
 export const dealershipApiKeys = pgTable("dealership_api_keys", {
@@ -133,10 +133,10 @@ export const insertDealershipApiKeysSchema = createInsertSchema(dealershipApiKey
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof dealershipApiKeys.$inferInsert & Record<string, any>>;
 
-export type InsertDealershipApiKeys = z.infer<typeof insertDealershipApiKeysSchema>;
-export type DealershipApiKeys = typeof dealershipApiKeys.$inferSelect;
+export type InsertDealershipApiKeys = typeof dealershipApiKeys.$inferInsert & Record<string, any>;
+export type DealershipApiKeys = typeof dealershipApiKeys.$inferSelect & Record<string, any>;
 
 // External API tokens - For n8n and other external integrations
 export const externalApiTokens = pgTable("external_api_tokens", {
@@ -156,10 +156,10 @@ export const externalApiTokens = pgTable("external_api_tokens", {
 export const insertExternalApiTokenSchema = createInsertSchema(externalApiTokens).omit({
   id: true,
   createdAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof externalApiTokens.$inferInsert & Record<string, any>>;
 
-export type InsertExternalApiToken = z.infer<typeof insertExternalApiTokenSchema>;
-export type ExternalApiToken = typeof externalApiTokens.$inferSelect;
+export type InsertExternalApiToken = typeof externalApiTokens.$inferInsert & Record<string, any>;
+export type ExternalApiToken = typeof externalApiTokens.$inferSelect & Record<string, any>;
 
 // ====== APPLICATION TABLES (Multi-Tenant) ======
 
@@ -243,10 +243,10 @@ export const vehicles = pgTable("vehicles", {
 export const insertVehicleSchema = createInsertSchema(vehicles).omit({
   id: true,
   createdAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof vehicles.$inferInsert & Record<string, any>>;
 
-export type InsertVehicle = z.infer<typeof insertVehicleSchema>;
-export type Vehicle = typeof vehicles.$inferSelect;
+export type InsertVehicle = typeof vehicles.$inferInsert & Record<string, any>;
+export type Vehicle = typeof vehicles.$inferSelect & Record<string, any>;
 export const vehicleVerificationStatuses = ['VERIFIED', 'UNVERIFIED', 'STALE', 'ERROR'] as const;
 export type VehicleVerificationStatus = typeof vehicleVerificationStatuses[number];
 
@@ -270,7 +270,7 @@ export const vehicleImages = pgTable("vehicle_images", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export type VehicleImage = typeof vehicleImages.$inferSelect;
+export type VehicleImage = typeof vehicleImages.$inferSelect & Record<string, any>;
 
 // Carfax report data scraped from vhr.carfax.ca
 export const carfaxReports = pgTable("carfax_reports", {
@@ -302,10 +302,10 @@ export const insertCarfaxReportSchema = createInsertSchema(carfaxReports).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof carfaxReports.$inferInsert & Record<string, any>>;
 
-export type InsertCarfaxReport = z.infer<typeof insertCarfaxReportSchema>;
-export type CarfaxReport = typeof carfaxReports.$inferSelect;
+export type InsertCarfaxReport = typeof carfaxReports.$inferInsert & Record<string, any>;
+export type CarfaxReport = typeof carfaxReports.$inferSelect & Record<string, any>;
 
 // View tracking table
 export const vehicleViews = pgTable("vehicle_views", {
@@ -319,10 +319,10 @@ export const vehicleViews = pgTable("vehicle_views", {
 export const insertVehicleViewSchema = createInsertSchema(vehicleViews).omit({
   id: true,
   viewedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof vehicleViews.$inferInsert & Record<string, any>>;
 
-export type InsertVehicleView = z.infer<typeof insertVehicleViewSchema>;
-export type VehicleView = typeof vehicleViews.$inferSelect;
+export type InsertVehicleView = typeof vehicleViews.$inferInsert & Record<string, any>;
+export type VehicleView = typeof vehicleViews.$inferSelect & Record<string, any>;
 
 // ===== Autopost Priority Queue (v1.1) =====
 
@@ -342,9 +342,9 @@ export const autopostQueueItems = pgTable("autopost_queue_items", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export const insertAutopostQueueItemSchema = createInsertSchema(autopostQueueItems);
-export type InsertAutopostQueueItem = z.infer<typeof insertAutopostQueueItemSchema>;
-export type AutopostQueueItem = typeof autopostQueueItems.$inferSelect;
+export const insertAutopostQueueItemSchema = createInsertSchema(autopostQueueItems) as unknown as z.ZodObject<any, any, any, typeof autopostQueueItems.$inferInsert & Record<string, any>>;
+export type InsertAutopostQueueItem = typeof autopostQueueItems.$inferInsert & Record<string, any>;
+export type AutopostQueueItem = typeof autopostQueueItems.$inferSelect & Record<string, any>;
 
 export type AutopostPlatform = 'facebook_marketplace' | 'craigslist';
 export type AutopostPlatformStatus = 'not_queued' | 'queued' | 'blocked' | 'claimed' | 'posting' | 'posted' | 'failed' | 'skipped';
@@ -364,9 +364,9 @@ export const autopostPlatformStatuses = pgTable("autopost_platform_statuses", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export const insertAutopostPlatformStatusSchema = createInsertSchema(autopostPlatformStatuses);
-export type InsertAutopostPlatformStatus = z.infer<typeof insertAutopostPlatformStatusSchema>;
-export type AutopostPlatformStatusRow = typeof autopostPlatformStatuses.$inferSelect;
+export const insertAutopostPlatformStatusSchema = createInsertSchema(autopostPlatformStatuses) as unknown as z.ZodObject<any, any, any, typeof autopostPlatformStatuses.$inferInsert & Record<string, any>>;
+export type InsertAutopostPlatformStatus = typeof autopostPlatformStatuses.$inferInsert & Record<string, any>;
+export type AutopostPlatformStatusRow = typeof autopostPlatformStatuses.$inferSelect & Record<string, any>;
 
 export type AutopostEventType =
   | 'ENQUEUED'
@@ -393,9 +393,9 @@ export const autopostQueueEvents = pgTable("autopost_queue_events", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const insertAutopostQueueEventSchema = createInsertSchema(autopostQueueEvents);
-export type InsertAutopostQueueEvent = z.infer<typeof insertAutopostQueueEventSchema>;
-export type AutopostQueueEvent = typeof autopostQueueEvents.$inferSelect;
+export const insertAutopostQueueEventSchema = createInsertSchema(autopostQueueEvents) as unknown as z.ZodObject<any, any, any, typeof autopostQueueEvents.$inferInsert & Record<string, any>>;
+export type InsertAutopostQueueEvent = typeof autopostQueueEvents.$inferInsert & Record<string, any>;
+export type AutopostQueueEvent = typeof autopostQueueEvents.$inferSelect & Record<string, any>;
 
 // Vehicle audit events (soft-delete + admin actions)
 export const vehicleAuditEvents = pgTable("vehicle_audit_events", {
@@ -409,9 +409,9 @@ export const vehicleAuditEvents = pgTable("vehicle_audit_events", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const insertVehicleAuditEventSchema = createInsertSchema(vehicleAuditEvents);
-export type InsertVehicleAuditEvent = z.infer<typeof insertVehicleAuditEventSchema>;
-export type VehicleAuditEvent = typeof vehicleAuditEvents.$inferSelect;
+export const insertVehicleAuditEventSchema = createInsertSchema(vehicleAuditEvents) as unknown as z.ZodObject<any, any, any, typeof vehicleAuditEvents.$inferInsert & Record<string, any>>;
+export type InsertVehicleAuditEvent = typeof vehicleAuditEvents.$inferInsert & Record<string, any>;
+export type VehicleAuditEvent = typeof vehicleAuditEvents.$inferSelect & Record<string, any>;
 
 // Facebook pages connected by sales team (LEGACY - being replaced by facebookAccounts)
 export const facebookPages = pgTable("facebook_pages", {
@@ -428,10 +428,10 @@ export const facebookPages = pgTable("facebook_pages", {
 export const insertFacebookPageSchema = createInsertSchema(facebookPages).omit({
   id: true,
   connectedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof facebookPages.$inferInsert & Record<string, any>>;
 
-export type InsertFacebookPage = z.infer<typeof insertFacebookPageSchema>;
-export type FacebookPage = typeof facebookPages.$inferSelect;
+export type InsertFacebookPage = typeof facebookPages.$inferInsert & Record<string, any>;
+export type FacebookPage = typeof facebookPages.$inferSelect & Record<string, any>;
 
 // Priority inventory for each Facebook page (LEGACY - being replaced by postingQueue)
 export const pagePriorityVehicles = pgTable("page_priority_vehicles", {
@@ -444,10 +444,10 @@ export const pagePriorityVehicles = pgTable("page_priority_vehicles", {
 
 export const insertPagePriorityVehicleSchema = createInsertSchema(pagePriorityVehicles).omit({
   id: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof pagePriorityVehicles.$inferInsert & Record<string, any>>;
 
-export type InsertPagePriorityVehicle = z.infer<typeof insertPagePriorityVehicleSchema>;
-export type PagePriorityVehicle = typeof pagePriorityVehicles.$inferSelect;
+export type InsertPagePriorityVehicle = typeof pagePriorityVehicles.$inferInsert & Record<string, any>;
+export type PagePriorityVehicle = typeof pagePriorityVehicles.$inferSelect & Record<string, any>;
 
 // GHL Webhook configuration for SMS handoff
 export const ghlWebhookConfig = pgTable("ghl_webhook_config", {
@@ -462,10 +462,10 @@ export const ghlWebhookConfig = pgTable("ghl_webhook_config", {
 export const insertGhlWebhookConfigSchema = createInsertSchema(ghlWebhookConfig).omit({
   id: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof ghlWebhookConfig.$inferInsert & Record<string, any>>;
 
-export type InsertGhlWebhookConfig = z.infer<typeof insertGhlWebhookConfigSchema>;
-export type GhlWebhookConfig = typeof ghlWebhookConfig.$inferSelect;
+export type InsertGhlWebhookConfig = typeof ghlWebhookConfig.$inferInsert & Record<string, any>;
+export type GhlWebhookConfig = typeof ghlWebhookConfig.$inferSelect & Record<string, any>;
 
 // AI prompt templates for vehicle descriptions
 export const aiPromptTemplates = pgTable("ai_prompt_templates", {
@@ -482,10 +482,10 @@ export const insertAiPromptTemplateSchema = createInsertSchema(aiPromptTemplates
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof aiPromptTemplates.$inferInsert & Record<string, any>>;
 
-export type InsertAiPromptTemplate = z.infer<typeof insertAiPromptTemplateSchema>;
-export type AiPromptTemplate = typeof aiPromptTemplates.$inferSelect;
+export type InsertAiPromptTemplate = typeof aiPromptTemplates.$inferInsert & Record<string, any>;
+export type AiPromptTemplate = typeof aiPromptTemplates.$inferSelect & Record<string, any>;
 
 // Chat conversations for analytics and training
 export const chatConversations = pgTable("chat_conversations", {
@@ -509,10 +509,10 @@ export const chatConversations = pgTable("chat_conversations", {
 export const insertChatConversationSchema = createInsertSchema(chatConversations).omit({
   id: true,
   createdAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof chatConversations.$inferInsert & Record<string, any>>;
 
-export type InsertChatConversation = z.infer<typeof insertChatConversationSchema>;
-export type ChatConversation = typeof chatConversations.$inferSelect;
+export type InsertChatConversation = typeof chatConversations.$inferInsert & Record<string, any>;
+export type ChatConversation = typeof chatConversations.$inferSelect & Record<string, any>;
 
 // Chat prompts for different scenarios - syncs to GHL workflows
 export const chatPrompts = pgTable("chat_prompts", {
@@ -542,10 +542,10 @@ export const insertChatPromptSchema = createInsertSchema(chatPrompts).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof chatPrompts.$inferInsert & Record<string, any>>;
 
-export type InsertChatPrompt = z.infer<typeof insertChatPromptSchema>;
-export type ChatPrompt = typeof chatPrompts.$inferSelect;
+export type InsertChatPrompt = typeof chatPrompts.$inferInsert & Record<string, any>;
+export type ChatPrompt = typeof chatPrompts.$inferSelect & Record<string, any>;
 
 // Users table with role-based access
 export const users = pgTable("users", {
@@ -570,10 +570,10 @@ export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof users.$inferInsert & Record<string, any>>;
 
-export type InsertUser = z.infer<typeof insertUserSchema>;
-export type User = typeof users.$inferSelect;
+export type InsertUser = typeof users.$inferInsert & Record<string, any>;
+export type User = typeof users.$inferSelect & Record<string, any>;
 
 // Admin configuration (legacy - will migrate to users table)
 export const adminConfig = pgTable("admin_config", {
@@ -585,10 +585,10 @@ export const adminConfig = pgTable("admin_config", {
 export const insertAdminConfigSchema = createInsertSchema(adminConfig).omit({
   id: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof adminConfig.$inferInsert & Record<string, any>>;
 
-export type InsertAdminConfig = z.infer<typeof insertAdminConfigSchema>;
-export type AdminConfig = typeof adminConfig.$inferSelect;
+export type InsertAdminConfig = typeof adminConfig.$inferInsert & Record<string, any>;
+export type AdminConfig = typeof adminConfig.$inferSelect & Record<string, any>;
 
 // Global settings - Super admin manages API keys and global configuration
 export const globalSettings = pgTable("global_settings", {
@@ -606,10 +606,10 @@ export const insertGlobalSettingSchema = createInsertSchema(globalSettings).omit
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof globalSettings.$inferInsert & Record<string, any>>;
 
-export type InsertGlobalSetting = z.infer<typeof insertGlobalSettingSchema>;
-export type GlobalSetting = typeof globalSettings.$inferSelect;
+export type InsertGlobalSetting = typeof globalSettings.$inferInsert & Record<string, any>;
+export type GlobalSetting = typeof globalSettings.$inferSelect & Record<string, any>;
 
 // Super Admin Configs - System-wide configuration like secrets password
 export const superAdminConfigs = pgTable("super_admin_configs", {
@@ -625,10 +625,10 @@ export const insertSuperAdminConfigSchema = createInsertSchema(superAdminConfigs
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof superAdminConfigs.$inferInsert & Record<string, any>>;
 
-export type InsertSuperAdminConfig = z.infer<typeof insertSuperAdminConfigSchema>;
-export type SuperAdminConfig = typeof superAdminConfigs.$inferSelect;
+export type InsertSuperAdminConfig = typeof superAdminConfigs.$inferInsert & Record<string, any>;
+export type SuperAdminConfig = typeof superAdminConfigs.$inferSelect & Record<string, any>;
 
 // Audit logs - Track all super admin actions
 export const auditLogs = pgTable("audit_logs", {
@@ -647,10 +647,10 @@ export const auditLogs = pgTable("audit_logs", {
 export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
   id: true,
   createdAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof auditLogs.$inferInsert & Record<string, any>>;
 
-export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
-export type AuditLog = typeof auditLogs.$inferSelect;
+export type InsertAuditLog = typeof auditLogs.$inferInsert & Record<string, any>;
+export type AuditLog = typeof auditLogs.$inferSelect & Record<string, any>;
 
 // Password reset tokens for self-service password recovery
 export const passwordResetTokens = pgTable("password_reset_tokens", {
@@ -668,10 +668,10 @@ export const passwordResetTokens = pgTable("password_reset_tokens", {
 export const insertPasswordResetTokenSchema = createInsertSchema(passwordResetTokens).omit({
   id: true,
   createdAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof passwordResetTokens.$inferInsert & Record<string, any>>;
 
-export type InsertPasswordResetToken = z.infer<typeof insertPasswordResetTokenSchema>;
-export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
+export type InsertPasswordResetToken = typeof passwordResetTokens.$inferInsert & Record<string, any>;
+export type PasswordResetToken = typeof passwordResetTokens.$inferSelect & Record<string, any>;
 
 // Financing rules - Credit score tiers
 export const creditScoreTiers = pgTable("credit_score_tiers", {
@@ -690,10 +690,10 @@ export const insertCreditScoreTierSchema = createInsertSchema(creditScoreTiers).
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof creditScoreTiers.$inferInsert & Record<string, any>>;
 
-export type InsertCreditScoreTier = z.infer<typeof insertCreditScoreTierSchema>;
-export type CreditScoreTier = typeof creditScoreTiers.$inferSelect;
+export type InsertCreditScoreTier = typeof creditScoreTiers.$inferInsert & Record<string, any>;
+export type CreditScoreTier = typeof creditScoreTiers.$inferSelect & Record<string, any>;
 
 // Financing rules - Model year term eligibility
 export const modelYearTerms = pgTable("model_year_terms", {
@@ -711,10 +711,10 @@ export const insertModelYearTermSchema = createInsertSchema(modelYearTerms).omit
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof modelYearTerms.$inferInsert & Record<string, any>>;
 
-export type InsertModelYearTerm = z.infer<typeof insertModelYearTermSchema>;
-export type ModelYearTerm = typeof modelYearTerms.$inferSelect;
+export type InsertModelYearTerm = typeof modelYearTerms.$inferInsert & Record<string, any>;
+export type ModelYearTerm = typeof modelYearTerms.$inferSelect & Record<string, any>;
 
 // Dealership fees - fees added to payment calculation but not shown in price
 export const dealershipFees = pgTable("dealership_fees", {
@@ -734,10 +734,10 @@ export const insertDealershipFeeSchema = createInsertSchema(dealershipFees).omit
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof dealershipFees.$inferInsert & Record<string, any>>;
 
-export type InsertDealershipFee = z.infer<typeof insertDealershipFeeSchema>;
-export type DealershipFee = typeof dealershipFees.$inferSelect;
+export type InsertDealershipFee = typeof dealershipFees.$inferInsert & Record<string, any>;
+export type DealershipFee = typeof dealershipFees.$inferSelect & Record<string, any>;
 
 // Filter groups - Organize vehicles into categories per dealership
 export const filterGroups = pgTable("filter_groups", {
@@ -757,10 +757,10 @@ export const insertFilterGroupSchema = createInsertSchema(filterGroups).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof filterGroups.$inferInsert & Record<string, any>>;
 
-export type InsertFilterGroup = z.infer<typeof insertFilterGroupSchema>;
-export type FilterGroup = typeof filterGroups.$inferSelect;
+export type InsertFilterGroup = typeof filterGroups.$inferInsert & Record<string, any>;
+export type FilterGroup = typeof filterGroups.$inferSelect & Record<string, any>;
 
 // Scrape sources - URLs to scrape for inventory
 export const scrapeSources = pgTable("scrape_sources", {
@@ -784,10 +784,10 @@ export const insertScrapeSourceSchema = createInsertSchema(scrapeSources).omit({
   updatedAt: true,
   lastScrapedAt: true,
   vehicleCount: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof scrapeSources.$inferInsert & Record<string, any>>;
 
-export type InsertScrapeSource = z.infer<typeof insertScrapeSourceSchema>;
-export type ScrapeSource = typeof scrapeSources.$inferSelect;
+export type InsertScrapeSource = typeof scrapeSources.$inferInsert & Record<string, any>;
+export type ScrapeSource = typeof scrapeSources.$inferSelect & Record<string, any>;
 
 // Scrape runs - Log each inventory scrape attempt with status and error info
 export const scrapeRuns = pgTable("scrape_runs", {
@@ -811,10 +811,10 @@ export const scrapeRuns = pgTable("scrape_runs", {
 export const insertScrapeRunSchema = createInsertSchema(scrapeRuns).omit({
   id: true,
   startedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof scrapeRuns.$inferInsert & Record<string, any>>;
 
-export type InsertScrapeRun = z.infer<typeof insertScrapeRunSchema>;
-export type ScrapeRun = typeof scrapeRuns.$inferSelect;
+export type InsertScrapeRun = typeof scrapeRuns.$inferInsert & Record<string, any>;
+export type ScrapeRun = typeof scrapeRuns.$inferSelect & Record<string, any>;
 
 // Scrape queue - Checkpointed VDP URLs for resumable scraping
 export const scrapeQueue = pgTable("scrape_queue", {
@@ -835,10 +835,10 @@ export const scrapeQueue = pgTable("scrape_queue", {
 export const insertScrapeQueueSchema = createInsertSchema(scrapeQueue).omit({
   id: true,
   createdAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof scrapeQueue.$inferInsert & Record<string, any>>;
 
-export type InsertScrapeQueue = z.infer<typeof insertScrapeQueueSchema>;
-export type ScrapeQueue = typeof scrapeQueue.$inferSelect;
+export type InsertScrapeQueue = typeof scrapeQueue.$inferInsert & Record<string, any>;
+export type ScrapeQueue = typeof scrapeQueue.$inferSelect & Record<string, any>;
 
 // Facebook accounts for salespeople (up to 5 per user)
 export const facebookAccounts = pgTable("facebook_accounts", {
@@ -858,10 +858,10 @@ export const insertFacebookAccountSchema = createInsertSchema(facebookAccounts).
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof facebookAccounts.$inferInsert & Record<string, any>>;
 
-export type InsertFacebookAccount = z.infer<typeof insertFacebookAccountSchema>;
-export type FacebookAccount = typeof facebookAccounts.$inferSelect;
+export type InsertFacebookAccount = typeof facebookAccounts.$inferInsert & Record<string, any>;
+export type FacebookAccount = typeof facebookAccounts.$inferSelect & Record<string, any>;
 
 // Ad templates for Facebook Marketplace posts
 export const adTemplates = pgTable("ad_templates", {
@@ -882,10 +882,10 @@ export const insertAdTemplateSchema = createInsertSchema(adTemplates).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof adTemplates.$inferInsert & Record<string, any>>;
 
-export type InsertAdTemplate = z.infer<typeof insertAdTemplateSchema>;
-export type AdTemplate = typeof adTemplates.$inferSelect;
+export type InsertAdTemplate = typeof adTemplates.$inferInsert & Record<string, any>;
+export type AdTemplate = typeof adTemplates.$inferSelect & Record<string, any>;
 
 // Posting queue for Facebook Marketplace
 export const postingQueue = pgTable("posting_queue", {
@@ -909,10 +909,10 @@ export const insertPostingQueueSchema = createInsertSchema(postingQueue).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof postingQueue.$inferInsert & Record<string, any>>;
 
-export type InsertPostingQueue = z.infer<typeof insertPostingQueueSchema>;
-export type PostingQueue = typeof postingQueue.$inferSelect;
+export type InsertPostingQueue = typeof postingQueue.$inferInsert & Record<string, any>;
+export type PostingQueue = typeof postingQueue.$inferSelect & Record<string, any>;
 
 // Posting schedule configuration (per salesperson)
 export const postingSchedule = pgTable("posting_schedule", {
@@ -929,10 +929,10 @@ export const postingSchedule = pgTable("posting_schedule", {
 export const insertPostingScheduleSchema = createInsertSchema(postingSchedule).omit({
   id: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof postingSchedule.$inferInsert & Record<string, any>>;
 
-export type InsertPostingSchedule = z.infer<typeof insertPostingScheduleSchema>;
-export type PostingSchedule = typeof postingSchedule.$inferSelect;
+export type InsertPostingSchedule = typeof postingSchedule.$inferInsert & Record<string, any>;
+export type PostingSchedule = typeof postingSchedule.$inferSelect & Record<string, any>;
 
 // Facebook Page Settings - Per-page auto-posting configuration
 export const facebookPageSettings = pgTable("facebook_page_settings", {
@@ -964,10 +964,10 @@ export const insertFacebookPageSettingsSchema = createInsertSchema(facebookPageS
   createdAt: true,
   updatedAt: true,
   lastPostedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof facebookPageSettings.$inferInsert & Record<string, any>>;
 
-export type InsertFacebookPageSettings = z.infer<typeof insertFacebookPageSettingsSchema>;
-export type FacebookPageSettings = typeof facebookPageSettings.$inferSelect;
+export type InsertFacebookPageSettings = typeof facebookPageSettings.$inferInsert & Record<string, any>;
+export type FacebookPageSettings = typeof facebookPageSettings.$inferSelect & Record<string, any>;
 
 // Facebook Catalog configuration (for Automotive Inventory Ads)
 export const facebookCatalogConfig = pgTable("facebook_catalog_config", {
@@ -994,10 +994,10 @@ export const insertFacebookCatalogConfigSchema = createInsertSchema(facebookCata
   lastSyncStatus: true,
   lastSyncMessage: true,
   vehiclesSynced: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof facebookCatalogConfig.$inferInsert & Record<string, any>>;
 
-export type InsertFacebookCatalogConfig = z.infer<typeof insertFacebookCatalogConfigSchema>;
-export type FacebookCatalogConfig = typeof facebookCatalogConfig.$inferSelect;
+export type InsertFacebookCatalogConfig = typeof facebookCatalogConfig.$inferInsert & Record<string, any>;
+export type FacebookCatalogConfig = typeof facebookCatalogConfig.$inferSelect & Record<string, any>;
 
 // Facebook Messenger conversations (from Facebook pages connected by salespeople)
 export const messengerConversations = pgTable("messenger_conversations", {
@@ -1038,10 +1038,10 @@ export const insertMessengerConversationSchema = createInsertSchema(messengerCon
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof messengerConversations.$inferInsert & Record<string, any>>;
 
-export type InsertMessengerConversation = z.infer<typeof insertMessengerConversationSchema>;
-export type MessengerConversation = typeof messengerConversations.$inferSelect;
+export type InsertMessengerConversation = typeof messengerConversations.$inferInsert & Record<string, any>;
+export type MessengerConversation = typeof messengerConversations.$inferSelect & Record<string, any>;
 
 // Messenger messages - Individual messages within a conversation
 export const messengerMessages = pgTable("messenger_messages", {
@@ -1073,10 +1073,10 @@ export const messengerMessages = pgTable("messenger_messages", {
 export const insertMessengerMessageSchema = createInsertSchema(messengerMessages).omit({
   id: true,
   createdAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof messengerMessages.$inferInsert & Record<string, any>>;
 
-export type InsertMessengerMessage = z.infer<typeof insertMessengerMessageSchema>;
-export type MessengerMessage = typeof messengerMessages.$inferSelect;
+export type InsertMessengerMessage = typeof messengerMessages.$inferInsert & Record<string, any>;
+export type MessengerMessage = typeof messengerMessages.$inferSelect & Record<string, any>;
 
 // Scheduled messages - Messages scheduled for future delivery
 export const scheduledMessages = pgTable("scheduled_messages", {
@@ -1106,10 +1106,10 @@ export const insertScheduledMessageSchema = createInsertSchema(scheduledMessages
   id: true,
   createdAt: true,
   sentAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof scheduledMessages.$inferInsert & Record<string, any>>;
 
-export type InsertScheduledMessage = z.infer<typeof insertScheduledMessageSchema>;
-export type ScheduledMessage = typeof scheduledMessages.$inferSelect;
+export type InsertScheduledMessage = typeof scheduledMessages.$inferInsert & Record<string, any>;
+export type ScheduledMessage = typeof scheduledMessages.$inferSelect & Record<string, any>;
 
 // Conversation assignments - Assign conversations to salespeople
 export const conversationAssignments = pgTable("conversation_assignments", {
@@ -1125,10 +1125,10 @@ export const conversationAssignments = pgTable("conversation_assignments", {
 export const insertConversationAssignmentSchema = createInsertSchema(conversationAssignments).omit({
   id: true,
   assignedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof conversationAssignments.$inferInsert & Record<string, any>>;
 
-export type InsertConversationAssignment = z.infer<typeof insertConversationAssignmentSchema>;
-export type ConversationAssignment = typeof conversationAssignments.$inferSelect;
+export type InsertConversationAssignment = typeof conversationAssignments.$inferInsert & Record<string, any>;
+export type ConversationAssignment = typeof conversationAssignments.$inferSelect & Record<string, any>;
 
 // Remarketing vehicles - Master user selects up to 20 vehicles for remarketing campaigns
 export const remarketingVehicles = pgTable("remarketing_vehicles", {
@@ -1143,10 +1143,10 @@ export const remarketingVehicles = pgTable("remarketing_vehicles", {
 export const insertRemarketingVehicleSchema = createInsertSchema(remarketingVehicles).omit({
   id: true,
   addedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof remarketingVehicles.$inferInsert & Record<string, any>>;
 
-export type InsertRemarketingVehicle = z.infer<typeof insertRemarketingVehicleSchema>;
-export type RemarketingVehicle = typeof remarketingVehicles.$inferSelect;
+export type InsertRemarketingVehicle = typeof remarketingVehicles.$inferInsert & Record<string, any>;
+export type RemarketingVehicle = typeof remarketingVehicles.$inferSelect & Record<string, any>;
 
 // PBS DMS Integration Configuration
 export const pbsConfig = pgTable("pbs_config", {
@@ -1167,10 +1167,10 @@ export const insertPbsConfigSchema = createInsertSchema(pbsConfig).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof pbsConfig.$inferInsert & Record<string, any>>;
 
-export type InsertPbsConfig = z.infer<typeof insertPbsConfigSchema>;
-export type PbsConfig = typeof pbsConfig.$inferSelect;
+export type InsertPbsConfig = typeof pbsConfig.$inferInsert & Record<string, any>;
+export type PbsConfig = typeof pbsConfig.$inferSelect & Record<string, any>;
 
 // PBS Webhook Events Log
 export const pbsWebhookEvents = pgTable("pbs_webhook_events", {
@@ -1188,10 +1188,10 @@ export const pbsWebhookEvents = pgTable("pbs_webhook_events", {
 export const insertPbsWebhookEventSchema = createInsertSchema(pbsWebhookEvents).omit({
   id: true,
   receivedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof pbsWebhookEvents.$inferInsert & Record<string, any>>;
 
-export type InsertPbsWebhookEvent = z.infer<typeof insertPbsWebhookEventSchema>;
-export type PbsWebhookEvent = typeof pbsWebhookEvents.$inferSelect;
+export type InsertPbsWebhookEvent = typeof pbsWebhookEvents.$inferInsert & Record<string, any>;
+export type PbsWebhookEvent = typeof pbsWebhookEvents.$inferSelect & Record<string, any>;
 
 // PBS API Sessions - stores authenticated sessions for PBS Partner Hub API
 export const pbsSessions = pgTable("pbs_sessions", {
@@ -1209,10 +1209,10 @@ export const insertPbsSessionSchema = createInsertSchema(pbsSessions).omit({
   id: true,
   issuedAt: true,
   lastUsedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof pbsSessions.$inferInsert & Record<string, any>>;
 
-export type InsertPbsSession = z.infer<typeof insertPbsSessionSchema>;
-export type PbsSession = typeof pbsSessions.$inferSelect;
+export type InsertPbsSession = typeof pbsSessions.$inferInsert & Record<string, any>;
+export type PbsSession = typeof pbsSessions.$inferSelect & Record<string, any>;
 
 // PBS Contact Cache - cache contacts from PBS for quick AI lookups
 export const pbsContactCache = pgTable("pbs_contact_cache", {
@@ -1236,10 +1236,10 @@ export const pbsContactCache = pgTable("pbs_contact_cache", {
 export const insertPbsContactCacheSchema = createInsertSchema(pbsContactCache).omit({
   id: true,
   fetchedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof pbsContactCache.$inferInsert & Record<string, any>>;
 
-export type InsertPbsContactCache = z.infer<typeof insertPbsContactCacheSchema>;
-export type PbsContactCache = typeof pbsContactCache.$inferSelect;
+export type InsertPbsContactCache = typeof pbsContactCache.$inferInsert & Record<string, any>;
+export type PbsContactCache = typeof pbsContactCache.$inferSelect & Record<string, any>;
 
 // PBS Appointment Cache - cache appointments from PBS
 export const pbsAppointmentCache = pgTable("pbs_appointment_cache", {
@@ -1258,10 +1258,10 @@ export const pbsAppointmentCache = pgTable("pbs_appointment_cache", {
 export const insertPbsAppointmentCacheSchema = createInsertSchema(pbsAppointmentCache).omit({
   id: true,
   fetchedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof pbsAppointmentCache.$inferInsert & Record<string, any>>;
 
-export type InsertPbsAppointmentCache = z.infer<typeof insertPbsAppointmentCacheSchema>;
-export type PbsAppointmentCache = typeof pbsAppointmentCache.$inferSelect;
+export type InsertPbsAppointmentCache = typeof pbsAppointmentCache.$inferInsert & Record<string, any>;
+export type PbsAppointmentCache = typeof pbsAppointmentCache.$inferSelect & Record<string, any>;
 
 // PBS Parts Inventory Cache - cache parts data from PBS
 export const pbsPartsCache = pgTable("pbs_parts_cache", {
@@ -1281,10 +1281,10 @@ export const pbsPartsCache = pgTable("pbs_parts_cache", {
 export const insertPbsPartsCacheSchema = createInsertSchema(pbsPartsCache).omit({
   id: true,
   fetchedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof pbsPartsCache.$inferInsert & Record<string, any>>;
 
-export type InsertPbsPartsCache = z.infer<typeof insertPbsPartsCacheSchema>;
-export type PbsPartsCache = typeof pbsPartsCache.$inferSelect;
+export type InsertPbsPartsCache = typeof pbsPartsCache.$inferInsert & Record<string, any>;
+export type PbsPartsCache = typeof pbsPartsCache.$inferSelect & Record<string, any>;
 
 // PBS API Call Log - track all PBS API calls for debugging and rate limiting
 export const pbsApiLogs = pgTable("pbs_api_logs", {
@@ -1303,10 +1303,10 @@ export const pbsApiLogs = pgTable("pbs_api_logs", {
 export const insertPbsApiLogSchema = createInsertSchema(pbsApiLogs).omit({
   id: true,
   createdAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof pbsApiLogs.$inferInsert & Record<string, any>>;
 
-export type InsertPbsApiLog = z.infer<typeof insertPbsApiLogSchema>;
-export type PbsApiLog = typeof pbsApiLogs.$inferSelect;
+export type InsertPbsApiLog = typeof pbsApiLogs.$inferInsert & Record<string, any>;
+export type PbsApiLog = typeof pbsApiLogs.$inferSelect & Record<string, any>;
 
 // Manager Settings for postal code and search preferences
 export const managerSettings = pgTable("manager_settings", {
@@ -1322,10 +1322,10 @@ export const managerSettings = pgTable("manager_settings", {
 export const insertManagerSettingsSchema = createInsertSchema(managerSettings).omit({
   id: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof managerSettings.$inferInsert & Record<string, any>>;
 
-export type InsertManagerSettings = z.infer<typeof insertManagerSettingsSchema>;
-export type ManagerSettings = typeof managerSettings.$inferSelect;
+export type InsertManagerSettings = typeof managerSettings.$inferInsert & Record<string, any>;
+export type ManagerSettings = typeof managerSettings.$inferSelect & Record<string, any>;
 
 // Market Listings Cache (scraped from AutoTrader, Kijiji, etc.)
 export const marketListings = pgTable("market_listings", {
@@ -1382,10 +1382,10 @@ export const marketListingSources = pgTable("market_listing_sources", {
 export const insertMarketListingSourcesSchema = createInsertSchema(marketListingSources).omit({
   id: true,
   scrapedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof marketListingSources.$inferInsert & Record<string, any>>;
 
-export type InsertMarketListingSource = z.infer<typeof insertMarketListingSourcesSchema>;
-export type MarketListingSource = typeof marketListingSources.$inferSelect;
+export type InsertMarketListingSource = typeof marketListingSources.$inferInsert & Record<string, any>;
+export type MarketListingSource = typeof marketListingSources.$inferSelect & Record<string, any>;
 
 // CarGurus Color Cache - Stores scraped color data by VIN with TTL
 export const cargurusColorCache = pgTable("cargurus_color_cache", {
@@ -1402,18 +1402,18 @@ export const cargurusColorCache = pgTable("cargurus_color_cache", {
 export const insertCargurusColorCacheSchema = createInsertSchema(cargurusColorCache).omit({
   id: true,
   scrapedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof cargurusColorCache.$inferInsert & Record<string, any>>;
 
-export type InsertCargurusColorCache = z.infer<typeof insertCargurusColorCacheSchema>;
-export type CargurusColorCache = typeof cargurusColorCache.$inferSelect;
+export type InsertCargurusColorCache = typeof cargurusColorCache.$inferInsert & Record<string, any>;
+export type CargurusColorCache = typeof cargurusColorCache.$inferSelect & Record<string, any>;
 
 export const insertMarketListingSchema = createInsertSchema(marketListings).omit({
   id: true,
   scrapedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof marketListings.$inferInsert & Record<string, any>>;
 
-export type InsertMarketListing = z.infer<typeof insertMarketListingSchema>;
-export type MarketListing = typeof marketListings.$inferSelect;
+export type InsertMarketListing = typeof marketListings.$inferInsert & Record<string, any>;
+export type MarketListing = typeof marketListings.$inferSelect & Record<string, any>;
 
 // Price History Tracking (for trend analysis)
 export const priceHistory = pgTable("price_history", {
@@ -1436,10 +1436,10 @@ export const priceHistory = pgTable("price_history", {
 export const insertPriceHistorySchema = createInsertSchema(priceHistory).omit({
   id: true,
   recordedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof priceHistory.$inferInsert & Record<string, any>>;
 
-export type InsertPriceHistory = z.infer<typeof insertPriceHistorySchema>;
-export type PriceHistory = typeof priceHistory.$inferSelect;
+export type InsertPriceHistory = typeof priceHistory.$inferInsert & Record<string, any>;
+export type PriceHistory = typeof priceHistory.$inferSelect & Record<string, any>;
 
 // Competitor Dealers (tracked nearby competitors)
 export const competitorDealers = pgTable("competitor_dealers", {
@@ -1462,10 +1462,10 @@ export const competitorDealers = pgTable("competitor_dealers", {
 export const insertCompetitorDealerSchema = createInsertSchema(competitorDealers).omit({
   id: true,
   createdAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof competitorDealers.$inferInsert & Record<string, any>>;
 
-export type InsertCompetitorDealer = z.infer<typeof insertCompetitorDealerSchema>;
-export type CompetitorDealer = typeof competitorDealers.$inferSelect;
+export type InsertCompetitorDealer = typeof competitorDealers.$inferInsert & Record<string, any>;
+export type CompetitorDealer = typeof competitorDealers.$inferSelect & Record<string, any>;
 
 // Market Analysis Snapshots (daily/weekly summaries)
 export const marketSnapshots = pgTable("market_snapshots", {
@@ -1496,10 +1496,10 @@ export const marketSnapshots = pgTable("market_snapshots", {
 export const insertMarketSnapshotSchema = createInsertSchema(marketSnapshots).omit({
   id: true,
   createdAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof marketSnapshots.$inferInsert & Record<string, any>>;
 
-export type InsertMarketSnapshot = z.infer<typeof insertMarketSnapshotSchema>;
-export type MarketSnapshot = typeof marketSnapshots.$inferSelect;
+export type InsertMarketSnapshot = typeof marketSnapshots.$inferInsert & Record<string, any>;
+export type MarketSnapshot = typeof marketSnapshots.$inferSelect & Record<string, any>;
 
 // ====== COMPETITIVE REPORTS + VIN CACHE + DEALERSHIP AUTOMATION SETTINGS (Automation Overhaul Workstreams 2 + 3) ======
 
@@ -1524,9 +1524,9 @@ export const dealershipAutomationSettings = pgTable("dealership_automation_setti
 export const insertDealershipAutomationSettingsSchema = createInsertSchema(dealershipAutomationSettings).omit({
   id: true,
   updatedAt: true,
-});
-export type InsertDealershipAutomationSettings = z.infer<typeof insertDealershipAutomationSettingsSchema>;
-export type DealershipAutomationSettings = typeof dealershipAutomationSettings.$inferSelect;
+}) as unknown as z.ZodObject<any, any, any, typeof dealershipAutomationSettings.$inferInsert & Record<string, any>>;
+export type InsertDealershipAutomationSettings = typeof dealershipAutomationSettings.$inferInsert & Record<string, any>;
+export type DealershipAutomationSettings = typeof dealershipAutomationSettings.$inferSelect & Record<string, any>;
 
 export const vinDecodeCache = pgTable("vin_decode_cache", {
   id: serial("id").primaryKey(),
@@ -1580,24 +1580,24 @@ export const insertVinDecodeCacheSchema = createInsertSchema(vinDecodeCache).omi
   id: true,
   createdAt: true,
   updatedAt: true,
-});
-export type InsertVinDecodeCache = z.infer<typeof insertVinDecodeCacheSchema>;
-export type VinDecodeCache = typeof vinDecodeCache.$inferSelect;
+}) as unknown as z.ZodObject<any, any, any, typeof vinDecodeCache.$inferInsert & Record<string, any>>;
+export type InsertVinDecodeCache = typeof vinDecodeCache.$inferInsert & Record<string, any>;
+export type VinDecodeCache = typeof vinDecodeCache.$inferSelect & Record<string, any>;
 
 export const insertCompetitiveReportRunSchema = createInsertSchema(competitiveReportRuns).omit({
   id: true,
   generatedAt: true,
   createdAt: true,
-});
-export type InsertCompetitiveReportRun = z.infer<typeof insertCompetitiveReportRunSchema>;
-export type CompetitiveReportRun = typeof competitiveReportRuns.$inferSelect;
+}) as unknown as z.ZodObject<any, any, any, typeof competitiveReportRuns.$inferInsert & Record<string, any>>;
+export type InsertCompetitiveReportRun = typeof competitiveReportRuns.$inferInsert & Record<string, any>;
+export type CompetitiveReportRun = typeof competitiveReportRuns.$inferSelect & Record<string, any>;
 
 export const insertCompetitiveReportUnitSchema = createInsertSchema(competitiveReportUnits).omit({
   id: true,
   createdAt: true,
-});
-export type InsertCompetitiveReportUnit = z.infer<typeof insertCompetitiveReportUnitSchema>;
-export type CompetitiveReportUnit = typeof competitiveReportUnits.$inferSelect;
+}) as unknown as z.ZodObject<any, any, any, typeof competitiveReportUnits.$inferInsert & Record<string, any>>;
+export type InsertCompetitiveReportUnit = typeof competitiveReportUnits.$inferInsert & Record<string, any>;
+export type CompetitiveReportUnit = typeof competitiveReportUnits.$inferSelect & Record<string, any>;
 
 // ====== ONBOARDING SYSTEM TABLES ======
 
@@ -1624,10 +1624,10 @@ export const insertDealershipBrandingSchema = createInsertSchema(dealershipBrand
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof dealershipBranding.$inferInsert & Record<string, any>>;
 
-export type InsertDealershipBranding = z.infer<typeof insertDealershipBrandingSchema>;
-export type DealershipBranding = typeof dealershipBranding.$inferSelect;
+export type InsertDealershipBranding = typeof dealershipBranding.$inferInsert & Record<string, any>;
+export type DealershipBranding = typeof dealershipBranding.$inferSelect & Record<string, any>;
 
 // Dealership contact channels
 export const dealershipContacts = pgTable("dealership_contacts", {
@@ -1649,10 +1649,10 @@ export const insertDealershipContactsSchema = createInsertSchema(dealershipConta
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof dealershipContacts.$inferInsert & Record<string, any>>;
 
-export type InsertDealershipContacts = z.infer<typeof insertDealershipContactsSchema>;
-export type DealershipContacts = typeof dealershipContacts.$inferSelect;
+export type InsertDealershipContacts = typeof dealershipContacts.$inferInsert & Record<string, any>;
+export type DealershipContacts = typeof dealershipContacts.$inferSelect & Record<string, any>;
 
 // Staff invitations - pending user accounts
 export const staffInvites = pgTable("staff_invites", {
@@ -1673,10 +1673,10 @@ export const insertStaffInviteSchema = createInsertSchema(staffInvites).omit({
   id: true,
   createdAt: true,
   acceptedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof staffInvites.$inferInsert & Record<string, any>>;
 
-export type InsertStaffInvite = z.infer<typeof insertStaffInviteSchema>;
-export type StaffInvite = typeof staffInvites.$inferSelect;
+export type InsertStaffInvite = typeof staffInvites.$inferInsert & Record<string, any>;
+export type StaffInvite = typeof staffInvites.$inferSelect & Record<string, any>;
 
 // Onboarding runs - track each onboarding execution
 export const onboardingRuns = pgTable("onboarding_runs", {
@@ -1698,10 +1698,10 @@ export const insertOnboardingRunSchema = createInsertSchema(onboardingRuns).omit
   createdAt: true,
   startedAt: true,
   completedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof onboardingRuns.$inferInsert & Record<string, any>>;
 
-export type InsertOnboardingRun = z.infer<typeof insertOnboardingRunSchema>;
-export type OnboardingRun = typeof onboardingRuns.$inferSelect;
+export type InsertOnboardingRun = typeof onboardingRuns.$inferInsert & Record<string, any>;
+export type OnboardingRun = typeof onboardingRuns.$inferSelect & Record<string, any>;
 
 // Onboarding run steps - detailed progress for each step
 export const onboardingRunSteps = pgTable("onboarding_run_steps", {
@@ -1720,10 +1720,10 @@ export const insertOnboardingRunStepSchema = createInsertSchema(onboardingRunSte
   id: true,
   startedAt: true,
   completedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof onboardingRunSteps.$inferInsert & Record<string, any>>;
 
-export type InsertOnboardingRunStep = z.infer<typeof insertOnboardingRunStepSchema>;
-export type OnboardingRunStep = typeof onboardingRunSteps.$inferSelect;
+export type InsertOnboardingRunStep = typeof onboardingRunSteps.$inferInsert & Record<string, any>;
+export type OnboardingRunStep = typeof onboardingRunSteps.$inferSelect & Record<string, any>;
 
 // Integration status tracking - monitor each integration's health
 export const integrationStatus = pgTable("integration_status", {
@@ -1743,10 +1743,10 @@ export const insertIntegrationStatusSchema = createInsertSchema(integrationStatu
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof integrationStatus.$inferInsert & Record<string, any>>;
 
-export type InsertIntegrationStatus = z.infer<typeof insertIntegrationStatusSchema>;
-export type IntegrationStatus = typeof integrationStatus.$inferSelect;
+export type InsertIntegrationStatus = typeof integrationStatus.$inferInsert & Record<string, any>;
+export type IntegrationStatus = typeof integrationStatus.$inferSelect & Record<string, any>;
 
 // Launch checklist - tracks manual tasks needed before dealership goes live
 export const launchChecklist = pgTable("launch_checklist", {
@@ -1772,10 +1772,10 @@ export const insertLaunchChecklistSchema = createInsertSchema(launchChecklist).o
   createdAt: true,
   updatedAt: true,
   completedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof launchChecklist.$inferInsert & Record<string, any>>;
 
-export type InsertLaunchChecklist = z.infer<typeof insertLaunchChecklistSchema>;
-export type LaunchChecklist = typeof launchChecklist.$inferSelect;
+export type InsertLaunchChecklist = typeof launchChecklist.$inferInsert & Record<string, any>;
+export type LaunchChecklist = typeof launchChecklist.$inferSelect & Record<string, any>;
 
 // ===== GOHIGHLEVEL INTEGRATION TABLES =====
 
@@ -1806,10 +1806,10 @@ export const insertGhlAccountSchema = createInsertSchema(ghlAccounts).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof ghlAccounts.$inferInsert & Record<string, any>>;
 
-export type InsertGhlAccount = z.infer<typeof insertGhlAccountSchema>;
-export type GhlAccount = typeof ghlAccounts.$inferSelect;
+export type InsertGhlAccount = typeof ghlAccounts.$inferInsert & Record<string, any>;
+export type GhlAccount = typeof ghlAccounts.$inferSelect & Record<string, any>;
 
 // GoHighLevel Configuration - calendars, pipelines, custom field mappings per dealership
 export const ghlConfig = pgTable("ghl_config", {
@@ -1844,10 +1844,10 @@ export const insertGhlConfigSchema = createInsertSchema(ghlConfig).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof ghlConfig.$inferInsert & Record<string, any>>;
 
-export type InsertGhlConfig = z.infer<typeof insertGhlConfigSchema>;
-export type GhlConfig = typeof ghlConfig.$inferSelect;
+export type InsertGhlConfig = typeof ghlConfig.$inferInsert & Record<string, any>;
+export type GhlConfig = typeof ghlConfig.$inferSelect & Record<string, any>;
 
 // GoHighLevel Webhook Events - incoming webhooks from GHL
 export const ghlWebhookEvents = pgTable("ghl_webhook_events", {
@@ -1868,10 +1868,10 @@ export const ghlWebhookEvents = pgTable("ghl_webhook_events", {
 export const insertGhlWebhookEventSchema = createInsertSchema(ghlWebhookEvents).omit({
   id: true,
   receivedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof ghlWebhookEvents.$inferInsert & Record<string, any>>;
 
-export type InsertGhlWebhookEvent = z.infer<typeof insertGhlWebhookEventSchema>;
-export type GhlWebhookEvent = typeof ghlWebhookEvents.$inferSelect;
+export type InsertGhlWebhookEvent = typeof ghlWebhookEvents.$inferInsert & Record<string, any>;
+export type GhlWebhookEvent = typeof ghlWebhookEvents.$inferSelect & Record<string, any>;
 
 // GoHighLevel Contact Sync - track synced contacts between GHL, PBS, and Lotview
 export const ghlContactSync = pgTable("ghl_contact_sync", {
@@ -1899,10 +1899,10 @@ export const insertGhlContactSyncSchema = createInsertSchema(ghlContactSync).omi
   id: true,
   createdAt: true,
   lastSyncAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof ghlContactSync.$inferInsert & Record<string, any>>;
 
-export type InsertGhlContactSync = z.infer<typeof insertGhlContactSyncSchema>;
-export type GhlContactSync = typeof ghlContactSync.$inferSelect;
+export type InsertGhlContactSync = typeof ghlContactSync.$inferInsert & Record<string, any>;
+export type GhlContactSync = typeof ghlContactSync.$inferSelect & Record<string, any>;
 
 // GoHighLevel Appointment Sync - track synced appointments between GHL and PBS
 export const ghlAppointmentSync = pgTable("ghl_appointment_sync", {
@@ -1929,10 +1929,10 @@ export const insertGhlAppointmentSyncSchema = createInsertSchema(ghlAppointmentS
   id: true,
   createdAt: true,
   lastSyncAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof ghlAppointmentSync.$inferInsert & Record<string, any>>;
 
-export type InsertGhlAppointmentSync = z.infer<typeof insertGhlAppointmentSyncSchema>;
-export type GhlAppointmentSync = typeof ghlAppointmentSync.$inferSelect;
+export type InsertGhlAppointmentSync = typeof ghlAppointmentSync.$inferInsert & Record<string, any>;
+export type GhlAppointmentSync = typeof ghlAppointmentSync.$inferSelect & Record<string, any>;
 
 // ====== WS4E: CANONICAL LOTVIEW APPOINTMENTS + NOTIFICATIONS ======
 
@@ -1963,10 +1963,10 @@ export const appointments = pgTable("appointments", {
 export const insertAppointmentSchema = createInsertSchema(appointments).omit({
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof appointments.$inferInsert & Record<string, any>>;
 
-export type InsertAppointment = z.infer<typeof insertAppointmentSchema>;
-export type Appointment = typeof appointments.$inferSelect;
+export type InsertAppointment = typeof appointments.$inferInsert & Record<string, any>;
+export type Appointment = typeof appointments.$inferSelect & Record<string, any>;
 
 export const appointmentAuditEvents = pgTable("appointment_audit_events", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -1984,10 +1984,10 @@ export const appointmentAuditEvents = pgTable("appointment_audit_events", {
 
 export const insertAppointmentAuditEventSchema = createInsertSchema(appointmentAuditEvents).omit({
   occurredAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof appointmentAuditEvents.$inferInsert & Record<string, any>>;
 
-export type InsertAppointmentAuditEvent = z.infer<typeof insertAppointmentAuditEventSchema>;
-export type AppointmentAuditEvent = typeof appointmentAuditEvents.$inferSelect;
+export type InsertAppointmentAuditEvent = typeof appointmentAuditEvents.$inferInsert & Record<string, any>;
+export type AppointmentAuditEvent = typeof appointmentAuditEvents.$inferSelect & Record<string, any>;
 
 export const notificationEvents = pgTable("notification_events", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -2005,10 +2005,10 @@ export const notificationEvents = pgTable("notification_events", {
 
 export const insertNotificationEventSchema = createInsertSchema(notificationEvents).omit({
   occurredAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof notificationEvents.$inferInsert & Record<string, any>>;
 
-export type InsertNotificationEvent = z.infer<typeof insertNotificationEventSchema>;
-export type NotificationEvent = typeof notificationEvents.$inferSelect;
+export type InsertNotificationEvent = typeof notificationEvents.$inferInsert & Record<string, any>;
+export type NotificationEvent = typeof notificationEvents.$inferSelect & Record<string, any>;
 
 export const notifications = pgTable("notifications", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -2026,10 +2026,10 @@ export const notifications = pgTable("notifications", {
 
 export const insertNotificationSchema = createInsertSchema(notifications).omit({
   createdAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof notifications.$inferInsert & Record<string, any>>;
 
-export type InsertNotification = z.infer<typeof insertNotificationSchema>;
-export type Notification = typeof notifications.$inferSelect;
+export type InsertNotification = typeof notifications.$inferInsert & Record<string, any>;
+export type Notification = typeof notifications.$inferSelect & Record<string, any>;
 
 export const emailOutbox = pgTable("email_outbox", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -2056,10 +2056,10 @@ export const insertEmailOutboxSchema = createInsertSchema(emailOutbox).omit({
   attemptCount: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof emailOutbox.$inferInsert & Record<string, any>>;
 
-export type InsertEmailOutbox = z.infer<typeof insertEmailOutboxSchema>;
-export type EmailOutbox = typeof emailOutbox.$inferSelect;
+export type InsertEmailOutbox = typeof emailOutbox.$inferInsert & Record<string, any>;
+export type EmailOutbox = typeof emailOutbox.$inferSelect & Record<string, any>;
 
 export const emailVerificationTokens = pgTable("email_verification_tokens", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -2073,10 +2073,10 @@ export const emailVerificationTokens = pgTable("email_verification_tokens", {
 
 export const insertEmailVerificationTokenSchema = createInsertSchema(emailVerificationTokens).omit({
   createdAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof emailVerificationTokens.$inferInsert & Record<string, any>>;
 
-export type InsertEmailVerificationToken = z.infer<typeof insertEmailVerificationTokenSchema>;
-export type EmailVerificationToken = typeof emailVerificationTokens.$inferSelect;
+export type InsertEmailVerificationToken = typeof emailVerificationTokens.$inferInsert & Record<string, any>;
+export type EmailVerificationToken = typeof emailVerificationTokens.$inferSelect & Record<string, any>;
 
 // WS4E Follow-up tasks
 export const followUpTasks = pgTable("follow_up_tasks", {
@@ -2099,10 +2099,10 @@ export const followUpTasks = pgTable("follow_up_tasks", {
 export const insertFollowUpTaskSchema = createInsertSchema(followUpTasks).omit({
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof followUpTasks.$inferInsert & Record<string, any>>;
 
-export type InsertFollowUpTask = z.infer<typeof insertFollowUpTaskSchema>;
-export type FollowUpTask = typeof followUpTasks.$inferSelect;
+export type InsertFollowUpTask = typeof followUpTasks.$inferInsert & Record<string, any>;
+export type FollowUpTask = typeof followUpTasks.$inferSelect & Record<string, any>;
 
 // GoHighLevel API Logs - track API calls for debugging and rate limiting
 export const ghlApiLogs = pgTable("ghl_api_logs", {
@@ -2121,10 +2121,10 @@ export const ghlApiLogs = pgTable("ghl_api_logs", {
 export const insertGhlApiLogSchema = createInsertSchema(ghlApiLogs).omit({
   id: true,
   createdAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof ghlApiLogs.$inferInsert & Record<string, any>>;
 
-export type InsertGhlApiLog = z.infer<typeof insertGhlApiLogSchema>;
-export type GhlApiLog = typeof ghlApiLogs.$inferSelect;
+export type InsertGhlApiLog = typeof ghlApiLogs.$inferInsert & Record<string, any>;
+export type GhlApiLog = typeof ghlApiLogs.$inferSelect & Record<string, any>;
 
 // ====== SCRAPER ACTIVITY LOGS ======
 
@@ -2153,10 +2153,10 @@ export const insertScraperActivityLogSchema = createInsertSchema(scraperActivity
   id: true,
   startedAt: true,
   completedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof scraperActivityLogs.$inferInsert & Record<string, any>>;
 
-export type InsertScraperActivityLog = z.infer<typeof insertScraperActivityLogSchema>;
-export type ScraperActivityLog = typeof scraperActivityLogs.$inferSelect;
+export type InsertScraperActivityLog = typeof scraperActivityLogs.$inferInsert & Record<string, any>;
+export type ScraperActivityLog = typeof scraperActivityLogs.$inferSelect & Record<string, any>;
 
 // ====== CALL ANALYSIS SYSTEM ======
 
@@ -2178,10 +2178,10 @@ export const insertCallAnalysisCriteriaSchema = createInsertSchema(callAnalysisC
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof callAnalysisCriteria.$inferInsert & Record<string, any>>;
 
-export type InsertCallAnalysisCriteria = z.infer<typeof insertCallAnalysisCriteriaSchema>;
-export type CallAnalysisCriteria = typeof callAnalysisCriteria.$inferSelect;
+export type InsertCallAnalysisCriteria = typeof callAnalysisCriteria.$inferInsert & Record<string, any>;
+export type CallAnalysisCriteria = typeof callAnalysisCriteria.$inferSelect & Record<string, any>;
 
 // Call recordings - store call data from GHL webhooks
 export const callRecordings = pgTable("call_recordings", {
@@ -2229,10 +2229,10 @@ export const insertCallRecordingSchema = createInsertSchema(callRecordings).omit
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof callRecordings.$inferInsert & Record<string, any>>;
 
-export type InsertCallRecording = z.infer<typeof insertCallRecordingSchema>;
-export type CallRecording = typeof callRecordings.$inferSelect;
+export type InsertCallRecording = typeof callRecordings.$inferInsert & Record<string, any>;
+export type CallRecording = typeof callRecordings.$inferSelect & Record<string, any>;
 
 // ====== SUPER ADMIN IMPERSONATION ======
 
@@ -2253,10 +2253,10 @@ export const impersonationSessions = pgTable("impersonation_sessions", {
 export const insertImpersonationSessionSchema = createInsertSchema(impersonationSessions).omit({
   id: true,
   startedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof impersonationSessions.$inferInsert & Record<string, any>>;
 
-export type InsertImpersonationSession = z.infer<typeof insertImpersonationSessionSchema>;
-export type ImpersonationSession = typeof impersonationSessions.$inferSelect;
+export type InsertImpersonationSession = typeof impersonationSessions.$inferInsert & Record<string, any>;
+export type ImpersonationSession = typeof impersonationSessions.$inferSelect & Record<string, any>;
 
 // ====== AUTOMATION ENGINE TABLES ======
 
@@ -2280,10 +2280,10 @@ export const insertFollowUpSequenceSchema = createInsertSchema(followUpSequences
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof followUpSequences.$inferInsert & Record<string, any>>;
 
-export type InsertFollowUpSequence = z.infer<typeof insertFollowUpSequenceSchema>;
-export type FollowUpSequence = typeof followUpSequences.$inferSelect;
+export type InsertFollowUpSequence = typeof followUpSequences.$inferInsert & Record<string, any>;
+export type FollowUpSequence = typeof followUpSequences.$inferSelect & Record<string, any>;
 
 // Follow-up queue - Track scheduled messages for each contact
 export const followUpQueue = pgTable("follow_up_queue", {
@@ -2319,10 +2319,10 @@ export const insertFollowUpQueueSchema = createInsertSchema(followUpQueue).omit(
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof followUpQueue.$inferInsert & Record<string, any>>;
 
-export type InsertFollowUpQueue = z.infer<typeof insertFollowUpQueueSchema>;
-export type FollowUpQueue = typeof followUpQueue.$inferSelect;
+export type InsertFollowUpQueue = typeof followUpQueue.$inferInsert & Record<string, any>;
+export type FollowUpQueue = typeof followUpQueue.$inferSelect & Record<string, any>;
 
 // Price watches - Track customer interest in specific vehicles for price alerts
 export const priceWatches = pgTable("price_watches", {
@@ -2355,10 +2355,10 @@ export const insertPriceWatchSchema = createInsertSchema(priceWatches).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof priceWatches.$inferInsert & Record<string, any>>;
 
-export type InsertPriceWatch = z.infer<typeof insertPriceWatchSchema>;
-export type PriceWatch = typeof priceWatches.$inferSelect;
+export type InsertPriceWatch = typeof priceWatches.$inferInsert & Record<string, any>;
+export type PriceWatch = typeof priceWatches.$inferSelect & Record<string, any>;
 
 // Competitor price alerts - Store alerts when competitors undercut prices
 export const competitorPriceAlerts = pgTable("competitor_price_alerts", {
@@ -2396,10 +2396,10 @@ export const competitorPriceAlerts = pgTable("competitor_price_alerts", {
 export const insertCompetitorPriceAlertSchema = createInsertSchema(competitorPriceAlerts).omit({
   id: true,
   createdAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof competitorPriceAlerts.$inferInsert & Record<string, any>>;
 
-export type InsertCompetitorPriceAlert = z.infer<typeof insertCompetitorPriceAlertSchema>;
-export type CompetitorPriceAlert = typeof competitorPriceAlerts.$inferSelect;
+export type InsertCompetitorPriceAlert = typeof competitorPriceAlerts.$inferInsert & Record<string, any>;
+export type CompetitorPriceAlert = typeof competitorPriceAlerts.$inferSelect & Record<string, any>;
 
 // Automation logs - Audit trail for all automated actions
 export const automationLogs = pgTable("automation_logs", {
@@ -2428,10 +2428,10 @@ export const automationLogs = pgTable("automation_logs", {
 
 export const insertAutomationLogSchema = createInsertSchema(automationLogs).omit({
   id: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof automationLogs.$inferInsert & Record<string, any>>;
 
-export type InsertAutomationLog = z.infer<typeof insertAutomationLogSchema>;
-export type AutomationLog = typeof automationLogs.$inferSelect;
+export type InsertAutomationLog = typeof automationLogs.$inferInsert & Record<string, any>;
+export type AutomationLog = typeof automationLogs.$inferSelect & Record<string, any>;
 
 // Appointment reminders - Track scheduled reminders for appointments
 export const appointmentReminders = pgTable("appointment_reminders", {
@@ -2468,10 +2468,10 @@ export const insertAppointmentReminderSchema = createInsertSchema(appointmentRem
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof appointmentReminders.$inferInsert & Record<string, any>>;
 
-export type InsertAppointmentReminder = z.infer<typeof insertAppointmentReminderSchema>;
-export type AppointmentReminder = typeof appointmentReminders.$inferSelect;
+export type InsertAppointmentReminder = typeof appointmentReminders.$inferInsert & Record<string, any>;
+export type AppointmentReminder = typeof appointmentReminders.$inferSelect & Record<string, any>;
 
 // ====== SEQUENCE ANALYTICS & RE-ENGAGEMENT TABLES ======
 
@@ -2507,10 +2507,10 @@ export const sequenceExecutions = pgTable("sequence_executions", {
 export const insertSequenceExecutionSchema = createInsertSchema(sequenceExecutions).omit({
   id: true,
   startedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof sequenceExecutions.$inferInsert & Record<string, any>>;
 
-export type InsertSequenceExecution = z.infer<typeof insertSequenceExecutionSchema>;
-export type SequenceExecution = typeof sequenceExecutions.$inferSelect;
+export type InsertSequenceExecution = typeof sequenceExecutions.$inferInsert & Record<string, any>;
+export type SequenceExecution = typeof sequenceExecutions.$inferSelect & Record<string, any>;
 
 // Sequence messages - Track each individual message sent in a sequence
 export const sequenceMessages = pgTable("sequence_messages", {
@@ -2544,10 +2544,10 @@ export const sequenceMessages = pgTable("sequence_messages", {
 export const insertSequenceMessageSchema = createInsertSchema(sequenceMessages).omit({
   id: true,
   createdAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof sequenceMessages.$inferInsert & Record<string, any>>;
 
-export type InsertSequenceMessage = z.infer<typeof insertSequenceMessageSchema>;
-export type SequenceMessage = typeof sequenceMessages.$inferSelect;
+export type InsertSequenceMessage = typeof sequenceMessages.$inferInsert & Record<string, any>;
+export type SequenceMessage = typeof sequenceMessages.$inferSelect & Record<string, any>;
 
 // Sequence conversions - Track conversions attributed to sequences
 export const sequenceConversions = pgTable("sequence_conversions", {
@@ -2575,10 +2575,10 @@ export const sequenceConversions = pgTable("sequence_conversions", {
 
 export const insertSequenceConversionSchema = createInsertSchema(sequenceConversions).omit({
   id: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof sequenceConversions.$inferInsert & Record<string, any>>;
 
-export type InsertSequenceConversion = z.infer<typeof insertSequenceConversionSchema>;
-export type SequenceConversion = typeof sequenceConversions.$inferSelect;
+export type InsertSequenceConversion = typeof sequenceConversions.$inferInsert & Record<string, any>;
+export type SequenceConversion = typeof sequenceConversions.$inferSelect & Record<string, any>;
 
 // Contact activity - Track last activity per contact for re-engagement campaigns
 export const contactActivity = pgTable("contact_activity", {
@@ -2614,10 +2614,10 @@ export const insertContactActivitySchema = createInsertSchema(contactActivity).o
   id: true,
   firstSeenAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof contactActivity.$inferInsert & Record<string, any>>;
 
-export type InsertContactActivity = z.infer<typeof insertContactActivitySchema>;
-export type ContactActivity = typeof contactActivity.$inferSelect;
+export type InsertContactActivity = typeof contactActivity.$inferInsert & Record<string, any>;
+export type ContactActivity = typeof contactActivity.$inferSelect & Record<string, any>;
 
 // Re-engagement campaigns - Track monthly automated outreach to cold contacts
 export const reengagementCampaigns = pgTable("reengagement_campaigns", {
@@ -2648,10 +2648,10 @@ export const insertReengagementCampaignSchema = createInsertSchema(reengagementC
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof reengagementCampaigns.$inferInsert & Record<string, any>>;
 
-export type InsertReengagementCampaign = z.infer<typeof insertReengagementCampaignSchema>;
-export type ReengagementCampaign = typeof reengagementCampaigns.$inferSelect;
+export type InsertReengagementCampaign = typeof reengagementCampaigns.$inferInsert & Record<string, any>;
+export type ReengagementCampaign = typeof reengagementCampaigns.$inferSelect & Record<string, any>;
 
 // Sequence analytics aggregates - Pre-computed daily stats for dashboard performance
 export const sequenceAnalytics = pgTable("sequence_analytics", {
@@ -2690,10 +2690,10 @@ export const sequenceAnalytics = pgTable("sequence_analytics", {
 export const insertSequenceAnalyticsSchema = createInsertSchema(sequenceAnalytics).omit({
   id: true,
   createdAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof sequenceAnalytics.$inferInsert & Record<string, any>>;
 
-export type InsertSequenceAnalytics = z.infer<typeof insertSequenceAnalyticsSchema>;
-export type SequenceAnalytics = typeof sequenceAnalytics.$inferSelect;
+export type InsertSequenceAnalytics = typeof sequenceAnalytics.$inferInsert & Record<string, any>;
+export type SequenceAnalytics = typeof sequenceAnalytics.$inferSelect & Record<string, any>;
 
 // ====== VEHICLE APPRAISALS ======
 // Stores saved VIN lookups, market analysis results, and quotes for later recall
@@ -2748,10 +2748,10 @@ export const insertVehicleAppraisalSchema = createInsertSchema(vehicleAppraisals
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof vehicleAppraisals.$inferInsert & Record<string, any>>;
 
-export type InsertVehicleAppraisal = z.infer<typeof insertVehicleAppraisalSchema>;
-export type VehicleAppraisal = typeof vehicleAppraisals.$inferSelect;
+export type InsertVehicleAppraisal = typeof vehicleAppraisals.$inferInsert & Record<string, any>;
+export type VehicleAppraisal = typeof vehicleAppraisals.$inferSelect & Record<string, any>;
 
 // ====== CRM CONTACT DATABASE ======
 // Unified customer contact database for omnichannel messaging and relationship management
@@ -2815,10 +2815,10 @@ export const insertCrmContactSchema = createInsertSchema(crmContacts).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof crmContacts.$inferInsert & Record<string, any>>;
 
-export type InsertCrmContact = z.infer<typeof insertCrmContactSchema>;
-export type CrmContact = typeof crmContacts.$inferSelect;
+export type InsertCrmContact = typeof crmContacts.$inferInsert & Record<string, any>;
+export type CrmContact = typeof crmContacts.$inferSelect & Record<string, any>;
 
 // CRM Contact Tags - Categorize contacts with tags
 export const crmTags = pgTable("crm_tags", {
@@ -2833,10 +2833,10 @@ export const crmTags = pgTable("crm_tags", {
 export const insertCrmTagSchema = createInsertSchema(crmTags).omit({
   id: true,
   createdAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof crmTags.$inferInsert & Record<string, any>>;
 
-export type InsertCrmTag = z.infer<typeof insertCrmTagSchema>;
-export type CrmTag = typeof crmTags.$inferSelect;
+export type InsertCrmTag = typeof crmTags.$inferInsert & Record<string, any>;
+export type CrmTag = typeof crmTags.$inferSelect & Record<string, any>;
 
 // CRM Contact-Tag Links - Many-to-many relationship
 export const crmContactTags = pgTable("crm_contact_tags", {
@@ -2847,7 +2847,7 @@ export const crmContactTags = pgTable("crm_contact_tags", {
   addedById: integer("added_by_id").references(() => users.id, { onDelete: 'set null' }),
 });
 
-export type CrmContactTag = typeof crmContactTags.$inferSelect;
+export type CrmContactTag = typeof crmContactTags.$inferSelect & Record<string, any>;
 
 // CRM Contact Activities - Timeline of all interactions
 export const crmActivities = pgTable("crm_activities", {
@@ -2878,10 +2878,10 @@ export const crmActivities = pgTable("crm_activities", {
 export const insertCrmActivitySchema = createInsertSchema(crmActivities).omit({
   id: true,
   createdAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof crmActivities.$inferInsert & Record<string, any>>;
 
-export type InsertCrmActivity = z.infer<typeof insertCrmActivitySchema>;
-export type CrmActivity = typeof crmActivities.$inferSelect;
+export type InsertCrmActivity = typeof crmActivities.$inferInsert & Record<string, any>;
+export type CrmActivity = typeof crmActivities.$inferSelect & Record<string, any>;
 
 // CRM Messages - Outbound message queue and history
 export const crmMessages = pgTable("crm_messages", {
@@ -2923,10 +2923,10 @@ export const crmMessages = pgTable("crm_messages", {
 export const insertCrmMessageSchema = createInsertSchema(crmMessages).omit({
   id: true,
   createdAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof crmMessages.$inferInsert & Record<string, any>>;
 
-export type InsertCrmMessage = z.infer<typeof insertCrmMessageSchema>;
-export type CrmMessage = typeof crmMessages.$inferSelect;
+export type InsertCrmMessage = typeof crmMessages.$inferInsert & Record<string, any>;
+export type CrmMessage = typeof crmMessages.$inferSelect & Record<string, any>;
 
 // CRM Message Templates - Reusable message templates with AI enhancement
 export const crmMessageTemplates = pgTable("crm_message_templates", {
@@ -2958,10 +2958,10 @@ export const insertCrmMessageTemplateSchema = createInsertSchema(crmMessageTempl
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof crmMessageTemplates.$inferInsert & Record<string, any>>;
 
-export type InsertCrmMessageTemplate = z.infer<typeof insertCrmMessageTemplateSchema>;
-export type CrmMessageTemplate = typeof crmMessageTemplates.$inferSelect;
+export type InsertCrmMessageTemplate = typeof crmMessageTemplates.$inferInsert & Record<string, any>;
+export type CrmMessageTemplate = typeof crmMessageTemplates.$inferSelect & Record<string, any>;
 
 // CRM Tasks - Follow-up tasks for contacts
 export const crmTasks = pgTable("crm_tasks", {
@@ -2994,10 +2994,10 @@ export const insertCrmTaskSchema = createInsertSchema(crmTasks).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof crmTasks.$inferInsert & Record<string, any>>;
 
-export type InsertCrmTask = z.infer<typeof insertCrmTaskSchema>;
-export type CrmTask = typeof crmTasks.$inferSelect;
+export type InsertCrmTask = typeof crmTasks.$inferInsert & Record<string, any>;
+export type CrmTask = typeof crmTasks.$inferSelect & Record<string, any>;
 
 // CRM Saved Views - Custom list views for contacts
 export const crmSavedViews = pgTable("crm_saved_views", {
@@ -3023,10 +3023,10 @@ export const insertCrmSavedViewSchema = createInsertSchema(crmSavedViews).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof crmSavedViews.$inferInsert & Record<string, any>>;
 
-export type InsertCrmSavedView = z.infer<typeof insertCrmSavedViewSchema>;
-export type CrmSavedView = typeof crmSavedViews.$inferSelect;
+export type InsertCrmSavedView = typeof crmSavedViews.$inferInsert & Record<string, any>;
+export type CrmSavedView = typeof crmSavedViews.$inferSelect & Record<string, any>;
 
 // ====== CALL SCORING SYSTEM ======
 
@@ -3049,10 +3049,10 @@ export const insertCallScoringTemplateSchema = createInsertSchema(callScoringTem
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof callScoringTemplates.$inferInsert & Record<string, any>>;
 
-export type InsertCallScoringTemplate = z.infer<typeof insertCallScoringTemplateSchema>;
-export type CallScoringTemplate = typeof callScoringTemplates.$inferSelect;
+export type InsertCallScoringTemplate = typeof callScoringTemplates.$inferInsert & Record<string, any>;
+export type CallScoringTemplate = typeof callScoringTemplates.$inferSelect & Record<string, any>;
 
 // Call Scoring Criteria - Individual scoring items within a template
 export const callScoringCriteria = pgTable("call_scoring_criteria", {
@@ -3073,10 +3073,10 @@ export const callScoringCriteria = pgTable("call_scoring_criteria", {
 export const insertCallScoringCriterionSchema = createInsertSchema(callScoringCriteria).omit({
   id: true,
   createdAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof callScoringCriteria.$inferInsert & Record<string, any>>;
 
-export type InsertCallScoringCriterion = z.infer<typeof insertCallScoringCriterionSchema>;
-export type CallScoringCriterion = typeof callScoringCriteria.$inferSelect;
+export type InsertCallScoringCriterion = typeof callScoringCriteria.$inferInsert & Record<string, any>;
+export type CallScoringCriterion = typeof callScoringCriteria.$inferSelect & Record<string, any>;
 
 // Call Scoring Sheets - Individual call scores
 export const callScoringSheets = pgTable("call_scoring_sheets", {
@@ -3110,10 +3110,10 @@ export const insertCallScoringSheetSchema = createInsertSchema(callScoringSheets
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof callScoringSheets.$inferInsert & Record<string, any>>;
 
-export type InsertCallScoringSheet = z.infer<typeof insertCallScoringSheetSchema>;
-export type CallScoringSheet = typeof callScoringSheets.$inferSelect;
+export type InsertCallScoringSheet = typeof callScoringSheets.$inferInsert & Record<string, any>;
+export type CallScoringSheet = typeof callScoringSheets.$inferSelect & Record<string, any>;
 
 // Call Scoring Responses - Individual criterion scores within a sheet
 export const callScoringResponses = pgTable("call_scoring_responses", {
@@ -3135,10 +3135,10 @@ export const insertCallScoringResponseSchema = createInsertSchema(callScoringRes
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof callScoringResponses.$inferInsert & Record<string, any>>;
 
-export type InsertCallScoringResponse = z.infer<typeof insertCallScoringResponseSchema>;
-export type CallScoringResponse = typeof callScoringResponses.$inferSelect;
+export type InsertCallScoringResponse = typeof callScoringResponses.$inferInsert & Record<string, any>;
+export type CallScoringResponse = typeof callScoringResponses.$inferSelect & Record<string, any>;
 
 // Call Participants - Identified speakers in a call
 export const callParticipants = pgTable("call_participants", {
@@ -3157,10 +3157,10 @@ export const callParticipants = pgTable("call_participants", {
 export const insertCallParticipantSchema = createInsertSchema(callParticipants).omit({
   id: true,
   createdAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof callParticipants.$inferInsert & Record<string, any>>;
 
-export type InsertCallParticipant = z.infer<typeof insertCallParticipantSchema>;
-export type CallParticipant = typeof callParticipants.$inferSelect;
+export type InsertCallParticipant = typeof callParticipants.$inferInsert & Record<string, any>;
+export type CallParticipant = typeof callParticipants.$inferSelect & Record<string, any>;
 
 // ====== FACEBOOK MARKETPLACE AUTOMATION ======
 
@@ -3193,10 +3193,10 @@ export const insertFbMarketplaceAccountSchema = createInsertSchema(fbMarketplace
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof fbMarketplaceAccounts.$inferInsert & Record<string, any>>;
 
-export type InsertFbMarketplaceAccount = z.infer<typeof insertFbMarketplaceAccountSchema>;
-export type FbMarketplaceAccount = typeof fbMarketplaceAccounts.$inferSelect;
+export type InsertFbMarketplaceAccount = typeof fbMarketplaceAccounts.$inferInsert & Record<string, any>;
+export type FbMarketplaceAccount = typeof fbMarketplaceAccounts.$inferSelect & Record<string, any>;
 
 // FB Marketplace Listings - Vehicles posted to Marketplace
 export const fbMarketplaceListings = pgTable("fb_marketplace_listings", {
@@ -3229,10 +3229,10 @@ export const insertFbMarketplaceListing = createInsertSchema(fbMarketplaceListin
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof fbMarketplaceListings.$inferInsert & Record<string, any>>;
 
-export type InsertFbMarketplaceListing = z.infer<typeof insertFbMarketplaceListing>;
-export type FbMarketplaceListing = typeof fbMarketplaceListings.$inferSelect;
+export type InsertFbMarketplaceListing = typeof fbMarketplaceListings.$inferInsert & Record<string, any>;
+export type FbMarketplaceListing = typeof fbMarketplaceListings.$inferSelect & Record<string, any>;
 
 // FB Marketplace Posting Queue - Scheduled posts
 export const fbMarketplaceQueue = pgTable("fb_marketplace_queue", {
@@ -3257,10 +3257,10 @@ export const insertFbMarketplaceQueueSchema = createInsertSchema(fbMarketplaceQu
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof fbMarketplaceQueue.$inferInsert & Record<string, any>>;
 
-export type InsertFbMarketplaceQueue = z.infer<typeof insertFbMarketplaceQueueSchema>;
-export type FbMarketplaceQueue = typeof fbMarketplaceQueue.$inferSelect;
+export type InsertFbMarketplaceQueue = typeof fbMarketplaceQueue.$inferInsert & Record<string, any>;
+export type FbMarketplaceQueue = typeof fbMarketplaceQueue.$inferSelect & Record<string, any>;
 
 // FB Marketplace Activity Log - Audit trail
 export const fbMarketplaceActivityLog = pgTable("fb_marketplace_activity_log", {
@@ -3280,10 +3280,10 @@ export const fbMarketplaceActivityLog = pgTable("fb_marketplace_activity_log", {
 export const insertFbMarketplaceActivityLogSchema = createInsertSchema(fbMarketplaceActivityLog).omit({
   id: true,
   createdAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof fbMarketplaceActivityLog.$inferInsert & Record<string, any>>;
 
-export type InsertFbMarketplaceActivityLog = z.infer<typeof insertFbMarketplaceActivityLogSchema>;
-export type FbMarketplaceActivityLog = typeof fbMarketplaceActivityLog.$inferSelect;
+export type InsertFbMarketplaceActivityLog = typeof fbMarketplaceActivityLog.$inferInsert & Record<string, any>;
+export type FbMarketplaceActivityLog = typeof fbMarketplaceActivityLog.$inferSelect & Record<string, any>;
 
 // FB Marketplace Settings - Per-dealership configuration
 export const fbMarketplaceSettings = pgTable("fb_marketplace_settings", {
@@ -3315,10 +3315,10 @@ export const insertFbMarketplaceSettingsSchema = createInsertSchema(fbMarketplac
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof fbMarketplaceSettings.$inferInsert & Record<string, any>>;
 
-export type InsertFbMarketplaceSettings = z.infer<typeof insertFbMarketplaceSettingsSchema>;
-export type FbMarketplaceSettings = typeof fbMarketplaceSettings.$inferSelect;
+export type InsertFbMarketplaceSettings = typeof fbMarketplaceSettings.$inferInsert & Record<string, any>;
+export type FbMarketplaceSettings = typeof fbMarketplaceSettings.$inferSelect & Record<string, any>;
 
 // ====== AI SETTINGS (Per-Dealership AI Bot Customization) ======
 
@@ -3345,10 +3345,10 @@ export const insertAiSettingsSchema = createInsertSchema(aiSettings).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof aiSettings.$inferInsert & Record<string, any>>;
 
-export type InsertAiSettings = z.infer<typeof insertAiSettingsSchema>;
-export type AiSettings = typeof aiSettings.$inferSelect;
+export type InsertAiSettings = typeof aiSettings.$inferInsert & Record<string, any>;
+export type AiSettings = typeof aiSettings.$inferSelect & Record<string, any>;
 
 // ====== FB MARKETPLACE REPLIES (Workstream 4D) ======
 
@@ -3375,10 +3375,10 @@ export const fbReplySettings = pgTable("fb_reply_settings", {
 export const insertFbReplySettingsSchema = createInsertSchema(fbReplySettings).omit({
   id: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof fbReplySettings.$inferInsert & Record<string, any>>;
 
-export type InsertFbReplySettings = z.infer<typeof insertFbReplySettingsSchema>;
-export type FbReplySettings = typeof fbReplySettings.$inferSelect;
+export type InsertFbReplySettings = typeof fbReplySettings.$inferInsert & Record<string, any>;
+export type FbReplySettings = typeof fbReplySettings.$inferSelect & Record<string, any>;
 
 export const fbInboxThreads = pgTable("fb_inbox_threads", {
   id: serial("id").primaryKey(),
@@ -3418,10 +3418,10 @@ export const insertFbInboxThreadSchema = createInsertSchema(fbInboxThreads).omit
   id: true,
   createdAt: true,
   updatedAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof fbInboxThreads.$inferInsert & Record<string, any>>;
 
-export type InsertFbInboxThread = z.infer<typeof insertFbInboxThreadSchema>;
-export type FbInboxThread = typeof fbInboxThreads.$inferSelect;
+export type InsertFbInboxThread = typeof fbInboxThreads.$inferInsert & Record<string, any>;
+export type FbInboxThread = typeof fbInboxThreads.$inferSelect & Record<string, any>;
 
 export const fbInboxMessages = pgTable("fb_inbox_messages", {
   id: serial("id").primaryKey(),
@@ -3442,10 +3442,10 @@ export const fbInboxMessages = pgTable("fb_inbox_messages", {
 export const insertFbInboxMessageSchema = createInsertSchema(fbInboxMessages).omit({
   id: true,
   createdAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof fbInboxMessages.$inferInsert & Record<string, any>>;
 
-export type InsertFbInboxMessage = z.infer<typeof insertFbInboxMessageSchema>;
-export type FbInboxMessage = typeof fbInboxMessages.$inferSelect;
+export type InsertFbInboxMessage = typeof fbInboxMessages.$inferInsert & Record<string, any>;
+export type FbInboxMessage = typeof fbInboxMessages.$inferSelect & Record<string, any>;
 
 export const fbInboxAuditEvents = pgTable("fb_inbox_audit_events", {
   id: serial("id").primaryKey(),
@@ -3460,10 +3460,10 @@ export const fbInboxAuditEvents = pgTable("fb_inbox_audit_events", {
 export const insertFbInboxAuditEventSchema = createInsertSchema(fbInboxAuditEvents).omit({
   id: true,
   createdAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof fbInboxAuditEvents.$inferInsert & Record<string, any>>;
 
-export type InsertFbInboxAuditEvent = z.infer<typeof insertFbInboxAuditEventSchema>;
-export type FbInboxAuditEvent = typeof fbInboxAuditEvents.$inferSelect;
+export type InsertFbInboxAuditEvent = typeof fbInboxAuditEvents.$inferInsert & Record<string, any>;
+export type FbInboxAuditEvent = typeof fbInboxAuditEvents.$inferSelect & Record<string, any>;
 
 export const fbThreadVehicleMap = pgTable("fb_thread_vehicle_map", {
   id: serial("id").primaryKey(),
@@ -3480,7 +3480,7 @@ export const fbThreadVehicleMap = pgTable("fb_thread_vehicle_map", {
 export const insertFbThreadVehicleMapSchema = createInsertSchema(fbThreadVehicleMap).omit({
   id: true,
   createdAt: true,
-});
+}) as unknown as z.ZodObject<any, any, any, typeof fbThreadVehicleMap.$inferInsert & Record<string, any>>;
 
-export type InsertFbThreadVehicleMap = z.infer<typeof insertFbThreadVehicleMapSchema>;
-export type FbThreadVehicleMap = typeof fbThreadVehicleMap.$inferSelect;
+export type InsertFbThreadVehicleMap = typeof fbThreadVehicleMap.$inferInsert & Record<string, any>;
+export type FbThreadVehicleMap = typeof fbThreadVehicleMap.$inferSelect & Record<string, any>;

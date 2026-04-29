@@ -13,7 +13,6 @@ import {
   scrapeQueue,
   messengerMessages,
   vehicleAuditEvents,
-  postingQueueEvents,
   fbInboxMessages,
   passwordResetTokens,
 } from "../../shared/schema";

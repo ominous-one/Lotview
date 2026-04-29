@@ -407,11 +407,14 @@ export async function getFBMarketplaceMetrics(): Promise<FBMarketplaceMetrics> {
  * Get active system alerts.
  */
 export async function getSystemAlerts(
-  resolved: boolean = false,
+  resolved: boolean | string = false,
   limit: number = 50
 ): Promise<SystemAlert[]> {
   try {
-    const alerts = await storage.getSystemAlerts?.({ resolved, limit }) || [];
+    const filters = typeof resolved === "string"
+      ? { minSeverity: resolved, limit }
+      : { resolved, limit };
+    const alerts = await storage.getSystemAlerts?.(filters) || [];
 
     return alerts.map((a: any) => ({
       id: String(a.id),

@@ -11,7 +11,7 @@ import { db } from "../db";
 import { storage } from "../storage";
 import { users } from "@shared/schema";
 import { eq } from "drizzle-orm";
-import { logError } from "../error-utils";
+import { handleServiceUnavailable, logError } from "../error-utils";
 import {
   authMiddleware,
   generateToken,
@@ -34,6 +34,18 @@ async function resolveLoginUser(email: string, dealershipId?: number | null) {
 
 function computeResetTokenLookupHash(token: string): string {
   return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+function isDatabaseConnectionError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  return (
+    error.message.includes("ECONNREFUSED") ||
+    error.message.includes("Connection terminated") ||
+    error.message.includes("Failed query:")
+  );
 }
 
 // ---- Login ----
@@ -64,6 +76,9 @@ router.post("/login", authLimiter, async (req, res) => {
     res.json({ token, user: userWithoutPassword, success: true });
   } catch (error) {
     logError("Error during login:", error instanceof Error ? error : new Error(String(error)), { route: "api-auth-login" });
+    if (isDatabaseConnectionError(error)) {
+      return handleServiceUnavailable(res, "Authentication dependency unavailable");
+    }
     res.status(500).json({ error: "Login failed" });
   }
 });

@@ -48,7 +48,7 @@ console.log("══════════════════════�
 
 // ─── Environment Variables ───
 console.log("📋 Environment Variables");
-let envFile = {};
+const envFile: Record<string, string> = {};
 const envPath = path.join(ROOT, ".env");
 if (fs.existsSync(envPath)) {
   const envContent = fs.readFileSync(envPath, "utf-8");
@@ -124,23 +124,29 @@ try {
     check("PostgreSQL connected", false);
   }
 } catch (err) {
-  check(`PostgreSQL connected — ${err.message}`, false);
+  const message = err instanceof Error ? err.message : String(err);
+  check(`PostgreSQL connected — ${message}`, false);
 }
 
 // ─── Redis Connectivity ───
 console.log("\n🔴 Redis Connectivity");
 let redisConnected = false;
 try {
-  const { createClient } = await import("redis");
+  const { default: Redis } = await import("ioredis");
   const redisUrl = process.env.REDIS_URL || envFile.REDIS_URL || "redis://localhost:6379";
-  const client = createClient({ url: redisUrl });
+  const client = new Redis(redisUrl, {
+    connectTimeout: 5000,
+    lazyConnect: true,
+    maxRetriesPerRequest: 1,
+  });
   await client.connect();
   const result = await client.ping();
-  await client.disconnect();
+  client.disconnect();
   redisConnected = result === "PONG";
   check("Redis connected", redisConnected);
 } catch (err) {
-  check(`Redis connected — ${err.message}`, false);
+  const message = err instanceof Error ? err.message : String(err);
+  check(`Redis connected — ${message}`, false);
 }
 
 // ─── Build Artifacts ───

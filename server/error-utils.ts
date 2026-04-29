@@ -180,17 +180,17 @@ export function handleServiceUnavailable(
   });
 }
 
-export function logInfo(message: string, context?: Record<string, unknown>): void {
+export function logInfo(message: string, context?: unknown): void {
   const correlationId = generateCorrelationId();
   formatLogMessage('info', message, correlationId, context as ErrorContext);
 }
 
-export function logWarn(message: string, context?: Record<string, unknown>): void {
+export function logWarn(message: string, context?: unknown): void {
   const correlationId = generateCorrelationId();
   formatLogMessage('warn', message, correlationId, context as ErrorContext);
 }
 
-export function logError(message: string, error?: unknown, context?: Record<string, unknown>): void {
+export function logError(message: string, error?: unknown, context?: unknown): void {
   const correlationId = generateCorrelationId();
   formatLogMessage('error', message, correlationId, context as ErrorContext, error);
 }

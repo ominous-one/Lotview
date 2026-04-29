@@ -36,7 +36,7 @@ const SIMPLE_QUESTION_PATTERNS = {
   color: /(\bwhat[\s\w]*color\b|\bwhat\s+color\b|\bexterior\b|\binterior\b)/i,
   features: /(\bwhat[\s\w]*features\b|\bwhat[\s\w]*specs\b|\bwhat\s+comes\s+with\b|\bequipped\s+with\b)/i,
   hours: /(\bwhen[\s\w]*open\b|\bwhat\s+are\s+your\s+hours\b|\bbusiness\s+hours\b)/i,
-  trades: /(\bdo\s+you\s+take\s+trades\b|\btrade\s+in\b|\btrade\-in\b)/i,
+  trades: /(\bdo\s+you\s+take\s+trades\b|\btrade\s+in\b|\btrade-in\b)/i,
   warranty: /(\bwarranty\b|\bwarranties\b)/i,
   financing: /(\bfinancing\b|\bfinance\b|\bcan\s+I\s+finance\b)/i,
   mileage: /(\bmileage\b|\bhow\s+many\s+miles\b)/i,
