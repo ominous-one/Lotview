@@ -3010,7 +3010,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ===== USER MANAGEMENT ROUTES (Master Only) =====
   
   // Get all users (master only)
-  app.get("/api/users", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
+  app.get("/api/users", authMiddleware, requirePermission("users.manage"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       // Tenant-scoped master users only see staff for the dealership resolved by
       // the tenancy middleware / active subdomain.
@@ -3026,7 +3026,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Create new user (master only)
-  app.post("/api/users", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
+  app.post("/api/users", authMiddleware, requirePermission("users.invite"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
       const { email, password, name, role } = req.body;
@@ -3075,7 +3075,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Update user (master only)
-  app.patch("/api/users/:id", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
+  app.patch("/api/users/:id", authMiddleware, requirePermission("users.manage"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const { email, password, name, role, isActive } = req.body;
