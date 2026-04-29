@@ -42,7 +42,7 @@
       "status": "ci_verified",
       "exposure": "production",
       "owner": "engineering",
-      "paths": ["scripts/verify-production-gates.ts", ".github/workflows/production-gates.yml", "config/feature-registry.json"],
+      "paths": ["scripts/verify-production-gates.ts", ".github/workflows/ci.yml", ".github/workflows/frontend-verification.yml", ".github/workflows/production-gates.yml", ".github/workflows/render-deploy.yml", "config/feature-registry.json"],
       "proof": {
         "ci": true,
         "tests": true,
@@ -51,7 +51,7 @@
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "Build-time guardrails exist. Keep expanding gate checks as features are certified."
+      "notes": "Build-time guardrails exist and now verify GitHub Actions workflows opt into the Node 24 JavaScript actions runtime before GitHub's June 2, 2026 enforcement date. Keep expanding gate checks as features are certified."
     },
     {
       "id": "auth.login",
