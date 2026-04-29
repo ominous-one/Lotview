@@ -14756,8 +14756,9 @@ Format your response in clear sections with actionable recommendations.`;
   // =====================
   
   // Send a test email
-  app.post("/api/email/test", authMiddleware, requireRole('admin', 'master', 'super_admin'), async (req: AuthRequest, res) => {
+  app.post("/api/email/test", authMiddleware, requirePermission("integrations.write"), requireRole('admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
+      const dealershipId = req.dealershipId!;
       const { to, subject, message } = req.body;
       
       if (!to || !subject || !message) {
@@ -14767,8 +14768,6 @@ Format your response in clear sections with actionable recommendations.`;
       // Use GHL notification service if available, fallback to email-service
       let result;
       try {
-        const dealershipId = req.dealershipId ?? req.user?.dealershipId;
-        if (!dealershipId) throw new Error("Dealership context required for GHL email");
         const ghlResult = await sendEmail(dealershipId, { to, subject, body: `<div style="font-family: sans-serif; padding: 20px;">${message.replace(/\n/g, '<br>')}</div>` });
         result = { success: ghlResult.success, id: ghlResult.messageId, error: ghlResult.error };
       } catch {
