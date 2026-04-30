@@ -24,4 +24,12 @@ describe("Facebook page tenant boundary", () => {
     expect(routesSource).toContain('return res.status(404).json({ error: "Page not found" });');
     expect(routesSource).not.toContain("await storage.updateFacebookPage(pageId, { isActive: false, accessToken: null });");
   });
+
+  it("strips immutable ownership fields inside scoped Facebook storage updates", () => {
+    expect(storageSource).toContain('const TENANT_OWNERSHIP_FIELDS = new Set(["id", "dealershipId", "userId", "createdAt", "updatedAt"])');
+    expect(storageSource).toContain("stripTenantOwnershipFields(page)");
+    expect(storageSource).toContain("stripTenantOwnershipFields(account)");
+    expect(storageSource).toContain("stripTenantOwnershipFields(template)");
+    expect(storageSource).toContain("stripTenantOwnershipFields(item)");
+  });
 });

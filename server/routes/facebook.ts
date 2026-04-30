@@ -13,8 +13,21 @@ import { checkAccountHealth, getCurrentPostingLimit, recordPostAttempt } from ".
 import { getOptimizedPosting } from "../services/ai-posting-optimizer";
 import { isEnabled } from "../services/feature-flags";
 import { facebookService } from "../facebook-service";
+import type { InsertAdTemplate, InsertFacebookAccount, InsertFacebookPage, InsertPostingQueue } from "../../shared/schema";
 
 const router = Router();
+
+const OWNERSHIP_FIELDS = new Set(["id", "dealershipId", "userId", "createdAt", "updatedAt"]);
+
+function stripOwnershipFields(body: unknown): Record<string, unknown> {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(body as Record<string, unknown>).filter(([key]) => !OWNERSHIP_FIELDS.has(key))
+  );
+}
 
 /* ─── Facebook Pages ─── */
 
@@ -30,7 +43,10 @@ router.get("/pages", authMiddleware, requirePermission("integrations.read"), req
 
 router.post("/pages", authMiddleware, requirePermission("integrations.write"), requireDealership, async (req, res) => {
   try {
-    const page = await storage.createFacebookPage({ ...req.body, dealershipId: req.dealershipId! });
+    const page = await storage.createFacebookPage({
+      ...stripOwnershipFields(req.body),
+      dealershipId: req.dealershipId!,
+    } as InsertFacebookPage);
     res.status(201).json(page);
   } catch (error) {
     logError("Error creating FB page:", error instanceof Error ? error : new Error(String(error)), { route: "api-facebook-pages" });
@@ -44,8 +60,10 @@ router.patch("/pages/:id", authMiddleware, requirePermission("integrations.write
     if (!Number.isInteger(id)) {
       return res.status(400).json({ error: "Invalid page id" });
     }
-    const requestBody = typeof req.body === "object" && req.body !== null ? req.body : {};
-    const { dealershipId: _ignoredDealershipId, ...updates } = requestBody;
+    const updates = stripOwnershipFields(req.body) as Partial<InsertFacebookPage>;
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: "No update fields provided" });
+    }
     const page = await storage.updateFacebookPage(id, updates, req.dealershipId!);
     if (!page) return res.status(404).json({ error: "Page not found" });
     res.json(page);
@@ -69,7 +87,11 @@ router.get("/accounts", authMiddleware, requirePermission("messages.read"), requ
 
 router.post("/accounts", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
   try {
-    const account = await storage.createFacebookAccount({ ...req.body, userId: req.user!.id, dealershipId: req.dealershipId! });
+    const account = await storage.createFacebookAccount({
+      ...stripOwnershipFields(req.body),
+      userId: req.user!.id,
+      dealershipId: req.dealershipId!,
+    } as InsertFacebookAccount);
     res.status(201).json(account);
   } catch (error) {
     logError("Error creating FB account:", error instanceof Error ? error : new Error(String(error)), { route: "api-facebook-accounts" });
@@ -79,7 +101,21 @@ router.post("/accounts", authMiddleware, requirePermission("messages.write"), re
 
 router.patch("/accounts/:id", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
   try {
-    const account = await storage.updateFacebookAccount(parseInt(req.params.id), req.user!.id, req.dealershipId!, req.body);
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ error: "Invalid account id" });
+    }
+    const updates = stripOwnershipFields(req.body) as Partial<InsertFacebookAccount>;
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: "No update fields provided" });
+    }
+    const account = await storage.updateFacebookAccount(
+      id,
+      req.user!.id,
+      req.dealershipId!,
+      updates
+    );
+    if (!account) return res.status(404).json({ error: "Account not found" });
     res.json(account);
   } catch (error) {
     logError("Error updating FB account:", error instanceof Error ? error : new Error(String(error)), { route: "api-facebook-accounts-id" });
@@ -111,7 +147,11 @@ router.get("/templates", authMiddleware, requirePermission("messages.read"), req
 
 router.post("/templates", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
   try {
-    const template = await storage.createAdTemplate({ ...req.body, userId: req.user!.id, dealershipId: req.dealershipId! });
+    const template = await storage.createAdTemplate({
+      ...stripOwnershipFields(req.body),
+      userId: req.user!.id,
+      dealershipId: req.dealershipId!,
+    } as InsertAdTemplate);
     res.status(201).json(template);
   } catch (error) {
     logError("Error creating template:", error instanceof Error ? error : new Error(String(error)), { route: "api-facebook-templates" });
@@ -133,7 +173,11 @@ router.get("/queue", authMiddleware, requirePermission("messages.read"), require
 
 router.post("/queue", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
   try {
-    const item = await storage.createPostingQueueItem({ ...req.body, userId: req.user!.id, dealershipId: req.dealershipId! });
+    const item = await storage.createPostingQueueItem({
+      ...stripOwnershipFields(req.body),
+      userId: req.user!.id,
+      dealershipId: req.dealershipId!,
+    } as InsertPostingQueue);
     res.status(201).json(item);
   } catch (error) {
     logError("Error adding to queue:", error instanceof Error ? error : new Error(String(error)), { route: "api-facebook-queue" });

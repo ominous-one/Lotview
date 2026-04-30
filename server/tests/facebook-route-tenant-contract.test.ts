@@ -9,6 +9,7 @@ const storageMock = {
   updateFacebookPage: jest.fn() as any,
   getFacebookAccountsByUser: jest.fn() as any,
   createFacebookAccount: jest.fn() as any,
+  updateFacebookAccount: jest.fn() as any,
   getAdTemplatesByUser: jest.fn() as any,
   createAdTemplate: jest.fn() as any,
   getPostingQueueByUser: jest.fn() as any,
@@ -154,7 +155,7 @@ describe("Facebook Pages route tenant and RBAC contracts", () => {
     await request(appWithDealerOne)
       .post("/api/facebook/pages")
       .set("x-test-role", "dealer_owner")
-      .send({ pageName: "Dealer Page", pageId: "fb-page-1", dealershipId: 99 })
+      .send({ pageName: "Dealer Page", pageId: "fb-page-1", dealershipId: 99, id: 999, createdAt: "2026-01-01T00:00:00.000Z" })
       .expect(201)
       .expect({ id: 9, dealershipId: 1, pageName: "Dealer Page" });
 
@@ -204,11 +205,22 @@ describe("Facebook Pages route tenant and RBAC contracts", () => {
     await request(appWithDealerOne)
       .patch("/api/facebook/pages/9")
       .set("x-test-role", "dealer_owner")
-      .send({ pageName: "Updated Page", dealershipId: 99 })
+      .send({ pageName: "Updated Page", dealershipId: 99, id: 999, createdAt: "2026-01-01T00:00:00.000Z" })
       .expect(200)
       .expect({ id: 9, dealershipId: 1, pageName: "Updated Page" });
 
     expect(storageMock.updateFacebookPage).toHaveBeenCalledWith(9, { pageName: "Updated Page" }, 1);
+  });
+
+  it("rejects Facebook page updates that only contain immutable ownership fields", async () => {
+    await request(appWithDealerOne)
+      .patch("/api/facebook/pages/9")
+      .set("x-test-role", "dealer_owner")
+      .send({ dealershipId: 99, id: 999, createdAt: "2026-01-01T00:00:00.000Z" })
+      .expect(400)
+      .expect({ error: "No update fields provided" });
+
+    expect(storageMock.updateFacebookPage).not.toHaveBeenCalled();
   });
 
   it("returns 404 when the page is not in the resolved dealership scope", async () => {
@@ -257,6 +269,95 @@ describe("Facebook Pages route tenant and RBAC contracts", () => {
     expect(storageMock.createFacebookAccount).not.toHaveBeenCalled();
   });
 
+  it("forces user and dealership context when creating Facebook posting accounts", async () => {
+    storageMock.createFacebookAccount.mockResolvedValue({ id: 3, userId: 10, dealershipId: 1, accountName: "Dealer Marketplace" });
+
+    await request(appWithDealerOne)
+      .post("/api/facebook/accounts")
+      .set("x-test-role", "salesperson")
+      .send({
+        id: 999,
+        accountName: "Dealer Marketplace",
+        dealershipId: 99,
+        userId: 999,
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      })
+      .expect(201)
+      .expect({ id: 3, userId: 10, dealershipId: 1, accountName: "Dealer Marketplace" });
+
+    expect(storageMock.createFacebookAccount).toHaveBeenCalledWith({
+      accountName: "Dealer Marketplace",
+      dealershipId: 1,
+      userId: 10,
+    });
+  });
+
+  it("strips immutable ownership fields from Facebook account updates", async () => {
+    storageMock.updateFacebookAccount.mockResolvedValue({ id: 3, userId: 10, dealershipId: 1, accountName: "Updated Marketplace" });
+
+    await request(appWithDealerOne)
+      .patch("/api/facebook/accounts/3")
+      .set("x-test-role", "salesperson")
+      .send({
+        accountName: "Updated Marketplace",
+        dealershipId: 99,
+        userId: 999,
+        id: 999,
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      })
+      .expect(200)
+      .expect({ id: 3, userId: 10, dealershipId: 1, accountName: "Updated Marketplace" });
+
+    expect(storageMock.updateFacebookAccount).toHaveBeenCalledWith(
+      3,
+      10,
+      1,
+      { accountName: "Updated Marketplace" },
+    );
+  });
+
+  it("rejects Facebook account updates that only contain immutable ownership fields", async () => {
+    await request(appWithDealerOne)
+      .patch("/api/facebook/accounts/3")
+      .set("x-test-role", "salesperson")
+      .send({ dealershipId: 99, userId: 999, id: 999, updatedAt: "2026-01-01T00:00:00.000Z" })
+      .expect(400)
+      .expect({ error: "No update fields provided" });
+
+    expect(storageMock.updateFacebookAccount).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 when a Facebook account update misses the scoped user and dealership", async () => {
+    storageMock.updateFacebookAccount.mockResolvedValue(undefined);
+
+    await request(appWithDealerOne)
+      .patch("/api/facebook/accounts/3")
+      .set("x-test-role", "salesperson")
+      .send({ accountName: "Updated Marketplace" })
+      .expect(404)
+      .expect({ error: "Account not found" });
+
+    expect(storageMock.updateFacebookAccount).toHaveBeenCalledWith(
+      3,
+      10,
+      1,
+      { accountName: "Updated Marketplace" },
+    );
+  });
+
+  it("rejects malformed Facebook account ids before storage access", async () => {
+    await request(appWithDealerOne)
+      .patch("/api/facebook/accounts/not-a-number")
+      .set("x-test-role", "salesperson")
+      .send({ accountName: "Updated Marketplace" })
+      .expect(400)
+      .expect({ error: "Invalid account id" });
+
+    expect(storageMock.updateFacebookAccount).not.toHaveBeenCalled();
+  });
+
   it("requires dealership context before listing ad templates", async () => {
     await request(appWithoutTenant)
       .get("/api/facebook/templates")
@@ -273,7 +374,7 @@ describe("Facebook Pages route tenant and RBAC contracts", () => {
     await request(appWithDealerOne)
       .post("/api/facebook/templates")
       .set("x-test-role", "salesperson")
-      .send({ templateName: "Retail", dealershipId: 99, userId: 999 })
+      .send({ templateName: "Retail", dealershipId: 99, userId: 999, id: 999, createdAt: "2026-01-01T00:00:00.000Z" })
       .expect(201)
       .expect({ id: 4, userId: 10, dealershipId: 1, templateName: "Retail" });
 
@@ -300,7 +401,7 @@ describe("Facebook Pages route tenant and RBAC contracts", () => {
     await request(appWithDealerOne)
       .post("/api/facebook/queue")
       .set("x-test-role", "salesperson")
-      .send({ vehicleId: 42, dealershipId: 99, userId: 999 })
+      .send({ vehicleId: 42, dealershipId: 99, userId: 999, id: 999, createdAt: "2026-01-01T00:00:00.000Z" })
       .expect(201)
       .expect({ id: 5, userId: 10, dealershipId: 1, vehicleId: 42 });
 

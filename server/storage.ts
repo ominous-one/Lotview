@@ -5,6 +5,14 @@ import { computeVehicleDataQualitySignals, type VehicleDataQualitySignals } from
 
 const SYSTEM_BASE_DOMAIN = (process.env.SYSTEM_BASE_DOMAIN || process.env.APP_BASE_DOMAIN || 'lotview.ai').toLowerCase();
 
+const TENANT_OWNERSHIP_FIELDS = new Set(["id", "dealershipId", "userId", "createdAt", "updatedAt"]);
+
+function stripTenantOwnershipFields<T extends Record<string, unknown>>(patch: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(patch).filter(([key]) => !TENANT_OWNERSHIP_FIELDS.has(key))
+  ) as Partial<T>;
+}
+
 import { 
   dealerships,
   tenantDomains,
@@ -1670,7 +1678,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateFacebookPage(id: number, page: Partial<InsertFacebookPage>, dealershipId: number): Promise<FacebookPage | undefined> {
-    const result = await db.update(facebookPages).set(page).where(
+    const result = await db.update(facebookPages).set(stripTenantOwnershipFields(page)).where(
       and(eq(facebookPages.id, id), eq(facebookPages.dealershipId, dealershipId))
     ).returning();
     return result[0];
@@ -2827,7 +2835,7 @@ export class DatabaseStorage implements IStorage {
   async updateFacebookAccount(id: number, userId: number, dealershipId: number, account: Partial<InsertFacebookAccount>): Promise<FacebookAccount | undefined> {
     // Defense-in-depth: Validate both userId AND dealershipId
     const result = await db.update(facebookAccounts)
-      .set({ ...account, updatedAt: new Date() })
+      .set({ ...stripTenantOwnershipFields(account), updatedAt: new Date() })
       .where(and(
         eq(facebookAccounts.id, id), 
         eq(facebookAccounts.userId, userId),
@@ -2915,7 +2923,7 @@ export class DatabaseStorage implements IStorage {
   async updateAdTemplate(id: number, userId: number, dealershipId: number, template: Partial<InsertAdTemplate>): Promise<AdTemplate | undefined> {
     // Defense-in-depth: Validate both userId AND dealershipId
     const result = await db.update(adTemplates)
-      .set({ ...template, updatedAt: new Date() })
+      .set({ ...stripTenantOwnershipFields(template), updatedAt: new Date() })
       .where(and(
         eq(adTemplates.id, id), 
         eq(adTemplates.userId, userId),
@@ -3052,7 +3060,7 @@ export class DatabaseStorage implements IStorage {
   async updatePostingQueueItem(id: number, userId: number, dealershipId: number, item: Partial<InsertPostingQueue>): Promise<PostingQueue | undefined> {
     // Defense-in-depth: Validate both userId AND dealershipId
     const result = await db.update(postingQueue)
-      .set({ ...item, updatedAt: new Date() })
+      .set({ ...stripTenantOwnershipFields(item), updatedAt: new Date() })
       .where(and(
         eq(postingQueue.id, id), 
         eq(postingQueue.userId, userId),
