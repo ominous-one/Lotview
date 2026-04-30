@@ -153,4 +153,41 @@ describe("vehicle dedup VIN storage guard", () => {
       })
     );
   });
+
+  it("preserves manual photos and avoids duplicating the same scraped URL", async () => {
+    storageMock.getVehiclesByDealership.mockResolvedValue([
+      {
+        id: 42,
+        vin: VALID_VIN,
+        price: 21000,
+        status: "available",
+        photos: ["manual:https://cdn.example.com/front.jpg", "https://cdn.example.com/side.jpg"],
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      },
+    ]);
+
+    const result = await vehicleDedup.deduplicateAndStore(7, {
+      vin: VALID_VIN,
+      photos: ["https://cdn.example.com/front.jpg", "https://cdn.example.com/rear.jpg"],
+      status: "available",
+    });
+
+    expect(result).toMatchObject({
+      inserted: 0,
+      merged: 1,
+      skipped: 0,
+      errors: 0,
+      details: [{ vin: VALID_VIN, action: "merge" }],
+    });
+    expect(storageMock.updateVehicle).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        photos: [
+          "manual:https://cdn.example.com/front.jpg",
+          "https://cdn.example.com/side.jpg",
+          "https://cdn.example.com/rear.jpg",
+        ],
+      })
+    );
+  });
 });
