@@ -25,7 +25,7 @@
       "status": "ci_verified",
       "exposure": "production",
       "owner": "engineering",
-      "paths": ["server/routes/health.ts", "server/tests/health-routes-contract.test.ts"],
+      "paths": ["server/routes/health.ts", "server/routes.ts", "server/tests/health-routes-contract.test.ts", "server/tests/legacy-health-route-contract.test.ts"],
       "proof": {
         "ci": true,
         "tests": true,
@@ -34,7 +34,7 @@
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "Route contracts exist. Live Render and staging proof still required."
+      "notes": "Modular and legacy health, readiness, metrics, and version route contracts exist. Live Render and staging proof still required."
     },
     {
       "id": "production.gates",

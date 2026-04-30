@@ -300,11 +300,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   initializeFlagsFromEnv();
 
   // ===== HEALTH CHECK ENDPOINTS (Enterprise Monitoring) =====
+  const getBuildCommit = () => process.env.GIT_COMMIT || process.env.RELEASE_SHA || process.env.RENDER_GIT_COMMIT || "unknown";
   
   // Basic health check - server is running (supports both /health and /api/health)
   const healthHandler = (_req: any, res: any) => {
     res.status(200).json({
       status: "healthy",
+      service: "lotview-api",
       processType,
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
@@ -315,7 +317,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/health", healthHandler);
   
   // Ready check - server and all dependencies are ready to accept traffic
-  app.get("/ready", async (_req, res) => {
+  const readyHandler = async (_req: Request, res: Response) => {
     const readiness = collectRuntimeReadiness(processType);
     const checks: Record<string, { status: string; latency?: number; error?: string; detail?: string }> = Object.fromEntries(
       Object.entries(readiness.checks).map(([name, check]) => [
@@ -347,7 +349,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       timestamp: new Date().toISOString(),
       checks,
     });
-  });
+  };
+  app.get("/ready", readyHandler);
+  app.get("/api/ready", readyHandler);
+
+  const versionHandler = (_req: Request, res: Response) => {
+    res.json({
+      service: "lotview-api",
+      version: process.env.npm_package_version || "1.0.0",
+      node: process.version,
+      platform: process.platform,
+      arch: process.arch,
+      env: process.env.NODE_ENV,
+      commit: getBuildCommit(),
+      buildTime: process.env.BUILD_TIME || "unknown",
+    });
+  };
+  app.get("/version", versionHandler);
+  app.get("/api/version", versionHandler);
 
   // ===== E2E TEST MODE (LOCALHOST + NON-PROD ONLY) =====
   
