@@ -94,9 +94,9 @@ export async function runEnhancedScrape(
     if (await isEnabled("photo_guard", dealershipId)) {
       for (const v of scrapedVehicles) {
         if (v.photos && v.photos.length > 0) {
-          const existingVehicle = await storage.getVehicleByVinAndDealership(v.vin, dealershipId);
+          const existingVehicle = await storage.getVehicleByVin(v.vin, dealershipId);
           if (existingVehicle) {
-            await enrichPhotosSafely(existingVehicle.id, v.photos);
+            await enrichPhotosSafely(dealershipId, existingVehicle.id, v.photos);
           }
         }
       }

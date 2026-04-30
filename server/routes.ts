@@ -4371,7 +4371,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       if (result.images && result.images.length > 0) {
         // Photo-guard: protect manually uploaded photos from scraper overwrites
-        const photoGuard = await enrichPhotosSafely(vehicleId, result.images);
+        const photoGuard = await enrichPhotosSafely(dealershipId, vehicleId, result.images);
         updates.images = photoGuard.enrichedPhotos;
         console.log(`[PhotoGuard] Vehicle ${vehicleId}: ${photoGuard.added} added, ${photoGuard.preserved} preserved, ${photoGuard.skipped} skipped`);
       }

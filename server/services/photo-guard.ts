@@ -23,11 +23,12 @@ interface PhotoMetadata {
  * Call this when manually uploading a photo.
  */
 export async function addManualPhoto(
+  dealershipId: number,
   vehicleId: number,
   photoUrl: string,
   userId: number
 ): Promise<void> {
-  const vehicle = await storage.getVehicle(vehicleId);
+  const vehicle = await storage.getVehicleById(vehicleId, dealershipId);
   if (!vehicle) throw new Error("Vehicle not found");
 
   const photos = ((vehicle.photos as string[]) || []).filter(
@@ -41,12 +42,12 @@ export async function addManualPhoto(
   const manualPhoto = `manual:${photoUrl}`;
   const updatedPhotos = [...photos, manualPhoto];
 
-  await (storage as any).updateVehicle(vehicleId, {
+  await storage.updateVehicle(vehicleId, {
     photos: updatedPhotos,
     updatedAt: new Date(),
-  });
+  }, dealershipId);
 
-  logInfo(`[PhotoGuard] Added manual photo to vehicle ${vehicleId}`, { userId });
+  logInfo(`[PhotoGuard] Added manual photo to vehicle ${vehicleId}`, { dealershipId, userId });
 }
 
 /**
@@ -54,10 +55,11 @@ export async function addManualPhoto(
  * Call this during the photo enrichment sweep.
  */
 export async function enrichPhotosSafely(
+  dealershipId: number,
   vehicleId: number,
   scrapedPhotos: string[]
 ): Promise<{ added: number; preserved: number; skipped: number; enrichedPhotos: string[] }> {
-  const vehicle = await (storage as any).getVehicle(vehicleId);
+  const vehicle = await storage.getVehicleById(vehicleId, dealershipId);
   if (!vehicle) return { added: 0, preserved: 0, skipped: 0, enrichedPhotos: [] };
 
   const existingPhotos = ((vehicle.photos as string[]) || []).filter(
@@ -96,10 +98,10 @@ export async function enrichPhotosSafely(
   const cappedPhotos = finalPhotos.slice(0, 25);
 
   if (cappedPhotos.length !== existingPhotos.length) {
-    await (storage as any).updateVehicle(vehicleId, {
+    await storage.updateVehicle(vehicleId, {
       photos: cappedPhotos,
       updatedAt: new Date(),
-    });
+    }, dealershipId);
   }
 
   return {
@@ -114,13 +116,13 @@ export async function enrichPhotosSafely(
  * Get photo provenance report for a vehicle.
  * Shows which photos are manual vs scraped.
  */
-export async function getPhotoProvenance(vehicleId: number): Promise<{
+export async function getPhotoProvenance(dealershipId: number, vehicleId: number): Promise<{
   total: number;
   manual: number;
   scraped: number;
   photos: Array<{ url: string; source: "manual" | "scraped"; isPrimary: boolean }>;
 }> {
-  const vehicle = await (storage as any).getVehicle(vehicleId);
+  const vehicle = await storage.getVehicleById(vehicleId, dealershipId);
   if (!vehicle) {
     return { total: 0, manual: 0, scraped: 0, photos: [] };
   }
