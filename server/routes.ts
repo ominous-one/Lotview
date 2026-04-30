@@ -3532,7 +3532,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
   
   // List external API tokens (super_admin only)
-  app.get("/api/external-tokens", authMiddleware, requireRole("super_admin"), async (req, res) => {
+  app.get("/api/external-tokens", authMiddleware, requirePermission("integrations.read"), requireRole("super_admin"), async (req, res) => {
     try {
       // Super_admin MUST specify dealership via query param - no fallback
       const dealershipId = parseDealershipId(req.query.dealershipId as string | undefined);
@@ -3569,7 +3569,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Create external API token (super_admin only) - returns the raw token ONCE
-  app.post("/api/external-tokens", authMiddleware, requireRole("super_admin"), async (req, res) => {
+  app.post("/api/external-tokens", authMiddleware, requirePermission("integrations.write"), requireRole("super_admin"), async (req, res) => {
     try {
       const { tokenName, permissions, expiresAt, dealershipId: bodyDealershipId } = req.body;
       const authReq = req as AuthRequest;
@@ -3632,7 +3632,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Delete external API token (super_admin only)
-  app.delete("/api/external-tokens/:id", authMiddleware, requireRole("super_admin"), async (req, res) => {
+  app.delete("/api/external-tokens/:id", authMiddleware, requirePermission("integrations.write"), requireRole("super_admin"), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       
