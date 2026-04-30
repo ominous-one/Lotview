@@ -230,6 +230,27 @@ describe("vehicle route tenant contracts", () => {
     expect(storageMock.deleteVehicle).not.toHaveBeenCalled();
   });
 
+  it("blocks read-only users from AI inventory description writes before storage access", async () => {
+    await request(appWithDealerOne)
+      .post("/api/vehicles/42/generate-description")
+      .set("x-test-role", "read_only")
+      .expect(403)
+      .expect({ error: "Insufficient permissions" });
+
+    expect(storageMock.getVehicleById).not.toHaveBeenCalled();
+    expect(storageMock.updateVehicle).not.toHaveBeenCalled();
+  });
+
+  it("blocks dealer managers from external rescrape triggers without integrations write permission", async () => {
+    await request(appWithDealerOne)
+      .post("/api/vehicles/42/force-rescrape")
+      .set("x-test-role", "dealer_manager")
+      .expect(403)
+      .expect({ error: "Insufficient permissions" });
+
+    expect(storageMock.getVehicleById).not.toHaveBeenCalled();
+  });
+
   it("lets dealer managers reach inventory write handlers through explicit permission", async () => {
     storageMock.updateVehicle.mockResolvedValue(undefined);
 
