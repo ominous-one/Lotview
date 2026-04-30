@@ -14924,7 +14924,7 @@ Format your response in clear sections with actionable recommendations.`;
   // ==================== FACEBOOK ACCOUNTS FOR MARKETPLACE BLAST ====================
   
   // Get user's Facebook accounts
-  app.get("/api/facebook-accounts", authMiddleware, requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
+  app.get("/api/facebook-accounts", authMiddleware, requirePermission("integrations.read"), requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.id;
       const dealershipId = req.dealershipId!;
@@ -14937,7 +14937,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Create a new Facebook account
-  app.post("/api/facebook-accounts", authMiddleware, requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
+  app.post("/api/facebook-accounts", authMiddleware, requirePermission("integrations.write"), requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.id;
       const dealershipId = req.dealershipId!;
@@ -14964,7 +14964,7 @@ Format your response in clear sections with actionable recommendations.`;
   // ==================== AD TEMPLATES FOR MARKETPLACE BLAST ====================
   
   // Get templates for user (shared + personal combined)
-  app.get("/api/ad-templates", authMiddleware, requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
+  app.get("/api/ad-templates", authMiddleware, requirePermission("messages.read"), requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.id;
       const dealershipId = req.dealershipId!;
@@ -14978,7 +14978,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get shared templates only (manager dashboard)
-  app.get("/api/ad-templates/shared", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
+  app.get("/api/ad-templates/shared", authMiddleware, requirePermission("messages.read"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const templates = await storage.getSharedAdTemplates(dealershipId);
@@ -14990,7 +14990,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Create a personal template (salesperson)
-  app.post("/api/ad-templates", authMiddleware, requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
+  app.post("/api/ad-templates", authMiddleware, requirePermission("messages.write"), requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.id;
       const dealershipId = req.dealershipId!;
@@ -15019,7 +15019,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Create a shared template (manager-only)
-  app.post("/api/ad-templates/shared", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
+  app.post("/api/ad-templates/shared", authMiddleware, requirePermission("messages.write"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.id;
       const dealershipId = req.dealershipId!;
@@ -15048,7 +15048,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Fork a shared template (create personal copy)
-  app.post("/api/ad-templates/:id/fork", authMiddleware, requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
+  app.post("/api/ad-templates/:id/fork", authMiddleware, requirePermission("messages.write"), requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.id;
       const dealershipId = req.dealershipId!;
@@ -15063,7 +15063,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Update a personal template (owner only)
-  app.patch("/api/ad-templates/:id", authMiddleware, requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
+  app.patch("/api/ad-templates/:id", authMiddleware, requirePermission("messages.write"), requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.id;
       const dealershipId = req.dealershipId!;
@@ -15089,7 +15089,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Update a shared template (manager-only)
-  app.patch("/api/ad-templates/shared/:id", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
+  app.patch("/api/ad-templates/shared/:id", authMiddleware, requirePermission("messages.write"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const templateId = parseInt(req.params.id);
@@ -15114,7 +15114,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Delete a personal template (owner only)
-  app.delete("/api/ad-templates/:id", authMiddleware, requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
+  app.delete("/api/ad-templates/:id", authMiddleware, requirePermission("messages.write"), requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.id;
       const dealershipId = req.dealershipId!;
@@ -15129,7 +15129,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Delete a shared template (manager-only)
-  app.delete("/api/ad-templates/shared/:id", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
+  app.delete("/api/ad-templates/shared/:id", authMiddleware, requirePermission("messages.write"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const templateId = parseInt(req.params.id);
@@ -15145,7 +15145,7 @@ Format your response in clear sections with actionable recommendations.`;
   // ==================== MARKETPLACE BLAST ROUTES ====================
   
   // Get vehicles for Marketplace Blast queue (sorted by priority - aged inventory first)
-  app.get("/api/marketplace-blast/queue", authMiddleware, requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
+  app.get("/api/marketplace-blast/queue", authMiddleware, requirePermission("messages.read"), requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const includePosted = req.query.includePosted === 'true';
@@ -15218,7 +15218,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Get single vehicle details for Marketplace Blast detail page
-  app.get("/api/marketplace-blast/vehicle/:vehicleId", authMiddleware, requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
+  app.get("/api/marketplace-blast/vehicle/:vehicleId", authMiddleware, requirePermission("messages.read"), requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const vehicleId = parseInt(req.params.vehicleId);
@@ -15254,7 +15254,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Enhance description with AI (rate limited to prevent abuse)
-  app.post("/api/marketplace-blast/enhance-description", sensitiveLimiter, authMiddleware, requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
+  app.post("/api/marketplace-blast/enhance-description", sensitiveLimiter, authMiddleware, requirePermission("ai.use"), requirePermission("messages.write"), requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { currentDescription, vehicle } = req.body;
@@ -15316,7 +15316,7 @@ Return ONLY the enhanced description, nothing else.`;
   });
 
   // Generate AI content for a single vehicle
-  app.post("/api/marketplace-blast/generate/:vehicleId", authMiddleware, requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
+  app.post("/api/marketplace-blast/generate/:vehicleId", authMiddleware, requirePermission("ai.use"), requirePermission("messages.write"), requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const vehicleId = parseInt(req.params.vehicleId);
@@ -15364,7 +15364,7 @@ Return ONLY the enhanced description, nothing else.`;
   });
   
   // Bulk generate AI content for multiple vehicles
-  app.post("/api/marketplace-blast/generate-bulk", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
+  app.post("/api/marketplace-blast/generate-bulk", authMiddleware, requirePermission("ai.use"), requirePermission("messages.write"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { vehicleIds, regenerate = false } = req.body;
@@ -15435,7 +15435,7 @@ Return ONLY the enhanced description, nothing else.`;
   });
   
   // Mark vehicle as posted to Marketplace
-  app.post("/api/marketplace-blast/mark-posted/:vehicleId", authMiddleware, requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
+  app.post("/api/marketplace-blast/mark-posted/:vehicleId", authMiddleware, requirePermission("messages.write"), requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const userId = req.user!.id;
@@ -15459,7 +15459,7 @@ Return ONLY the enhanced description, nothing else.`;
   });
   
   // Download photos as ZIP for a vehicle (returns list of image URLs for now)
-  app.get("/api/marketplace-blast/photos/:vehicleId", authMiddleware, requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
+  app.get("/api/marketplace-blast/photos/:vehicleId", authMiddleware, requirePermission("messages.read"), requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const vehicleId = parseInt(req.params.vehicleId);
@@ -15527,7 +15527,7 @@ Return ONLY the enhanced description, nothing else.`;
   }
 
   // Download all photos as ZIP for a single vehicle
-  app.get("/api/inventory/download-images/:vehicleId", authMiddleware, requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
+  app.get("/api/inventory/download-images/:vehicleId", authMiddleware, requirePermission("inventory.read"), requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
     const archiver = await import('archiver');
     try {
       const dealershipId = req.dealershipId!;
@@ -15570,7 +15570,7 @@ Return ONLY the enhanced description, nothing else.`;
   });
 
   // Download all photos for all vehicles as ZIP
-  app.get("/api/inventory/download-all-images", authMiddleware, requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
+  app.get("/api/inventory/download-all-images", authMiddleware, requirePermission("inventory.read"), requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
     const archiver = await import('archiver');
     try {
       const dealershipId = req.dealershipId!;
