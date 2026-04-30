@@ -30,9 +30,11 @@ describe("legacy vehicle route RBAC contract", () => {
   it("uses the resolved dealership context for legacy vehicle mutation storage access", () => {
     expect(legacyVehicleBlock).toBeDefined();
     expect(legacyVehicleBlock).toContain("const dealershipId = req.dealershipId!");
+    expect(legacyVehicleBlock).toContain("vehicleCreateRequestSchema.safeParse(req.body)");
+    expect(legacyVehicleBlock).toContain("vehicleUpdateRequestSchema.safeParse(req.body)");
     expect(legacyVehicleBlock).toContain("normalizeVehicleWriteVIN(parsed.data)");
-    expect(legacyVehicleBlock).toContain("storage.createVehicle({ ...vehicleInput, dealershipId })");
-    expect(legacyVehicleBlock).toContain("normalizeVehicleWriteVIN(parsedUpdateData)");
+    expect(legacyVehicleBlock).toContain("storage.createVehicle(withResolvedVehicleDealership(vehicleInput, dealershipId))");
+    expect(legacyVehicleBlock).not.toContain("parsedUpdateData");
     expect(legacyVehicleBlock).toContain("storage.updateVehicle(id, updateData, dealershipId)");
     expect(legacyVehicleBlock).toContain("storage.deleteVehicle(id, dealershipId)");
     expect(legacyVehicleBlock).toContain("eq(vehicles.dealershipId, dealershipId)");
