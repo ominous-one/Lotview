@@ -8,6 +8,7 @@
 
 import { logInfo, logWarn } from "../error-utils";
 import { storage } from "../storage";
+import { validateVIN } from "../vin-validation";
 import type { Vehicle } from "@shared/schema";
 
 // ---- Merge Configuration ----
@@ -92,23 +93,29 @@ export async function deduplicateAndStore(
 
   for (const scraped of vehiclesToProcess) {
     try {
-      if (!scraped.vin) {
+      const vinValidation = validateVIN(scraped.vin);
+      if (!vinValidation.isValid) {
         result.skipped++;
-        result.details.push({ vin: "(missing)", action: "skip", reason: "No VIN" });
+        result.details.push({
+          vin: vinValidation.vin || "(missing)",
+          action: "skip",
+          reason: vinValidation.errorCode || "INVALID_VIN",
+        });
         continue;
       }
 
-      const normalizedVin = scraped.vin.toUpperCase().trim();
+      const normalizedVin = vinValidation.vin;
+      const normalizedScraped = { ...scraped, vin: normalizedVin };
       const existing = existingByVin.get(normalizedVin);
 
       if (existing) {
         // Merge with existing
-        await mergeVehicle(existing, scraped, dealershipId);
+        await mergeVehicle(existing, normalizedScraped, dealershipId);
         result.merged++;
         result.details.push({ vin: normalizedVin, action: "merge" });
       } else {
         // Insert new
-        await insertVehicle(scraped, dealershipId);
+        await insertVehicle(normalizedScraped, dealershipId);
         result.inserted++;
         result.details.push({ vin: normalizedVin, action: "insert" });
       }
