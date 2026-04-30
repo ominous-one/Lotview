@@ -18272,7 +18272,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
     }
   });
 
-  app.get('/api/notifications/email-outbox', authMiddleware, requireDealership, requireRole('master', 'sales_manager'), async (req: AuthRequest, res) => {
+  app.get('/api/notifications/email-outbox', authMiddleware, requirePermission("messages.read"), requireDealership, requireRole('master', 'sales_manager'), async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const limit = Math.min(parseInt((req.query.limit as string) || '100', 10) || 100, 500);
@@ -18291,7 +18291,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
   });
 
   // Manager email settings + verification
-  app.get('/api/notifications/settings/manager-emails', authMiddleware, requireDealership, requireRole('master', 'sales_manager'), async (req: AuthRequest, res) => {
+  app.get('/api/notifications/settings/manager-emails', authMiddleware, requirePermission("messages.read"), requireDealership, requireRole('master', 'sales_manager'), async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const mgrs = await db.query.users.findMany({
@@ -18315,11 +18315,19 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
     }
   });
 
-  app.post('/api/notifications/settings/manager-emails/:userId/start-verify', authMiddleware, requireDealership, requireRole('master', 'sales_manager'), async (req: AuthRequest, res) => {
+  app.post('/api/notifications/settings/manager-emails/:userId/start-verify', authMiddleware, requirePermission("messages.write"), requireDealership, requireRole('master', 'sales_manager'), async (req: AuthRequest, res) => {
     try {
+      const dealershipId = req.dealershipId!;
       const userId = parseInt(req.params.userId, 10);
       const email = String(req.body?.email || '').trim();
+      if (!Number.isInteger(userId) || userId < 1) return res.status(400).json({ error: 'invalid userId' });
       if (!email) return res.status(400).json({ error: 'email required' });
+
+      const manager = await db.query.users.findFirst({
+        where: and(eq(usersTable.id, userId), eq(usersTable.dealershipId, dealershipId), inArray(usersTable.role, ['manager', 'sales_manager']), eq(usersTable.isActive, true)),
+        columns: { id: true },
+      });
+      if (!manager) return res.status(404).json({ error: 'Manager not found' });
 
       const tokenInfo = await startNotificationEmailVerification({ userId, email });
       res.json({ success: true, testMode: tokenInfo.testMode });
