@@ -73,7 +73,7 @@ import { initializeFlagsFromEnv, isEnabled } from "./services/feature-flags";
 import { hasVehicleVINWriteError, normalizeVehicleWriteVIN, vehicleVINWriteErrorResponse } from "./services/vehicle-vin-write-guard";
 import { vehicleCreateRequestSchema, vehicleUpdateRequestSchema, withResolvedVehicleDealership } from "./services/vehicle-write-schema";
 import { storeExternalVehicleImport } from "./services/external-vehicle-import-safety";
-import { withNormalizedStockNumber } from "./services/vehicle-stock-number";
+import { findActiveStockNumberConflict, withNormalizedStockNumber } from "./services/vehicle-stock-number";
 
 import { authMiddleware, requireRole, requirePermission, requireCapability, generateToken, generateImpersonationToken, comparePassword, hashPassword, verifyToken, extensionHmacMiddleware, generatePostingToken, validatePostingToken, type AuthRequest } from "./auth";
 import { requireDealership, superAdminOnly } from "./tenant-middleware";
@@ -4054,11 +4054,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json(vehicleVINWriteErrorResponse(vinGuard.error));
       }
       const vehicleInput = withNormalizedStockNumber(vinGuard.data);
+      const existingVehicles = await storage.getVehiclesByDealership(dealershipId);
       
       // DEDUP: Check for existing VIN before creating
       if (vehicleInput.vin) {
-        const existingVehicles = await storage.getVehicles(dealershipId, 100, 0);
-        const duplicate = existingVehicles.vehicles.find((v: any) => 
+        const duplicate = existingVehicles.find((v: any) =>
           v.vin && v.vin.toUpperCase() === vehicleInput.vin!.toUpperCase()
         );
         if (duplicate) {
@@ -4069,6 +4069,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             hint: "Use PATCH /api/vehicles/:id to update the existing vehicle, or delete it first."
           });
         }
+      }
+
+      const stockConflict = findActiveStockNumberConflict(existingVehicles, vehicleInput.normalizedStockNumber);
+      if (stockConflict) {
+        return res.status(409).json({
+          error: "Vehicle with this stock number already exists",
+          existingVehicleId: stockConflict.id,
+          existingVehicle: `${stockConflict.year} ${stockConflict.make} ${stockConflict.model}`,
+          hint: "Use PATCH /api/vehicles/:id to update the existing vehicle, or archive/delete it first."
+        });
       }
       
       const vehicle = await storage.createVehicle(withResolvedVehicleDealership(vehicleInput, dealershipId));
@@ -4096,6 +4106,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json(vehicleVINWriteErrorResponse(vinGuard.error));
       }
       const updateData = withNormalizedStockNumber(vinGuard.data);
+      if (updateData.normalizedStockNumber) {
+        const stockConflict = findActiveStockNumberConflict(
+          await storage.getVehiclesByDealership(dealershipId),
+          updateData.normalizedStockNumber,
+          { excludeVehicleId: id },
+        );
+        if (stockConflict) {
+          return res.status(409).json({
+            error: "Vehicle with this stock number already exists",
+            existingVehicleId: stockConflict.id,
+            existingVehicle: `${stockConflict.year} ${stockConflict.make} ${stockConflict.model}`,
+            hint: "Choose a unique active stock number before updating this vehicle."
+          });
+        }
+      }
       
       const vehicle = await storage.updateVehicle(id, updateData, dealershipId);
       

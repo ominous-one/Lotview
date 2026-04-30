@@ -1,5 +1,11 @@
 import { describe, expect, it } from "@jest/globals";
-import { normalizeStockNumber, withNormalizedStockNumber } from "../services/vehicle-stock-number";
+import {
+  findActiveStockNumberConflict,
+  isActiveVehicleStockIdentity,
+  normalizeStockNumber,
+  vehicleNormalizedStockNumber,
+  withNormalizedStockNumber,
+} from "../services/vehicle-stock-number";
 
 describe("vehicle stock number normalization", () => {
   it("normalizes stock numbers into a stable alphanumeric identity", () => {
@@ -23,5 +29,29 @@ describe("vehicle stock number normalization", () => {
     });
 
     expect(withNormalizedStockNumber({ price: 24995 })).toEqual({ price: 24995 });
+  });
+
+  it("reads normalized stock identity from stored vehicles", () => {
+    expect(vehicleNormalizedStockNumber({ stockNumber: " st-123 a " })).toBe("ST123A");
+    expect(vehicleNormalizedStockNumber({ normalizedStockNumber: "hyu_0042", stockNumber: "ignored" })).toBe("HYU0042");
+  });
+
+  it("ignores inactive vehicle records when checking stock conflicts", () => {
+    expect(isActiveVehicleStockIdentity({ id: 1, stockNumber: "A123" })).toBe(true);
+    expect(isActiveVehicleStockIdentity({ id: 1, stockNumber: "A123", deletedAt: new Date() })).toBe(false);
+    expect(isActiveVehicleStockIdentity({ id: 1, stockNumber: "A123", status: "sold" })).toBe(false);
+    expect(isActiveVehicleStockIdentity({ id: 1, stockNumber: "A123", lifecycleStatus: "DELETED" })).toBe(false);
+  });
+
+  it("finds active same-dealership stock conflicts and supports update exclusions", () => {
+    const vehicles = [
+      { id: 1, stockNumber: "ST-123-A", status: "sold" },
+      { id: 2, normalizedStockNumber: "ST123A", stockNumber: "ST-123-A" },
+      { id: 3, stockNumber: "B456" },
+    ];
+
+    expect(findActiveStockNumberConflict(vehicles, " st 123 a ")?.id).toBe(2);
+    expect(findActiveStockNumberConflict(vehicles, " st 123 a ", { excludeVehicleId: 2 })).toBeUndefined();
+    expect(findActiveStockNumberConflict(vehicles, "unknown")).toBeUndefined();
   });
 });

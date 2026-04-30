@@ -10,7 +10,7 @@ import { logInfo } from "../error-utils";
 import { storage } from "../storage";
 import { validateVIN } from "../vin-validation";
 import type { Vehicle } from "@shared/schema";
-import { normalizeStockNumber } from "./vehicle-stock-number";
+import { findActiveStockNumberConflict, normalizeStockNumber } from "./vehicle-stock-number";
 
 // ---- Types ----
 
@@ -178,6 +178,7 @@ export async function deduplicateAndStore(
       const normalizedVin = vinValidation.vin;
       const normalizedScraped = normalizeScrapedVehicle({ ...scraped, vin: normalizedVin });
       const existing = existingByVin.get(normalizedVin);
+      const stockConflict = findActiveStockNumberConflict(existingVehicles, normalizedScraped.stockNumber);
 
       if (existing) {
         // Merge with existing
@@ -186,6 +187,24 @@ export async function deduplicateAndStore(
         result.vehicleId = existing.id;
         result.action = "merged";
         result.details.push({ vin: normalizedVin, action: "merge" });
+      } else if (stockConflict) {
+        const conflictVin = typeof stockConflict.vin === "string" ? stockConflict.vin.trim().toUpperCase() : "";
+        if (conflictVin && conflictVin !== normalizedVin) {
+          result.skipped++;
+          result.action = "skip";
+          result.details.push({
+            vin: normalizedVin,
+            action: "skip",
+            reason: `DUPLICATE_STOCK_NUMBER_CONFLICT:${normalizeStockNumber(normalizedScraped.stockNumber)}`,
+          });
+          continue;
+        }
+
+        await mergeVehicle(stockConflict, normalizedScraped, dealershipId);
+        result.merged++;
+        result.vehicleId = stockConflict.id;
+        result.action = "merged";
+        result.details.push({ vin: normalizedVin, action: "merge", reason: "MATCHED_STOCK_NUMBER" });
       } else {
         const missingFacts = getMissingNewInventoryFacts(normalizedScraped);
         if (missingFacts.length > 0) {
@@ -201,6 +220,8 @@ export async function deduplicateAndStore(
 
         // Insert new
         const created = await insertVehicle(normalizedScraped, dealershipId);
+        existingVehicles.push(created);
+        existingByVin.set(normalizedVin, created);
         result.inserted++;
         result.vehicleId = created.id;
         result.action = "created";
@@ -355,6 +376,7 @@ async function mergeVehicle(
   }
 
   // Core fields: update if missing in existing
+  if (scraped.vin && !existing.vin) updates.vin = scraped.vin.toUpperCase().trim();
   if (scraped.year && !existing.year) updates.year = scraped.year;
   if (scraped.make && !existing.make) updates.make = scraped.make;
   if (scraped.model && !existing.model) updates.model = scraped.model;

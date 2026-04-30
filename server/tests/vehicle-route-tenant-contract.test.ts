@@ -6,6 +6,7 @@ import { hasPermission, type Permission } from "../../shared/authz";
 const storageMock = {
   getPublicInventoryVehicles: jest.fn() as any,
   getVehicles: jest.fn() as any,
+  getVehiclesByDealership: jest.fn() as any,
   getVehicleById: jest.fn() as any,
   getVehicleViews: jest.fn() as any,
   getCarfaxReport: jest.fn() as any,
@@ -255,11 +256,12 @@ describe("vehicle route tenant contracts", () => {
       });
 
     expect(storageMock.getVehicles).not.toHaveBeenCalled();
+    expect(storageMock.getVehiclesByDealership).not.toHaveBeenCalled();
     expect(storageMock.createVehicle).not.toHaveBeenCalled();
   });
 
   it("creates inventory with the resolved dealership context instead of a client-supplied dealership id", async () => {
-    storageMock.getVehicles.mockResolvedValue({ vehicles: [], total: 0 });
+    storageMock.getVehiclesByDealership.mockResolvedValue([]);
     storageMock.createVehicle.mockImplementation(async (vehicle: any) => ({ id: 42, ...vehicle }));
 
     await request(appWithDealerOne)
@@ -283,7 +285,7 @@ describe("vehicle route tenant contracts", () => {
         });
       });
 
-    expect(storageMock.getVehicles).toHaveBeenCalledWith(1, 100, 0);
+    expect(storageMock.getVehiclesByDealership).toHaveBeenCalledWith(1);
     expect(storageMock.createVehicle).toHaveBeenCalledWith(
       expect.objectContaining({
         dealershipId: 1,
@@ -294,6 +296,39 @@ describe("vehicle route tenant contracts", () => {
     );
   });
 
+  it("rejects same-dealership active stock number conflicts on create", async () => {
+    storageMock.getVehiclesByDealership.mockResolvedValue([
+      {
+        id: 77,
+        year: 2024,
+        make: "Hyundai",
+        model: "Tucson",
+        vin: "KM8JF3A41RU123456",
+        stockNumber: "ST-123-A",
+        normalizedStockNumber: "ST123A",
+        lifecycleStatus: "ACTIVE",
+      },
+    ]);
+
+    await request(appWithDealerOne)
+      .post("/api/vehicles")
+      .set("x-test-role", "dealer_manager")
+      .send({
+        ...completeVehiclePayload,
+        vin: "1HGCM82633A004352",
+        stockNumber: " st 123 a ",
+      })
+      .expect(409)
+      .expect((res) => {
+        expect(res.body).toMatchObject({
+          error: "Vehicle with this stock number already exists",
+          existingVehicleId: 77,
+        });
+      });
+
+    expect(storageMock.createVehicle).not.toHaveBeenCalled();
+  });
+
   it("blocks sales reps from updating inventory", async () => {
     await request(appWithDealerOne)
       .patch("/api/vehicles/42")
@@ -301,6 +336,43 @@ describe("vehicle route tenant contracts", () => {
       .send({ price: "25000" })
       .expect(403)
       .expect({ error: "Insufficient permissions" });
+
+    expect(storageMock.updateVehicle).not.toHaveBeenCalled();
+  });
+
+  it("rejects same-dealership active stock number conflicts on update", async () => {
+    storageMock.getVehiclesByDealership.mockResolvedValue([
+      {
+        id: 77,
+        year: 2024,
+        make: "Hyundai",
+        model: "Tucson",
+        stockNumber: "ST-123-A",
+        normalizedStockNumber: "ST123A",
+        lifecycleStatus: "ACTIVE",
+      },
+      {
+        id: 42,
+        year: 2003,
+        make: "Honda",
+        model: "Accord",
+        stockNumber: "A-001",
+        normalizedStockNumber: "A001",
+        lifecycleStatus: "ACTIVE",
+      },
+    ]);
+
+    await request(appWithDealerOne)
+      .patch("/api/vehicles/42")
+      .set("x-test-role", "dealer_manager")
+      .send({ stockNumber: " st 123 a " })
+      .expect(409)
+      .expect((res) => {
+        expect(res.body).toMatchObject({
+          error: "Vehicle with this stock number already exists",
+          existingVehicleId: 77,
+        });
+      });
 
     expect(storageMock.updateVehicle).not.toHaveBeenCalled();
   });

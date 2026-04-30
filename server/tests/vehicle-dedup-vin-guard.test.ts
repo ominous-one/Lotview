@@ -1,6 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it, jest } from "@jest/globals";
 
 const VALID_VIN = "1HGCM82633A004352";
+const OTHER_VALID_VIN = "1M8GDM9AXKP042788";
 const INVALID_CHECK_DIGIT_VIN = "1HGCM82643A004352";
 
 const storageMock = {
@@ -277,6 +278,124 @@ describe("vehicle dedup VIN storage guard", () => {
       }),
       7
     );
+  });
+
+  it("does not insert scraped vehicles when the stock number belongs to a different active VIN", async () => {
+    storageMock.getVehiclesByDealership.mockResolvedValue([
+      {
+        id: 42,
+        vin: OTHER_VALID_VIN,
+        year: 2024,
+        make: "Hyundai",
+        model: "Tucson",
+        stockNumber: "ST-123-A",
+        normalizedStockNumber: "ST123A",
+        lifecycleStatus: "ACTIVE",
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      },
+    ]);
+
+    const result = await vehicleDedup.deduplicateAndStore(7, {
+      vin: VALID_VIN,
+      price: 24995,
+      year: 2003,
+      make: "Honda",
+      model: "Accord",
+      stockNumber: " st 123 a ",
+    });
+
+    expect(result).toMatchObject({
+      inserted: 0,
+      merged: 0,
+      skipped: 1,
+      errors: 0,
+      details: [
+        {
+          vin: VALID_VIN,
+          action: "skip",
+          reason: "DUPLICATE_STOCK_NUMBER_CONFLICT:ST123A",
+        },
+      ],
+    });
+    expect(storageMock.createVehicle).not.toHaveBeenCalled();
+    expect(storageMock.updateVehicle).not.toHaveBeenCalled();
+  });
+
+  it("merges scraped VIN facts into an active stock match that lacks VIN identity", async () => {
+    storageMock.getVehiclesByDealership.mockResolvedValue([
+      {
+        id: 42,
+        stockNumber: "ST-123-A",
+        normalizedStockNumber: "ST123A",
+        lifecycleStatus: "ACTIVE",
+        photos: [],
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      },
+    ]);
+
+    const result = await vehicleDedup.deduplicateAndStore(7, {
+      vin: VALID_VIN,
+      price: 24995,
+      year: 2003,
+      make: "Honda",
+      model: "Accord",
+      stockNumber: " st 123 a ",
+    });
+
+    expect(result).toMatchObject({
+      inserted: 0,
+      merged: 1,
+      skipped: 0,
+      errors: 0,
+      details: [{ vin: VALID_VIN, action: "merge", reason: "MATCHED_STOCK_NUMBER" }],
+    });
+    expect(storageMock.createVehicle).not.toHaveBeenCalled();
+    expect(storageMock.updateVehicle).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        vin: VALID_VIN,
+        price: 24995,
+        year: 2003,
+        make: "Honda",
+        model: "Accord",
+      }),
+      7,
+    );
+  });
+
+  it("uses newly inserted records to block later same-batch stock conflicts", async () => {
+    storageMock.createVehicle.mockImplementation(async (vehicle: any) => ({ id: 99, ...vehicle }));
+
+    const result = await vehicleDedup.deduplicateAndStore(7, [
+      {
+        vin: VALID_VIN,
+        price: 24995,
+        year: 2003,
+        make: "Honda",
+        model: "Accord",
+        stockNumber: " st 123 a ",
+      },
+      {
+        vin: OTHER_VALID_VIN,
+        price: 31995,
+        year: 2024,
+        make: "Hyundai",
+        model: "Tucson",
+        stockNumber: "ST-123-A",
+      },
+    ]);
+
+    expect(result).toMatchObject({
+      inserted: 1,
+      merged: 0,
+      skipped: 1,
+      errors: 0,
+    });
+    expect(result.details).toEqual([
+      { vin: VALID_VIN, action: "insert" },
+      { vin: OTHER_VALID_VIN, action: "skip", reason: "DUPLICATE_STOCK_NUMBER_CONFLICT:ST123A" },
+    ]);
+    expect(storageMock.createVehicle).toHaveBeenCalledTimes(1);
   });
 
   it("preserves manual photos and avoids duplicating the same scraped URL", async () => {
