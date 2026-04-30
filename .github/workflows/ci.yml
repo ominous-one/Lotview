@@ -180,12 +180,100 @@ jobs:
           cache-to: type=gha,mode=max
 
   deploy-staging:
-    name: Deploy to Staging
+    name: Render Staging Proof
     runs-on: ubuntu-latest
     needs: docker-build
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && vars.RENDER_STAGING_ENABLED == 'true'
     environment: staging
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v6
-      - name: Deploy to Staging
-        run: echo "Staging deploy hook is not configured yet. Configure an explicit deploy step before using real users."
+      - name: Verify Render staging configuration
+        env:
+          RENDER_STAGING_BASE_URL: ${{ vars.RENDER_STAGING_BASE_URL }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$RENDER_STAGING_BASE_URL" ]; then
+            echo "::error::Missing repository variable RENDER_STAGING_BASE_URL"
+            exit 1
+          fi
+
+      - name: Trigger Render deploy hook if configured
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          set -euo pipefail
+
+          if [ -n "$RENDER_DEPLOY_HOOK_URL" ]; then
+            curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL"
+            echo "Render deploy hook accepted."
+          else
+            echo "Render deploy hook not configured; verifying GitHub auto-deploy against the live staging commit."
+          fi
+
+      - name: Verify Render staging serves this commit
+        env:
+          RENDER_STAGING_BASE_URL: ${{ vars.RENDER_STAGING_BASE_URL }}
+          RENDER_EXPECTED_COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          base_url="${RENDER_STAGING_BASE_URL%/}"
+
+          wait_for_endpoint() {
+            local path="$1"
+            local label="$2"
+
+            for attempt in $(seq 1 60); do
+              if response="$(curl -fsS --max-time 10 "${base_url}${path}")"; then
+                echo "Render ${label} endpoint passed on attempt ${attempt}/60."
+                echo "$response"
+                return 0
+              fi
+
+              echo "Waiting for Render ${label} endpoint attempt ${attempt}/60."
+              sleep 10
+            done
+
+            echo "::error::Render ${label} endpoint did not pass within timeout: ${base_url}${path}"
+            return 1
+          }
+
+          wait_for_endpoint "/api/health" "health"
+          wait_for_endpoint "/api/ready" "readiness"
+
+          for attempt in $(seq 1 60); do
+            if version_response="$(curl -fsS --max-time 10 "${base_url}/api/version")"; then
+              VERSION_RESPONSE="$version_response" node <<'NODE'
+          const response = process.env.VERSION_RESPONSE || "{}";
+          const expected = process.env.RENDER_EXPECTED_COMMIT;
+          let body;
+
+          try {
+            body = JSON.parse(response);
+          } catch (error) {
+            console.error(`::error::Render version endpoint returned invalid JSON: ${error instanceof Error ? error.message : String(error)}`);
+            process.exit(1);
+          }
+
+          if (!expected) {
+            console.error("::error::Missing expected commit from GitHub Actions.");
+            process.exit(1);
+          }
+
+          if (body.commit !== expected) {
+            console.error(`::error::Render staging is serving commit ${body.commit || "<missing>"} instead of ${expected}.`);
+            process.exit(1);
+          }
+
+          console.log(`Render staging commit verified: ${body.commit}`);
+          NODE
+              exit 0
+            fi
+
+            echo "Waiting for Render version endpoint attempt ${attempt}/60."
+            sleep 10
+          done
+
+          echo "::error::Render version endpoint did not expose commit proof within timeout: ${base_url}/api/version"
+          exit 1

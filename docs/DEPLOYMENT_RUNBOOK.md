@@ -62,6 +62,29 @@ Minimum production worker variables:
 9. Confirm the worker process is online.
 10. Run the staging or production smoke flow.
 
+## GitHub Actions Render Proof
+
+The `Lotview SaaS - CI/CD` workflow includes a `Render Staging Proof` job. It is intentionally disabled until Render staging proof is configured with repository variables, because a placeholder green deploy does not prove the app is live.
+
+Required GitHub repository variables:
+
+- `RENDER_STAGING_ENABLED=true`
+- `RENDER_STAGING_BASE_URL=https://<staging-host>`
+
+Optional GitHub environment secret:
+
+- `RENDER_DEPLOY_HOOK_URL`
+
+When enabled, the job triggers the Render deploy hook if configured. If no hook is configured, it relies on Render GitHub auto-deploy and still requires proof by polling:
+
+- `/api/health`
+- `/api/ready`
+- `/api/version`
+
+The `/api/version` response must report the same commit SHA as the GitHub Actions run. Render exposes `RENDER_GIT_COMMIT` at runtime, and Lotview includes that value in the version endpoint for deploy proof.
+
+If the job is skipped, Render staging is not certified for that commit.
+
 ## Post-Deploy Smoke Flow
 
 - Login page loads.

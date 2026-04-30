@@ -58,4 +58,37 @@ describe("health and observability routes", () => {
     expect(response.body.node).toEqual(expect.any(String));
     expect(response.body.commit).toEqual(expect.any(String));
   });
+
+  it("uses Render commit metadata for deploy proof", async () => {
+    const originalGitCommit = process.env.GIT_COMMIT;
+    const originalReleaseSha = process.env.RELEASE_SHA;
+    const originalRenderGitCommit = process.env.RENDER_GIT_COMMIT;
+
+    delete process.env.GIT_COMMIT;
+    delete process.env.RELEASE_SHA;
+    process.env.RENDER_GIT_COMMIT = "render-commit-sha";
+
+    try {
+      const response = await request(app).get("/api/version").expect(200);
+      expect(response.body.commit).toBe("render-commit-sha");
+    } finally {
+      if (originalGitCommit === undefined) {
+        delete process.env.GIT_COMMIT;
+      } else {
+        process.env.GIT_COMMIT = originalGitCommit;
+      }
+
+      if (originalReleaseSha === undefined) {
+        delete process.env.RELEASE_SHA;
+      } else {
+        process.env.RELEASE_SHA = originalReleaseSha;
+      }
+
+      if (originalRenderGitCommit === undefined) {
+        delete process.env.RENDER_GIT_COMMIT;
+      } else {
+        process.env.RENDER_GIT_COMMIT = originalRenderGitCommit;
+      }
+    }
+  });
 });
