@@ -230,6 +230,18 @@ describe("vehicle route tenant contracts", () => {
     expect(storageMock.deleteVehicle).not.toHaveBeenCalled();
   });
 
+  it("does not report success when a dealership-scoped delete finds no matching vehicle", async () => {
+    storageMock.deleteVehicle.mockResolvedValue(false);
+
+    await request(appWithDealerOne)
+      .delete("/api/vehicles/42")
+      .set("x-test-role", "dealer_manager")
+      .expect(404)
+      .expect({ error: "Vehicle not found" });
+
+    expect(storageMock.deleteVehicle).toHaveBeenCalledWith(42, 1);
+  });
+
   it("blocks read-only users from AI inventory description writes before storage access", async () => {
     await request(appWithDealerOne)
       .post("/api/vehicles/42/generate-description")
