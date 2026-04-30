@@ -144,7 +144,7 @@
       "status": "ci_verified",
       "exposure": "production",
       "owner": "engineering",
-      "paths": ["server/vin-validation.ts", "server/vin-decoder.ts", "server/services/scrape-validator.ts", "server/tests/vin-validation.test.ts"],
+      "paths": ["server/vin-validation.ts", "server/vin-decoder.ts", "server/services/scrape-validator.ts", "server/tests/vin-validation.test.ts", "server/tests/vin-decoder-provider-proof.test.ts"],
       "proof": {
         "ci": true,
         "tests": true,
@@ -153,7 +153,7 @@
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "VIN format and check-digit validation are covered by automated tests. Provider decode, batch decode, cache/rate limiting, and provider reconciliation still require proof."
+      "notes": "VIN format/check-digit validation, model-year-aware NHTSA decode calls, tenant-scoped decode cache behavior, NHTSA 50-record batch boundaries, generated-CARFAX-link labeling, and provider disagreement metadata are covered by automated tests. Live provider staging proof, operational rate-limit monitoring, and real user-flow proof remain required."
     },
     {
       "id": "scraper.olympic_hyundai",
