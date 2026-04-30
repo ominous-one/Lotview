@@ -3,6 +3,7 @@ import { resolve } from "path";
 
 describe("automation sequence route RBAC and tenant contract", () => {
   const routesSource = readFileSync(resolve(process.cwd(), "server/routes.ts"), "utf8");
+  const storageSource = readFileSync(resolve(process.cwd(), "server/storage.ts"), "utf8");
   const managerRoles = "requireRole('manager', 'admin', 'master', 'super_admin'), requireAutomationDealershipContext";
 
   it("uses a fail-closed automation dealership context guard", () => {
@@ -24,5 +25,11 @@ describe("automation sequence route RBAC and tenant contract", () => {
       'app.patch("/api/automation/sequences/:id", authMiddleware, requirePermission("messages.write"),',
       'app.delete("/api/automation/sequences/:id", authMiddleware, requirePermission("messages.write"),',
     ].forEach((route) => expect(routesSource).toContain(`${route} ${managerRoles}`));
+  });
+
+  it("strips immutable tenant ownership fields before sequence updates", () => {
+    expect(routesSource).not.toContain("storage.updateFollowUpSequence(id, dealershipId, req.body)");
+    expect(routesSource).toContain("storage.updateFollowUpSequence(id, dealershipId, updates)");
+    expect(storageSource).toContain(".set({ ...stripTenantOwnershipFields(sequence), updatedAt: new Date() })");
   });
 });
