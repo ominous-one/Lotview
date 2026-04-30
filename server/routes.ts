@@ -2500,7 +2500,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ===== BROWSERLESS SCRAPING ROUTES =====
 
   // Test Browserless connection (super admin only)
-  app.get("/api/super-admin/browserless/test", authMiddleware, superAdminOnly, async (req, res) => {
+  app.get("/api/super-admin/browserless/test", authMiddleware, requirePermission("integrations.read"), superAdminOnly, async (req, res) => {
     try {
       const { testBrowserlessConnection } = await import("./browserless-robust-scraper");
       const dealershipId = req.query.dealershipId ? parseInt(req.query.dealershipId as string) : undefined;
@@ -2514,7 +2514,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Trigger Browserless inventory scrape (super admin only)
-  app.post("/api/super-admin/browserless/scrape-inventory", authMiddleware, superAdminOnly, async (req, res) => {
+  app.post("/api/super-admin/browserless/scrape-inventory", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
       const { runBrowserlessInventoryScrape } = await import("./browserless-robust-scraper");
       const { dealershipId, sourceId, scrapeVdp } = req.body;
@@ -2536,7 +2536,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Trigger Browserless market analysis scrape (super admin only)
-  app.post("/api/super-admin/browserless/scrape-market", authMiddleware, superAdminOnly, async (req, res) => {
+  app.post("/api/super-admin/browserless/scrape-market", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
       const { runMarketAnalysisScrape } = await import("./browserless-robust-scraper");
       const { make, model, yearMin, yearMax, postalCode, radiusKm, maxResults, dealershipId } = req.body;
@@ -2566,7 +2566,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get Browserless scrape status (super admin only)
-  app.get("/api/super-admin/browserless/status", authMiddleware, superAdminOnly, async (req, res) => {
+  app.get("/api/super-admin/browserless/status", authMiddleware, requirePermission("integrations.read"), superAdminOnly, async (req, res) => {
     try {
       const dealershipId = req.query.dealershipId ? parseInt(req.query.dealershipId as string) : undefined;
       const runs = await storage.getScrapeRuns(dealershipId, 10);
@@ -2586,7 +2586,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Trigger Robust Scrape with full fallback chain: ZenRows -> ScrapingBee -> Puppeteer -> Browserless (super admin only)
-  app.post("/api/super-admin/robust-scrape", authMiddleware, superAdminOnly, async (req, res) => {
+  app.post("/api/super-admin/robust-scrape", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
       const { runRobustScrape } = await import("./robust-scraper");
       const { dealershipId } = req.body;
@@ -2626,7 +2626,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Test ZenRows scraping (super admin only)
-  app.post("/api/super-admin/zenrows/test", authMiddleware, superAdminOnly, async (req, res) => {
+  app.post("/api/super-admin/zenrows/test", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
       const { BrowserlessUnifiedService } = await import("./browserless-unified");
       const { url } = req.body;
@@ -2679,7 +2679,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Test BrowserQL with CAPTCHA solving (super admin only)
-  app.post("/api/super-admin/browserless/bql-test", authMiddleware, superAdminOnly, async (req, res) => {
+  app.post("/api/super-admin/browserless/bql-test", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
       const { BrowserlessUnifiedService } = await import("./browserless-unified");
       const { url } = req.body;
@@ -2708,7 +2708,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Test Zyte API scraping (super admin only)
-  app.post("/api/super-admin/zyte/test", authMiddleware, superAdminOnly, async (req, res) => {
+  app.post("/api/super-admin/zyte/test", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
       const { BrowserlessUnifiedService } = await import("./browserless-unified");
       const { url, scrollToBottom = true } = req.body;
