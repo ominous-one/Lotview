@@ -15898,7 +15898,7 @@ Return ONLY the enhanced description, nothing else.`;
   // ============ SALESPERSON FB MARKETPLACE ENDPOINTS ============
   
   // Get current user's FB Marketplace accounts
-  app.get("/api/fb-marketplace/my-accounts", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+  app.get("/api/fb-marketplace/my-accounts", authMiddleware, requirePermission("integrations.read"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.id;
       const dealershipId = req.dealershipId!;
@@ -15915,7 +15915,7 @@ Return ONLY the enhanced description, nothing else.`;
   });
 
   // Create a new FB Marketplace account for current user (max 2)
-  app.post("/api/fb-marketplace/my-accounts", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+  app.post("/api/fb-marketplace/my-accounts", authMiddleware, requirePermission("integrations.write"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.id;
       const dealershipId = req.dealershipId!;
@@ -15938,9 +15938,10 @@ Return ONLY the enhanced description, nothing else.`;
   });
 
   // Delete user's own FB Marketplace account
-  app.delete("/api/fb-marketplace/my-accounts/:accountId", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+  app.delete("/api/fb-marketplace/my-accounts/:accountId", authMiddleware, requirePermission("integrations.write"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.id;
+      const dealershipId = req.dealershipId!;
       const accountId = parseInt(req.params.accountId);
       
       const [account] = await db
@@ -15948,7 +15949,8 @@ Return ONLY the enhanced description, nothing else.`;
         .from(fbMarketplaceAccounts)
         .where(and(
           eq(fbMarketplaceAccounts.id, accountId),
-          eq(fbMarketplaceAccounts.userId, userId)
+          eq(fbMarketplaceAccounts.userId, userId),
+          eq(fbMarketplaceAccounts.dealershipId, dealershipId)
         ));
 
       if (!account) {
@@ -15966,7 +15968,7 @@ Return ONLY the enhanced description, nothing else.`;
   });
 
   // Initiate auth for user's own account
-  app.post("/api/fb-marketplace/my-accounts/:accountId/auth", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+  app.post("/api/fb-marketplace/my-accounts/:accountId/auth", authMiddleware, requirePermission("integrations.write"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.id;
       const dealershipId = req.dealershipId!;
@@ -15977,7 +15979,8 @@ Return ONLY the enhanced description, nothing else.`;
         .from(fbMarketplaceAccounts)
         .where(and(
           eq(fbMarketplaceAccounts.id, accountId),
-          eq(fbMarketplaceAccounts.userId, userId)
+          eq(fbMarketplaceAccounts.userId, userId),
+          eq(fbMarketplaceAccounts.dealershipId, dealershipId)
         ));
 
       if (!account) {
@@ -15996,7 +15999,7 @@ Return ONLY the enhanced description, nothing else.`;
   });
 
   // Verify session for user's own account
-  app.post("/api/fb-marketplace/my-accounts/:accountId/verify", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+  app.post("/api/fb-marketplace/my-accounts/:accountId/verify", authMiddleware, requirePermission("integrations.write"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.id;
       const dealershipId = req.dealershipId!;
@@ -16007,7 +16010,8 @@ Return ONLY the enhanced description, nothing else.`;
         .from(fbMarketplaceAccounts)
         .where(and(
           eq(fbMarketplaceAccounts.id, accountId),
-          eq(fbMarketplaceAccounts.userId, userId)
+          eq(fbMarketplaceAccounts.userId, userId),
+          eq(fbMarketplaceAccounts.dealershipId, dealershipId)
         ));
 
       if (!account) {
@@ -16026,7 +16030,7 @@ Return ONLY the enhanced description, nothing else.`;
   });
 
   // Get user's FB Marketplace posting stats
-  app.get("/api/fb-marketplace/my-stats", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+  app.get("/api/fb-marketplace/my-stats", authMiddleware, requirePermission("messages.read"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.id;
       const dealershipId = req.dealershipId!;
@@ -16069,7 +16073,7 @@ Return ONLY the enhanced description, nothing else.`;
   });
 
   // Queue vehicles for posting using salesperson's own accounts
-  app.post("/api/fb-marketplace/my-queue", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+  app.post("/api/fb-marketplace/my-queue", authMiddleware, requirePermission("messages.write"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.id;
       const dealershipId = req.dealershipId!;
@@ -16085,7 +16089,8 @@ Return ONLY the enhanced description, nothing else.`;
           .from(fbMarketplaceAccounts)
           .where(and(
             eq(fbMarketplaceAccounts.id, accountId),
-            eq(fbMarketplaceAccounts.userId, userId)
+            eq(fbMarketplaceAccounts.userId, userId),
+            eq(fbMarketplaceAccounts.dealershipId, dealershipId)
           ));
 
         if (!account) {
@@ -16110,7 +16115,7 @@ Return ONLY the enhanced description, nothing else.`;
   });
 
   // Get user's pending queue items
-  app.get("/api/fb-marketplace/my-queue", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+  app.get("/api/fb-marketplace/my-queue", authMiddleware, requirePermission("messages.read"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.id;
       const dealershipId = req.dealershipId!;
@@ -16153,7 +16158,7 @@ Return ONLY the enhanced description, nothing else.`;
   });
 
   // Get user's listings
-  app.get("/api/fb-marketplace/my-listings", authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+  app.get("/api/fb-marketplace/my-listings", authMiddleware, requirePermission("messages.read"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const userId = req.user!.id;
       const dealershipId = req.dealershipId!;
