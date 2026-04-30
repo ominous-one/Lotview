@@ -11,6 +11,8 @@ describe("manager notification route RBAC and tenant contract", () => {
     expect(notificationsBlock).toBeDefined();
 
     for (const route of [
+      "app.get('/api/notifications', authMiddleware, requirePermission(\"messages.read\"), requireDealership",
+      "app.post('/api/notifications/:id/read', authMiddleware, requirePermission(\"messages.write\"), requireDealership",
       "app.get('/api/notifications/email-outbox', authMiddleware, requirePermission(\"messages.read\"), requireDealership, requireRole('master', 'sales_manager')",
       "app.get('/api/notifications/settings/manager-emails', authMiddleware, requirePermission(\"messages.read\"), requireDealership, requireRole('master', 'sales_manager')",
       "app.post('/api/notifications/settings/manager-emails/:userId/start-verify', authMiddleware, requirePermission(\"messages.write\"), requireDealership, requireRole('master', 'sales_manager')",
@@ -23,6 +25,8 @@ describe("manager notification route RBAC and tenant contract", () => {
     expect(notificationsBlock).toBeDefined();
 
     expect(notificationsBlock).toContain("const dealershipId = req.dealershipId!");
+    expect(notificationsBlock).toContain("eq(notifications.dealershipId, dealershipId)");
+    expect(notificationsBlock).toContain("eq(notifications.recipientUserId, userId)");
     expect(notificationsBlock).toContain("where: eq(emailOutbox.dealershipId, dealershipId)");
     expect(notificationsBlock).toContain("eq(usersTable.dealershipId, dealershipId)");
     expect(notificationsBlock).toContain("inArray(usersTable.role, ['manager', 'sales_manager'])");

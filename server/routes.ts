@@ -18233,7 +18233,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
 
   // ===== WS4E: In-app notifications feed + email outbox audit =====
 
-  app.get('/api/notifications', authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+  app.get('/api/notifications', authMiddleware, requirePermission("messages.read"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const userId = req.user!.id;
@@ -18252,7 +18252,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
     }
   });
 
-  app.post('/api/notifications/:id/read', authMiddleware, requireDealership, async (req: AuthRequest, res) => {
+  app.post('/api/notifications/:id/read', authMiddleware, requirePermission("messages.write"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const userId = req.user!.id;
