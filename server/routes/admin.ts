@@ -6,7 +6,8 @@
 
 import { Router } from "express";
 import { storage } from "../storage";
-import { authMiddleware } from "../auth";
+import { sensitiveLimiter } from "../middleware/http-rate-limiters";
+import { authMiddleware, requireCapability, requirePermission } from "../auth";
 import { hashPassword } from "../auth";
 import { superAdminOnly } from "../tenant-middleware";
 import { logError } from "../error-utils";
@@ -16,7 +17,7 @@ const router = Router();
 
 /* ─── System Control ─── */
 
-router.post("/restart-server", authMiddleware, superAdminOnly, async (req: any, res) => {
+router.post("/restart-server", authMiddleware, requirePermission("admin.audit"), superAdminOnly, sensitiveLimiter, async (req: any, res) => {
   try {
     console.log("Server restart requested by super admin");
     res.json({ success: true, message: "Restart initiated" });
@@ -29,7 +30,7 @@ router.post("/restart-server", authMiddleware, superAdminOnly, async (req: any, 
 
 /* ─── Secrets Management ─── */
 
-router.get("/secrets/password-status", authMiddleware, superAdminOnly, async (req: any, res) => {
+router.get("/secrets/password-status", authMiddleware, requirePermission("integrations.read"), superAdminOnly, async (req: any, res) => {
   try {
     const config = await storage.getAdminConfig();
     res.json({ hasPassword: !!config?.secretsPasswordHash });
@@ -39,7 +40,7 @@ router.get("/secrets/password-status", authMiddleware, superAdminOnly, async (re
   }
 });
 
-router.post("/secrets/set-password", authMiddleware, superAdminOnly, async (req: any, res) => {
+router.post("/secrets/set-password", authMiddleware, requirePermission("integrations.write"), superAdminOnly, sensitiveLimiter, async (req: any, res) => {
   try {
     const { password } = req.body;
     if (!password || password.length < 12) {
@@ -55,7 +56,7 @@ router.post("/secrets/set-password", authMiddleware, superAdminOnly, async (req:
 
 /* ─── Dealerships ─── */
 
-router.get("/dealerships", authMiddleware, superAdminOnly, async (req, res) => {
+router.get("/dealerships", authMiddleware, requireCapability("tenant.manage"), superAdminOnly, async (req, res) => {
   try {
     const dealerships = await storage.getAllDealerships();
     res.json(dealerships);
@@ -65,7 +66,7 @@ router.get("/dealerships", authMiddleware, superAdminOnly, async (req, res) => {
   }
 });
 
-router.post("/dealerships", authMiddleware, superAdminOnly, async (req, res) => {
+router.post("/dealerships", authMiddleware, requireCapability("tenant.manage"), requirePermission("users.invite"), superAdminOnly, async (req, res) => {
   try {
     const { name, slug, subdomain, masterAdminEmail, masterAdminName, masterAdminPassword } = req.body;
     if (!name || !slug || !subdomain || !masterAdminEmail || !masterAdminName || !masterAdminPassword) {
@@ -87,7 +88,7 @@ router.post("/dealerships", authMiddleware, superAdminOnly, async (req, res) => 
   }
 });
 
-router.get("/dealerships/:dealershipId", authMiddleware, superAdminOnly, async (req, res) => {
+router.get("/dealerships/:dealershipId", authMiddleware, requireCapability("tenant.manage"), superAdminOnly, async (req, res) => {
   try {
     const dealership = await storage.getDealershipById(parseInt(req.params.dealershipId));
     if (!dealership) return res.status(404).json({ error: "Dealership not found" });
@@ -100,7 +101,7 @@ router.get("/dealerships/:dealershipId", authMiddleware, superAdminOnly, async (
   }
 });
 
-router.patch("/dealerships/:dealershipId", authMiddleware, superAdminOnly, async (req, res) => {
+router.patch("/dealerships/:dealershipId", authMiddleware, requireCapability("tenant.manage"), requirePermission("users.manage"), superAdminOnly, async (req, res) => {
   try {
     const dealership = await storage.updateDealership(parseInt(req.params.dealershipId), req.body);
     res.json(dealership);
@@ -112,7 +113,7 @@ router.patch("/dealerships/:dealershipId", authMiddleware, superAdminOnly, async
 
 /* ─── Users ─── */
 
-router.get("/users", authMiddleware, superAdminOnly, async (req, res) => {
+router.get("/users", authMiddleware, requirePermission("users.manage"), superAdminOnly, async (req, res) => {
   try {
     const users = await (storage as any).getAllUsers();
     res.json(users);
@@ -122,7 +123,7 @@ router.get("/users", authMiddleware, superAdminOnly, async (req, res) => {
   }
 });
 
-router.post("/users", authMiddleware, superAdminOnly, async (req, res) => {
+router.post("/users", authMiddleware, requirePermission("users.invite"), superAdminOnly, async (req, res) => {
   try {
     const user = await storage.createUser(req.body);
     res.status(201).json(user);
@@ -134,7 +135,7 @@ router.post("/users", authMiddleware, superAdminOnly, async (req, res) => {
 
 /* ─── Global Settings ─── */
 
-router.get("/global-settings", authMiddleware, superAdminOnly, async (req, res) => {
+router.get("/global-settings", authMiddleware, requirePermission("admin.audit"), superAdminOnly, async (req, res) => {
   try {
     const settings = await storage.getAllGlobalSettings();
     res.json(settings);
@@ -144,7 +145,7 @@ router.get("/global-settings", authMiddleware, superAdminOnly, async (req, res) 
   }
 });
 
-router.put("/global-settings/:key", authMiddleware, superAdminOnly, async (req, res) => {
+router.put("/global-settings/:key", authMiddleware, requireCapability("tenant.settings.write"), superAdminOnly, async (req, res) => {
   try {
     await (storage as any).setGlobalSetting(req.params.key, req.body.value);
     res.json({ success: true });
@@ -156,7 +157,7 @@ router.put("/global-settings/:key", authMiddleware, superAdminOnly, async (req, 
 
 /* ─── Dashboard Metrics ─── */
 
-router.get("/dashboard/health", authMiddleware, superAdminOnly, async (req, res) => {
+router.get("/dashboard/health", authMiddleware, requirePermission("admin.audit"), superAdminOnly, async (req, res) => {
   try {
     const health = await getSystemHealth();
     res.json(health);
@@ -166,7 +167,7 @@ router.get("/dashboard/health", authMiddleware, superAdminOnly, async (req, res)
   }
 });
 
-router.get("/dashboard/business-metrics", authMiddleware, superAdminOnly, async (req, res) => {
+router.get("/dashboard/business-metrics", authMiddleware, requirePermission("admin.audit"), superAdminOnly, async (req, res) => {
   try {
     const metrics = await getBusinessMetrics();
     res.json(metrics);
@@ -176,7 +177,7 @@ router.get("/dashboard/business-metrics", authMiddleware, superAdminOnly, async 
   }
 });
 
-router.get("/dashboard/dealership-activity", authMiddleware, superAdminOnly, async (req, res) => {
+router.get("/dashboard/dealership-activity", authMiddleware, requirePermission("admin.audit"), superAdminOnly, async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
     const activity = await getDealershipActivity(limit);
@@ -187,7 +188,7 @@ router.get("/dashboard/dealership-activity", authMiddleware, superAdminOnly, asy
   }
 });
 
-router.get("/dashboard/ai-metrics", authMiddleware, superAdminOnly, async (req, res) => {
+router.get("/dashboard/ai-metrics", authMiddleware, requirePermission("admin.audit"), superAdminOnly, async (req, res) => {
   try {
     const metrics = await getAIMetrics();
     res.json(metrics);
@@ -197,7 +198,7 @@ router.get("/dashboard/ai-metrics", authMiddleware, superAdminOnly, async (req, 
   }
 });
 
-router.get("/dashboard/scraping-metrics", authMiddleware, superAdminOnly, async (req, res) => {
+router.get("/dashboard/scraping-metrics", authMiddleware, requirePermission("admin.audit"), superAdminOnly, async (req, res) => {
   try {
     const metrics = await getScrapingMetrics();
     res.json(metrics);
@@ -207,7 +208,7 @@ router.get("/dashboard/scraping-metrics", authMiddleware, superAdminOnly, async 
   }
 });
 
-router.get("/dashboard/fb-marketplace-metrics", authMiddleware, superAdminOnly, async (req, res) => {
+router.get("/dashboard/fb-marketplace-metrics", authMiddleware, requirePermission("admin.audit"), superAdminOnly, async (req, res) => {
   try {
     const metrics = await getFBMarketplaceMetrics();
     res.json(metrics);
@@ -217,7 +218,7 @@ router.get("/dashboard/fb-marketplace-metrics", authMiddleware, superAdminOnly, 
   }
 });
 
-router.get("/dashboard/alerts", authMiddleware, superAdminOnly, async (req, res) => {
+router.get("/dashboard/alerts", authMiddleware, requirePermission("admin.audit"), superAdminOnly, async (req, res) => {
   try {
     const minSeverity = (req.query.minSeverity as "low" | "medium" | "high" | "critical") || "low";
     const alerts = await getSystemAlerts(minSeverity);
@@ -228,7 +229,7 @@ router.get("/dashboard/alerts", authMiddleware, superAdminOnly, async (req, res)
   }
 });
 
-router.post("/dashboard/alerts/:alertId/resolve", authMiddleware, superAdminOnly, async (req: any, res) => {
+router.post("/dashboard/alerts/:alertId/resolve", authMiddleware, requirePermission("admin.audit"), superAdminOnly, async (req: any, res) => {
   try {
     const resolved = await resolveAlert(req.params.alertId, req.user!.id);
     res.json({ success: resolved });
@@ -240,7 +241,7 @@ router.post("/dashboard/alerts/:alertId/resolve", authMiddleware, superAdminOnly
 
 /* ─── Audit & Logs ─── */
 
-router.get("/audit-logs", authMiddleware, superAdminOnly, async (req, res) => {
+router.get("/audit-logs", authMiddleware, requirePermission("admin.audit"), superAdminOnly, async (req, res) => {
   try {
     const logs = await storage.getAuditLogs();
     res.json(logs);
@@ -250,7 +251,7 @@ router.get("/audit-logs", authMiddleware, superAdminOnly, async (req, res) => {
   }
 });
 
-router.get("/scraper-logs", authMiddleware, superAdminOnly, async (req, res) => {
+router.get("/scraper-logs", authMiddleware, requirePermission("admin.audit"), superAdminOnly, async (req, res) => {
   try {
     const logs = await storage.getScraperLogs();
     res.json(logs);
@@ -260,7 +261,7 @@ router.get("/scraper-logs", authMiddleware, superAdminOnly, async (req, res) => 
   }
 });
 
-router.get("/system-health", authMiddleware, superAdminOnly, async (req, res) => {
+router.get("/system-health", authMiddleware, requirePermission("admin.audit"), superAdminOnly, async (req, res) => {
   try {
     const health = await getSystemHealth();
     res.json(health);
