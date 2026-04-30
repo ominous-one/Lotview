@@ -7487,7 +7487,8 @@ Format your response in clear sections with actionable recommendations.`;
         }
       }
       
-      const source = await storage.updateScrapeSource(id, dealershipId, req.body);
+      const updates = stripTenantOwnershipFields(req.body ?? {});
+      const source = await storage.updateScrapeSource(id, dealershipId, updates);
       
       if (!source) {
         return res.status(404).json({ error: "Scrape source not found" });
