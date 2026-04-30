@@ -415,9 +415,11 @@ export interface IStorage {
   // ====== VEHICLE OPERATIONS (Multi-Tenant) ======
   // dealershipId is REQUIRED for all multi-tenant operations to ensure data isolation
   getVehicles(dealershipId: number, limit?: number, offset?: number): Promise<{ vehicles: Vehicle[]; total: number }>;
+  getVehiclesByDealership(dealershipId: number): Promise<Vehicle[]>;
   getPublicInventoryVehicles(dealershipId: number, limit?: number, offset?: number): Promise<{ vehicles: PublicInventoryVehicle[]; total: number }>;
   getVehicleById(id: number, dealershipId: number): Promise<Vehicle | undefined>;
   getVehicleByVin(vin: string, dealershipId: number): Promise<Vehicle | undefined>;
+  getVehicleByVinAndDealership(vin: string, dealershipId: number): Promise<Vehicle | undefined>;
   deleteVehiclesByVinNotIn(vins: string[], dealershipId: number): Promise<{ deletedCount: number; deletedVins: string[] }>;
   createVehicle(vehicle: InsertVehicle): Promise<Vehicle>;
   updateVehicle(id: number, vehicle: Partial<InsertVehicle>, dealershipId: number): Promise<Vehicle | undefined>;
@@ -1367,6 +1369,12 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
+  async getVehiclesByDealership(dealershipId: number): Promise<Vehicle[]> {
+    return await db.select().from(vehicles)
+      .where(and(eq(vehicles.dealershipId, dealershipId), isNull(vehicles.deletedAt)))
+      .orderBy(desc(vehicles.createdAt));
+  }
+
   async getPublicInventoryVehicles(dealershipId: number, limit: number = 24, offset: number = 0): Promise<{ vehicles: PublicInventoryVehicle[]; total: number }> {
     const [{ count }] = await db
       .select({ count: sql<number>`count(*)::int` })
@@ -1477,6 +1485,10 @@ export class DatabaseStorage implements IStorage {
       ))
       .limit(1);
     return result[0];
+  }
+
+  async getVehicleByVinAndDealership(vin: string, dealershipId: number): Promise<Vehicle | undefined> {
+    return await this.getVehicleByVin(vin, dealershipId);
   }
 
   async deleteVehiclesByVinNotIn(vins: string[], dealershipId: number): Promise<{ deletedCount: number; deletedVins: string[] }> {

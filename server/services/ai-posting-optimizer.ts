@@ -42,7 +42,7 @@ export async function getOptimizedPosting(
 ): Promise<PostingRecommendation | null> {
   const vehicle = typeof vehicleId === "object" && vehicleId !== null
     ? vehicleId
-    : await storage.getVehicle(vehicleId);
+    : await storage.getVehicleById(Number(vehicleId), dealershipId);
   if (!vehicle || vehicle.dealershipId !== dealershipId) return null;
 
   const photos = ((vehicle.photos as string[]) || []).filter((p) => typeof p === "string");
@@ -66,7 +66,7 @@ export async function getOptimizedPosting(
   const priority = calculatePriority(vehicle);
 
   return {
-    vehicleId,
+    vehicleId: vehicle.id,
     optimalTime,
     recommendedPrice,
     title,
