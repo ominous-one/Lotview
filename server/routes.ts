@@ -1425,7 +1425,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Get all users across all dealerships (super admin only)
-  app.get("/api/super-admin/users", authMiddleware, superAdminOnly, async (req, res) => {
+  app.get("/api/super-admin/users", authMiddleware, requirePermission("users.manage"), superAdminOnly, async (req, res) => {
     try {
       const dealershipId = req.query.dealershipId ? parseInt(req.query.dealershipId as string) : undefined;
       const role = req.query.role as string | undefined;
@@ -1440,7 +1440,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Create a new user (super admin only)
-  app.post("/api/super-admin/users", authMiddleware, superAdminOnly, async (req, res) => {
+  app.post("/api/super-admin/users", authMiddleware, requirePermission("users.invite"), superAdminOnly, async (req, res) => {
     try {
       const { email, name, password, role, dealershipId } = req.body;
       const authReq = req as AuthRequest;
@@ -1505,7 +1505,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Delete a user (super admin only)
-  app.delete("/api/super-admin/users/:userId", authMiddleware, superAdminOnly, async (req, res) => {
+  app.delete("/api/super-admin/users/:userId", authMiddleware, requirePermission("users.manage"), superAdminOnly, async (req, res) => {
     try {
       const userId = parseInt(req.params.userId);
       const authReq = req as AuthRequest;
@@ -1551,7 +1551,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Update user status (activate/deactivate) (super admin only)
-  app.patch("/api/super-admin/users/:userId/status", authMiddleware, superAdminOnly, async (req, res) => {
+  app.patch("/api/super-admin/users/:userId/status", authMiddleware, requirePermission("users.manage"), superAdminOnly, async (req, res) => {
     try {
       const userId = parseInt(req.params.userId);
       const { isActive } = req.body;
@@ -1597,7 +1597,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Reset user password (super admin only) - rate limited for sensitive operation
-  app.post("/api/super-admin/users/:userId/reset-password", authMiddleware, superAdminOnly, sensitiveLimiter, async (req, res) => {
+  app.post("/api/super-admin/users/:userId/reset-password", authMiddleware, requirePermission("users.manage"), superAdminOnly, sensitiveLimiter, async (req, res) => {
     try {
       const userId = parseInt(req.params.userId);
       const { newPassword } = req.body;
@@ -1635,7 +1635,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Update user information (super admin only)
-  app.patch("/api/super-admin/users/:userId", authMiddleware, superAdminOnly, async (req, res) => {
+  app.patch("/api/super-admin/users/:userId", authMiddleware, requirePermission("users.manage"), superAdminOnly, async (req, res) => {
     try {
       const userId = parseInt(req.params.userId);
       const { name, email, role, dealershipId, isActive } = req.body;
