@@ -6408,7 +6408,7 @@ export class DatabaseStorage implements IStorage {
   
   async updateCrmContact(id: number, dealershipId: number, contact: Partial<InsertCrmContact>): Promise<CrmContact | undefined> {
     const result = await db.update(crmContacts)
-      .set({ ...contact, updatedAt: new Date() })
+      .set({ ...stripTenantOwnershipFields(contact), updatedAt: new Date() })
       .where(and(
         eq(crmContacts.id, id),
         eq(crmContacts.dealershipId, dealershipId)
@@ -6442,7 +6442,7 @@ export class DatabaseStorage implements IStorage {
   
   async updateCrmTag(id: number, dealershipId: number, tag: Partial<InsertCrmTag>): Promise<CrmTag | undefined> {
     const result = await db.update(crmTags)
-      .set(tag)
+      .set(stripTenantOwnershipFields(tag))
       .where(and(
         eq(crmTags.id, id),
         eq(crmTags.dealershipId, dealershipId)
@@ -6564,7 +6564,7 @@ export class DatabaseStorage implements IStorage {
   
   async updateCrmTask(id: number, dealershipId: number, task: Partial<InsertCrmTask>): Promise<CrmTask | undefined> {
     const result = await db.update(crmTasks)
-      .set({ ...task, updatedAt: new Date() })
+      .set({ ...stripTenantOwnershipFields(task), updatedAt: new Date() })
       .where(and(
         eq(crmTasks.id, id),
         eq(crmTasks.dealershipId, dealershipId)
@@ -6591,7 +6591,7 @@ export class DatabaseStorage implements IStorage {
   
   async updateCrmMessage(id: number, dealershipId: number, message: Partial<InsertCrmMessage>): Promise<CrmMessage | undefined> {
     const result = await db.update(crmMessages)
-      .set(message)
+      .set(stripTenantOwnershipFields(message))
       .where(and(
         eq(crmMessages.id, id),
         eq(crmMessages.dealershipId, dealershipId)
@@ -6647,7 +6647,7 @@ export class DatabaseStorage implements IStorage {
   
   async updateCrmMessageTemplate(id: number, dealershipId: number, template: Partial<InsertCrmMessageTemplate>): Promise<CrmMessageTemplate | undefined> {
     const result = await db.update(crmMessageTemplates)
-      .set({ ...template, updatedAt: new Date() })
+      .set({ ...stripTenantOwnershipFields(template), updatedAt: new Date() })
       .where(and(
         eq(crmMessageTemplates.id, id),
         eq(crmMessageTemplates.dealershipId, dealershipId)

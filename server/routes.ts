@@ -14350,7 +14350,8 @@ Format your response in clear sections with actionable recommendations.`;
         return res.status(403).json({ error: "Access denied" });
       }
       
-      const contact = await storage.updateCrmContact(id, dealershipId, req.body);
+      const updates = stripTenantOwnershipFields(req.body ?? {});
+      const contact = await storage.updateCrmContact(id, dealershipId, updates);
       
       // Log update activity
       await storage.createCrmActivity({
@@ -14431,7 +14432,8 @@ Format your response in clear sections with actionable recommendations.`;
       const dealershipId = (req as any).dealershipId;
       const id = parseInt(req.params.id);
       
-      const tag = await storage.updateCrmTag(id, dealershipId, req.body);
+      const updates = stripTenantOwnershipFields(req.body ?? {});
+      const tag = await storage.updateCrmTag(id, dealershipId, updates);
       
       if (!tag) {
         return res.status(404).json({ error: "Tag not found" });
@@ -14649,7 +14651,8 @@ Format your response in clear sections with actionable recommendations.`;
         return res.status(403).json({ error: "Access denied" });
       }
       
-      const task = await storage.updateCrmTask(id, dealershipId, req.body);
+      const updates = stripTenantOwnershipFields(req.body ?? {});
+      const task = await storage.updateCrmTask(id, dealershipId, updates);
       res.json(task);
     } catch (error) {
       logError('Error updating CRM task:', error instanceof Error ? error : new Error(String(error)), { route: 'api-crm-tasks-id' });
@@ -14751,7 +14754,8 @@ Format your response in clear sections with actionable recommendations.`;
       const dealershipId = (req as any).dealershipId;
       const id = parseInt(req.params.id);
       
-      const template = await storage.updateCrmMessageTemplate(id, dealershipId, req.body);
+      const updates = stripTenantOwnershipFields(req.body ?? {});
+      const template = await storage.updateCrmMessageTemplate(id, dealershipId, updates);
       
       if (!template) {
         return res.status(404).json({ error: "Template not found" });

@@ -3,6 +3,7 @@ import { resolve } from "path";
 
 describe("CRM route RBAC and tenant contract", () => {
   const routesSource = readFileSync(resolve(process.cwd(), "server/routes.ts"), "utf8");
+  const storageSource = readFileSync(resolve(process.cwd(), "server/storage.ts"), "utf8");
 
   const salespersonLeadRoles = "requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership";
   const managerLeadRoles = "requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership";
@@ -58,5 +59,29 @@ describe("CRM route RBAC and tenant contract", () => {
     expect(routesSource).toContain(
       `app.post("/api/crm/contacts/:id/suggest-message", authMiddleware, requirePermission("messages.write"), requirePermission("ai.use"), ${salespersonLeadRoles}`
     );
+  });
+
+  it("strips immutable tenant ownership fields before CRM updates", () => {
+    [
+      "storage.updateCrmContact(id, dealershipId, req.body)",
+      "storage.updateCrmTag(id, dealershipId, req.body)",
+      "storage.updateCrmTask(id, dealershipId, req.body)",
+      "storage.updateCrmMessageTemplate(id, dealershipId, req.body)",
+    ].forEach((unsafeCall) => expect(routesSource).not.toContain(unsafeCall));
+
+    [
+      "storage.updateCrmContact(id, dealershipId, updates)",
+      "storage.updateCrmTag(id, dealershipId, updates)",
+      "storage.updateCrmTask(id, dealershipId, updates)",
+      "storage.updateCrmMessageTemplate(id, dealershipId, updates)",
+    ].forEach((safeCall) => expect(routesSource).toContain(safeCall));
+
+    [
+      ".set({ ...stripTenantOwnershipFields(contact), updatedAt: new Date() })",
+      ".set(stripTenantOwnershipFields(tag))",
+      ".set({ ...stripTenantOwnershipFields(task), updatedAt: new Date() })",
+      ".set(stripTenantOwnershipFields(message))",
+      ".set({ ...stripTenantOwnershipFields(template), updatedAt: new Date() })",
+    ].forEach((storageGuard) => expect(storageSource).toContain(storageGuard));
   });
 });
