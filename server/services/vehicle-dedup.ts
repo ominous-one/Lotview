@@ -239,8 +239,9 @@ async function mergeVehicle(
 
   // Photos: merge sets, preserve manual photos
   if (scraped.photos && scraped.photos.length > 0) {
-    const existingPhotos = ((existing.photos as string[]) || []).filter((p) => !p.startsWith("manual:"));
-    const scrapedPhotos = scraped.photos.filter((p) => !existingPhotos.includes(p));
+    const existingPhotos = (existing.photos as string[]) || [];
+    const existingPhotoUrls = new Set(existingPhotos.map((p) => p.replace(/^manual:/, "")));
+    const scrapedPhotos = scraped.photos.filter((p) => !existingPhotoUrls.has(p.replace(/^manual:/, "")));
     if (scrapedPhotos.length > 0) {
       updates.photos = [...existingPhotos, ...scrapedPhotos];
     }
