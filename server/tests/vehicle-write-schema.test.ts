@@ -6,6 +6,7 @@ import {
 
 const completeVehiclePayload = {
   dealershipId: 999,
+  normalizedStockNumber: "SPOOFED",
   year: 2003,
   make: "Honda",
   model: "Accord",
@@ -22,19 +23,21 @@ const completeVehiclePayload = {
 };
 
 describe("vehicle write request schemas", () => {
-  it("does not require or preserve client-supplied dealershipId on create", () => {
+  it("does not require or preserve client-supplied tenant or derived identity fields on create", () => {
     const parsed = vehicleCreateRequestSchema.safeParse(completeVehiclePayload);
 
     expect(parsed.success).toBe(true);
     if (parsed.success) {
       expect(parsed.data).not.toHaveProperty("dealershipId");
+      expect(parsed.data).not.toHaveProperty("normalizedStockNumber");
       expect(parsed.data.vin).toBe("1HGCM82633A004352");
     }
   });
 
-  it("does not preserve client-supplied dealershipId on update", () => {
+  it("does not preserve client-supplied tenant or derived identity fields on update", () => {
     const parsed = vehicleUpdateRequestSchema.safeParse({
       dealershipId: 999,
+      normalizedStockNumber: "SPOOFED",
       price: 26000,
     });
 

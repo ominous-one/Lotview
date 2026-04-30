@@ -20,6 +20,7 @@ import { enrichPhotosSafely } from "../services/photo-guard";
 import { scrapeCarfaxReportCloud } from "../services/carfax-browserless";
 import { hasVehicleVINWriteError, normalizeVehicleWriteVIN, vehicleVINWriteErrorResponse } from "../services/vehicle-vin-write-guard";
 import { vehicleCreateRequestSchema, vehicleUpdateRequestSchema, withResolvedVehicleDealership } from "../services/vehicle-write-schema";
+import { withNormalizedStockNumber } from "../services/vehicle-stock-number";
 
 const router = Router();
 initializeFlagsFromEnv();
@@ -199,7 +200,7 @@ router.post("/", authMiddleware, requirePermission("inventory.write"), requireDe
     if (hasVehicleVINWriteError(vinGuard)) {
       return res.status(400).json(vehicleVINWriteErrorResponse(vinGuard.error));
     }
-    const vehicleInput = vinGuard.data;
+    const vehicleInput = withNormalizedStockNumber(vinGuard.data);
 
     // DEDUP: Check for existing VIN
     if (vehicleInput.vin) {
@@ -254,7 +255,7 @@ router.patch("/:id", authMiddleware, requirePermission("inventory.write"), requi
     if (hasVehicleVINWriteError(vinGuard)) {
       return res.status(400).json(vehicleVINWriteErrorResponse(vinGuard.error));
     }
-    const vehicle = await storage.updateVehicle(id, vinGuard.data, dealershipId);
+    const vehicle = await storage.updateVehicle(id, withNormalizedStockNumber(vinGuard.data), dealershipId);
     if (!vehicle) return res.status(404).json({ error: "Vehicle not found" });
     res.json(vehicle);
   } catch (error) {

@@ -130,6 +130,7 @@ describe("vehicle dedup VIN storage guard", () => {
         dealership: "Olympic Hyundai Vancouver",
         description: "Dealer supplied description",
         stockNumber: "A123",
+        normalizedStockNumber: "A123",
         exteriorColor: "Blue",
         interiorColor: "Black",
         transmission: "Automatic",
@@ -238,6 +239,41 @@ describe("vehicle dedup VIN storage guard", () => {
         price: 24995,
         odometer: 88000,
         images: ["existing.jpg", "new.jpg"],
+      }),
+      7
+    );
+  });
+
+  it("derives normalized stock identity when merging scraped stock into existing inventory", async () => {
+    storageMock.getVehiclesByDealership.mockResolvedValue([
+      {
+        id: 42,
+        vin: VALID_VIN,
+        price: 21000,
+        mileage: 90000,
+        status: "available",
+        photos: [],
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      },
+    ]);
+
+    const result = await vehicleDedup.deduplicateAndStore(7, {
+      vin: VALID_VIN,
+      stockNumber: " st-123 a ",
+      status: "available",
+    });
+
+    expect(result).toMatchObject({
+      inserted: 0,
+      merged: 1,
+      skipped: 0,
+      errors: 0,
+    });
+    expect(storageMock.updateVehicle).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        stockNumber: "st-123 a",
+        normalizedStockNumber: "ST123A",
       }),
       7
     );
