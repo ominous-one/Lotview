@@ -4042,7 +4042,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create vehicle (master only)
-  app.post("/api/vehicles", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
+  app.post("/api/vehicles", authMiddleware, requirePermission("inventory.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const parsed = insertVehicleSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -4076,7 +4076,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update vehicle (master only)
-  app.patch("/api/vehicles/:id", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
+  app.patch("/api/vehicles/:id", authMiddleware, requirePermission("inventory.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const parsed = insertVehicleSchema.partial().safeParse(req.body);
@@ -4104,7 +4104,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Soft-delete vehicle (manager+). Scrapers will not resurrect user-deleted vehicles.
-  app.post("/api/vehicles/:id/soft-delete", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
+  app.post("/api/vehicles/:id/soft-delete", authMiddleware, requirePermission("inventory.write"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const id = parseInt(req.params.id);
       const dealershipId = req.dealershipId!;
@@ -4153,7 +4153,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // VDP Content Editing - GM and Sales Manager can edit headline, subheadline, description
   // These manual edits are preserved across scraper updates
-  app.patch("/api/vehicles/:id/vdp-content", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
+  app.patch("/api/vehicles/:id/vdp-content", authMiddleware, requirePermission("inventory.write"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const id = parseInt(req.params.id);
       const dealershipId = req.dealershipId!;
@@ -4191,7 +4191,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete vehicle (master only)
-  app.delete("/api/vehicles/:id", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
+  app.delete("/api/vehicles/:id", authMiddleware, requirePermission("inventory.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       // Dealership ID extracted from authenticated user via tenant middleware
