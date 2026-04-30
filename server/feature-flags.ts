@@ -13,4 +13,6 @@ export const FEATURE_FLAGS = {
   COMPETITIVE_REPORTS: "competitive_reports",
   FB_BAN_RECOVERY: "fb_ban_recovery",
   AB_TESTING: "ab_testing",
+  ENABLE_GHL_MESSENGER_SYNC: "ghl_messenger_sync",
+  ENABLE_APPRAISAL_AUTOSAVE: "appraisal_autosave",
 } as const;

@@ -29,9 +29,9 @@ export interface SyncConfig {
   dealershipId: number;
   provider: CalendarProvider;
   accessToken: string;
-  refreshToken: string;
+  refreshToken?: string;
   calendarId?: string; // Google calendar ID
-  syncDirection: "bidirectional" | "to_external" | "to_lotview";
+  syncDirection?: "bidirectional" | "to_external" | "to_lotview";
   lastSyncAt?: Date;
 }
 
@@ -177,17 +177,7 @@ export async function syncToOutlook(
  */
 export async function syncAppointment(
   config: SyncConfig,
-  appointment: {
-    id: number;
-    title: string;
-    description?: string;
-    startTime: Date;
-    endTime: Date;
-    location?: string;
-    customerEmail?: string;
-    customerName?: string;
-    status: "confirmed" | "tentative" | "cancelled";
-  }
+  appointment: any
 ): Promise<{ success: boolean; externalId?: string; error?: string }> {
   const event: CalendarEvent = {
     id: String(appointment.id),
@@ -199,7 +189,7 @@ export async function syncAppointment(
     attendees: appointment.customerEmail
       ? [{ email: appointment.customerEmail, name: appointment.customerName }]
       : [],
-    status: appointment.status,
+    status: appointment.status || "confirmed",
     provider: config.provider,
   };
 
@@ -323,7 +313,7 @@ export async function deleteSyncMapping(
  * Check for upcoming appointments and send reminders.
  * Call from scheduler every 15 minutes.
  */
-export async function sendAppointmentReminders(): Promise<{
+export async function sendAppointmentReminders(..._args: unknown[]): Promise<{
   sent: number;
   errors: number;
 }> {

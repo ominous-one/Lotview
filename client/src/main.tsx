@@ -8,3 +8,5 @@ if (root) {
     </main>
   `;
 }
+
+export {};

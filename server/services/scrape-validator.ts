@@ -11,6 +11,7 @@ import {
   sendPartialScrapeAlert,
   sendQualityAlert,
 } from "./scrape-alerts";
+import { validateVIN } from "../vin-validation";
 
 // ---- Validation Configuration ----
 
@@ -38,6 +39,8 @@ export interface ScrapedVehicle {
   sourceUrl?: string;
   [key: string]: unknown;
 }
+
+export type ScrapedVehicleData = ScrapedVehicle;
 
 export interface ScrapeValidationResult {
   isValid: boolean;
@@ -213,32 +216,7 @@ export async function validateScrape(
 // ---- Utility Functions ----
 
 function isValidVin(vin: string | undefined): boolean {
-  if (!vin || vin.length !== 17) return false;
-  // Basic VIN check: 17 alphanumeric chars, no I/O/Q
-  const vinRegex = /^[A-HJ-NPR-Z0-9]{17}$/i;
-  if (!vinRegex.test(vin)) return false;
-
-  // Check digit validation (position 9)
-  // This is the MOD 11 check digit per ISO 3779
-  const transliteration: Record<string, number> = {
-    A: 1, B: 2, C: 3, D: 4, E: 5, F: 6, G: 7, H: 8,
-    J: 1, K: 2, L: 3, M: 4, N: 5, P: 7, R: 9,
-    S: 2, T: 3, U: 4, V: 5, W: 6, X: 7, Y: 8, Z: 9,
-    1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8, 9: 9, 0: 0,
-  };
-  const weights = [8, 7, 6, 5, 4, 3, 2, 10, 0, 9, 8, 7, 6, 5, 4, 3, 2];
-
-  let sum = 0;
-  for (let i = 0; i < 17; i++) {
-    const char = vin[i].toUpperCase();
-    const value = transliteration[char];
-    if (value === undefined) return false;
-    sum += value * weights[i];
-  }
-
-  const checkDigit = sum % 11;
-  const expectedChar = checkDigit === 10 ? "X" : String(checkDigit);
-  return vin[8].toUpperCase() === expectedChar;
+  return validateVIN(vin).isValid;
 }
 
 function median(values: number[]): number {

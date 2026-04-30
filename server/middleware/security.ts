@@ -38,11 +38,12 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction):
     logger.warn("CSRF blocked: missing origin and referer", {
       route: req.path, method: req.method, ip: req.ip,
     });
-    return res.status(403).json({
+    res.status(403).json({
       success: false,
       error: "CSRF validation failed: missing origin",
       code: "CSRF_MISSING_ORIGIN",
     });
+    return;
   }
 
   // Validate origin against allowlist
@@ -51,11 +52,12 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction):
     logger.warn("CSRF blocked: invalid origin", {
       route: req.path, method: req.method, origin: requestOrigin, ip: req.ip,
     });
-    return res.status(403).json({
+    res.status(403).json({
       success: false,
       error: "CSRF validation failed: invalid origin",
       code: "CSRF_INVALID_ORIGIN",
     });
+    return;
   }
 
   next();

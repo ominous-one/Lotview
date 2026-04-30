@@ -7,7 +7,7 @@
 import { logger } from "./services/logger";
 
 interface Vehicle {
-  id: number;
+  id?: number;
   year: number;
   make: string;
   model: string;
@@ -16,6 +16,7 @@ interface Vehicle {
   odometer?: number;
   description?: string;
   images?: string[];
+  dealerVdpUrl?: string;
 }
 
 interface PostOptions {
@@ -34,22 +35,26 @@ export const facebookService = {
     return `https://www.facebook.com/v18.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&scope=pages_manage_posts,pages_read_engagement`;
   },
 
-  async exchangeCodeForToken(code: string): Promise<{ accessToken: string }> {
+  async exchangeCodeForToken(code: string): Promise<any> {
     // Stub: would call Facebook Graph API
     logger.info("Facebook token exchange stub", { code: code.slice(0, 10) + "..." });
     return { accessToken: "stub_token_" + Date.now() };
   },
 
-  async getLongLivedToken(shortToken: string): Promise<{ accessToken: string; expiresAt?: Date }> {
+  async getLongLivedToken(shortToken: string): Promise<any> {
     logger.info("Facebook long-lived token stub");
-    return { accessToken: shortToken, expiresAt: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000) };
+    return {
+      accessToken: shortToken,
+      expiresAt: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
+      expiresIn: 60 * 24 * 60 * 60,
+    };
   },
 
-  async getUserInfo(token: string): Promise<{ id: string; name: string }> {
+  async getUserInfo(token: string): Promise<any> {
     return { id: "stub_user_id", name: "Stub User" };
   },
 
-  async getUserPages(token: string): Promise<Array<{ id: string; name: string; access_token: string }>> {
+  async getUserPages(token: string): Promise<any[]> {
     return [];
   },
 
@@ -57,7 +62,7 @@ export const facebookService = {
     accessToken: string,
     vehicle: Vehicle,
     options: PostOptions
-  ): Promise<{ postId: string; permalink?: string }> {
+  ): Promise<any> {
     const title = options.titleTemplate
       .replace(/\{\{year\}\}/g, String(vehicle.year))
       .replace(/\{\{make\}\}/g, vehicle.make)
@@ -70,7 +75,7 @@ export const facebookService = {
     return { postId: `fb_post_${Date.now()}` };
   },
 
-  async postToPage(accessToken: string, pageId: string, message: string): Promise<{ postId: string }> {
+  async postToPage(accessToken: string, pageId: string, message: string, ..._args: unknown[]): Promise<any> {
     logger.info("Facebook page post stub", { pageId, message: message.slice(0, 50) });
     return { postId: `fb_page_post_${Date.now()}` };
   },
@@ -79,8 +84,8 @@ export const facebookService = {
     accessToken: string,
     pageId: string,
     vehicle: Vehicle,
-    template: PostOptions
-  ): Promise<{ postId: string }> {
+    template: PostOptions = { titleTemplate: "", descriptionTemplate: "" }
+  ): Promise<any> {
     return this.postToPage(accessToken, pageId, template.descriptionTemplate);
   },
 
@@ -88,9 +93,21 @@ export const facebookService = {
     accessToken: string,
     recipientId: string,
     message: string
-  ): Promise<{ messageId: string }> {
+  ): Promise<any> {
     logger.info("Facebook messenger stub", { recipientId, message: message.slice(0, 50) });
     return { messageId: `fb_msg_${Date.now()}` };
+  },
+
+  tokenNeedsRefresh(..._args: unknown[]): boolean {
+    return false;
+  },
+
+  async validateToken(..._args: unknown[]): Promise<any> {
+    return { valid: false, error: "facebook_not_configured" };
+  },
+
+  async refreshLongLivedToken(token: string, ..._args: unknown[]): Promise<any> {
+    return this.getLongLivedToken(token);
   },
 };
 

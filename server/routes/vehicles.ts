@@ -6,11 +6,12 @@
  * Base: /api/vehicles
  */
 
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
 import { z } from "zod";
 import { fromZodError } from "zod-validation-error";
 import { storage } from "../storage";
-import { authMiddleware, requireRole } from "../auth";
+import { authMiddleware, requirePermission, requireRole } from "../auth";
+import { hasPermission } from "@shared/authz";
 import { requireDealership } from "../tenant-middleware";
 import { logError, logWarn } from "../error-utils";
 import { insertVehicleSchema } from "@shared/schema";
@@ -21,6 +22,15 @@ import { scrapeCarfaxReportCloud } from "../services/carfax-browserless";
 
 const router = Router();
 initializeFlagsFromEnv();
+
+function requireRouteDealership(req: Request, res: Response): number | undefined {
+  if (!req.dealershipId) {
+    res.status(400).json({ error: "Dealership context required" });
+    return undefined;
+  }
+
+  return req.dealershipId;
+}
 
 /*
  * ─── PUBLIC ROUTES (no auth required) ───
@@ -44,6 +54,13 @@ router.get("/", async (req, res) => {
     const offset = (page - 1) * limit;
 
     if (wantsFullView) {
+      if (!req.user) {
+        return res.status(401).json({ error: "Authentication required for full inventory view" });
+      }
+      if (!hasPermission(req.user.role, "inventory.read")) {
+        return res.status(403).json({ error: "Insufficient permissions" });
+      }
+
       const { vehicles: vehiclesList, total } = await storage.getVehicles(dealershipId, limit, offset);
       // Resolve actual view counts from storage (no fake data in production)
       const vehiclesWithViews = await Promise.all(vehiclesList.map(async (vehicle) => ({
@@ -96,7 +113,8 @@ router.get("/:id", async (req, res) => {
 router.get("/:id/carfax", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const dealershipId = req.dealershipId!;
+    const dealershipId = requireRouteDealership(req, res);
+    if (!dealershipId) return;
     const vehicle = await storage.getVehicleById(id, dealershipId);
     if (!vehicle) return res.status(404).json({ error: "Vehicle not found" });
     const report = await storage.getCarfaxReport(id, dealershipId);
@@ -112,7 +130,8 @@ router.get("/:id/carfax", async (req, res) => {
 router.get("/:id/carfax/summary", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const dealershipId = req.dealershipId!;
+    const dealershipId = requireRouteDealership(req, res);
+    if (!dealershipId) return;
     const vehicle = await storage.getVehicleById(id, dealershipId);
     if (!vehicle) return res.status(404).json({ error: "Vehicle not found" });
     const report = await storage.getCarfaxReport(id, dealershipId);
@@ -138,7 +157,8 @@ router.post("/:id/view", async (req, res) => {
   try {
     const vehicleId = parseInt(req.params.id);
     const sessionId = req.body.sessionId || `session-${Date.now()}`;
-    const dealershipId = req.dealershipId!;
+    const dealershipId = requireRouteDealership(req, res);
+    if (!dealershipId) return;
     const view = await storage.trackVehicleView({ vehicleId, sessionId, dealershipId });
     res.status(201).json(view);
   } catch (error) {
@@ -151,7 +171,8 @@ router.post("/:id/view", async (req, res) => {
 router.get("/:id/views", async (req, res) => {
   try {
     const vehicleId = parseInt(req.params.id);
-    const dealershipId = req.dealershipId!;
+    const dealershipId = requireRouteDealership(req, res);
+    if (!dealershipId) return;
     const views = await storage.getVehicleViews(vehicleId, dealershipId);
     res.json(views);
   } catch (error) {
@@ -161,11 +182,11 @@ router.get("/:id/views", async (req, res) => {
 });
 
 /*
- * ─── PROTECTED ROUTES (master role) ───
+ * ─── PROTECTED ROUTES (explicit RBAC permissions) ───
  */
 
 // POST /api/vehicles — Create vehicle
-router.post("/", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
+router.post("/", authMiddleware, requirePermission("inventory.write"), requireDealership, async (req, res) => {
   try {
     const parsed = insertVehicleSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -214,7 +235,7 @@ router.post("/", authMiddleware, requireRole("master"), requireDealership, async
 });
 
 // PATCH /api/vehicles/:id — Update vehicle
-router.patch("/:id", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
+router.patch("/:id", authMiddleware, requirePermission("inventory.write"), requireDealership, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const parsed = insertVehicleSchema.partial().safeParse(req.body);
@@ -233,7 +254,7 @@ router.patch("/:id", authMiddleware, requireRole("master"), requireDealership, a
 });
 
 // POST /api/vehicles/:id/soft-delete — Soft delete
-router.post("/:id/soft-delete", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: any, res) => {
+router.post("/:id/soft-delete", authMiddleware, requirePermission("inventory.write"), requireDealership, async (req: any, res) => {
   try {
     const id = parseInt(req.params.id);
     const dealershipId = req.dealershipId!;
@@ -249,7 +270,7 @@ router.post("/:id/soft-delete", authMiddleware, requireRole("manager", "admin", 
 });
 
 // DELETE /api/vehicles/:id — Hard delete
-router.delete("/:id", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
+router.delete("/:id", authMiddleware, requirePermission("inventory.write"), requireDealership, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const dealershipId = req.dealershipId!;
@@ -337,11 +358,11 @@ router.post("/batch-carfax-update", authMiddleware, requireRole("manager"), requ
     const result = await batchUpdateCarfaxData(dealershipId);
 
     // Cloud Carfax fallback
-    let cloudResult = { updated: 0, errors: 0 };
+    const cloudResult = { updated: 0, errors: 0 };
     try {
       if (await isEnabled("cloud_carfax_scraper", dealershipId)) {
         const { vehicles: allVehicles } = await storage.getVehicles(dealershipId);
-        const needingCarfax = allVehicles.vehicles.filter((v: any) => v.vin && !v.carfaxUrl).slice(0, 20);
+        const needingCarfax = allVehicles.filter((v: any) => v.vin && !v.carfaxUrl).slice(0, 20);
         for (const vehicle of needingCarfax) {
           try {
             const cloud = await scrapeCarfaxReportCloud(vehicle.vin!, dealershipId);
@@ -372,7 +393,7 @@ router.post("/batch-carfax-update", authMiddleware, requireRole("manager"), requ
 });
 
 // PATCH /api/vehicles/:id/vdp-content — Update VDP content
-router.patch("/:id/vdp-content", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: any, res) => {
+router.patch("/:id/vdp-content", authMiddleware, requirePermission("inventory.write"), requireDealership, async (req: any, res) => {
   try {
     const id = parseInt(req.params.id);
     const dealershipId = req.dealershipId!;
@@ -558,7 +579,7 @@ router.post("/:id/photo-score", authMiddleware, requireRole("manager", "admin", 
 });
 
 // POST /api/vehicles/:id/smart-merge — Preview/apply smart merge
-router.post("/:id/smart-merge", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: any, res) => {
+router.post("/:id/smart-merge", authMiddleware, requirePermission("inventory.write"), requireDealership, async (req: any, res) => {
   try {
     const id = parseInt(req.params.id);
     const dealershipId = req.dealershipId!;

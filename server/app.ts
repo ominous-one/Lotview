@@ -18,6 +18,7 @@ import { storage } from "./storage";
 import { validateEnvironment } from "./env-validation";
 import { getRedisClient, checkRedisHealth } from "./services/redis";
 import { closeDatabasePool } from "./db";
+import { logError } from "./error-utils";
 
 // Validate environment variables before any other initialization
 validateEnvironment();
@@ -66,20 +67,20 @@ declare module 'http' {
   }
 }
 
-declare global {
-  namespace Express {
-    interface Request {
-      requestId: string;
-    }
+declare module "express-serve-static-core" {
+  interface Request {
+    requestId: string;
   }
 }
 
-function wrapAsyncHandler<T extends Function>(handler: T): T {
+type ExpressHandler = (...args: unknown[]) => unknown;
+
+function wrapAsyncHandler<T extends ExpressHandler>(handler: T): T {
   if (typeof handler !== "function") {
     return handler;
   }
 
-  if ((handler as Function).length === 4) {
+  if (handler.length === 4) {
     return ((err: unknown, req: Request, res: Response, next: NextFunction) => {
       try {
         const result = (handler as unknown as (err: unknown, req: Request, res: Response, next: NextFunction) => unknown)(err, req, res, next);
@@ -107,7 +108,7 @@ function wrapAsyncHandlers(args: unknown[]): unknown[] {
     }
 
     return typeof arg === "function"
-      ? wrapAsyncHandler(arg)
+      ? wrapAsyncHandler(arg as ExpressHandler)
       : arg;
   });
 }
@@ -393,12 +394,25 @@ app.use((req, res, next) => {
   next();
 });
 
+let modularRoutesRegistered = false;
+
+function ensureModularRoutesRegistered(): void {
+  if (modularRoutesRegistered) return;
+  registerModularRoutes(app);
+  modularRoutesRegistered = true;
+}
+
+export function createApp(): Express {
+  ensureModularRoutesRegistered();
+  return app;
+}
+
 export default async function runApp(
   setup: (app: Express, server: Server) => Promise<void>,
   processType: string = "web",
 ) {
   // Register modular routes first (extracted from monolithic routes.ts)
-  registerModularRoutes(app);
+  ensureModularRoutesRegistered();
 
   // Legacy routes — gated behind env var during migration.
   // When all routes are extracted, set ENABLE_LEGACY_ROUTES=false

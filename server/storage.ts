@@ -432,7 +432,7 @@ export interface IStorage {
   getFacebookPages(dealershipId?: number): Promise<FacebookPage[]>;
   getFacebookPageByPageId(pageId: string): Promise<FacebookPage | undefined>;
   createFacebookPage(page: InsertFacebookPage): Promise<FacebookPage>;
-  updateFacebookPage(id: number, page: Partial<InsertFacebookPage>): Promise<FacebookPage | undefined>;
+  updateFacebookPage(id: number, page: Partial<InsertFacebookPage>, dealershipId?: number): Promise<FacebookPage | undefined>;
   
   // Facebook Catalog Config (for Automotive Inventory Ads)
   getFacebookCatalogConfig(dealershipId: number): Promise<FacebookCatalogConfig | undefined>;
@@ -1639,8 +1639,11 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
-  async updateFacebookPage(id: number, page: Partial<InsertFacebookPage>): Promise<FacebookPage | undefined> {
-    const result = await db.update(facebookPages).set(page).where(eq(facebookPages.id, id)).returning();
+  async updateFacebookPage(id: number, page: Partial<InsertFacebookPage>, dealershipId?: number): Promise<FacebookPage | undefined> {
+    const whereClause = dealershipId
+      ? and(eq(facebookPages.id, id), eq(facebookPages.dealershipId, dealershipId))
+      : eq(facebookPages.id, id);
+    const result = await db.update(facebookPages).set(page).where(whereClause).returning();
     return result[0];
   }
 
@@ -6339,7 +6342,7 @@ export class DatabaseStorage implements IStorage {
     const limit = pagination?.limit || 50;
     const offset = pagination?.offset || 0;
     
-    let query = db.select()
+    const query = db.select()
       .from(crmContacts)
       .where(and(...conditions))
       .limit(limit)
@@ -7356,4 +7359,21 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
-export const storage = new DatabaseStorage();
+const storageTarget = new DatabaseStorage();
+
+export const storage = new Proxy(storageTarget, {
+  get(target, property, receiver) {
+    const value = Reflect.get(target, property, receiver);
+    if (value !== undefined) {
+      return typeof value === "function" ? value.bind(target) : value;
+    }
+
+    if (typeof property === "string") {
+      return async () => {
+        throw new Error(`Storage method ${property} is not implemented`);
+      };
+    }
+
+    return value;
+  },
+}) as DatabaseStorage & Record<string, any>;

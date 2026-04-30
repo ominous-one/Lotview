@@ -882,7 +882,7 @@ export class BrowserlessUnifiedService {
       console.log(`[BrowserlessUnified] BrowserQL successfully retrieved ${html.length} chars of HTML`);
 
       // Extract vehicle URLs if requested
-      let vehicleUrls: string[] = [];
+      const vehicleUrls: string[] = [];
       if (extractVehicleUrls) {
         // Parse HTML to extract vehicle URLs using regex (cheerio would be better but keeping it simple)
         const urlMatches = html.matchAll(/href=["']([^"']*\/vehicles\/\d{4}\/[^"']+)["']/gi);
@@ -1906,7 +1906,7 @@ export class BrowserlessUnifiedService {
         ];
         for (const pattern of featurePatterns) {
           if (pattern.test(pageText)) {
-            const featureName = pattern.source.replace(/\\b|\\s/g, ' ').replace(/\|/g, '/').replace(/[\/\\]/g, '').trim();
+            const featureName = pattern.source.replace(/\\b|\\s/g, ' ').replace(/\|/g, '/').replace(/[/\\]/g, '').trim();
             features.push(featureName);
           }
         }

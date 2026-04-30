@@ -16,7 +16,7 @@ let schedulerInitialized = false;
 let marketAnalysisSchedulerInitialized = false;
 let facebookCatalogSchedulerInitialized = false;
 let scheduledMessageSchedulerInitialized = false;
-let notificationsSchedulerInitialized = false;
+const notificationsSchedulerInitialized = false;
 
 // Helper to get active dealership IDs for multi-tenant operations
 async function getActiveDealershipIds(targetDealershipId?: number): Promise<number[]> {

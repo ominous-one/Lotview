@@ -117,6 +117,13 @@ export async function enqueueNotification(data: NotificationJobData): Promise<Jo
 export async function getQueueHealth(): Promise<
   Record<string, { waiting: number; active: number; completed: number; failed: number }>
 > {
+  const normalize = (counts: Record<string, number>) => ({
+    waiting: counts.waiting || 0,
+    active: counts.active || 0,
+    completed: counts.completed || 0,
+    failed: counts.failed || 0,
+  });
+
   const [scrape, ai, fb, notify] = await Promise.all([
     scrapeQueue.getJobCounts(),
     aiResponseQueue.getJobCounts(),
@@ -125,10 +132,10 @@ export async function getQueueHealth(): Promise<
   ]);
 
   return {
-    "inventory-scrape": scrape,
-    "ai-response": ai,
-    "facebook-post": fb,
-    notification: notify,
+    "inventory-scrape": normalize(scrape),
+    "ai-response": normalize(ai),
+    "facebook-post": normalize(fb),
+    notification: normalize(notify),
   };
 }
 

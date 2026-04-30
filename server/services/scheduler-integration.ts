@@ -59,7 +59,7 @@ export async function runEnhancedScrape(
           lastScrapedAt: new Date(),
           createdAt: new Date(),
           updatedAt: new Date(),
-        });
+        } as any);
       }
       return { success: true, validation: { isValid: true, score: 0, vehiclesFound: scrapedVehicles.length }, dedup: { inserted: scrapedVehicles.length, merged: 0, skipped: 0 }, alertsSent: 0 };
     }
@@ -85,7 +85,7 @@ export async function runEnhancedScrape(
     } else {
       // Insert all without dedup
       for (const v of scrapedVehicles) {
-        await storage.createVehicle({ dealershipId, ...v, lastScrapedAt: new Date(), createdAt: new Date(), updatedAt: new Date() });
+        await storage.createVehicle({ dealershipId, ...v, lastScrapedAt: new Date(), createdAt: new Date(), updatedAt: new Date() } as any);
       }
       dedupResult = { inserted: scrapedVehicles.length, merged: 0, skipped: 0, errors: 0, details: [] };
     }
@@ -176,7 +176,7 @@ export async function runEnhancedFBPosting(
       vehicleId: optimization.vehicleId,
       title: optimization.title,
       description: optimization.description,
-      photos: optimization.photoIndices,
+      photos: optimization.photoIndices.map(String),
       price: optimization.recommendedPrice,
     });
 
@@ -326,3 +326,10 @@ export async function runScheduledJobs(): Promise<{
 
   return results;
 }
+
+export default {
+  runEnhancedScrape,
+  runEnhancedFBPosting,
+  runEnhancedAIResponse,
+  runScheduledJobs,
+};

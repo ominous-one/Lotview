@@ -21,11 +21,13 @@ interface CarfaxPayload {
  * Scrape a Carfax report using Browserless.io cloud browser.
  * Zero local memory overhead — the browser runs in the cloud.
  */
-export async function scrapeCarfaxReportCloud(carfaxUrl: string): Promise<{
+export async function scrapeCarfaxReportCloud(carfaxUrl: string, ..._args: unknown[]): Promise<{
   ownerCount: number;
   accidentCount: number;
   serviceRecordCount: number;
   sourceUrl: string;
+  reportUrl?: string;
+  badges?: string[];
   mileageAtLastRecord: number | null;
   lastRecordDate: string | null;
 } | null> {

@@ -42,7 +42,7 @@
       "status": "ci_verified",
       "exposure": "production",
       "owner": "engineering",
-      "paths": ["scripts/verify-production-gates.ts", ".github/workflows/production-gates.yml"],
+      "paths": ["scripts/verify-production-gates.ts", ".github/workflows/ci.yml", ".github/workflows/frontend-verification.yml", ".github/workflows/production-gates.yml", ".github/workflows/render-deploy.yml", "config/feature-registry.json"],
       "proof": {
         "ci": true,
         "tests": true,
@@ -51,7 +51,7 @@
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "Build-time guardrails exist. Keep expanding gate checks as features are certified."
+      "notes": "Build-time guardrails exist and now verify GitHub Actions workflows opt into the Node 24 JavaScript actions runtime and avoid deprecated Node 20 action major pins before GitHub's June 2, 2026 enforcement date. Keep expanding gate checks as features are certified."
     },
     {
       "id": "auth.login",
@@ -59,7 +59,7 @@
       "status": "code_exists",
       "exposure": "staging_only",
       "owner": "engineering",
-      "paths": ["server/routes", "server/auth"],
+      "paths": ["server/routes"],
       "proof": {
         "ci": false,
         "tests": false,
@@ -73,36 +73,36 @@
     {
       "id": "rbac.permissions",
       "name": "RBAC and Permissions",
-      "status": "not_started",
+      "status": "code_exists",
       "exposure": "disabled",
       "owner": "engineering",
-      "paths": [],
+      "paths": ["shared/authz.ts", "server/auth.ts", "server/routes.ts", "server/routes/vehicles.ts", "server/tests/rbac-permissions.test.ts", "server/tests/user-management-route-contract.test.ts", "server/tests/legacy-conversation-route-contract.test.ts", "server/tests/vehicle-route-tenant-contract.test.ts", "server/tests/legacy-vehicle-route-rbac-contract.test.ts", "server/tests/financing-settings-route-contract.test.ts", "server/tests/crm-route-rbac-contract.test.ts", "server/tests/fb-inbox-route-rbac-contract.test.ts", "server/tests/appointment-route-rbac-contract.test.ts", "server/tests/automation-runtime-route-rbac-contract.test.ts", "server/tests/automation-sequence-route-rbac-contract.test.ts", "server/tests/automation-facebook-lead-auth-contract.test.ts", "server/tests/dealership-branding-route-contract.test.ts", "server/tests/scrape-source-route-contract.test.ts", "server/tests/email-route-rbac-contract.test.ts", "server/tests/call-scoring-route-rbac-contract.test.ts", "server/tests/call-analysis-route-rbac-contract.test.ts", "server/tests/call-participants-route-rbac-contract.test.ts"],
       "proof": {
-        "ci": false,
-        "tests": false,
+        "ci": true,
+        "tests": true,
         "staging": false,
         "observability": false,
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "Critical SaaS blocker. Requires explicit permissions and route tests."
+      "notes": "Explicit SaaS permission matrix, permission/capability guard tests, user management route contracts, modular and legacy vehicle inventory-write route contracts, full inventory view read guard, dealership website-url and branding tenant route contracts, financing/fee settings billing read/write route contracts, scrape-source integrations read/write route contracts, email integration write and notification message-write route contracts, call scoring, call analysis, and call participant read/write route contracts, CRM lead/message route contracts, appointment/follow-up lead route contracts, automation runtime and sequence-definition lead/message route contracts, automation Facebook lead trigger auth contracts, FB inbox message/AI-control route contracts, legacy conversation message read/write route contracts, scheduled-message route contracts, and messenger management/AI-control route contracts exist. Full route migration, sensitive action audit proof, staging proof, and user-flow proof remain critical blockers."
     },
     {
       "id": "tenant.isolation",
       "name": "Tenant Isolation",
-      "status": "not_started",
+      "status": "code_exists",
       "exposure": "disabled",
       "owner": "engineering",
-      "paths": [],
+      "paths": ["server/tenant-middleware.ts", "server/tenant-utils.ts", "server/routes.ts", "server/routes/vehicles.ts", "server/tests/legacy-conversation-route-contract.test.ts", "server/tests/tenant-context-boundary.test.ts", "server/tests/vehicle-route-tenant-contract.test.ts", "server/tests/legacy-vehicle-route-rbac-contract.test.ts", "server/tests/financing-settings-route-contract.test.ts", "server/tests/ai-runtime-route-contract.test.ts", "server/tests/crm-route-rbac-contract.test.ts", "server/tests/fb-inbox-route-rbac-contract.test.ts", "server/tests/appointment-route-rbac-contract.test.ts", "server/tests/automation-runtime-route-rbac-contract.test.ts", "server/tests/automation-sequence-route-rbac-contract.test.ts", "server/tests/automation-facebook-lead-auth-contract.test.ts", "server/tests/dealership-branding-route-contract.test.ts", "server/tests/scrape-source-route-contract.test.ts", "server/tests/email-route-rbac-contract.test.ts", "server/tests/call-scoring-route-rbac-contract.test.ts", "server/tests/call-analysis-route-rbac-contract.test.ts", "server/tests/call-participants-route-rbac-contract.test.ts"],
       "proof": {
-        "ci": false,
-        "tests": false,
+        "ci": true,
+        "tests": true,
         "staging": false,
         "observability": false,
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "No real dealership launch until cross-tenant tests prove Dealer A cannot access Dealer B."
+      "notes": "Tenant context boundary has automated tests for header spoofing, legacy tokens, explicit super-admin selection, owner guard behavior, vehicle route tenant-context fail-closed behavior, legacy vehicle mutation dealership context, dealership website-url and branding context, financing/fee settings dealership context, scrape-source dealership context, email integration and notification dealership context, call scoring template/sheet/response dealership context, call analysis dealership context, call participant parent-record dealership context, AI runtime/settings dealership context, CRM lead/message route dealership context, appointment/follow-up route dealership context, automation runtime and sequence-definition route dealership context, automation Facebook lead trigger authenticated dealership context, FB inbox route dealership context, and legacy conversation/scheduled-message/messenger-management route dealership context. Full route/storage cross-tenant isolation across all resources remains a critical blocker."
     },
     {
       "id": "inventory.crud",
@@ -110,7 +110,7 @@
       "status": "code_exists",
       "exposure": "staging_only",
       "owner": "engineering",
-      "paths": ["server/routes", "server/storage"],
+      "paths": ["server/routes", "server/storage.ts", "server/tests/vehicle-route-tenant-contract.test.ts", "server/tests/legacy-vehicle-route-rbac-contract.test.ts"],
       "proof": {
         "ci": false,
         "tests": false,
@@ -119,7 +119,41 @@
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "Needs route, tenant, UI, duplicate VIN, and source-truth tests."
+      "notes": "Modular vehicle tenant/read-write route contracts and legacy vehicle mutation inventory-write route contracts exist. Still needs complete CRUD behavior tests, duplicate VIN/stock tests, UI flow proof, staging proof, and source-truth overwrite protection."
+    },
+    {
+      "id": "vin.validation",
+      "name": "VIN Validation Foundation",
+      "status": "ci_verified",
+      "exposure": "production",
+      "owner": "engineering",
+      "paths": ["server/vin-validation.ts", "server/vin-decoder.ts", "server/services/scrape-validator.ts", "server/tests/vin-validation.test.ts"],
+      "proof": {
+        "ci": true,
+        "tests": true,
+        "staging": false,
+        "observability": false,
+        "realUserFlow": false,
+        "rollback": false
+      },
+      "notes": "VIN format and check-digit validation are covered by automated tests. Provider decode, batch decode, cache/rate limiting, and provider reconciliation still require proof."
+    },
+    {
+      "id": "scraper.olympic_hyundai",
+      "name": "Olympic Hyundai Scraper",
+      "status": "code_exists",
+      "exposure": "staging_only",
+      "owner": "engineering",
+      "paths": ["server/services/scraper-olympic-hyundai.ts", "server/tests/scraper-olympic-hyundai-extraction.test.ts"],
+      "proof": {
+        "ci": true,
+        "tests": true,
+        "staging": false,
+        "observability": false,
+        "realUserFlow": false,
+        "rollback": false
+      },
+      "notes": "Extraction tests prove missing year/make/model source facts are not fabricated. Live pagination, source-truth reconciliation, quarantine, observability, and staging proof remain required."
     },
     {
       "id": "scraper.robust",
@@ -144,7 +178,7 @@
       "status": "fail_closed",
       "exposure": "disabled",
       "owner": "engineering",
-      "paths": ["server/fb-marketplace-service.ts", "server/tests/feature-gates.test.ts"],
+      "paths": ["server/fb-marketplace-service.ts", "server/routes.ts", "server/routes/facebook.ts", "server/tests/feature-gates.test.ts", "server/tests/facebook-route-tenant-contract.test.ts", "server/tests/legacy-facebook-pages-route-contract.test.ts", "server/tests/fb-marketplace-my-routes-contract.test.ts"],
       "proof": {
         "ci": true,
         "tests": true,
@@ -153,7 +187,7 @@
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "Must remain draft/human-approved until token, duplicate, image, posting, and failure tests exist."
+      "notes": "Modular and legacy Facebook Pages routes require explicit integrations read/write RBAC, including priority vehicle reads/writes, and tenant-scoped updates. Facebook account, template, queue, manual post, config, and salesperson-owned marketplace account/queue/listing routes require explicit permissions and dealership context before storage. Salesperson-owned marketplace account ownership checks include the resolved dealership. Marketplace posting must remain draft/human-approved until token, duplicate, image, posting, and failure tests exist."
     },
     {
       "id": "ai.lead_response",
@@ -161,16 +195,16 @@
       "status": "code_exists",
       "exposure": "staging_only",
       "owner": "engineering",
-      "paths": ["server/ai-sales-agent.ts", "server/ai-training-defaults.ts"],
+      "paths": ["server/ai-sales-agent.ts", "server/ai-training-defaults.ts", "server/routes.ts", "server/tests/ai-prompt-route-contract.test.ts", "server/tests/ai-runtime-route-contract.test.ts", "server/tests/fb-inbox-route-rbac-contract.test.ts"],
       "proof": {
-        "ci": false,
-        "tests": false,
+        "ci": true,
+        "tests": true,
         "staging": false,
         "observability": false,
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "Needs inventory-grounding, finance guardrail, prompt injection, escalation, and human approval tests."
+      "notes": "AI prompt management routes require explicit ai.configure RBAC and dealership context where dealership-scoped. AI runtime generation routes require explicit ai.use RBAC, AI settings and FB inbox auto-send controls require ai.configure RBAC, and public chat fails closed without dealership context. Still needs inventory-grounding, finance guardrail, prompt injection, escalation, human approval, observability, staging, and real user-flow proof."
     },
     {
       "id": "ghl.crm_sync",
@@ -178,16 +212,16 @@
       "status": "code_exists",
       "exposure": "staging_only",
       "owner": "engineering",
-      "paths": ["server"],
+      "paths": ["server", "server/routes.ts", "server/tests/ghl-route-boundary-contract.test.ts", "server/tests/email-route-rbac-contract.test.ts"],
       "proof": {
-        "ci": false,
-        "tests": false,
+        "ci": true,
+        "tests": true,
         "staging": false,
         "observability": false,
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "Needs OAuth, token refresh, webhook verification, sync log, and duplicate-contact tests."
+      "notes": "GHL/API-key integration routes now require explicit integrations read/write RBAC and dealership context, including dealership webhook-secret reads/regeneration and test email sends; GHL mutation routes are restricted to master users until write flows are certified. Still needs OAuth, token refresh, webhook verification, sync log, duplicate-contact, staging, observability, rollback, and real user-flow proof."
     },
     {
       "id": "billing.plans",

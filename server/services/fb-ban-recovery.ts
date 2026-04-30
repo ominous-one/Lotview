@@ -179,7 +179,7 @@ export async function startRecoveryRampUp(
   await db
     .update(facebookAccounts)
     .set({
-      status: "ramp_up",
+      isActive: true,
       updatedAt: new Date(),
     })
     .where(eq(facebookAccounts.id, accountId));
@@ -297,13 +297,13 @@ async function handleBanDetected(
   await db
     .update(facebookAccounts)
     .set({
-      status: status === "confirmed_ban" ? "restricted" : "suspected_restricted",
+      isActive: false,
       updatedAt: new Date(),
     })
     .where(eq(facebookAccounts.id, accountId));
 
   // Send alert to dealership
-  const account = await storage.getFacebookAccountById?.(accountId);
+  const account = await (storage as any).getFacebookAccountById?.(accountId);
   const dealership = await storage.getDealershipById(dealershipId);
 
   if (dealership) {
@@ -314,7 +314,7 @@ async function handleBanDetected(
       // SMS alert
       await sendSMS(dealershipId, {
         to: manager.phone || manager.email,
-        message: `ALERT: Your Facebook Marketplace account${account ? ` (${account.name})` : ""} has been ${status === "confirmed_ban" ? "restricted" : "flagged"}. Reason: ${reason}. Posting has been paused. Log in to Lotview to resolve.`,
+        message: `ALERT: Your Facebook Marketplace account${account ? ` (${account.accountName || account.name})` : ""} has been ${status === "confirmed_ban" ? "restricted" : "flagged"}. Reason: ${reason}. Posting has been paused. Log in to Lotview to resolve.`,
       });
 
       // Email with recovery instructions
@@ -370,7 +370,7 @@ export async function resetAccountHealth(accountId: number): Promise<void> {
 
   await db
     .update(facebookAccounts)
-    .set({ status: "active", updatedAt: new Date() })
+    .set({ isActive: true, updatedAt: new Date() })
     .where(eq(facebookAccounts.id, accountId));
 
   logInfo(`[FBBan] Account ${accountId} reset to healthy`);
