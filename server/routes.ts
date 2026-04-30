@@ -7500,7 +7500,7 @@ Format your response in clear sections with actionable recommendations.`;
   // ===== FACEBOOK POSTING ROUTES (Salespeople) =====
   
   // Get Facebook accounts for current user
-  app.get("/api/facebook/accounts", authMiddleware, requireRole("salesperson"), async (req, res) => {
+  app.get("/api/facebook/accounts", authMiddleware, requirePermission("messages.read"), requireRole("salesperson"), requireDealership, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
       const userId = authReq.user!.id;
@@ -7514,7 +7514,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Create Facebook account
-  app.post("/api/facebook/accounts", authMiddleware, requireRole("salesperson"), async (req, res) => {
+  app.post("/api/facebook/accounts", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
       const userId = authReq.user!.id;
@@ -7555,7 +7555,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Update Facebook account
-  app.patch("/api/facebook/accounts/:id", authMiddleware, requireRole("salesperson"), async (req, res) => {
+  app.patch("/api/facebook/accounts/:id", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
       const id = parseInt(req.params.id);
@@ -7583,7 +7583,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Delete Facebook account
-  app.delete("/api/facebook/accounts/:id", authMiddleware, requireRole("salesperson"), async (req, res) => {
+  app.delete("/api/facebook/accounts/:id", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
       const id = parseInt(req.params.id);
@@ -7604,7 +7604,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get ad templates for current user
-  app.get("/api/facebook/templates", authMiddleware, requireRole("salesperson"), async (req, res) => {
+  app.get("/api/facebook/templates", authMiddleware, requirePermission("messages.read"), requireRole("salesperson"), requireDealership, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
       const userId = authReq.user!.id;
@@ -7618,7 +7618,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Create ad template
-  app.post("/api/facebook/templates", authMiddleware, requireRole("salesperson"), async (req, res) => {
+  app.post("/api/facebook/templates", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
       const userId = authReq.user!.id;
@@ -7644,7 +7644,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Update ad template
-  app.patch("/api/facebook/templates/:id", authMiddleware, requireRole("salesperson"), async (req, res) => {
+  app.patch("/api/facebook/templates/:id", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
       const id = parseInt(req.params.id);
@@ -7672,7 +7672,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Delete ad template
-  app.delete("/api/facebook/templates/:id", authMiddleware, requireRole("salesperson"), async (req, res) => {
+  app.delete("/api/facebook/templates/:id", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
       const id = parseInt(req.params.id);
@@ -7693,7 +7693,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get posting queue for current user
-  app.get("/api/facebook/queue", authMiddleware, requireRole("salesperson"), async (req, res) => {
+  app.get("/api/facebook/queue", authMiddleware, requirePermission("messages.read"), requireRole("salesperson"), requireDealership, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
       const userId = authReq.user!.id;
@@ -7707,7 +7707,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Add vehicle to posting queue
-  app.post("/api/facebook/queue", authMiddleware, requireRole("salesperson"), async (req, res) => {
+  app.post("/api/facebook/queue", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
       const userId = authReq.user!.id;
@@ -7749,7 +7749,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Update queue item
-  app.patch("/api/facebook/queue/:id", authMiddleware, requireRole("salesperson"), async (req, res) => {
+  app.patch("/api/facebook/queue/:id", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
       const id = parseInt(req.params.id);
@@ -7792,7 +7792,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Delete queue item
-  app.delete("/api/facebook/queue/:id", authMiddleware, requireRole("salesperson"), async (req, res) => {
+  app.delete("/api/facebook/queue/:id", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
       const id = parseInt(req.params.id);
@@ -7813,7 +7813,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get posting schedule for current user
-  app.get("/api/facebook/schedule", authMiddleware, requireRole("salesperson"), async (req, res) => {
+  app.get("/api/facebook/schedule", authMiddleware, requirePermission("messages.read"), requireRole("salesperson"), requireDealership, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
       const userId = authReq.user!.id;
@@ -7827,7 +7827,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Create or update posting schedule
-  app.post("/api/facebook/schedule", authMiddleware, requireRole("salesperson"), async (req, res) => {
+  app.post("/api/facebook/schedule", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
       const userId = authReq.user!.id;
@@ -7861,7 +7861,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Check if Facebook is configured
-  app.get("/api/facebook/config/status", authMiddleware, requireRole("salesperson"), (req, res) => {
+  app.get("/api/facebook/config/status", authMiddleware, requirePermission("messages.read"), requireRole("salesperson"), requireDealership, (req, res) => {
     res.json({ configured: facebookService.isConfigured() });
   });
 
@@ -7869,7 +7869,7 @@ Format your response in clear sections with actionable recommendations.`;
   // This flow: Click "Add Account" → OAuth popup → Select pages → Account created
   
   // Start OAuth session (no pre-created account needed)
-  app.post("/api/facebook/oauth/start", authMiddleware, requireRole("salesperson"), async (req, res) => {
+  app.post("/api/facebook/oauth/start", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
       const userId = authReq.user!.id;
@@ -7906,7 +7906,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Get OAuth session status (poll this after OAuth popup closes)
-  app.get("/api/facebook/oauth/session/:sessionId", authMiddleware, requireRole("salesperson"), async (req, res) => {
+  app.get("/api/facebook/oauth/session/:sessionId", authMiddleware, requirePermission("messages.read"), requireRole("salesperson"), requireDealership, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
       const sessionId = req.params.sessionId;
@@ -7947,7 +7947,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Connect selected pages (creates accounts)
-  app.post("/api/facebook/accounts/connect", authMiddleware, requireRole("salesperson"), async (req, res) => {
+  app.post("/api/facebook/accounts/connect", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
       const userId = authReq.user!.id;
@@ -8045,7 +8045,7 @@ Format your response in clear sections with actionable recommendations.`;
   // ===== LEGACY OAUTH FLOW (for existing accounts that need reconnection) =====
   
   // Initiate Facebook OAuth flow
-  app.get("/api/facebook/oauth/init/:accountId", authMiddleware, requireRole("salesperson"), async (req, res) => {
+  app.get("/api/facebook/oauth/init/:accountId", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
       const accountId = parseInt(req.params.accountId);
@@ -8228,7 +8228,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get available Facebook pages from a connected account
-  app.get("/api/facebook/accounts/:accountId/pages", authMiddleware, requireRole("salesperson"), async (req, res) => {
+  app.get("/api/facebook/accounts/:accountId/pages", authMiddleware, requirePermission("messages.read"), requireRole("salesperson"), requireDealership, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
       const accountId = parseInt(req.params.accountId);
@@ -8258,7 +8258,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Connect a Facebook page (store its access token)
-  app.post("/api/facebook/accounts/:accountId/pages/:pageId/connect", authMiddleware, requireRole("salesperson"), async (req, res) => {
+  app.post("/api/facebook/accounts/:accountId/pages/:pageId/connect", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
       const accountId = parseInt(req.params.accountId);
@@ -8313,7 +8313,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Disconnect a Facebook page
-  app.post("/api/facebook/pages/:pageId/disconnect", authMiddleware, requireRole("salesperson"), async (req, res) => {
+  app.post("/api/facebook/pages/:pageId/disconnect", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
     try {
       const pageId = parseInt(req.params.pageId);
       const dealershipId = req.dealershipId!;
@@ -8328,7 +8328,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get connected Facebook pages for the dealership
-  app.get("/api/facebook/connected-pages", authMiddleware, async (req, res) => {
+  app.get("/api/facebook/connected-pages", authMiddleware, requirePermission("messages.read"), requireRole("salesperson"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const pages = await storage.getFacebookPages(dealershipId);
@@ -8347,7 +8347,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Test post to a Facebook page
-  app.post("/api/facebook/pages/:pageId/test-post", authMiddleware, requireRole("master"), async (req, res) => {
+  app.post("/api/facebook/pages/:pageId/test-post", authMiddleware, requirePermission("messages.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const pageId = parseInt(req.params.pageId);
       const dealershipId = req.dealershipId!;
@@ -8374,7 +8374,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Post a vehicle to a Facebook page
-  app.post("/api/facebook/pages/:pageId/post-vehicle/:vehicleId", authMiddleware, requireRole("salesperson"), async (req, res) => {
+  app.post("/api/facebook/pages/:pageId/post-vehicle/:vehicleId", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
     try {
       const pageId = parseInt(req.params.pageId);
       const vehicleId = parseInt(req.params.vehicleId);
@@ -8416,7 +8416,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Manually post a vehicle to Facebook Marketplace
-  app.post("/api/facebook/post/:queueId", authMiddleware, requireRole("salesperson"), async (req, res) => {
+  app.post("/api/facebook/post/:queueId", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
       const queueId = parseInt(req.params.queueId);
