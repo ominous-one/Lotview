@@ -246,6 +246,17 @@ describe("Facebook Pages route tenant and RBAC contracts", () => {
     expect(storageMock.getFacebookAccountsByUser).toHaveBeenCalledWith(10, 1);
   });
 
+  it("blocks users without message write permission from creating Facebook posting accounts", async () => {
+    await request(appWithDealerOne)
+      .post("/api/facebook/accounts")
+      .set("x-test-role", "read_only")
+      .send({ accountName: "Dealer Marketplace" })
+      .expect(403)
+      .expect({ error: "Insufficient permissions" });
+
+    expect(storageMock.createFacebookAccount).not.toHaveBeenCalled();
+  });
+
   it("requires dealership context before listing ad templates", async () => {
     await request(appWithoutTenant)
       .get("/api/facebook/templates")
@@ -298,6 +309,17 @@ describe("Facebook Pages route tenant and RBAC contracts", () => {
       dealershipId: 1,
       userId: 10,
     });
+  });
+
+  it("blocks users without message write permission from queuing Facebook posts", async () => {
+    await request(appWithDealerOne)
+      .post("/api/facebook/queue")
+      .set("x-test-role", "read_only")
+      .send({ vehicleId: 42 })
+      .expect(403)
+      .expect({ error: "Insufficient permissions" });
+
+    expect(storageMock.createPostingQueueItem).not.toHaveBeenCalled();
   });
 
   it("requires dealership context before manual marketplace post", async () => {

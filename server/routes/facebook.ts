@@ -57,7 +57,7 @@ router.patch("/pages/:id", authMiddleware, requirePermission("integrations.write
 
 /* ─── Facebook Accounts ─── */
 
-router.get("/accounts", authMiddleware, requireRole("salesperson"), requireDealership, async (req, res) => {
+router.get("/accounts", authMiddleware, requirePermission("messages.read"), requireRole("salesperson"), requireDealership, async (req, res) => {
   try {
     const accounts = await storage.getFacebookAccountsByUser(req.user!.id, req.dealershipId!);
     res.json(accounts);
@@ -67,7 +67,7 @@ router.get("/accounts", authMiddleware, requireRole("salesperson"), requireDeale
   }
 });
 
-router.post("/accounts", authMiddleware, requireRole("salesperson"), requireDealership, async (req, res) => {
+router.post("/accounts", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
   try {
     const account = await storage.createFacebookAccount({ ...req.body, userId: req.user!.id, dealershipId: req.dealershipId! });
     res.status(201).json(account);
@@ -77,7 +77,7 @@ router.post("/accounts", authMiddleware, requireRole("salesperson"), requireDeal
   }
 });
 
-router.patch("/accounts/:id", authMiddleware, requireRole("salesperson"), requireDealership, async (req, res) => {
+router.patch("/accounts/:id", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
   try {
     const account = await storage.updateFacebookAccount(parseInt(req.params.id), req.user!.id, req.dealershipId!, req.body);
     res.json(account);
@@ -87,7 +87,7 @@ router.patch("/accounts/:id", authMiddleware, requireRole("salesperson"), requir
   }
 });
 
-router.delete("/accounts/:id", authMiddleware, requireRole("salesperson"), requireDealership, async (req, res) => {
+router.delete("/accounts/:id", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
   try {
     await storage.deleteFacebookAccount(parseInt(req.params.id), req.user!.id, req.dealershipId!);
     res.json({ success: true });
@@ -99,7 +99,7 @@ router.delete("/accounts/:id", authMiddleware, requireRole("salesperson"), requi
 
 /* ─── Templates ─── */
 
-router.get("/templates", authMiddleware, requireRole("salesperson"), requireDealership, async (req, res) => {
+router.get("/templates", authMiddleware, requirePermission("messages.read"), requireRole("salesperson"), requireDealership, async (req, res) => {
   try {
     const templates = await storage.getAdTemplatesByUser(req.user!.id, req.dealershipId!);
     res.json(templates);
@@ -109,7 +109,7 @@ router.get("/templates", authMiddleware, requireRole("salesperson"), requireDeal
   }
 });
 
-router.post("/templates", authMiddleware, requireRole("salesperson"), requireDealership, async (req, res) => {
+router.post("/templates", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
   try {
     const template = await storage.createAdTemplate({ ...req.body, userId: req.user!.id, dealershipId: req.dealershipId! });
     res.status(201).json(template);
@@ -121,7 +121,7 @@ router.post("/templates", authMiddleware, requireRole("salesperson"), requireDea
 
 /* ─── Posting Queue ─── */
 
-router.get("/queue", authMiddleware, requireRole("salesperson"), requireDealership, async (req, res) => {
+router.get("/queue", authMiddleware, requirePermission("messages.read"), requireRole("salesperson"), requireDealership, async (req, res) => {
   try {
     const items = await storage.getPostingQueueByUser(req.user!.id, req.dealershipId!);
     res.json(items);
@@ -131,7 +131,7 @@ router.get("/queue", authMiddleware, requireRole("salesperson"), requireDealersh
   }
 });
 
-router.post("/queue", authMiddleware, requireRole("salesperson"), requireDealership, async (req, res) => {
+router.post("/queue", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
   try {
     const item = await storage.createPostingQueueItem({ ...req.body, userId: req.user!.id, dealershipId: req.dealershipId! });
     res.status(201).json(item);
@@ -143,7 +143,7 @@ router.post("/queue", authMiddleware, requireRole("salesperson"), requireDealers
 
 /* ─── Manual Post to Marketplace (with ban detection + AI optimizer) ─── */
 
-router.post("/post/:queueId", authMiddleware, requireRole("salesperson"), requireDealership, async (req, res) => {
+router.post("/post/:queueId", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
   try {
     const queueId = parseInt(req.params.queueId);
     const userId = req.user!.id;
@@ -224,7 +224,7 @@ router.post("/post/:queueId", authMiddleware, requireRole("salesperson"), requir
 
 /* ─── Config Status ─── */
 
-router.get("/config/status", authMiddleware, requireRole("salesperson"), requireDealership, (req, res) => {
+router.get("/config/status", authMiddleware, requirePermission("messages.read"), requireRole("salesperson"), requireDealership, (req, res) => {
   res.json({ configured: true, dealershipId: req.dealershipId });
 });
 
