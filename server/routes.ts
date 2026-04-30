@@ -8019,7 +8019,7 @@ Format your response in clear sections with actionable recommendations.`;
         }
         
         // Check if this page is already connected
-        const existingPage = await storage.getFacebookPageByPageId(pageId);
+        const existingPage = await storage.getFacebookPageByPageId(pageId, dealershipId);
         if (existingPage) {
           // Page already exists, skip or update
           continue;
@@ -8306,13 +8306,13 @@ Format your response in clear sections with actionable recommendations.`;
         return res.status(404).json({ error: "Page not found or you don't have access" });
       }
       
-      const existingPage = await storage.getFacebookPageByPageId(pageId);
+      const existingPage = await storage.getFacebookPageByPageId(pageId, dealershipId);
       if (existingPage) {
         await storage.updateFacebookPage(existingPage.id, {
           accessToken: page.access_token,
           isActive: true,
           pageName: page.name
-        });
+        }, dealershipId);
         return res.json({ 
           success: true, 
           message: "Page reconnected successfully",
@@ -8346,7 +8346,10 @@ Format your response in clear sections with actionable recommendations.`;
       const pageId = parseInt(req.params.pageId);
       const dealershipId = req.dealershipId!;
       
-      await storage.updateFacebookPage(pageId, { isActive: false, accessToken: null });
+      const page = await storage.updateFacebookPage(pageId, { isActive: false, accessToken: null }, dealershipId);
+      if (!page) {
+        return res.status(404).json({ error: "Page not found" });
+      }
       
       res.json({ success: true, message: "Page disconnected" });
     } catch (error) {

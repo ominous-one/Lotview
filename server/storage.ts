@@ -430,9 +430,9 @@ export interface IStorage {
   
   // Facebook pages
   getFacebookPages(dealershipId?: number): Promise<FacebookPage[]>;
-  getFacebookPageByPageId(pageId: string): Promise<FacebookPage | undefined>;
+  getFacebookPageByPageId(pageId: string, dealershipId: number): Promise<FacebookPage | undefined>;
   createFacebookPage(page: InsertFacebookPage): Promise<FacebookPage>;
-  updateFacebookPage(id: number, page: Partial<InsertFacebookPage>, dealershipId?: number): Promise<FacebookPage | undefined>;
+  updateFacebookPage(id: number, page: Partial<InsertFacebookPage>, dealershipId: number): Promise<FacebookPage | undefined>;
   
   // Facebook Catalog Config (for Automotive Inventory Ads)
   getFacebookCatalogConfig(dealershipId: number): Promise<FacebookCatalogConfig | undefined>;
@@ -1630,8 +1630,10 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(facebookPages).where(eq(facebookPages.isActive, true));
   }
 
-  async getFacebookPageByPageId(pageId: string): Promise<FacebookPage | undefined> {
-    const result = await db.select().from(facebookPages).where(eq(facebookPages.pageId, pageId));
+  async getFacebookPageByPageId(pageId: string, dealershipId: number): Promise<FacebookPage | undefined> {
+    const result = await db.select().from(facebookPages).where(
+      and(eq(facebookPages.pageId, pageId), eq(facebookPages.dealershipId, dealershipId))
+    );
     return result[0];
   }
 
@@ -1640,11 +1642,10 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
-  async updateFacebookPage(id: number, page: Partial<InsertFacebookPage>, dealershipId?: number): Promise<FacebookPage | undefined> {
-    const whereClause = dealershipId
-      ? and(eq(facebookPages.id, id), eq(facebookPages.dealershipId, dealershipId))
-      : eq(facebookPages.id, id);
-    const result = await db.update(facebookPages).set(page).where(whereClause).returning();
+  async updateFacebookPage(id: number, page: Partial<InsertFacebookPage>, dealershipId: number): Promise<FacebookPage | undefined> {
+    const result = await db.update(facebookPages).set(page).where(
+      and(eq(facebookPages.id, id), eq(facebookPages.dealershipId, dealershipId))
+    ).returning();
     return result[0];
   }
 
