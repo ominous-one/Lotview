@@ -72,6 +72,7 @@ import { scrapeCarfaxReportCloud } from "./services/carfax-browserless";
 import { initializeFlagsFromEnv, isEnabled } from "./services/feature-flags";
 import { hasVehicleVINWriteError, normalizeVehicleWriteVIN, vehicleVINWriteErrorResponse } from "./services/vehicle-vin-write-guard";
 import { vehicleCreateRequestSchema, vehicleUpdateRequestSchema, withResolvedVehicleDealership } from "./services/vehicle-write-schema";
+import { storeExternalVehicleImport } from "./services/external-vehicle-import-safety";
 
 import { authMiddleware, requireRole, requirePermission, requireCapability, generateToken, generateImpersonationToken, comparePassword, hashPassword, verifyToken, extensionHmacMiddleware, generatePostingToken, validatePostingToken, type AuthRequest } from "./auth";
 import { requireDealership, superAdminOnly } from "./tenant-middleware";
@@ -3755,7 +3756,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Token does not have import:vehicles permission" });
       }
       
-      const { vehicles: vehicleData, options } = req.body;
+      const { vehicles: vehicleData } = req.body;
       
       if (!Array.isArray(vehicleData) || vehicleData.length === 0) {
         return res.status(400).json({ error: "vehicles array is required and must not be empty" });
@@ -3766,8 +3767,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const results: { success: any[]; errors: any[] } = { success: [], errors: [] };
-      const updateExisting = options?.updateExisting ?? true;
-      
       for (let i = 0; i < vehicleData.length; i++) {
         const v = vehicleData[i];
         try {
@@ -3794,13 +3793,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
           const normalizedVin = vinGuard.data.vin;
           
-          // Check if vehicle exists by VIN
-          let existingVehicle = null;
-          if (normalizedVin && updateExisting) {
-            const { vehicles: allVehicles } = await storage.getVehicles(dealershipId);
-            existingVehicle = allVehicles.find((ev: any) => ev.vin?.toUpperCase() === normalizedVin);
-          }
-          
           const vehiclePayload = {
             dealershipId,
             year: parseInt(v.year),
@@ -3823,64 +3815,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
             carfaxUrl: v.carfaxUrl || null,
             dealerVdpUrl: v.dealerVdpUrl || null,
           };
-          
-          if (existingVehicle) {
-            // DEDUP: Use vehicle-dedup service for intelligent merge
-            try {
-              const { isEnabled } = await import('./services/feature-flags');
-              if (normalizedVin && await isEnabled('vehicle_deduplication', dealershipId)) {
-                const dedupResult = await deduplicateAndStore(dealershipId, {
-                  vin: normalizedVin,
-                  sourceId: `import_${Date.now()}_${i}`,
-                  sourceType: 'external_import',
-                  scrapedAt: new Date(),
-                  data: vehiclePayload,
-                });
-                results.success.push({
-                  id: dedupResult.vehicleId,
-                  vin: normalizedVin,
-                  action: dedupResult.action, // 'created', 'merged', or 'duplicate_skipped'
-                  confidence: dedupResult.confidence,
-                });
-              } else {
-                // Fallback: Simple update without dedup service
-                const updated = await storage.updateVehicle(existingVehicle.id, vehiclePayload, dealershipId);
-                results.success.push({ id: updated?.id, vin: normalizedVin, action: 'updated' });
-              }
-            } catch (dedupErr) {
-              // Fallback to simple update on dedup failure
-              logWarn('Vehicle dedup failed (non-blocking), falling back to simple update:', dedupErr instanceof Error ? dedupErr : new Error(String(dedupErr)));
-              const updated = await storage.updateVehicle(existingVehicle.id, vehiclePayload, dealershipId);
-              results.success.push({ id: updated?.id, vin: normalizedVin, action: 'updated' });
-            }
+
+          const importResult = await storeExternalVehicleImport({
+            dealershipId,
+            index: i,
+            normalizedVin,
+            vehiclePayload,
+            isDedupEnabled: (id) => isEnabled("vehicle_deduplication", id),
+            deduplicate: deduplicateAndStore,
+          });
+
+          if ("errorCode" in importResult) {
+            results.errors.push({
+              index: i,
+              vin: importResult.vin,
+              error: importResult.error,
+              errorCode: importResult.errorCode,
+            });
           } else {
-            // DEDUP: Check for VIN duplicates before creating
-            try {
-              const { isEnabled } = await import('./services/feature-flags');
-              if (normalizedVin && await isEnabled('vehicle_deduplication', dealershipId)) {
-                const dedupResult = await deduplicateAndStore(dealershipId, {
-                  vin: normalizedVin,
-                  sourceId: `import_${Date.now()}_${i}`,
-                  sourceType: 'external_import',
-                  scrapedAt: new Date(),
-                  data: vehiclePayload,
-                });
-                results.success.push({
-                  id: dedupResult.vehicleId,
-                  vin: normalizedVin,
-                  action: dedupResult.action,
-                  confidence: dedupResult.confidence,
-                });
-              } else {
-                // Fallback: Simple create without dedup service
-                const created = await storage.createVehicle(vehiclePayload);
-                results.success.push({ id: created.id, vin: normalizedVin, action: 'created' });
-              }
-            } catch (dedupErr) {
-              logWarn('Vehicle dedup failed (non-blocking), falling back to simple create:', dedupErr instanceof Error ? dedupErr : new Error(String(dedupErr)));
-              const created = await storage.createVehicle(vehiclePayload);
-              results.success.push({ id: created.id, vin: normalizedVin, action: 'created' });
-            }
+            results.success.push({
+              id: importResult.id,
+              vin: importResult.vin,
+              action: importResult.action,
+              confidence: importResult.confidence,
+            });
           }
         } catch (err: any) {
           results.errors.push({ index: i, vin: v.vin, error: err.message });
