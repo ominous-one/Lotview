@@ -1,0 +1,32 @@
+import { readFileSync } from "fs";
+import { resolve } from "path";
+
+describe("legacy vehicle route RBAC contract", () => {
+  const routesSource = readFileSync(resolve(process.cwd(), "server/routes.ts"), "utf8");
+  const legacyVehicleBlock = routesSource.match(
+    /\/\/ Create vehicle \(master only\)[\s\S]*?\/\/ Force re-scrape a specific vehicle/
+  )?.[0];
+
+  it("requires explicit inventory write permission for legacy vehicle mutations", () => {
+    expect(legacyVehicleBlock).toBeDefined();
+
+    for (const route of [
+      'app.post("/api/vehicles", authMiddleware, requirePermission("inventory.write"), requireRole("master"), requireDealership',
+      'app.patch("/api/vehicles/:id", authMiddleware, requirePermission("inventory.write"), requireRole("master"), requireDealership',
+      'app.post("/api/vehicles/:id/soft-delete", authMiddleware, requirePermission("inventory.write"), requireRole("manager", "admin", "master", "super_admin"), requireDealership',
+      'app.patch("/api/vehicles/:id/vdp-content", authMiddleware, requirePermission("inventory.write"), requireRole("manager", "admin", "master", "super_admin"), requireDealership',
+      'app.delete("/api/vehicles/:id", authMiddleware, requirePermission("inventory.write"), requireRole("master"), requireDealership',
+    ]) {
+      expect(legacyVehicleBlock).toContain(route);
+    }
+  });
+
+  it("uses the resolved dealership context for legacy vehicle mutation storage access", () => {
+    expect(legacyVehicleBlock).toBeDefined();
+    expect(legacyVehicleBlock).toContain("const dealershipId = req.dealershipId!");
+    expect(legacyVehicleBlock).toContain("storage.createVehicle({ ...parsed.data, dealershipId })");
+    expect(legacyVehicleBlock).toContain("storage.updateVehicle(id, updateData, dealershipId)");
+    expect(legacyVehicleBlock).toContain("storage.deleteVehicle(id, dealershipId)");
+    expect(legacyVehicleBlock).toContain("eq(vehicles.dealershipId, dealershipId)");
+  });
+});
