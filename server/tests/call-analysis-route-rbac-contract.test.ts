@@ -3,6 +3,7 @@ import { resolve } from "path";
 
 describe("call analysis route RBAC and tenant contracts", () => {
   const routesSource = readFileSync(resolve(process.cwd(), "server/routes.ts"), "utf8");
+  const storageSource = readFileSync(resolve(process.cwd(), "server/storage.ts"), "utf8");
   const callAnalysisBlock = routesSource.match(
     /\/\/ Get call recordings \(manager\/admin only\)[\s\S]*?\/\/ ===== CALL SCORING TEMPLATES =====/
   )?.[0];
@@ -51,7 +52,13 @@ describe("call analysis route RBAC and tenant contracts", () => {
     expect(callAnalysisBlock).toContain("storage.updateCallRecording(id, dealershipId");
     expect(callAnalysisBlock).toContain("storage.getCallAnalysisCriteria(dealershipId)");
     expect(callAnalysisBlock).toContain("storage.createCallAnalysisCriteria({");
-    expect(callAnalysisBlock).toContain("storage.updateCallAnalysisCriteria(id, dealershipId, req.body)");
+    expect(callAnalysisBlock).not.toContain("storage.updateCallAnalysisCriteria(id, dealershipId, req.body)");
+    expect(callAnalysisBlock).toContain("storage.updateCallAnalysisCriteria(id, dealershipId, updates)");
     expect(callAnalysisBlock).toContain("storage.deleteCallAnalysisCriteria(id, dealershipId)");
+  });
+
+  it("strips immutable tenant ownership fields before call analysis criteria updates", () => {
+    expect(callAnalysisBlock).toContain("const updates = stripTenantOwnershipFields(req.body ?? {})");
+    expect(storageSource).toContain(".set({ ...stripTenantOwnershipFields(criteria), updatedAt: new Date() })");
   });
 });
