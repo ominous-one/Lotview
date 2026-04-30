@@ -2287,7 +2287,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ===== SUPER ADMIN FILTER GROUPS ROUTES =====
 
   // Get all filter groups across all dealerships (super admin only)
-  app.get("/api/super-admin/filter-groups", authMiddleware, superAdminOnly, async (req, res) => {
+  app.get("/api/super-admin/filter-groups", authMiddleware, requirePermission("inventory.read"), superAdminOnly, async (req, res) => {
     try {
       const groups = await storage.getAllFilterGroups();
       res.json(groups);
@@ -2298,7 +2298,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get filter groups for a specific dealership
-  app.get("/api/super-admin/filter-groups/dealership/:dealershipId", authMiddleware, superAdminOnly, async (req, res) => {
+  app.get("/api/super-admin/filter-groups/dealership/:dealershipId", authMiddleware, requirePermission("inventory.read"), superAdminOnly, async (req, res) => {
     try {
       const dealershipId = parseInt(req.params.dealershipId);
       const groups = await storage.getFilterGroups(dealershipId);
@@ -2310,7 +2310,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create a new filter group (super admin only)
-  app.post("/api/super-admin/filter-groups", authMiddleware, superAdminOnly, async (req, res) => {
+  app.post("/api/super-admin/filter-groups", authMiddleware, requirePermission("inventory.write"), superAdminOnly, async (req, res) => {
     try {
       const { dealershipId, groupName, groupSlug, description, displayOrder, isDefault } = req.body;
       
@@ -2336,7 +2336,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update a filter group (super admin only)
-  app.patch("/api/super-admin/filter-groups/:id", authMiddleware, superAdminOnly, async (req, res) => {
+  app.patch("/api/super-admin/filter-groups/:id", authMiddleware, requirePermission("inventory.write"), superAdminOnly, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const { dealershipId, ...updates } = req.body;
@@ -2358,7 +2358,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete a filter group (super admin only)
-  app.delete("/api/super-admin/filter-groups/:id", authMiddleware, superAdminOnly, async (req, res) => {
+  app.delete("/api/super-admin/filter-groups/:id", authMiddleware, requirePermission("inventory.write"), superAdminOnly, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const dealershipId = parseInt(req.query.dealershipId as string);
