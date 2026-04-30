@@ -15619,7 +15619,7 @@ Return ONLY the enhanced description, nothing else.`;
   // ============ FACEBOOK MARKETPLACE AUTOMATION ============
   
   // Get FB Marketplace settings for a dealership
-  app.get("/api/super-admin/fb-marketplace/settings/:dealershipId", authMiddleware, superAdminOnly, async (req, res) => {
+  app.get("/api/super-admin/fb-marketplace/settings/:dealershipId", authMiddleware, requirePermission("integrations.read"), superAdminOnly, async (req, res) => {
     try {
       const dealershipId = parseInt(req.params.dealershipId);
       const [settings] = await db
@@ -15635,7 +15635,7 @@ Return ONLY the enhanced description, nothing else.`;
   });
 
   // Update FB Marketplace settings
-  app.put("/api/super-admin/fb-marketplace/settings/:dealershipId", authMiddleware, superAdminOnly, async (req, res) => {
+  app.put("/api/super-admin/fb-marketplace/settings/:dealershipId", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
       const dealershipId = parseInt(req.params.dealershipId);
       const settingsData = req.body;
@@ -15669,7 +15669,7 @@ Return ONLY the enhanced description, nothing else.`;
   });
 
   // Get all FB Marketplace accounts for a dealership
-  app.get("/api/super-admin/fb-marketplace/accounts/:dealershipId", authMiddleware, superAdminOnly, async (req, res) => {
+  app.get("/api/super-admin/fb-marketplace/accounts/:dealershipId", authMiddleware, requirePermission("integrations.read"), superAdminOnly, async (req, res) => {
     try {
       const dealershipId = parseInt(req.params.dealershipId);
       const accounts = await db
@@ -15686,7 +15686,7 @@ Return ONLY the enhanced description, nothing else.`;
   });
 
   // Create a new FB Marketplace account
-  app.post("/api/super-admin/fb-marketplace/accounts/:dealershipId", authMiddleware, superAdminOnly, async (req, res) => {
+  app.post("/api/super-admin/fb-marketplace/accounts/:dealershipId", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
       const dealershipId = parseInt(req.params.dealershipId);
       const { accountName, facebookEmail, userId } = req.body;
@@ -15708,7 +15708,7 @@ Return ONLY the enhanced description, nothing else.`;
   });
 
   // Delete FB Marketplace account
-  app.delete("/api/super-admin/fb-marketplace/accounts/:accountId", authMiddleware, superAdminOnly, async (req, res) => {
+  app.delete("/api/super-admin/fb-marketplace/accounts/:accountId", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
       const accountId = parseInt(req.params.accountId);
       
@@ -15723,7 +15723,7 @@ Return ONLY the enhanced description, nothing else.`;
   });
 
   // Initiate auth for an account (returns auth URL)
-  app.post("/api/super-admin/fb-marketplace/accounts/:accountId/auth", authMiddleware, superAdminOnly, async (req, res) => {
+  app.post("/api/super-admin/fb-marketplace/accounts/:accountId/auth", authMiddleware, requirePermission("integrations.write"), superAdminOnly, sensitiveLimiter, async (req, res) => {
     try {
       const accountId = parseInt(req.params.accountId);
       
@@ -15748,7 +15748,7 @@ Return ONLY the enhanced description, nothing else.`;
   });
 
   // Verify session after auth
-  app.post("/api/super-admin/fb-marketplace/accounts/:accountId/verify", authMiddleware, superAdminOnly, async (req, res) => {
+  app.post("/api/super-admin/fb-marketplace/accounts/:accountId/verify", authMiddleware, requirePermission("integrations.write"), superAdminOnly, sensitiveLimiter, async (req, res) => {
     try {
       const accountId = parseInt(req.params.accountId);
       
@@ -15773,7 +15773,7 @@ Return ONLY the enhanced description, nothing else.`;
   });
 
   // Get FB Marketplace stats for a dealership
-  app.get("/api/super-admin/fb-marketplace/stats/:dealershipId", authMiddleware, superAdminOnly, async (req, res) => {
+  app.get("/api/super-admin/fb-marketplace/stats/:dealershipId", authMiddleware, requirePermission("messages.read"), superAdminOnly, async (req, res) => {
     try {
       const dealershipId = parseInt(req.params.dealershipId);
       
@@ -15789,7 +15789,7 @@ Return ONLY the enhanced description, nothing else.`;
   });
 
   // Get all FB Marketplace listings for a dealership
-  app.get("/api/super-admin/fb-marketplace/listings/:dealershipId", authMiddleware, superAdminOnly, async (req, res) => {
+  app.get("/api/super-admin/fb-marketplace/listings/:dealershipId", authMiddleware, requirePermission("messages.read"), superAdminOnly, async (req, res) => {
     try {
       const dealershipId = parseInt(req.params.dealershipId);
       
@@ -15814,7 +15814,7 @@ Return ONLY the enhanced description, nothing else.`;
   });
 
   // Queue a vehicle for posting
-  app.post("/api/super-admin/fb-marketplace/queue/:dealershipId", authMiddleware, superAdminOnly, async (req, res) => {
+  app.post("/api/super-admin/fb-marketplace/queue/:dealershipId", authMiddleware, requirePermission("messages.write"), superAdminOnly, async (req, res) => {
     try {
       const dealershipId = parseInt(req.params.dealershipId);
       const { vehicleIds, priority } = req.body;
@@ -15836,7 +15836,7 @@ Return ONLY the enhanced description, nothing else.`;
   });
 
   // Get posting queue for a dealership
-  app.get("/api/super-admin/fb-marketplace/queue/:dealershipId", authMiddleware, superAdminOnly, async (req, res) => {
+  app.get("/api/super-admin/fb-marketplace/queue/:dealershipId", authMiddleware, requirePermission("messages.read"), superAdminOnly, async (req, res) => {
     try {
       const dealershipId = parseInt(req.params.dealershipId);
       
@@ -15861,7 +15861,7 @@ Return ONLY the enhanced description, nothing else.`;
   });
 
   // Get activity log for a dealership
-  app.get("/api/super-admin/fb-marketplace/activity/:dealershipId", authMiddleware, superAdminOnly, async (req, res) => {
+  app.get("/api/super-admin/fb-marketplace/activity/:dealershipId", authMiddleware, requirePermission("messages.read"), superAdminOnly, async (req, res) => {
     try {
       const dealershipId = parseInt(req.params.dealershipId);
       const limit = parseInt(req.query.limit as string) || 50;
@@ -15881,7 +15881,7 @@ Return ONLY the enhanced description, nothing else.`;
   });
 
   // Manually trigger queue processing
-  app.post("/api/super-admin/fb-marketplace/process-queue/:dealershipId", authMiddleware, superAdminOnly, async (req, res) => {
+  app.post("/api/super-admin/fb-marketplace/process-queue/:dealershipId", authMiddleware, requirePermission("messages.write"), superAdminOnly, sensitiveLimiter, async (req, res) => {
     try {
       const dealershipId = parseInt(req.params.dealershipId);
       
