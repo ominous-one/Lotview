@@ -2762,7 +2762,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Upload vehicle images to Object Storage (super admin only)
   // This allows populating Object Storage for existing vehicles without running a full scrape
-  app.post("/api/super-admin/upload-vehicle-images", authMiddleware, superAdminOnly, async (req, res) => {
+  app.post("/api/super-admin/upload-vehicle-images", authMiddleware, requirePermission("inventory.write"), superAdminOnly, async (req, res) => {
     try {
       const { dealershipId, vehicleId, all = false } = req.body;
       const { ObjectStorageService } = await import("./objectStorage");
@@ -2810,7 +2810,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (localUrls.length > 0) {
               await db.update(vehicles)
                 .set({ localImages: localUrls })
-                .where(eq(vehicles.id, vehicle.id));
+                .where(and(eq(vehicles.id, vehicle.id), eq(vehicles.dealershipId, vehicle.dealershipId)));
               console.log(`[ImageUpload] Vehicle ${vehicle.id}: Uploaded ${localUrls.length} images`);
               successCount++;
             }
