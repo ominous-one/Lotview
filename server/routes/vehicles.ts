@@ -283,7 +283,7 @@ router.delete("/:id", authMiddleware, requirePermission("inventory.write"), requ
 });
 
 // POST /api/vehicles/:id/generate-video — AI video generation
-router.post("/:id/generate-video", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
+router.post("/:id/generate-video", authMiddleware, requirePermission("ai.use"), requireRole("master"), requireDealership, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const dealershipId = req.dealershipId!;
@@ -297,7 +297,7 @@ router.post("/:id/generate-video", authMiddleware, requireRole("master"), requir
 });
 
 // POST /api/vehicles/:id/generate-description — AI description
-router.post("/:id/generate-description", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
+router.post("/:id/generate-description", authMiddleware, requirePermission("ai.use"), requirePermission("inventory.write"), requireRole("master"), requireDealership, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
     const dealershipId = req.dealershipId!;
@@ -313,7 +313,7 @@ router.post("/:id/generate-description", authMiddleware, requireRole("master"), 
 });
 
 // POST /api/vehicles/generate-descriptions — Batch AI descriptions
-router.post("/generate-descriptions", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
+router.post("/generate-descriptions", authMiddleware, requirePermission("ai.use"), requirePermission("inventory.write"), requireRole("master"), requireDealership, async (req, res) => {
   try {
     const dealershipId = req.dealershipId!;
     const { vehicleIds } = req.body;
@@ -337,7 +337,7 @@ router.post("/generate-descriptions", authMiddleware, requireRole("master"), req
 });
 
 // POST /api/vehicles/:id/force-rescrape — Trigger rescrape
-router.post("/:id/force-rescrape", authMiddleware, requireRole("manager"), requireDealership, async (req: any, res) => {
+router.post("/:id/force-rescrape", authMiddleware, requirePermission("integrations.write"), requireRole("manager"), requireDealership, async (req: any, res) => {
   try {
     const id = parseInt(req.params.id);
     const dealershipId = req.dealershipId!;
@@ -351,7 +351,7 @@ router.post("/:id/force-rescrape", authMiddleware, requireRole("manager"), requi
 });
 
 // POST /api/vehicles/batch-carfax-update — Batch Carfax with cloud fallback
-router.post("/batch-carfax-update", authMiddleware, requireRole("manager"), requireDealership, async (req: any, res) => {
+router.post("/batch-carfax-update", authMiddleware, requirePermission("integrations.write"), requirePermission("inventory.write"), requireRole("manager"), requireDealership, async (req: any, res) => {
   try {
     const dealershipId = req.dealershipId;
     const { batchUpdateCarfaxData } = await import("../robust-scraper");
@@ -408,7 +408,7 @@ router.patch("/:id/vdp-content", authMiddleware, requirePermission("inventory.wr
 });
 
 // POST /api/vehicles/:id/carfax — Refresh Carfax report
-router.post("/:id/carfax", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: any, res) => {
+router.post("/:id/carfax", authMiddleware, requirePermission("integrations.write"), requirePermission("inventory.write"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: any, res) => {
   try {
     const id = parseInt(req.params.id);
     const dealershipId = req.dealershipId!;
@@ -444,7 +444,7 @@ router.post("/:id/carfax", authMiddleware, requireRole("manager", "admin", "mast
 });
 
 // POST /api/vehicles/:id/ai-description — Generate AI description
-router.post("/:id/ai-description", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: any, res) => {
+router.post("/:id/ai-description", authMiddleware, requirePermission("ai.use"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: any, res) => {
   try {
     const id = parseInt(req.params.id);
     const dealershipId = req.dealershipId!;
@@ -481,7 +481,7 @@ router.post("/:id/ai-description", authMiddleware, requireRole("manager", "admin
 });
 
 // POST /api/vehicles/:id/market-analysis — Get AI pricing intelligence
-router.post("/:id/market-analysis", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: any, res) => {
+router.post("/:id/market-analysis", authMiddleware, requirePermission("inventory.read"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: any, res) => {
   try {
     const id = parseInt(req.params.id);
     const dealershipId = req.dealershipId!;
@@ -529,7 +529,7 @@ router.post("/:id/market-analysis", authMiddleware, requireRole("manager", "admi
 });
 
 // POST /api/vehicles/:id/photo-score — Score vehicle photos
-router.post("/:id/photo-score", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: any, res) => {
+router.post("/:id/photo-score", authMiddleware, requirePermission("inventory.read"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: any, res) => {
   try {
     const id = parseInt(req.params.id);
     const dealershipId = req.dealershipId!;
@@ -614,7 +614,7 @@ router.post("/:id/smart-merge", authMiddleware, requirePermission("inventory.wri
 });
 
 // POST /api/vehicles/:id/ai-carfax-context — Get AI training context
-router.post("/:id/ai-carfax-context", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: any, res) => {
+router.post("/:id/ai-carfax-context", authMiddleware, requirePermission("ai.use"), requirePermission("integrations.read"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: any, res) => {
   try {
     const id = parseInt(req.params.id);
     const dealershipId = req.dealershipId!;
