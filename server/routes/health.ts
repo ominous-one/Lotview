@@ -32,6 +32,10 @@ function getActiveRequestCount(): number {
   return runtimeProcess._getActiveRequests?.().length ?? 0;
 }
 
+function getBuildCommit(): string {
+  return process.env.GIT_COMMIT || process.env.RELEASE_SHA || process.env.RENDER_GIT_COMMIT || "unknown";
+}
+
 /**
  * GET /api/health
  * Lightweight health check for load balancers.
@@ -132,7 +136,7 @@ router.get("/api/version", (_req, res) => {
     platform: process.platform,
     arch: process.arch,
     env: process.env.NODE_ENV,
-    commit: process.env.GIT_COMMIT || process.env.RELEASE_SHA || "unknown",
+    commit: getBuildCommit(),
     buildTime: process.env.BUILD_TIME || "unknown",
   });
 });

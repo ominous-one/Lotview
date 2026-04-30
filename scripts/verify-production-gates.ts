@@ -107,6 +107,21 @@ for (const workflowFile of workflowFiles) {
   }
 }
 
+if (exists(".github/workflows/ci.yml")) {
+  const ciWorkflow = read(".github/workflows/ci.yml");
+  check(
+    "CI staging deploy does not report placeholder success",
+    !ciWorkflow.includes("Staging deploy hook is not configured yet"),
+    "Staging deploy jobs must either verify Render or remain disabled; an echo-only deploy is not proof.",
+  );
+  check("CI has explicit Render staging proof job", ciWorkflow.includes("Render Staging Proof"));
+  check("Render staging proof requires an explicit enable flag", ciWorkflow.includes("RENDER_STAGING_ENABLED"));
+  check("Render staging proof requires a staging base URL", ciWorkflow.includes("RENDER_STAGING_BASE_URL"));
+  check("Render staging proof verifies the live health endpoint", ciWorkflow.includes("/api/health"));
+  check("Render staging proof verifies the live readiness endpoint", ciWorkflow.includes("/api/ready"));
+  check("Render staging proof verifies the deployed commit", ciWorkflow.includes("RENDER_EXPECTED_COMMIT") && ciWorkflow.includes("/api/version"));
+}
+
 const envTemplate = read(".env.template");
 for (const key of [
   "JWT_SECRET",

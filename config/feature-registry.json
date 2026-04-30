@@ -54,6 +54,23 @@
       "notes": "Build-time guardrails exist and now verify GitHub Actions workflows opt into the Node 24 JavaScript actions runtime and avoid deprecated Node 20 action major pins before GitHub's June 2, 2026 enforcement date. Keep expanding gate checks as features are certified."
     },
     {
+      "id": "render.staging_deploy",
+      "name": "Render Staging Deploy Proof",
+      "status": "code_exists",
+      "exposure": "disabled",
+      "owner": "engineering",
+      "paths": [".github/workflows/ci.yml", "server/routes/health.ts", "server/tests/health-routes-contract.test.ts", "docs/DEPLOYMENT_RUNBOOK.md", "render.yaml", "Dockerfile"],
+      "proof": {
+        "ci": false,
+        "tests": true,
+        "staging": false,
+        "observability": false,
+        "realUserFlow": false,
+        "rollback": false
+      },
+      "notes": "CI has a gated Render staging proof path that verifies health, readiness, and deployed commit when explicitly enabled. It remains disabled and not certified until GitHub variables are configured and the job runs green against the live Render staging service."
+    },
+    {
       "id": "auth.login",
       "name": "Authentication and Login",
       "status": "code_exists",
