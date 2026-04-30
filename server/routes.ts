@@ -8546,7 +8546,7 @@ Format your response in clear sections with actionable recommendations.`;
   // ===== SALES MANAGER ROUTES =====
   
   // Decode VIN with auto-save appraisal
-  app.post("/api/manager/decode-vin", authMiddleware, requireRole("manager"), async (req: AuthRequest, res) => {
+  app.post("/api/manager/decode-vin", authMiddleware, requirePermission("inventory.write"), requireRole("manager"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const { vin, autoSave = true } = req.body;
       const dealershipId = requireResolvedDealershipId(req);
@@ -8693,7 +8693,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Market pricing analysis (uses external market listings)
-  app.post("/api/manager/market-pricing", authMiddleware, requireRole("manager"), async (req: AuthRequest, res) => {
+  app.post("/api/manager/market-pricing", authMiddleware, requirePermission("inventory.write"), requireRole("manager"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const { year, years, make, model, trim, trims, yearMin, yearMax, mileage, radiusKm, postalCode, vin, autoSave = true } = req.body;
       
