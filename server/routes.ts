@@ -13314,7 +13314,7 @@ Format your response in clear sections with actionable recommendations.`;
   // ====== SUPER ADMIN IMPERSONATION ======
   
   // Start impersonation session
-  app.post("/api/super-admin/impersonate", authMiddleware, superAdminOnly, async (req: AuthRequest, res) => {
+  app.post("/api/super-admin/impersonate", authMiddleware, requirePermission("admin.impersonate"), superAdminOnly, async (req: AuthRequest, res) => {
     try {
       const { targetUserId, reason } = req.body;
       
@@ -13391,6 +13391,7 @@ Format your response in clear sections with actionable recommendations.`;
     try {
       const decoded = verifyToken((req.headers.authorization || '').replace(/^Bearer\s+/i, '')) as any;
       const requestedSessionId = Number(req.body?.sessionId);
+      const canManageImpersonation = req.user?.role ? hasPermission(req.user.role, "admin.impersonate") : false;
 
       let sessionId: number | undefined;
       let superAdminId: number | undefined;
@@ -13398,7 +13399,7 @@ Format your response in clear sections with actionable recommendations.`;
       if (decoded?.isImpersonating && decoded?.impersonationSessionId && decoded?.impersonatedBy) {
         sessionId = Number(decoded.impersonationSessionId);
         superAdminId = Number(decoded.impersonatedBy);
-      } else if (req.user?.role === 'super_admin' && Number.isFinite(requestedSessionId)) {
+      } else if (req.user?.role === 'super_admin' && canManageImpersonation && Number.isFinite(requestedSessionId)) {
         sessionId = requestedSessionId;
         superAdminId = req.user.id;
       }
@@ -13434,7 +13435,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Get impersonation history
-  app.get("/api/super-admin/impersonation-history", authMiddleware, superAdminOnly, async (req: AuthRequest, res) => {
+  app.get("/api/super-admin/impersonation-history", authMiddleware, requirePermission("admin.audit"), superAdminOnly, async (req: AuthRequest, res) => {
     try {
       const { limit, offset } = req.query;
       const result = await storage.getImpersonationSessions(
@@ -13449,7 +13450,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Get active impersonation session for super admin
-  app.get("/api/super-admin/impersonate/active", authMiddleware, superAdminOnly, async (req: AuthRequest, res) => {
+  app.get("/api/super-admin/impersonate/active", authMiddleware, requirePermission("admin.impersonate"), superAdminOnly, async (req: AuthRequest, res) => {
     try {
       const session = await storage.getActiveImpersonationSession(req.user!.id);
       res.json({ session: session || null });
