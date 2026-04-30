@@ -1,4 +1,4 @@
-import { extractVehiclesFromHtml } from "../services/scraper-olympic-hyundai";
+import { extractVehiclesFromHtml, toDedupVehicleData } from "../services/scraper-olympic-hyundai";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 
@@ -64,6 +64,58 @@ describe("Olympic Hyundai scraper extraction", () => {
       stockNumber: "A123",
     });
     expect(vehicles[0].images).toHaveLength(1);
+  });
+
+  it("maps extracted vehicle facts into the dedup storage contract", () => {
+    const scrapedAt = new Date("2026-04-30T00:00:00.000Z");
+
+    const payload = toDedupVehicleData({
+      vin: "1HGCM82633A004352",
+      year: 2003,
+      make: "Honda",
+      model: "Accord",
+      trim: "EX-L",
+      stockNumber: "A123",
+      price: 24995,
+      odometer: 88000,
+      exteriorColor: "Blue",
+      interiorColor: "Black",
+      bodyStyle: "Sedan",
+      transmission: "Automatic",
+      engine: "2.4L",
+      drivetrain: "FWD",
+      fuelType: "Gasoline",
+      images: ["https://cdn.example.com/front.jpg"],
+      description: "Dealer supplied description",
+      sourceUrl: "https://example.com/vdp",
+      scrapedAt,
+    });
+
+    expect(payload).toMatchObject({
+      vin: "1HGCM82633A004352",
+      year: 2003,
+      make: "Honda",
+      model: "Accord",
+      trim: "EX-L",
+      stockNumber: "A123",
+      price: 24995,
+      mileage: 88000,
+      photos: ["https://cdn.example.com/front.jpg"],
+      color: "Blue",
+      exteriorColor: "Blue",
+      interiorColor: "Black",
+      bodyStyle: "Sedan",
+      transmission: "Automatic",
+      engine: "2.4L",
+      drivetrain: "FWD",
+      fuelType: "Gasoline",
+      dealership: "Olympic Hyundai Vancouver",
+      location: "Vancouver",
+      description: "Dealer supplied description",
+      sourceUrl: "https://example.com/vdp",
+      sourceType: "olympichyundai",
+      scrapedAt,
+    });
   });
 
   it("does not fabricate JSON-LD year, make, or model fallback values", () => {

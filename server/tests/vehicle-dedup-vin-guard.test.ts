@@ -62,6 +62,8 @@ describe("vehicle dedup VIN storage guard", () => {
       year: 2003,
       make: "Honda",
       model: "Accord",
+      mileage: 88000,
+      photos: ["front.jpg"],
     });
 
     expect(result).toMatchObject({
@@ -69,6 +71,7 @@ describe("vehicle dedup VIN storage guard", () => {
       merged: 0,
       skipped: 0,
       errors: 0,
+      action: "created",
       details: [{ vin: VALID_VIN, action: "insert" }],
     });
     expect(storageMock.createVehicle).toHaveBeenCalledWith(
@@ -79,6 +82,89 @@ describe("vehicle dedup VIN storage guard", () => {
         year: 2003,
         make: "Honda",
         model: "Accord",
+        odometer: 88000,
+        images: ["front.jpg"],
+      })
+    );
+  });
+
+  it("does not create active inventory records when required scraped facts are missing", async () => {
+    const result = await vehicleDedup.deduplicateAndStore(7, {
+      vin: VALID_VIN,
+      price: 24995,
+    });
+
+    expect(result).toMatchObject({
+      inserted: 0,
+      merged: 0,
+      skipped: 1,
+      errors: 0,
+      details: [
+        {
+          vin: VALID_VIN,
+          action: "skip",
+          reason: "MISSING_REQUIRED_SOURCE_FACTS:year,make,model",
+        },
+      ],
+    });
+    expect(storageMock.createVehicle).not.toHaveBeenCalled();
+  });
+
+  it("maps nested route payload facts onto the vehicle storage schema", async () => {
+    storageMock.createVehicle.mockResolvedValue({ id: 99 });
+
+    const result = await vehicleDedup.deduplicateAndStore(7, {
+      vin: VALID_VIN,
+      sourceType: "manual_create",
+      data: {
+        price: "24995",
+        year: "2003",
+        make: "Honda",
+        model: "Accord",
+        trim: "EX-L",
+        type: "Sedan",
+        odometer: "88000",
+        images: ["front.jpg", "rear.jpg"],
+        badges: ["One Owner"],
+        location: "Vancouver",
+        dealership: "Olympic Hyundai Vancouver",
+        description: "Dealer supplied description",
+        stockNumber: "A123",
+        exteriorColor: "Blue",
+        interiorColor: "Black",
+        transmission: "Automatic",
+        fuelType: "Gasoline",
+        dealerVdpUrl: "https://example.com/vdp",
+      },
+    });
+
+    expect(result).toMatchObject({
+      inserted: 1,
+      action: "created",
+      vehicleId: 99,
+    });
+    expect(storageMock.createVehicle).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dealershipId: 7,
+        vin: VALID_VIN,
+        price: 24995,
+        year: 2003,
+        make: "Honda",
+        model: "Accord",
+        trim: "EX-L",
+        type: "Sedan",
+        odometer: 88000,
+        images: ["front.jpg", "rear.jpg"],
+        badges: ["One Owner"],
+        location: "Vancouver",
+        dealership: "Olympic Hyundai Vancouver",
+        description: "Dealer supplied description",
+        stockNumber: "A123",
+        exteriorColor: "Blue",
+        interiorColor: "Black",
+        transmission: "Automatic",
+        fuelType: "Gasoline",
+        dealerVdpUrl: "https://example.com/vdp",
       })
     );
   });
@@ -150,8 +236,8 @@ describe("vehicle dedup VIN storage guard", () => {
       42,
       expect.objectContaining({
         price: 24995,
-        mileage: 88000,
-        photos: ["existing.jpg", "new.jpg"],
+        odometer: 88000,
+        images: ["existing.jpg", "new.jpg"],
       }),
       7
     );
@@ -185,7 +271,7 @@ describe("vehicle dedup VIN storage guard", () => {
     expect(storageMock.updateVehicle).toHaveBeenCalledWith(
       42,
       expect.objectContaining({
-        photos: [
+        images: [
           "manual:https://cdn.example.com/front.jpg",
           "https://cdn.example.com/side.jpg",
           "https://cdn.example.com/rear.jpg",
@@ -201,16 +287,16 @@ describe("vehicle dedup VIN storage guard", () => {
         id: 42,
         vin: VALID_VIN,
         price: 21000,
-        mileage: 90000,
-        photos: ["keeper.jpg"],
+        odometer: 90000,
+        images: ["keeper.jpg"],
         createdAt: new Date("2026-01-01T00:00:00.000Z"),
       },
       {
         id: 43,
         vin: VALID_VIN,
         price: 24995,
-        mileage: 88000,
-        photos: ["keeper.jpg", "new.jpg"],
+        odometer: 88000,
+        images: ["keeper.jpg", "new.jpg"],
         createdAt: new Date("2026-02-01T00:00:00.000Z"),
       },
     ]);
@@ -226,11 +312,59 @@ describe("vehicle dedup VIN storage guard", () => {
       42,
       expect.objectContaining({
         price: 24995,
-        mileage: 88000,
-        photos: ["keeper.jpg", "new.jpg"],
+        odometer: 88000,
+        images: ["keeper.jpg", "new.jpg"],
       }),
       7
     );
     expect(storageMock.deleteVehicle).toHaveBeenCalledWith(43, 7);
+  });
+
+  it("merges only the selected duplicate vehicle ids", async () => {
+    storageMock.getVehiclesByDealership.mockResolvedValue([
+      {
+        id: 42,
+        vin: VALID_VIN,
+        price: 21000,
+        odometer: 90000,
+        images: ["keeper.jpg"],
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      },
+      {
+        id: 43,
+        vin: VALID_VIN,
+        price: 24995,
+        odometer: 88000,
+        images: ["selected.jpg"],
+        createdAt: new Date("2026-02-01T00:00:00.000Z"),
+      },
+      {
+        id: 44,
+        vin: VALID_VIN,
+        price: 31995,
+        odometer: 70000,
+        images: ["not-selected.jpg"],
+        createdAt: new Date("2026-03-01T00:00:00.000Z"),
+      },
+    ]);
+
+    const result = await vehicleDedup.mergeDuplicates(7, VALID_VIN, [42, 43]);
+
+    expect(result).toMatchObject({
+      success: true,
+      keptId: 42,
+      removedIds: [43],
+    });
+    expect(storageMock.updateVehicle).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        price: 24995,
+        odometer: 88000,
+        images: ["keeper.jpg", "selected.jpg"],
+      }),
+      7
+    );
+    expect(storageMock.deleteVehicle).toHaveBeenCalledWith(43, 7);
+    expect(storageMock.deleteVehicle).not.toHaveBeenCalledWith(44, 7);
   });
 });

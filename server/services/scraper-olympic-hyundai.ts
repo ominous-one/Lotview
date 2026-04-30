@@ -1,3 +1,5 @@
+import type { ScrapedVehicleData } from "./vehicle-dedup";
+
 /**
  * Olympic Hyundai Scraper — Production Grade
  * Handles TAdvantage/TRADER WordPress platform with browserless.io fallback.
@@ -27,6 +29,35 @@ export interface ScrapedVehicle {
   description?: string;
   sourceUrl: string;
   scrapedAt: Date;
+}
+
+export function toDedupVehicleData(vehicle: ScrapedVehicle): ScrapedVehicleData {
+  return {
+    vin: vehicle.vin || "",
+    price: vehicle.price,
+    year: vehicle.year,
+    make: vehicle.make,
+    model: vehicle.model,
+    trim: vehicle.trim,
+    stockNumber: vehicle.stockNumber,
+    color: vehicle.exteriorColor,
+    exteriorColor: vehicle.exteriorColor,
+    interiorColor: vehicle.interiorColor,
+    mileage: vehicle.odometer,
+    photos: vehicle.images,
+    description: vehicle.description,
+    sourceUrl: vehicle.sourceUrl,
+    bodyStyle: vehicle.bodyStyle,
+    transmission: vehicle.transmission,
+    engine: vehicle.engine,
+    drivetrain: vehicle.drivetrain,
+    fuelType: vehicle.fuelType,
+    dealership: OLYMPIC_HYUNDAI_CONFIG.name,
+    location: "Vancouver",
+    sourceId: `olympic_${vehicle.vin || "unknown"}_${vehicle.scrapedAt.getTime()}`,
+    sourceType: "olympichyundai",
+    scrapedAt: vehicle.scrapedAt,
+  };
 }
 
 export const OLYMPIC_HYUNDAI_CONFIG = {
@@ -270,13 +301,10 @@ export async function scrapeOlympicHyundai(
 
         try {
           const result = await deduplicateAndStore(dealershipId, {
-            vin: vehicle.vin,
-            sourceId: `olympic_${Date.now()}_${stored}`,
-            sourceType: "olympichyundai",
-            scrapedAt: vehicle.scrapedAt,
+            ...toDedupVehicleData(vehicle),
             data: { ...vehicle, dealershipId },
           });
-          if (result.action !== "duplicate_skipped") stored++;
+          stored += result.inserted + result.merged;
         } catch (err) {
           errors.push(`Store failed for VIN ${vehicle.vin}: ${err instanceof Error ? err.message : String(err)}`);
         }
