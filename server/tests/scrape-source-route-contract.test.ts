@@ -47,6 +47,9 @@ describe("scrape source route RBAC and tenant contract", () => {
 
     expect(scraperRoutesBlock).toBeDefined();
     expect(scraperRoutesBlock).toContain(
+      'app.post("/api/scraper/test-single-vehicle", authMiddleware, requirePermission("integrations.write"), requireRole("master"), requireDealership, sensitiveLimiter'
+    );
+    expect(scraperRoutesBlock).toContain(
       'app.post("/api/scraper/sync", authMiddleware, requirePermission("integrations.write"), requireRole("master"), requireDealership, sensitiveLimiter'
     );
     expect(scraperRoutesBlock).toContain(
