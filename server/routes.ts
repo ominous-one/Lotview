@@ -743,7 +743,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ===== SUPER ADMIN ROUTES (Super Admin Only) =====
   
   // Restart server endpoint - reloads API keys and configurations
-  app.post("/api/super-admin/restart-server", authMiddleware, superAdminOnly, async (req: AuthRequest, res) => {
+  app.post("/api/super-admin/restart-server", authMiddleware, requirePermission("admin.audit"), superAdminOnly, sensitiveLimiter, async (req: AuthRequest, res) => {
     try {
       const userId = req.user?.id || 0;
       const userEmail = req.user?.email || 'unknown';
