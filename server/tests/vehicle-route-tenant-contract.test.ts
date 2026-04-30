@@ -136,6 +136,22 @@ describe("vehicle route tenant contracts", () => {
     expect(storageMock.trackVehicleView).not.toHaveBeenCalled();
   });
 
+  it("returns 404 when view tracking misses the dealership-scoped vehicle", async () => {
+    storageMock.trackVehicleView.mockResolvedValue(undefined);
+
+    await request(appWithDealerOne)
+      .post("/api/vehicles/42/view")
+      .send({ sessionId: "session-a" })
+      .expect(404)
+      .expect({ error: "Vehicle not found" });
+
+    expect(storageMock.trackVehicleView).toHaveBeenCalledWith({
+      vehicleId: 42,
+      sessionId: "session-a",
+      dealershipId: 1,
+    });
+  });
+
   it("requires tenant context before public vehicle view analytics lookup", async () => {
     await request(appWithoutTenant)
       .get("/api/vehicles/42/views")

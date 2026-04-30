@@ -424,7 +424,7 @@ export interface IStorage {
   deleteVehicle(id: number, dealershipId: number): Promise<boolean>;
   
   // View tracking (Multi-Tenant)
-  trackVehicleView(view: InsertVehicleView): Promise<VehicleView>; // Must include dealershipId
+  trackVehicleView(view: InsertVehicleView): Promise<VehicleView | undefined>; // Must include dealershipId
   getVehicleViews(vehicleId: number, dealershipId: number, hours?: number): Promise<number>; // REQUIRED filtering
   getAllVehicleViews(dealershipId: number, hours?: number): Promise<Map<number, number>>; // REQUIRED filtering
   
@@ -1571,11 +1571,24 @@ export class DatabaseStorage implements IStorage {
   }
 
   // ====== VIEW TRACKING (Multi-Tenant - CRITICAL for analytics security) ======
-  async trackVehicleView(view: InsertVehicleView): Promise<VehicleView> {
+  async trackVehicleView(view: InsertVehicleView): Promise<VehicleView | undefined> {
     // Validate dealershipId is present before insert
     if (!view.dealershipId) {
       throw new Error('dealershipId is required when tracking vehicle views');
     }
+
+    const [vehicle] = await db.select({ id: vehicles.id })
+      .from(vehicles)
+      .where(and(
+        eq(vehicles.id, view.vehicleId),
+        eq(vehicles.dealershipId, view.dealershipId)
+      ))
+      .limit(1);
+
+    if (!vehicle) {
+      return undefined;
+    }
+
     const result = await db.insert(vehicleViews).values(view).returning();
     return result[0];
   }
@@ -1590,6 +1603,7 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(
           eq(vehicleViews.vehicleId, vehicleId),
+          eq(vehicleViews.dealershipId, dealershipId),
           eq(vehicles.dealershipId, dealershipId), // ENFORCE dealership filtering
           sql`${vehicleViews.viewedAt} >= ${cutoffTime}`
         )
@@ -1608,6 +1622,7 @@ export class DatabaseStorage implements IStorage {
       .from(vehicleViews)
       .innerJoin(vehicles, eq(vehicleViews.vehicleId, vehicles.id))
       .where(and(
+        eq(vehicleViews.dealershipId, dealershipId),
         eq(vehicles.dealershipId, dealershipId), // ENFORCE dealership filtering
         sql`${vehicleViews.viewedAt} >= ${cutoffTime}`
       ))

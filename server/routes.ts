@@ -4485,6 +4485,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         dealershipId
       });
 
+      if (!view) return res.status(404).json({ error: "Vehicle not found" });
+
       res.status(201).json(view);
     } catch (error) {
       logError('Error tracking view:', error instanceof Error ? error : new Error(String(error)), { route: 'api-vehicles-id-view' });

@@ -160,6 +160,7 @@ router.post("/:id/view", async (req, res) => {
     const dealershipId = requireRouteDealership(req, res);
     if (!dealershipId) return;
     const view = await storage.trackVehicleView({ vehicleId, sessionId, dealershipId });
+    if (!view) return res.status(404).json({ error: "Vehicle not found" });
     res.status(201).json(view);
   } catch (error) {
     logError("Error tracking view:", error instanceof Error ? error : new Error(String(error)), { route: "api-vehicles-id-view" });
