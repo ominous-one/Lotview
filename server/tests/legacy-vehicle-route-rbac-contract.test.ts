@@ -6,6 +6,9 @@ describe("legacy vehicle route RBAC contract", () => {
   const legacyVehicleBlock = routesSource.match(
     /\/\/ Create vehicle \(master only\)[\s\S]*?\/\/ Force re-scrape a specific vehicle/
   )?.[0];
+  const externalVehicleImportBlock = routesSource.match(
+    /\/\/ Import vehicles from external sources \(n8n\)[\s\S]*?\/\/ Get vehicles via external API/
+  )?.[0];
   const legacyVehicleActionBlock = routesSource.match(
     /\/\/ Generate video for vehicle using Gemini Veo[\s\S]*?\/\/ ===== VIEW TRACKING ROUTES =====/
   )?.[0];
@@ -27,10 +30,21 @@ describe("legacy vehicle route RBAC contract", () => {
   it("uses the resolved dealership context for legacy vehicle mutation storage access", () => {
     expect(legacyVehicleBlock).toBeDefined();
     expect(legacyVehicleBlock).toContain("const dealershipId = req.dealershipId!");
-    expect(legacyVehicleBlock).toContain("storage.createVehicle({ ...parsed.data, dealershipId })");
+    expect(legacyVehicleBlock).toContain("normalizeVehicleWriteVIN(parsed.data)");
+    expect(legacyVehicleBlock).toContain("storage.createVehicle({ ...vehicleInput, dealershipId })");
+    expect(legacyVehicleBlock).toContain("normalizeVehicleWriteVIN(parsedUpdateData)");
     expect(legacyVehicleBlock).toContain("storage.updateVehicle(id, updateData, dealershipId)");
     expect(legacyVehicleBlock).toContain("storage.deleteVehicle(id, dealershipId)");
     expect(legacyVehicleBlock).toContain("eq(vehicles.dealershipId, dealershipId)");
+  });
+
+  it("validates external import VINs before dedup fallback storage writes", () => {
+    expect(externalVehicleImportBlock).toBeDefined();
+    expect(externalVehicleImportBlock).toContain("normalizeVehicleWriteVIN({ vin: v.vin })");
+    expect(externalVehicleImportBlock).toContain("if (hasVehicleVINWriteError(vinGuard))");
+    expect(externalVehicleImportBlock).toContain("const normalizedVin = vinGuard.data.vin");
+    expect(externalVehicleImportBlock).toContain("storage.createVehicle(vehiclePayload)");
+    expect(externalVehicleImportBlock).toContain("storage.updateVehicle(existingVehicle.id, vehiclePayload, dealershipId)");
   });
 
   it("requires explicit permissions for legacy vehicle AI, scraper, and Carfax action routes", () => {

@@ -19,6 +19,22 @@ const storageMock = {
 let appWithoutTenant: Express;
 let appWithDealerOne: Express;
 
+const completeVehiclePayload = {
+  dealershipId: 999,
+  year: 2003,
+  make: "Honda",
+  model: "Accord",
+  trim: "EX",
+  type: "Sedan",
+  price: 24995,
+  odometer: 120000,
+  images: [],
+  badges: [],
+  location: "Vancouver",
+  dealership: "Dealer One",
+  description: "Clean local unit",
+};
+
 function applyTestUserFromHeader(req: Request): void {
   const role = req.headers["x-test-role"];
   if (typeof role !== "string") return;
@@ -225,6 +241,24 @@ describe("vehicle route tenant contracts", () => {
     expect(storageMock.createVehicle).not.toHaveBeenCalled();
   });
 
+  it("rejects invalid VINs on inventory create before duplicate checks or storage writes", async () => {
+    await request(appWithDealerOne)
+      .post("/api/vehicles")
+      .set("x-test-role", "dealer_manager")
+      .send({ ...completeVehiclePayload, vin: "1HGCM82643A004352" })
+      .expect(400)
+      .expect({
+        error: "VIN check digit is invalid",
+        errorCode: "INVALID_VIN_CHECK_DIGIT",
+        vin: "1HGCM82643A004352",
+        expectedCheckDigit: "3",
+        actualCheckDigit: "4",
+      });
+
+    expect(storageMock.getVehicles).not.toHaveBeenCalled();
+    expect(storageMock.createVehicle).not.toHaveBeenCalled();
+  });
+
   it("blocks sales reps from updating inventory", async () => {
     await request(appWithDealerOne)
       .patch("/api/vehicles/42")
@@ -232,6 +266,23 @@ describe("vehicle route tenant contracts", () => {
       .send({ price: "25000" })
       .expect(403)
       .expect({ error: "Insufficient permissions" });
+
+    expect(storageMock.updateVehicle).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid VINs on inventory update before storage writes", async () => {
+    await request(appWithDealerOne)
+      .patch("/api/vehicles/42")
+      .set("x-test-role", "dealer_manager")
+      .send({ vin: "1HGCM82643A004352" })
+      .expect(400)
+      .expect({
+        error: "VIN check digit is invalid",
+        errorCode: "INVALID_VIN_CHECK_DIGIT",
+        vin: "1HGCM82643A004352",
+        expectedCheckDigit: "3",
+        actualCheckDigit: "4",
+      });
 
     expect(storageMock.updateVehicle).not.toHaveBeenCalled();
   });

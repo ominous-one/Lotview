@@ -71,6 +71,7 @@ import { createWebhookVerifier } from "./services/webhook-verifier";
 import { createExternalApiMiddleware } from "./services/external-api-guard";
 import { scrapeCarfaxReportCloud } from "./services/carfax-browserless";
 import { initializeFlagsFromEnv, isEnabled } from "./services/feature-flags";
+import { hasVehicleVINWriteError, normalizeVehicleWriteVIN, vehicleVINWriteErrorResponse } from "./services/vehicle-vin-write-guard";
 
 import { authMiddleware, requireRole, requirePermission, requireCapability, generateToken, generateImpersonationToken, comparePassword, hashPassword, verifyToken, extensionHmacMiddleware, generatePostingToken, validatePostingToken, type AuthRequest } from "./auth";
 import { requireDealership, superAdminOnly } from "./tenant-middleware";
@@ -3778,12 +3779,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
             results.errors.push({ index: i, vin: v.vin, error: `Missing required fields: ${missing.join(', ')}` });
             continue;
           }
+
+          const vinGuard = normalizeVehicleWriteVIN({ vin: v.vin });
+          if (hasVehicleVINWriteError(vinGuard)) {
+            results.errors.push({
+              index: i,
+              vin: vinGuard.error.vin,
+              error: vinGuard.error.message,
+              errorCode: vinGuard.error.code,
+              expectedCheckDigit: vinGuard.error.expectedCheckDigit,
+              actualCheckDigit: vinGuard.error.actualCheckDigit,
+            });
+            continue;
+          }
+          const normalizedVin = vinGuard.data.vin;
           
           // Check if vehicle exists by VIN
           let existingVehicle = null;
-          if (v.vin && updateExisting) {
+          if (normalizedVin && updateExisting) {
             const { vehicles: allVehicles } = await storage.getVehicles(dealershipId);
-            existingVehicle = allVehicles.find((ev: any) => ev.vin === v.vin);
+            existingVehicle = allVehicles.find((ev: any) => ev.vin?.toUpperCase() === normalizedVin);
           }
           
           const vehiclePayload = {
@@ -3800,7 +3815,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             location: v.location,
             dealership: v.dealership,
             description: v.description,
-            vin: v.vin || null,
+            vin: normalizedVin,
             stockNumber: v.stockNumber || null,
             cargurusPrice: v.cargurusPrice ? parseInt(v.cargurusPrice) : null,
             cargurusUrl: v.cargurusUrl || null,
@@ -3813,9 +3828,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // DEDUP: Use vehicle-dedup service for intelligent merge
             try {
               const { isEnabled } = await import('./services/feature-flags');
-              if (v.vin && await isEnabled('vehicle_deduplication', dealershipId)) {
+              if (normalizedVin && await isEnabled('vehicle_deduplication', dealershipId)) {
                 const dedupResult = await deduplicateAndStore(dealershipId, {
-                  vin: v.vin,
+                  vin: normalizedVin,
                   sourceId: `import_${Date.now()}_${i}`,
                   sourceType: 'external_import',
                   scrapedAt: new Date(),
@@ -3823,28 +3838,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 });
                 results.success.push({
                   id: dedupResult.vehicleId,
-                  vin: v.vin,
+                  vin: normalizedVin,
                   action: dedupResult.action, // 'created', 'merged', or 'duplicate_skipped'
                   confidence: dedupResult.confidence,
                 });
               } else {
                 // Fallback: Simple update without dedup service
                 const updated = await storage.updateVehicle(existingVehicle.id, vehiclePayload, dealershipId);
-                results.success.push({ id: updated?.id, vin: v.vin, action: 'updated' });
+                results.success.push({ id: updated?.id, vin: normalizedVin, action: 'updated' });
               }
             } catch (dedupErr) {
               // Fallback to simple update on dedup failure
               logWarn('Vehicle dedup failed (non-blocking), falling back to simple update:', dedupErr instanceof Error ? dedupErr : new Error(String(dedupErr)));
               const updated = await storage.updateVehicle(existingVehicle.id, vehiclePayload, dealershipId);
-              results.success.push({ id: updated?.id, vin: v.vin, action: 'updated' });
+              results.success.push({ id: updated?.id, vin: normalizedVin, action: 'updated' });
             }
           } else {
             // DEDUP: Check for VIN duplicates before creating
             try {
               const { isEnabled } = await import('./services/feature-flags');
-              if (v.vin && await isEnabled('vehicle_deduplication', dealershipId)) {
+              if (normalizedVin && await isEnabled('vehicle_deduplication', dealershipId)) {
                 const dedupResult = await deduplicateAndStore(dealershipId, {
-                  vin: v.vin,
+                  vin: normalizedVin,
                   sourceId: `import_${Date.now()}_${i}`,
                   sourceType: 'external_import',
                   scrapedAt: new Date(),
@@ -3852,19 +3867,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 });
                 results.success.push({
                   id: dedupResult.vehicleId,
-                  vin: v.vin,
+                  vin: normalizedVin,
                   action: dedupResult.action,
                   confidence: dedupResult.confidence,
                 });
               } else {
                 // Fallback: Simple create without dedup service
                 const created = await storage.createVehicle(vehiclePayload);
-                results.success.push({ id: created.id, vin: v.vin, action: 'created' });
+                results.success.push({ id: created.id, vin: normalizedVin, action: 'created' });
               }
             } catch (dedupErr) {
               logWarn('Vehicle dedup failed (non-blocking), falling back to simple create:', dedupErr instanceof Error ? dedupErr : new Error(String(dedupErr)));
               const created = await storage.createVehicle(vehiclePayload);
-              results.success.push({ id: created.id, vin: v.vin, action: 'created' });
+              results.success.push({ id: created.id, vin: normalizedVin, action: 'created' });
             }
           }
         } catch (err: any) {
@@ -4075,12 +4090,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const dealershipId = req.dealershipId!;
+      const vinGuard = normalizeVehicleWriteVIN(parsed.data);
+      if (hasVehicleVINWriteError(vinGuard)) {
+        return res.status(400).json(vehicleVINWriteErrorResponse(vinGuard.error));
+      }
+      const vehicleInput = vinGuard.data;
       
       // DEDUP: Check for existing VIN before creating
-      if (parsed.data.vin) {
+      if (vehicleInput.vin) {
         const existingVehicles = await storage.getVehicles(dealershipId, 100, 0);
         const duplicate = existingVehicles.vehicles.find((v: any) => 
-          v.vin && v.vin.toUpperCase() === parsed.data.vin!.toUpperCase()
+          v.vin && v.vin.toUpperCase() === vehicleInput.vin!.toUpperCase()
         );
         if (duplicate) {
           return res.status(409).json({ 
@@ -4092,7 +4112,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      const vehicle = await storage.createVehicle({ ...parsed.data, dealershipId });
+      const vehicle = await storage.createVehicle({ ...vehicleInput, dealershipId });
       res.status(201).json(vehicle);
     } catch (error) {
       logError('Error creating vehicle:', error instanceof Error ? error : new Error(String(error)), { route: 'api-vehicles' });
@@ -4113,7 +4133,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const dealershipId = req.dealershipId!;
       
       // SECURITY: Strip dealershipId from payload to prevent cross-tenant reassignment
-      const { dealershipId: _removed, ...updateData } = parsed.data;
+      const { dealershipId: _removed, ...parsedUpdateData } = parsed.data;
+      const vinGuard = normalizeVehicleWriteVIN(parsedUpdateData);
+      if (hasVehicleVINWriteError(vinGuard)) {
+        return res.status(400).json(vehicleVINWriteErrorResponse(vinGuard.error));
+      }
+      const updateData = vinGuard.data;
       
       const vehicle = await storage.updateVehicle(id, updateData, dealershipId);
       
