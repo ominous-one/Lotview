@@ -7317,7 +7317,7 @@ Format your response in clear sections with actionable recommendations.`;
   // ===== VDP FOOTER ROUTES (General Manager) =====
   
   // Get dealership VDP footer
-  app.get("/api/dealership/vdp-footer", authMiddleware, requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
+  app.get("/api/dealership/vdp-footer", authMiddleware, requireCapability("tenant.settings.write"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const dealership = await storage.getDealershipById(dealershipId);
@@ -7332,7 +7332,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Update dealership VDP footer (General Manager only)
-  app.patch("/api/dealership/vdp-footer", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
+  app.patch("/api/dealership/vdp-footer", authMiddleware, requireCapability("tenant.settings.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { vdpFooterDescription } = req.body;

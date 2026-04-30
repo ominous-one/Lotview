@@ -31,4 +31,13 @@ describe("dealership branding route RBAC and tenant contract", () => {
       'app.delete("/api/dealership/branding/logo", authMiddleware, requireCapability("tenant.settings.write"), requireRole("master"), requireDealership'
     );
   });
+
+  it("requires tenant settings capability and dealership context for private VDP footer settings", () => {
+    expect(routesSource).toContain(
+      'app.get("/api/dealership/vdp-footer", authMiddleware, requireCapability("tenant.settings.write"), requireRole("manager", "admin", "master", "super_admin"), requireDealership'
+    );
+    expect(routesSource).toContain(
+      'app.patch("/api/dealership/vdp-footer", authMiddleware, requireCapability("tenant.settings.write"), requireRole("master"), requireDealership'
+    );
+  });
 });
