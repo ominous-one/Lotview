@@ -198,12 +198,12 @@ export async function mergeDuplicates(
 
   // Update keeper with merged data
   if (Object.keys(merged).length > 0) {
-    await (storage as any).updateVehicle(keeper.id, merged);
+    await (storage as any).updateVehicle(keeper.id, merged, dealershipId);
   }
 
   // Remove duplicates
   for (const v of toRemove) {
-    await (storage as any).deleteVehicle(v.id);
+    await (storage as any).deleteVehicle(v.id, dealershipId);
   }
 
   logInfo(`[Dedup] Merged ${toRemove.length} duplicates for VIN ${vin}`, {
@@ -273,7 +273,7 @@ async function mergeVehicle(
   updates.updatedAt = new Date();
 
   if (Object.keys(updates).length > 0) {
-    await (storage as any).updateVehicle(existing.id, updates);
+    await (storage as any).updateVehicle(existing.id, updates, dealershipId);
   }
 }
 

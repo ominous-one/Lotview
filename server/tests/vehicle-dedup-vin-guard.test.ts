@@ -7,6 +7,7 @@ const storageMock = {
   getVehiclesByDealership: jest.fn() as any,
   createVehicle: jest.fn() as any,
   updateVehicle: jest.fn() as any,
+  deleteVehicle: jest.fn() as any,
 };
 
 let vehicleDedup: typeof import("../services/vehicle-dedup");
@@ -24,6 +25,7 @@ beforeEach(() => {
   storageMock.getVehiclesByDealership.mockResolvedValue([]);
   storageMock.createVehicle.mockResolvedValue({});
   storageMock.updateVehicle.mockResolvedValue({});
+  storageMock.deleteVehicle.mockResolvedValue(true);
 });
 
 describe("vehicle dedup VIN storage guard", () => {
@@ -150,7 +152,8 @@ describe("vehicle dedup VIN storage guard", () => {
         price: 24995,
         mileage: 88000,
         photos: ["existing.jpg", "new.jpg"],
-      })
+      }),
+      7
     );
   });
 
@@ -187,7 +190,47 @@ describe("vehicle dedup VIN storage guard", () => {
           "https://cdn.example.com/side.jpg",
           "https://cdn.example.com/rear.jpg",
         ],
-      })
+      }),
+      7
     );
+  });
+
+  it("scopes duplicate merge updates and removals to the dealership", async () => {
+    storageMock.getVehiclesByDealership.mockResolvedValue([
+      {
+        id: 42,
+        vin: VALID_VIN,
+        price: 21000,
+        mileage: 90000,
+        photos: ["keeper.jpg"],
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      },
+      {
+        id: 43,
+        vin: VALID_VIN,
+        price: 24995,
+        mileage: 88000,
+        photos: ["keeper.jpg", "new.jpg"],
+        createdAt: new Date("2026-02-01T00:00:00.000Z"),
+      },
+    ]);
+
+    const result = await vehicleDedup.mergeDuplicates(7, VALID_VIN, [42, 43]);
+
+    expect(result).toMatchObject({
+      success: true,
+      keptId: 42,
+      removedIds: [43],
+    });
+    expect(storageMock.updateVehicle).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        price: 24995,
+        mileage: 88000,
+        photos: ["keeper.jpg", "new.jpg"],
+      }),
+      7
+    );
+    expect(storageMock.deleteVehicle).toHaveBeenCalledWith(43, 7);
   });
 });
