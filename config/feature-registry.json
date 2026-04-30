@@ -187,7 +187,7 @@
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "Extraction tests prove missing year/make/model source facts are not fabricated. Shared dedup storage tests now prove invalid scraped VINs are skipped before insert/merge and scrape merges cannot drop manually curated inventory photos. Live pagination, source-truth reconciliation, quarantine tables/admin review, observability, and staging proof remain required."
+      "notes": "Extraction tests prove missing year/make/model source facts are not fabricated, and scraper storage integration failures are returned as errors instead of hidden console-only warnings. Shared dedup storage tests now prove invalid scraped VINs are skipped before insert/merge and scrape merges cannot drop manually curated inventory photos. Live pagination, source-truth reconciliation, quarantine tables/admin review, observability, and staging proof remain required."
     },
     {
       "id": "scraper.robust",

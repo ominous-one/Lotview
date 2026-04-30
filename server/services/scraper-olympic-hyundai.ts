@@ -282,7 +282,9 @@ export async function scrapeOlympicHyundai(
         }
       }
       console.log(`   ✅ Stored ${stored}/${allVehicles.length} vehicles\n`);
-    } catch {
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      errors.push(`Vehicle dedup service unavailable: ${message}`);
       console.log("   ⚠️  Vehicle dedup service not available\n");
     }
   }
