@@ -274,7 +274,8 @@ router.delete("/:id", authMiddleware, requirePermission("inventory.write"), requ
   try {
     const id = parseInt(req.params.id);
     const dealershipId = req.dealershipId!;
-    await storage.deleteVehicle(id, dealershipId);
+    const deleted = await storage.deleteVehicle(id, dealershipId);
+    if (!deleted) return res.status(404).json({ error: "Vehicle not found" });
     res.json({ success: true });
   } catch (error) {
     logError("Error deleting vehicle:", error instanceof Error ? error : new Error(String(error)), { route: "api-vehicles-id-delete" });

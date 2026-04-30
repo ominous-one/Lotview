@@ -1556,7 +1556,7 @@ export class DatabaseStorage implements IStorage {
   async deleteVehicle(id: number, dealershipId: number): Promise<boolean> {
     // Soft-delete only (never hard-delete in production)
     const deletedAt = new Date();
-    await db.update(vehicles)
+    const result = await db.update(vehicles)
       .set({
         deletedAt,
         deletedReason: 'MANUAL_DELETE',
@@ -1565,8 +1565,9 @@ export class DatabaseStorage implements IStorage {
       .where(and(
         eq(vehicles.id, id),
         eq(vehicles.dealershipId, dealershipId)
-      ));
-    return true;
+      ))
+      .returning({ id: vehicles.id });
+    return result.length > 0;
   }
 
   // ====== VIEW TRACKING (Multi-Tenant - CRITICAL for analytics security) ======

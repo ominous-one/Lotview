@@ -3934,7 +3934,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Token does not have delete:vehicles permission" });
       }
       
-      await storage.deleteVehicle(vehicleId, dealershipId);
+      const deleted = await storage.deleteVehicle(vehicleId, dealershipId);
+      if (!deleted) {
+        return res.status(404).json({ error: "Vehicle not found" });
+      }
       res.status(204).send();
     } catch (error: any) {
       logError('Error deleting vehicle via external API:', error instanceof Error ? error : new Error(String(error)), { route: 'api-import-vehicles-id' });
@@ -3967,7 +3970,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Vehicle not found with that VIN" });
       }
       
-      await storage.deleteVehicle(vehicle.id, dealershipId);
+      const deleted = await storage.deleteVehicle(vehicle.id, dealershipId);
+      if (!deleted) {
+        return res.status(404).json({ error: "Vehicle not found with that VIN" });
+      }
       res.json({ deleted: true, vehicleId: vehicle.id, vin: normalizedVin });
     } catch (error: any) {
       logError('Error deleting vehicle by VIN via external API:', error instanceof Error ? error : new Error(String(error)), { route: 'api-import-vehicles-vin-vin' });
@@ -4215,7 +4221,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const id = parseInt(req.params.id);
       // Dealership ID extracted from authenticated user via tenant middleware
       const dealershipId = req.dealershipId!;
-      await storage.deleteVehicle(id, dealershipId);
+      const deleted = await storage.deleteVehicle(id, dealershipId);
+      if (!deleted) {
+        return res.status(404).json({ error: "Vehicle not found" });
+      }
       res.status(204).send();
     } catch (error) {
       logError('Error deleting vehicle:', error instanceof Error ? error : new Error(String(error)), { route: 'api-vehicles-id' });
