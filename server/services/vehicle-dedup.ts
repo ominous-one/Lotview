@@ -6,27 +6,10 @@
  * Merge strategy preserves manual overrides while updating scraped data.
  */
 
-import { logInfo, logWarn } from "../error-utils";
+import { logInfo } from "../error-utils";
 import { storage } from "../storage";
 import { validateVIN } from "../vin-validation";
 import type { Vehicle } from "@shared/schema";
-
-// ---- Merge Configuration ----
-
-const MERGE_RULES = {
-  // Fields that always use scraped (newer) data
-  price: "scrape",
-  mileage: "scrape",
-  photos: "merge",       // Merge photo sets, keep manual photos
-  status: "conditional", // Never change "sold" back to "available"
-  description: "manual", // Preserve manual edits
-  // Fields that use manual data if present
-  notes: "manual",
-  tags: "manual",
-  // Fields that always use scraped data
-  sourceUrl: "scrape",
-  lastScrapedAt: "scrape",
-};
 
 // ---- Types ----
 
@@ -37,12 +20,26 @@ export interface ScrapedVehicleData {
   make?: string | null;
   model?: string | null;
   trim?: string | null;
+  type?: string | null;
+  bodyStyle?: string | null;
   color?: string | null;
+  exteriorColor?: string | null;
+  interiorColor?: string | null;
   mileage?: number | null;
+  odometer?: number | null;
   photos?: string[];
+  images?: string[];
   description?: string | null;
   status?: string | null;
   sourceUrl?: string | null;
+  stockNumber?: string | null;
+  dealership?: string | null;
+  location?: string | null;
+  badges?: string[];
+  transmission?: string | null;
+  engine?: string | null;
+  drivetrain?: string | null;
+  fuelType?: string | null;
   sourceId?: string;
   sourceType?: string;
   scrapedAt?: Date;
@@ -63,6 +60,78 @@ export interface DedupResult {
     action: "insert" | "merge" | "skip";
     reason?: string;
   }>;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function firstString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value !== "string") continue;
+    const trimmed = value.trim();
+    if (trimmed.length > 0) return trimmed;
+  }
+  return undefined;
+}
+
+function firstNumber(...values: unknown[]): number | undefined {
+  for (const value of values) {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string" && value.trim().length > 0) {
+      const parsed = Number(value.replace(/,/g, ""));
+      if (Number.isFinite(parsed)) return parsed;
+    }
+  }
+  return undefined;
+}
+
+function firstStringArray(...values: unknown[]): string[] {
+  for (const value of values) {
+    if (!Array.isArray(value)) continue;
+    const strings = value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+    if (strings.length > 0) return strings;
+  }
+  return [];
+}
+
+function normalizeScrapedVehicle(scraped: ScrapedVehicleData): ScrapedVehicleData {
+  const data = isRecord(scraped.data) ? scraped.data : {};
+  return {
+    ...scraped,
+    price: firstNumber(scraped.price, data.price) ?? null,
+    year: firstNumber(scraped.year, data.year) ?? null,
+    make: firstString(scraped.make, data.make) ?? null,
+    model: firstString(scraped.model, data.model) ?? null,
+    trim: firstString(scraped.trim, data.trim) ?? null,
+    type: firstString(scraped.type, scraped.bodyStyle, data.type, data.bodyStyle) ?? null,
+    color: firstString(scraped.color, scraped.exteriorColor, data.color, data.exteriorColor) ?? null,
+    exteriorColor: firstString(scraped.exteriorColor, scraped.color, data.exteriorColor, data.color) ?? null,
+    interiorColor: firstString(scraped.interiorColor, data.interiorColor) ?? null,
+    mileage: firstNumber(scraped.mileage, scraped.odometer, data.mileage, data.odometer) ?? null,
+    odometer: firstNumber(scraped.odometer, scraped.mileage, data.odometer, data.mileage) ?? null,
+    photos: firstStringArray(scraped.photos, scraped.images, data.photos, data.images),
+    images: firstStringArray(scraped.images, scraped.photos, data.images, data.photos),
+    description: firstString(scraped.description, data.description) ?? null,
+    sourceUrl: firstString(scraped.sourceUrl, data.sourceUrl, data.dealerVdpUrl) ?? null,
+    stockNumber: firstString(scraped.stockNumber, data.stockNumber) ?? null,
+    dealership: firstString(scraped.dealership, data.dealership) ?? null,
+    location: firstString(scraped.location, data.location) ?? null,
+    badges: firstStringArray(scraped.badges, data.badges),
+    transmission: firstString(scraped.transmission, data.transmission) ?? null,
+    engine: firstString(scraped.engine, data.engine) ?? null,
+    drivetrain: firstString(scraped.drivetrain, data.drivetrain) ?? null,
+    fuelType: firstString(scraped.fuelType, data.fuelType) ?? null,
+  };
+}
+
+function getMissingNewInventoryFacts(scraped: ScrapedVehicleData): string[] {
+  const missing: string[] = [];
+  if (!scraped.year) missing.push("year");
+  if (!scraped.make) missing.push("make");
+  if (!scraped.model) missing.push("model");
+  if (scraped.price === undefined || scraped.price === null) missing.push("price");
+  return missing;
 }
 
 // ---- Core Deduplication ----
@@ -96,6 +165,7 @@ export async function deduplicateAndStore(
       const vinValidation = validateVIN(scraped.vin);
       if (!vinValidation.isValid) {
         result.skipped++;
+        result.action = "skip";
         result.details.push({
           vin: vinValidation.vin || "(missing)",
           action: "skip",
@@ -105,22 +175,39 @@ export async function deduplicateAndStore(
       }
 
       const normalizedVin = vinValidation.vin;
-      const normalizedScraped = { ...scraped, vin: normalizedVin };
+      const normalizedScraped = normalizeScrapedVehicle({ ...scraped, vin: normalizedVin });
       const existing = existingByVin.get(normalizedVin);
 
       if (existing) {
         // Merge with existing
         await mergeVehicle(existing, normalizedScraped, dealershipId);
         result.merged++;
+        result.vehicleId = existing.id;
+        result.action = "merged";
         result.details.push({ vin: normalizedVin, action: "merge" });
       } else {
+        const missingFacts = getMissingNewInventoryFacts(normalizedScraped);
+        if (missingFacts.length > 0) {
+          result.skipped++;
+          result.action = "skip";
+          result.details.push({
+            vin: normalizedVin,
+            action: "skip",
+            reason: `MISSING_REQUIRED_SOURCE_FACTS:${missingFacts.join(",")}`,
+          });
+          continue;
+        }
+
         // Insert new
-        await insertVehicle(normalizedScraped, dealershipId);
+        const created = await insertVehicle(normalizedScraped, dealershipId);
         result.inserted++;
+        result.vehicleId = created.id;
+        result.action = "created";
         result.details.push({ vin: normalizedVin, action: "insert" });
       }
     } catch (error) {
       result.errors++;
+      result.action = "skip";
       result.details.push({
         vin: scraped.vin || "(unknown)",
         action: "skip",
@@ -173,7 +260,10 @@ export async function mergeDuplicates(
   vehicleIds: number[]
 ): Promise<{ success: boolean; keptId: number; removedIds: number[] }> {
   const vehicles = await storage.getVehiclesByDealership(dealershipId);
-  const duplicates = vehicles.filter((v) => v.vin?.toUpperCase() === vin.toUpperCase());
+  const selectedIds = new Set(vehicleIds);
+  const duplicates = vehicles.filter((v) =>
+    selectedIds.has(v.id) && v.vin?.toUpperCase() === vin.toUpperCase()
+  );
 
   if (duplicates.length < 2) {
     return { success: false, keptId: 0, removedIds: [] };
@@ -188,11 +278,12 @@ export async function mergeDuplicates(
   const merged: Record<string, unknown> = {};
   for (const v of toRemove) {
     if (v.price && v.price !== keeper.price) merged.price = v.price;
-    if (v.mileage && v.mileage !== keeper.mileage) merged.mileage = v.mileage;
-    if (v.photos && Array.isArray(v.photos)) {
-      const existingPhotos = (keeper.photos as string[]) || [];
-      const allPhotos = [...new Set([...existingPhotos, ...v.photos])];
-      if (allPhotos.length > existingPhotos.length) merged.photos = allPhotos;
+    if (v.odometer && v.odometer !== keeper.odometer) merged.odometer = v.odometer;
+    const duplicateImages = ((v.images as string[]) || (v.photos as string[]) || []);
+    if (duplicateImages.length > 0) {
+      const existingImages = ((keeper.images as string[]) || (keeper.photos as string[]) || []);
+      const allImages = [...new Set([...existingImages, ...duplicateImages])];
+      if (allImages.length > existingImages.length) merged.images = allImages;
     }
   }
 
@@ -232,18 +323,20 @@ async function mergeVehicle(
     updates.price = scraped.price;
   }
 
-  // Mileage: update if newer
-  if (scraped.mileage !== undefined && scraped.mileage !== null) {
-    updates.mileage = scraped.mileage;
+  // Mileage/odometer: update if newer
+  const odometer = scraped.odometer ?? scraped.mileage;
+  if (odometer !== undefined && odometer !== null) {
+    updates.odometer = odometer;
   }
 
   // Photos: merge sets, preserve manual photos
-  if (scraped.photos && scraped.photos.length > 0) {
-    const existingPhotos = (existing.photos as string[]) || [];
-    const existingPhotoUrls = new Set(existingPhotos.map((p) => p.replace(/^manual:/, "")));
-    const scrapedPhotos = scraped.photos.filter((p) => !existingPhotoUrls.has(p.replace(/^manual:/, "")));
-    if (scrapedPhotos.length > 0) {
-      updates.photos = [...existingPhotos, ...scrapedPhotos];
+  const scrapedImages = scraped.images && scraped.images.length > 0 ? scraped.images : scraped.photos;
+  if (scrapedImages && scrapedImages.length > 0) {
+    const existingImages = ((existing.images as string[]) || (existing.photos as string[]) || []);
+    const existingImageUrls = new Set(existingImages.map((p) => p.replace(/^manual:/, "")));
+    const newScrapedImages = scrapedImages.filter((p) => !existingImageUrls.has(p.replace(/^manual:/, "")));
+    if (newScrapedImages.length > 0) {
+      updates.images = [...existingImages, ...newScrapedImages];
     }
   }
 
@@ -265,10 +358,18 @@ async function mergeVehicle(
   if (scraped.make && !existing.make) updates.make = scraped.make;
   if (scraped.model && !existing.model) updates.model = scraped.model;
   if (scraped.trim && !existing.trim) updates.trim = scraped.trim;
-  if (scraped.color && !existing.color) updates.color = scraped.color;
+  if (scraped.type && !existing.type) updates.type = scraped.type;
+  if (scraped.color && !existing.exteriorColor) updates.exteriorColor = scraped.color;
+  if (scraped.exteriorColor && !existing.exteriorColor) updates.exteriorColor = scraped.exteriorColor;
+  if (scraped.interiorColor && !existing.interiorColor) updates.interiorColor = scraped.interiorColor;
+  if (scraped.stockNumber && !existing.stockNumber) updates.stockNumber = scraped.stockNumber;
+  if (scraped.transmission && !existing.transmission) updates.transmission = scraped.transmission;
+  if (scraped.engine && !existing.engine) updates.engine = scraped.engine;
+  if (scraped.drivetrain && !existing.drivetrain) updates.drivetrain = scraped.drivetrain;
+  if (scraped.fuelType && !existing.fuelType) updates.fuelType = scraped.fuelType;
 
   // Source metadata
-  updates.sourceUrl = scraped.sourceUrl;
+  if (scraped.sourceUrl) updates.dealerVdpUrl = scraped.sourceUrl;
   updates.lastScrapedAt = new Date();
   updates.updatedAt = new Date();
 
@@ -277,21 +378,33 @@ async function mergeVehicle(
   }
 }
 
-async function insertVehicle(scraped: ScrapedVehicleData, dealershipId: number): Promise<void> {
-  await storage.createVehicle({
+async function insertVehicle(scraped: ScrapedVehicleData, dealershipId: number): Promise<Vehicle> {
+  const odometer = scraped.odometer ?? scraped.mileage ?? 0;
+  const images = scraped.images && scraped.images.length > 0 ? scraped.images : scraped.photos || [];
+
+  return storage.createVehicle({
     dealershipId,
     vin: scraped.vin.toUpperCase().trim(),
-    price: scraped.price || null,
-    year: scraped.year || null,
-    make: scraped.make || null,
-    model: scraped.model || null,
-    trim: scraped.trim || null,
-    color: scraped.color || null,
-    mileage: scraped.mileage || null,
-    photos: scraped.photos || [],
-    description: scraped.description || null,
-    status: scraped.status || "available",
-    sourceUrl: scraped.sourceUrl || null,
+    price: scraped.price ?? 0,
+    year: scraped.year ?? 0,
+    make: scraped.make ?? "",
+    model: scraped.model ?? "",
+    trim: scraped.trim ?? "",
+    type: scraped.type || scraped.bodyStyle || "",
+    odometer,
+    images,
+    badges: scraped.badges || [],
+    location: scraped.location || "",
+    dealership: scraped.dealership || "",
+    description: scraped.description || "",
+    stockNumber: scraped.stockNumber || null,
+    exteriorColor: scraped.exteriorColor || scraped.color || null,
+    interiorColor: scraped.interiorColor || null,
+    transmission: scraped.transmission || null,
+    engine: scraped.engine || null,
+    drivetrain: scraped.drivetrain || null,
+    fuelType: scraped.fuelType || null,
+    dealerVdpUrl: scraped.sourceUrl || null,
     lastScrapedAt: new Date(),
     createdAt: new Date(),
     updatedAt: new Date(),
