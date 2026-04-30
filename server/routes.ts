@@ -13387,7 +13387,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // End impersonation session
-  app.post("/api/super-admin/impersonate/end", authMiddleware, async (req: AuthRequest, res) => {
+  app.post("/api/super-admin/impersonate/end", authMiddleware, sensitiveLimiter, async (req: AuthRequest, res) => {
     try {
       const decoded = verifyToken((req.headers.authorization || '').replace(/^Bearer\s+/i, '')) as any;
       const requestedSessionId = Number(req.body?.sessionId);
