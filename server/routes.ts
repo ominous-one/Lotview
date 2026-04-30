@@ -118,6 +118,14 @@ const logoUpload = multer({
 // Includes dealershipId for proper multi-tenant isolation during OAuth callback
 const oauthStateStore = new Map<string, { userId: number; accountId: number; dealershipId: number; expiresAt: number }>();
 
+const TENANT_OWNERSHIP_FIELDS = new Set(["id", "dealershipId", "userId", "createdAt", "updatedAt"]);
+
+function stripTenantOwnershipFields<T extends Record<string, unknown>>(body: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(body).filter(([key]) => !TENANT_OWNERSHIP_FIELDS.has(key))
+  ) as Partial<T>;
+}
+
 // New OAuth session store for session-based flow (stores OAuth results until page selection)
 interface OAuthSession {
   userId: number;
@@ -7010,7 +7018,8 @@ Format your response in clear sections with actionable recommendations.`;
       }
       
       const dealershipId = req.dealershipId!;
-      const tier = await storage.updateCreditScoreTier(id, dealershipId, req.body);
+      const updates = stripTenantOwnershipFields(req.body ?? {});
+      const tier = await storage.updateCreditScoreTier(id, dealershipId, updates);
       
       if (!tier) {
         return res.status(404).json({ error: "Credit tier not found" });
@@ -7112,7 +7121,8 @@ Format your response in clear sections with actionable recommendations.`;
       }
       
       const dealershipId = req.dealershipId!;
-      const term = await storage.updateModelYearTerm(id, dealershipId, req.body);
+      const updates = stripTenantOwnershipFields(req.body ?? {});
+      const term = await storage.updateModelYearTerm(id, dealershipId, updates);
       
       if (!term) {
         return res.status(404).json({ error: "Model year term not found" });
@@ -7226,7 +7236,8 @@ Format your response in clear sections with actionable recommendations.`;
       const id = parseInt(req.params.id);
       const dealershipId = req.dealershipId!;
       
-      const fee = await storage.updateDealershipFee(id, dealershipId, req.body);
+      const updates = stripTenantOwnershipFields(req.body ?? {});
+      const fee = await storage.updateDealershipFee(id, dealershipId, updates);
       
       if (!fee) {
         return res.status(404).json({ error: "Fee not found" });

@@ -2510,7 +2510,7 @@ export class DatabaseStorage implements IStorage {
   async updateCreditScoreTier(id: number, dealershipId: number, tier: Partial<InsertCreditScoreTier>): Promise<CreditScoreTier | undefined> {
     // REQUIRED: Only update tiers for this dealership
     const result = await db.update(creditScoreTiers)
-      .set({ ...tier, updatedAt: new Date() })
+      .set({ ...stripTenantOwnershipFields(tier), updatedAt: new Date() })
       .where(and(
         eq(creditScoreTiers.id, id),
         eq(creditScoreTiers.dealershipId, dealershipId)
@@ -2571,7 +2571,7 @@ export class DatabaseStorage implements IStorage {
   async updateModelYearTerm(id: number, dealershipId: number, term: Partial<InsertModelYearTerm>): Promise<ModelYearTerm | undefined> {
     // REQUIRED: Only update terms for this dealership
     const result = await db.update(modelYearTerms)
-      .set({ ...term, updatedAt: new Date() })
+      .set({ ...stripTenantOwnershipFields(term), updatedAt: new Date() })
       .where(and(
         eq(modelYearTerms.id, id),
         eq(modelYearTerms.dealershipId, dealershipId)
@@ -2626,7 +2626,7 @@ export class DatabaseStorage implements IStorage {
 
   async updateDealershipFee(id: number, dealershipId: number, fee: Partial<InsertDealershipFee>): Promise<DealershipFee | undefined> {
     const result = await db.update(dealershipFees)
-      .set({ ...fee, updatedAt: new Date() })
+      .set({ ...stripTenantOwnershipFields(fee), updatedAt: new Date() })
       .where(and(
         eq(dealershipFees.id, id),
         eq(dealershipFees.dealershipId, dealershipId)
