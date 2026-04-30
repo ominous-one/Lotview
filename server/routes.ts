@@ -4205,7 +4205,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Generate video for vehicle using Gemini Veo (master only)
-  app.post("/api/vehicles/:id/generate-video", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
+  app.post("/api/vehicles/:id/generate-video", authMiddleware, requirePermission("ai.use"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const dealershipId = req.dealershipId!;
@@ -4269,7 +4269,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Generate AI description for vehicle using Claude (master only)
-  app.post("/api/vehicles/:id/generate-description", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
+  app.post("/api/vehicles/:id/generate-description", authMiddleware, requirePermission("ai.use"), requirePermission("inventory.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const dealershipId = req.dealershipId!;
@@ -4289,7 +4289,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Batch generate AI descriptions for all vehicles in a dealership (master only)
-  app.post("/api/vehicles/generate-descriptions", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
+  app.post("/api/vehicles/generate-descriptions", authMiddleware, requirePermission("ai.use"), requirePermission("inventory.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { generateBatchDescriptions } = await import("./ai-description-generator");
@@ -4303,7 +4303,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Force re-scrape a specific vehicle (manager and above only)
   // Bypasses the 12+ image optimization to get fresh data
-  app.post("/api/vehicles/:id/force-rescrape", authMiddleware, requireRole("manager"), requireDealership, async (req: any, res) => {
+  app.post("/api/vehicles/:id/force-rescrape", authMiddleware, requirePermission("integrations.write"), requireRole("manager"), requireDealership, async (req: any, res) => {
     try {
       const vehicleId = parseInt(req.params.id);
       const dealershipId = req.dealershipId;
@@ -4381,7 +4381,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Batch update Carfax data for all vehicles (manager and above only)
   // Only updates carfaxUrl and carfaxBadges - preserves all other data
-  app.post("/api/vehicles/batch-carfax-update", authMiddleware, requireRole("manager"), requireDealership, async (req: any, res) => {
+  app.post("/api/vehicles/batch-carfax-update", authMiddleware, requirePermission("integrations.write"), requirePermission("inventory.write"), requireRole("manager"), requireDealership, async (req: any, res) => {
     try {
       const dealershipId = req.dealershipId;
       
