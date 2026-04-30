@@ -8,7 +8,7 @@
       "status": "ci_verified",
       "exposure": "production",
       "owner": "engineering",
-      "paths": ["client/src/main.tsx", "client/src/main.test.ts", "vitest.frontend.config.ts"],
+      "paths": ["client/src/main.tsx", "client/src/main.test.ts", "client/src/styles.css", "vitest.frontend.config.ts"],
       "proof": {
         "ci": true,
         "tests": true,
@@ -17,7 +17,24 @@
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "Basic app shell is smoke-tested. Real SaaS UI flows still require Playwright/staging proof."
+      "notes": "Frontend now renders a tested operations dashboard surface instead of a title-only shell. Real authenticated SaaS UI flows still require backend-connected Playwright and staging proof."
+    },
+    {
+      "id": "frontend.product_ux",
+      "name": "Frontend Product UX",
+      "status": "ci_verified",
+      "exposure": "staging_only",
+      "owner": "engineering",
+      "paths": ["client/src/main.tsx", "client/src/main.test.ts", "client/src/styles.css"],
+      "proof": {
+        "ci": true,
+        "tests": true,
+        "staging": false,
+        "observability": false,
+        "realUserFlow": false,
+        "rollback": false
+      },
+      "notes": "Operations dashboard, inventory control table, lead inbox state, scrape proof state, tenant/readiness signals, and invalid-VIN blocker visibility have automated frontend tests. This is not yet a backend-connected authenticated user flow."
     },
     {
       "id": "health.observability",
