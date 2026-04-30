@@ -50,18 +50,15 @@ export async function runEnhancedScrape(
   try {
     // Step 1: Feature flag check
     if (!(await isEnabled("scrape_validation", dealershipId))) {
-      logInfo(`[ScrapePipeline] Validation disabled for dealership ${dealershipId}, storing directly`);
-      // Store without validation
-      for (const v of scrapedVehicles) {
-        await storage.createVehicle({
-          dealershipId,
-          ...v,
-          lastScrapedAt: new Date(),
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        } as any);
-      }
-      return { success: true, validation: { isValid: true, score: 0, vehiclesFound: scrapedVehicles.length }, dedup: { inserted: scrapedVehicles.length, merged: 0, skipped: 0 }, alertsSent: 0 };
+      const error = "scrape_validation_disabled";
+      logError(`[ScrapePipeline] Refusing to store scrape without validation for dealership ${dealershipId}`);
+      return {
+        success: false,
+        validation: { isValid: false, score: 0, vehiclesFound: scrapedVehicles.length },
+        dedup: { inserted: 0, merged: 0, skipped: 0 },
+        alertsSent: 0,
+        error,
+      };
     }
 
     // Step 2: Validate scrape quality
@@ -83,11 +80,15 @@ export async function runEnhancedScrape(
     if (await isEnabled("vehicle_deduplication", dealershipId)) {
       dedupResult = await deduplicateAndStore(dealershipId, scrapedVehicles);
     } else {
-      // Insert all without dedup
-      for (const v of scrapedVehicles) {
-        await storage.createVehicle({ dealershipId, ...v, lastScrapedAt: new Date(), createdAt: new Date(), updatedAt: new Date() } as any);
-      }
-      dedupResult = { inserted: scrapedVehicles.length, merged: 0, skipped: 0, errors: 0, details: [] };
+      const error = "vehicle_deduplication_disabled";
+      logError(`[ScrapePipeline] Refusing to store scrape without deduplication for dealership ${dealershipId}`);
+      return {
+        success: false,
+        validation: { isValid: true, score: validation.score, vehiclesFound: validation.vehiclesFound },
+        dedup: { inserted: 0, merged: 0, skipped: 0 },
+        alertsSent: 0,
+        error,
+      };
     }
 
     // Step 4: Photo enrichment with guard
