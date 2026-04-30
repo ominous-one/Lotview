@@ -18345,7 +18345,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
   // ===== Autopost Priority Queue (Inventory Sync v1.1) =====
 
   // Manager: list queue
-  app.get('/api/manager/autopost/queue', authMiddleware, requireDealership, requireRole('master', 'sales_manager'), async (req: AuthRequest, res) => {
+  app.get('/api/manager/autopost/queue', authMiddleware, requirePermission("messages.read"), requireDealership, requireRole('master', 'sales_manager'), async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const platform = String(req.query.platform || 'all') as any;
@@ -18358,7 +18358,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
   });
 
   // Manager: force re-evaluate + enqueue (manual refresh)
-  app.post('/api/manager/autopost/queue/evaluate', authMiddleware, requireDealership, requireRole('master', 'sales_manager'), async (req: AuthRequest, res) => {
+  app.post('/api/manager/autopost/queue/evaluate', authMiddleware, requirePermission("messages.write"), requireDealership, requireRole('master', 'sales_manager'), async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const scrapeGateResolution = await resolveDealershipScrapeGateForPosting(dealershipId);
@@ -18384,7 +18384,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
   });
 
   // Manager: reorder
-  app.post('/api/manager/autopost/queue/reorder', authMiddleware, requireDealership, requireRole('master', 'sales_manager'), async (req: AuthRequest, res) => {
+  app.post('/api/manager/autopost/queue/reorder', authMiddleware, requirePermission("messages.write"), requireDealership, requireRole('master', 'sales_manager'), async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const orderedQueueItemIds = Array.isArray(req.body?.orderedQueueItemIds) ? req.body.orderedQueueItemIds : [];
@@ -18399,7 +18399,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
   });
 
   // Manager: photo gate override
-  app.post('/api/manager/autopost/queue/:queueItemId/photo-override', authMiddleware, requireDealership, requireRole('master', 'sales_manager'), async (req: AuthRequest, res) => {
+  app.post('/api/manager/autopost/queue/:queueItemId/photo-override', authMiddleware, requirePermission("messages.write"), requireDealership, requireRole('master', 'sales_manager'), async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const queueItemId = String(req.params.queueItemId);
@@ -18415,7 +18415,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
   });
 
   // Manager: dequeue/pause
-  app.post('/api/manager/autopost/queue/:queueItemId/dequeue', authMiddleware, requireDealership, requireRole('master', 'sales_manager'), async (req: AuthRequest, res) => {
+  app.post('/api/manager/autopost/queue/:queueItemId/dequeue', authMiddleware, requirePermission("messages.write"), requireDealership, requireRole('master', 'sales_manager'), async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const queueItemId = String(req.params.queueItemId);
