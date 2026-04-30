@@ -17,4 +17,13 @@ describe("email route RBAC and tenant contract", () => {
     expect(testEmailRoute).not.toContain("const dealershipId = req.dealershipId ?? req.user?.dealershipId");
     expect(testEmailRoute).not.toContain('throw new Error("Dealership context required for GHL email")');
   });
+
+  it("requires message write permission and dealership context for notification email sends", () => {
+    expect(routesSource).toContain(
+      'app.post("/api/email/call-scoring-alert", authMiddleware, requirePermission("messages.write"), requireRole(\'manager\', \'admin\', \'master\', \'super_admin\'), requireDealership'
+    );
+    expect(routesSource).toContain(
+      'app.post("/api/email/lead-notification", authMiddleware, requirePermission("messages.write"), requireRole(\'manager\', \'admin\', \'master\', \'super_admin\'), requireDealership'
+    );
+  });
 });
