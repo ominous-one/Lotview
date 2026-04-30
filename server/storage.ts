@@ -5259,7 +5259,7 @@ export class DatabaseStorage implements IStorage {
   
   async updateFollowUpSequence(id: number, dealershipId: number, sequence: Partial<InsertFollowUpSequence>): Promise<FollowUpSequence | undefined> {
     const result = await db.update(followUpSequences)
-      .set({ ...sequence, updatedAt: new Date() })
+      .set({ ...stripTenantOwnershipFields(sequence), updatedAt: new Date() })
       .where(and(
         eq(followUpSequences.id, id),
         eq(followUpSequences.dealershipId, dealershipId)
@@ -5708,7 +5708,7 @@ export class DatabaseStorage implements IStorage {
 
   async updateSequenceExecution(id: number, dealershipId: number, execution: Partial<InsertSequenceExecution>): Promise<SequenceExecution | undefined> {
     const result = await db.update(sequenceExecutions)
-      .set({ ...execution, lastActivityAt: new Date() })
+      .set({ ...stripTenantOwnershipFields(execution), lastActivityAt: new Date() })
       .where(and(
         eq(sequenceExecutions.id, id),
         eq(sequenceExecutions.dealershipId, dealershipId)
@@ -5770,7 +5770,7 @@ export class DatabaseStorage implements IStorage {
 
   async updateSequenceMessage(id: number, dealershipId: number, message: Partial<InsertSequenceMessage>): Promise<SequenceMessage | undefined> {
     const result = await db.update(sequenceMessages)
-      .set(message)
+      .set(stripTenantOwnershipFields(message))
       .where(and(
         eq(sequenceMessages.id, id),
         eq(sequenceMessages.dealershipId, dealershipId)
@@ -5870,7 +5870,7 @@ export class DatabaseStorage implements IStorage {
 
   async updateContactActivity(id: number, dealershipId: number, activity: Partial<InsertContactActivity>): Promise<ContactActivity | undefined> {
     const result = await db.update(contactActivity)
-      .set({ ...activity, updatedAt: new Date() })
+      .set({ ...stripTenantOwnershipFields(activity), updatedAt: new Date() })
       .where(and(
         eq(contactActivity.id, id),
         eq(contactActivity.dealershipId, dealershipId)
@@ -5926,7 +5926,7 @@ export class DatabaseStorage implements IStorage {
 
   async updateReengagementCampaign(id: number, dealershipId: number, campaign: Partial<InsertReengagementCampaign>): Promise<ReengagementCampaign | undefined> {
     const result = await db.update(reengagementCampaigns)
-      .set({ ...campaign, updatedAt: new Date() })
+      .set({ ...stripTenantOwnershipFields(campaign), updatedAt: new Date() })
       .where(and(
         eq(reengagementCampaigns.id, id),
         eq(reengagementCampaigns.dealershipId, dealershipId)

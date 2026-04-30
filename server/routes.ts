@@ -13731,7 +13731,8 @@ Format your response in clear sections with actionable recommendations.`;
         return res.status(400).json({ error: "Dealership ID is required" });
       }
       const id = parseInt(req.params.id);
-      const sequence = await storage.updateFollowUpSequence(id, dealershipId, req.body);
+      const updates = stripTenantOwnershipFields(req.body ?? {});
+      const sequence = await storage.updateFollowUpSequence(id, dealershipId, updates);
       if (!sequence) {
         return res.status(404).json({ error: "Sequence not found" });
       }
@@ -14006,7 +14007,8 @@ Format your response in clear sections with actionable recommendations.`;
     try {
       const dealershipId = (req as any).dealershipId;
       const id = parseInt(req.params.id);
-      const campaign = await storage.updateReengagementCampaign(id, dealershipId, req.body);
+      const updates = stripTenantOwnershipFields(req.body ?? {});
+      const campaign = await storage.updateReengagementCampaign(id, dealershipId, updates);
       if (!campaign) {
         return res.status(404).json({ error: "Campaign not found" });
       }
@@ -14142,7 +14144,8 @@ Format your response in clear sections with actionable recommendations.`;
     try {
       const dealershipId = (req as any).dealershipId;
       const id = parseInt(req.params.id);
-      const activity = await storage.updateContactActivity(id, dealershipId, req.body);
+      const updates = stripTenantOwnershipFields(req.body ?? {});
+      const activity = await storage.updateContactActivity(id, dealershipId, updates);
       if (!activity) {
         return res.status(404).json({ error: "Contact activity not found" });
       }
@@ -14173,7 +14176,8 @@ Format your response in clear sections with actionable recommendations.`;
     try {
       const dealershipId = (req as any).dealershipId;
       const id = parseInt(req.params.id);
-      const execution = await storage.updateSequenceExecution(id, dealershipId, req.body);
+      const updates = stripTenantOwnershipFields(req.body ?? {});
+      const execution = await storage.updateSequenceExecution(id, dealershipId, updates);
       if (!execution) {
         return res.status(404).json({ error: "Sequence execution not found" });
       }
@@ -14204,7 +14208,8 @@ Format your response in clear sections with actionable recommendations.`;
     try {
       const dealershipId = (req as any).dealershipId;
       const id = parseInt(req.params.id);
-      const message = await storage.updateSequenceMessage(id, dealershipId, req.body);
+      const updates = stripTenantOwnershipFields(req.body ?? {});
+      const message = await storage.updateSequenceMessage(id, dealershipId, updates);
       if (!message) {
         return res.status(404).json({ error: "Sequence message not found" });
       }

@@ -3,6 +3,7 @@ import { resolve } from "path";
 
 describe("automation runtime route RBAC and tenant contract", () => {
   const routesSource = readFileSync(resolve(process.cwd(), "server/routes.ts"), "utf8");
+  const storageSource = readFileSync(resolve(process.cwd(), "server/storage.ts"), "utf8");
   const managerRoles = "requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership";
 
   it("requires message read permission and dealership context for automation queue, logs, campaigns, and analytics reads", () => {
@@ -62,5 +63,28 @@ describe("automation runtime route RBAC and tenant contract", () => {
       'app.post("/api/automation/contact-activity", authMiddleware, requirePermission("leads.write"), requireDealership',
       'app.post("/api/automation/conversions", authMiddleware, requirePermission("leads.write"), requireDealership',
     ].forEach((route) => expect(routesSource).toContain(route));
+  });
+
+  it("strips immutable tenant ownership fields before automation runtime updates", () => {
+    [
+      "storage.updateReengagementCampaign(id, dealershipId, req.body)",
+      "storage.updateContactActivity(id, dealershipId, req.body)",
+      "storage.updateSequenceExecution(id, dealershipId, req.body)",
+      "storage.updateSequenceMessage(id, dealershipId, req.body)",
+    ].forEach((unsafeCall) => expect(routesSource).not.toContain(unsafeCall));
+
+    [
+      "storage.updateReengagementCampaign(id, dealershipId, updates)",
+      "storage.updateContactActivity(id, dealershipId, updates)",
+      "storage.updateSequenceExecution(id, dealershipId, updates)",
+      "storage.updateSequenceMessage(id, dealershipId, updates)",
+    ].forEach((safeCall) => expect(routesSource).toContain(safeCall));
+
+    [
+      ".set({ ...stripTenantOwnershipFields(campaign), updatedAt: new Date() })",
+      ".set({ ...stripTenantOwnershipFields(activity), updatedAt: new Date() })",
+      ".set({ ...stripTenantOwnershipFields(execution), lastActivityAt: new Date() })",
+      ".set(stripTenantOwnershipFields(message))",
+    ].forEach((storageGuard) => expect(storageSource).toContain(storageGuard));
   });
 });
