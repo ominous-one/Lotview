@@ -40,13 +40,17 @@ describe("legacy vehicle route RBAC contract", () => {
     expect(legacyVehicleBlock).toContain("eq(vehicles.dealershipId, dealershipId)");
   });
 
-  it("validates external import VINs before dedup fallback storage writes", () => {
+  it("requires external imports to store only through deduplication", () => {
     expect(externalVehicleImportBlock).toBeDefined();
     expect(externalVehicleImportBlock).toContain("normalizeVehicleWriteVIN({ vin: v.vin })");
     expect(externalVehicleImportBlock).toContain("if (hasVehicleVINWriteError(vinGuard))");
     expect(externalVehicleImportBlock).toContain("const normalizedVin = vinGuard.data.vin");
-    expect(externalVehicleImportBlock).toContain("storage.createVehicle(vehiclePayload)");
-    expect(externalVehicleImportBlock).toContain("storage.updateVehicle(existingVehicle.id, vehiclePayload, dealershipId)");
+    expect(externalVehicleImportBlock).toContain("storeExternalVehicleImport({");
+    expect(externalVehicleImportBlock).toContain('isDedupEnabled: (id) => isEnabled("vehicle_deduplication", id)');
+    expect(externalVehicleImportBlock).toContain("deduplicate: deduplicateAndStore");
+    expect(externalVehicleImportBlock).not.toContain("storage.createVehicle(vehiclePayload)");
+    expect(externalVehicleImportBlock).not.toContain("storage.updateVehicle(existingVehicle.id, vehiclePayload, dealershipId)");
+    expect(externalVehicleImportBlock).not.toContain("falling back");
   });
 
   it("requires explicit permissions for legacy vehicle AI, scraper, and Carfax action routes", () => {
