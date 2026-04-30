@@ -4600,7 +4600,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ===== SCRAPER ROUTES =====
   
   // Enhanced single vehicle test scraper - PROTECTED ENDPOINT
-  app.post("/api/scraper/test-single-vehicle", authMiddleware, requireRole("master"), requireDealership, async (req: any, res) => {
+  app.post("/api/scraper/test-single-vehicle", authMiddleware, requirePermission("integrations.write"), requireRole("master"), requireDealership, sensitiveLimiter, async (req: any, res) => {
     try {
       const { vdpUrl, config } = req.body;
       const dealershipId = req.dealershipId;

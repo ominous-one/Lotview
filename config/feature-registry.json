@@ -170,7 +170,7 @@
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "Compiles and fails closed. Manual scraper sync/test badge routes require auth, explicit integration permissions, and dealership context; manual sync uses the resolved dealership instead of a body-selected dealership id. Super-admin Browserless, ZenRows, Zyte, Apify, and robust scrape provider status/test/trigger routes require explicit integration permissions. Not certified as a working scraper."
+      "notes": "Compiles and fails closed. Manual single-vehicle scrape diagnostics, manual scraper sync, and test badge routes require auth, explicit integration permissions, and dealership context; external scrape trigger routes are sensitive-limited and manual sync uses the resolved dealership instead of a body-selected dealership id. Super-admin Browserless, ZenRows, Zyte, Apify, and robust scrape provider status/test/trigger routes require explicit integration permissions. Not certified as a working scraper."
     },
     {
       "id": "facebook.marketplace",
