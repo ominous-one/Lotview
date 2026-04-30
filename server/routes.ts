@@ -12798,7 +12798,8 @@ Format your response in clear sections with actionable recommendations.`;
       const dealershipId = req.dealershipId!;
       const id = parseInt(req.params.id);
       
-      const criteria = await storage.updateCallAnalysisCriteria(id, dealershipId, req.body);
+      const updates = stripTenantOwnershipFields(req.body ?? {});
+      const criteria = await storage.updateCallAnalysisCriteria(id, dealershipId, updates);
       if (!criteria) {
         return res.status(404).json({ error: "Criteria not found" });
       }

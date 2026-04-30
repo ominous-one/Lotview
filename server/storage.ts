@@ -5007,7 +5007,7 @@ export class DatabaseStorage implements IStorage {
   
   async updateCallAnalysisCriteria(id: number, dealershipId: number, criteria: Partial<InsertCallAnalysisCriteria>): Promise<CallAnalysisCriteria | undefined> {
     const result = await db.update(callAnalysisCriteria)
-      .set({ ...criteria, updatedAt: new Date() })
+      .set({ ...stripTenantOwnershipFields(criteria), updatedAt: new Date() })
       .where(and(eq(callAnalysisCriteria.id, id), eq(callAnalysisCriteria.dealershipId, dealershipId)))
       .returning();
     return result[0];
