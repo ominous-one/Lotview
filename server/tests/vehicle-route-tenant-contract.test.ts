@@ -7,6 +7,7 @@ const storageMock = {
   getPublicInventoryVehicles: jest.fn() as any,
   getVehicles: jest.fn() as any,
   getVehiclesByDealership: jest.fn() as any,
+  getVehicleByVin: jest.fn() as any,
   getVehicleById: jest.fn() as any,
   getVehicleViews: jest.fn() as any,
   getCarfaxReport: jest.fn() as any,
@@ -257,6 +258,7 @@ describe("vehicle route tenant contracts", () => {
 
     expect(storageMock.getVehicles).not.toHaveBeenCalled();
     expect(storageMock.getVehiclesByDealership).not.toHaveBeenCalled();
+    expect(storageMock.getVehicleByVin).not.toHaveBeenCalled();
     expect(storageMock.createVehicle).not.toHaveBeenCalled();
   });
 
@@ -286,6 +288,7 @@ describe("vehicle route tenant contracts", () => {
       });
 
     expect(storageMock.getVehiclesByDealership).toHaveBeenCalledWith(1);
+    expect(storageMock.getVehicleByVin).toHaveBeenCalledWith("1HGCM82633A004352", 1);
     expect(storageMock.createVehicle).toHaveBeenCalledWith(
       expect.objectContaining({
         dealershipId: 1,
@@ -327,6 +330,64 @@ describe("vehicle route tenant contracts", () => {
       });
 
     expect(storageMock.createVehicle).not.toHaveBeenCalled();
+  });
+
+  it("rejects same-dealership VIN conflicts on update", async () => {
+    storageMock.getVehicleByVin.mockResolvedValue({
+      id: 77,
+      year: 2024,
+      make: "Hyundai",
+      model: "Tucson",
+      vin: "1HGCM82633A004352",
+    });
+
+    await request(appWithDealerOne)
+      .patch("/api/vehicles/42")
+      .set("x-test-role", "dealer_manager")
+      .send({ vin: " 1hgcm82633a004352 " })
+      .expect(409)
+      .expect((res) => {
+        expect(res.body).toMatchObject({
+          error: "Vehicle with this VIN already exists",
+          existingVehicleId: 77,
+        });
+      });
+
+    expect(storageMock.getVehicleByVin).toHaveBeenCalledWith("1HGCM82633A004352", 1);
+    expect(storageMock.updateVehicle).not.toHaveBeenCalled();
+  });
+
+  it("allows updating a vehicle with its own normalized VIN", async () => {
+    storageMock.getVehicleByVin.mockResolvedValue({
+      id: 42,
+      year: 2003,
+      make: "Honda",
+      model: "Accord",
+      vin: "1HGCM82633A004352",
+    });
+    storageMock.updateVehicle.mockImplementation(async (id: number, vehicle: any) => ({ id, ...vehicle }));
+
+    await request(appWithDealerOne)
+      .patch("/api/vehicles/42")
+      .set("x-test-role", "dealer_manager")
+      .send({ vin: " 1hgcm82633a004352 ", price: 26000 })
+      .expect(200)
+      .expect((res) => {
+        expect(res.body).toMatchObject({
+          id: 42,
+          vin: "1HGCM82633A004352",
+          price: 26000,
+        });
+      });
+
+    expect(storageMock.updateVehicle).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        vin: "1HGCM82633A004352",
+        price: 26000,
+      }),
+      1,
+    );
   });
 
   it("blocks sales reps from updating inventory", async () => {

@@ -34,6 +34,8 @@ describe("legacy vehicle route RBAC contract", () => {
     expect(legacyVehicleBlock).toContain("vehicleUpdateRequestSchema.safeParse(req.body)");
     expect(legacyVehicleBlock).toContain("normalizeVehicleWriteVIN(parsed.data)");
     expect(legacyVehicleBlock).toContain("withNormalizedStockNumber(vinGuard.data)");
+    expect(legacyVehicleBlock).toContain("storage.getVehicleByVin(vehicleInput.vin, dealershipId)");
+    expect(legacyVehicleBlock).toContain("storage.getVehicleByVin(updateData.vin, dealershipId)");
     expect(legacyVehicleBlock).toContain("findActiveStockNumberConflict(existingVehicles, vehicleInput.normalizedStockNumber)");
     expect(legacyVehicleBlock).toContain("findActiveStockNumberConflict(");
     expect(legacyVehicleBlock).toContain("updateData.normalizedStockNumber");

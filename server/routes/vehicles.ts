@@ -206,9 +206,7 @@ router.post("/", authMiddleware, requirePermission("inventory.write"), requireDe
 
     // DEDUP: Check for existing VIN
     if (vehicleInput.vin) {
-      const duplicate = existingVehicles.find((v: any) =>
-        v.vin && v.vin.toUpperCase() === vehicleInput.vin!.toUpperCase()
-      );
+      const duplicate = await storage.getVehicleByVin(vehicleInput.vin, dealershipId);
       if (duplicate) {
         return res.status(409).json({
           error: "Vehicle with this VIN already exists",
@@ -267,6 +265,17 @@ router.patch("/:id", authMiddleware, requirePermission("inventory.write"), requi
       return res.status(400).json(vehicleVINWriteErrorResponse(vinGuard.error));
     }
     const updateData = withNormalizedStockNumber(vinGuard.data);
+    if (updateData.vin) {
+      const vinConflict = await storage.getVehicleByVin(updateData.vin, dealershipId);
+      if (vinConflict && vinConflict.id !== id) {
+        return res.status(409).json({
+          error: "Vehicle with this VIN already exists",
+          existingVehicleId: vinConflict.id,
+          existingVehicle: `${vinConflict.year} ${vinConflict.make} ${vinConflict.model}`,
+          hint: "Choose a unique active VIN before updating this vehicle."
+        });
+      }
+    }
     if (updateData.normalizedStockNumber) {
       const stockConflict = findActiveStockNumberConflict(
         await storage.getVehiclesByDealership(dealershipId),
