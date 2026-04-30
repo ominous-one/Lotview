@@ -13290,11 +13290,17 @@ Format your response in clear sections with actionable recommendations.`;
   // ===== CALL PARTICIPANTS =====
   
   // Get participants for a call
-  app.get("/api/call-recordings/:callId/participants", authMiddleware, async (req: AuthRequest, res) => {
+  app.get("/api/call-recordings/:callId/participants", authMiddleware, requirePermission("leads.read"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
+      const dealershipId = req.dealershipId!;
       const callId = parseInt(req.params.callId);
       if (isNaN(callId)) {
         return res.status(400).json({ error: "Invalid call ID" });
+      }
+
+      const callRecording = await storage.getCallRecordingById(callId, dealershipId);
+      if (!callRecording) {
+        return res.status(404).json({ error: "Call recording not found" });
       }
       
       const participants = await storage.getCallParticipants(callId);
