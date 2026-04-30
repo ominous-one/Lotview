@@ -1073,12 +1073,12 @@ export interface IStorage {
 
   // Scrape Queue - Checkpointed VDP processing
   createScrapeQueueBatch(items: InsertScrapeQueue[]): Promise<ScrapeQueue[]>;
-  getPendingScrapeQueueItems(scrapeRunId: number): Promise<ScrapeQueue[]>;
+  getPendingScrapeQueueItems(scrapeRunId: number, dealershipId: number): Promise<ScrapeQueue[]>;
   getIncompleteScrapeQueue(dealershipId: number): Promise<{ scrapeRunId: number; items: ScrapeQueue[] } | null>;
-  updateScrapeQueueItem(id: number, updates: Partial<InsertScrapeQueue>): Promise<ScrapeQueue | undefined>;
-  markScrapeQueueCompleted(id: number, vehicleId: number): Promise<void>;
-  markScrapeQueueFailed(id: number, errorMessage: string): Promise<void>;
-  clearScrapeQueue(scrapeRunId: number): Promise<void>;
+  updateScrapeQueueItem(id: number, dealershipId: number, updates: Partial<InsertScrapeQueue>): Promise<ScrapeQueue | undefined>;
+  markScrapeQueueCompleted(id: number, dealershipId: number, vehicleId: number): Promise<boolean>;
+  markScrapeQueueFailed(id: number, dealershipId: number, errorMessage: string): Promise<boolean>;
+  clearScrapeQueue(scrapeRunId: number, dealershipId: number): Promise<void>;
 
   // ====== FB MARKETPLACE REPLIES (Workstream 4D) ======
   getFbReplySettings(dealershipId: number): Promise<FbReplySettings>;
@@ -6907,12 +6907,13 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
-  async getPendingScrapeQueueItems(scrapeRunId: number): Promise<ScrapeQueue[]> {
+  async getPendingScrapeQueueItems(scrapeRunId: number, dealershipId: number): Promise<ScrapeQueue[]> {
     return await db.select()
       .from(scrapeQueue)
       .where(
         and(
           eq(scrapeQueue.scrapeRunId, scrapeRunId),
+          eq(scrapeQueue.dealershipId, dealershipId),
           or(
             eq(scrapeQueue.status, "pending"),
             eq(scrapeQueue.status, "processing")
@@ -6956,37 +6957,43 @@ export class DatabaseStorage implements IStorage {
     return { scrapeRunId: run.id, items: pendingItems };
   }
 
-  async updateScrapeQueueItem(id: number, updates: Partial<InsertScrapeQueue>): Promise<ScrapeQueue | undefined> {
+  async updateScrapeQueueItem(id: number, dealershipId: number, updates: Partial<InsertScrapeQueue>): Promise<ScrapeQueue | undefined> {
     const result = await db.update(scrapeQueue)
       .set(updates)
-      .where(eq(scrapeQueue.id, id))
+      .where(and(eq(scrapeQueue.id, id), eq(scrapeQueue.dealershipId, dealershipId)))
       .returning();
     return result[0];
   }
 
-  async markScrapeQueueCompleted(id: number, vehicleId: number): Promise<void> {
-    await db.update(scrapeQueue)
+  async markScrapeQueueCompleted(id: number, dealershipId: number, vehicleId: number): Promise<boolean> {
+    const result = await db.update(scrapeQueue)
       .set({
         status: "completed",
         vehicleId,
         processedAt: new Date()
       })
-      .where(eq(scrapeQueue.id, id));
+      .where(and(eq(scrapeQueue.id, id), eq(scrapeQueue.dealershipId, dealershipId)))
+      .returning({ id: scrapeQueue.id });
+
+    return result.length > 0;
   }
 
-  async markScrapeQueueFailed(id: number, errorMessage: string): Promise<void> {
-    await db.update(scrapeQueue)
+  async markScrapeQueueFailed(id: number, dealershipId: number, errorMessage: string): Promise<boolean> {
+    const result = await db.update(scrapeQueue)
       .set({
         status: "failed",
         errorMessage,
         processedAt: new Date()
       })
-      .where(eq(scrapeQueue.id, id));
+      .where(and(eq(scrapeQueue.id, id), eq(scrapeQueue.dealershipId, dealershipId)))
+      .returning({ id: scrapeQueue.id });
+
+    return result.length > 0;
   }
 
-  async clearScrapeQueue(scrapeRunId: number): Promise<void> {
+  async clearScrapeQueue(scrapeRunId: number, dealershipId: number): Promise<void> {
     await db.delete(scrapeQueue)
-      .where(eq(scrapeQueue.scrapeRunId, scrapeRunId));
+      .where(and(eq(scrapeQueue.scrapeRunId, scrapeRunId), eq(scrapeQueue.dealershipId, dealershipId)));
   }
 
   // ====== FB MARKETPLACE REPLIES (Workstream 4D) ======
