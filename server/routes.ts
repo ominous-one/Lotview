@@ -4675,12 +4675,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Manual trigger for inventory sync (optionally target a specific dealership)
-  app.post("/api/scraper/sync", async (req, res) => {
+  app.post("/api/scraper/sync", authMiddleware, requirePermission("integrations.write"), requireRole("master"), requireDealership, sensitiveLimiter, async (req, res) => {
     try {
-      const requestedId = req.body?.dealershipId;
-      const parsedId = typeof requestedId === 'string' ? parseInt(requestedId, 10) : requestedId;
-      const normalizedId = typeof parsedId === 'number' && Number.isFinite(parsedId) ? parsedId : undefined;
-      const result = await triggerManualSync(normalizedId);
+      const dealershipId = req.dealershipId!;
+      const result = await triggerManualSync(dealershipId);
       res.json(result);
     } catch (error) {
       logError('Error triggering sync:', error instanceof Error ? error : new Error(String(error)), { route: 'api-scraper-sync' });
@@ -4689,7 +4687,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Test badge detection
-  app.get("/api/scraper/test-badges", async (req, res) => {
+  app.get("/api/scraper/test-badges", authMiddleware, requirePermission("integrations.read"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       await testBadgeDetection();
       res.json({ message: "Check console for badge detection test results" });

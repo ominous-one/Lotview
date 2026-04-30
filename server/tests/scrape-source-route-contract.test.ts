@@ -39,4 +39,21 @@ describe("scrape source route RBAC and tenant contract", () => {
       'app.post("/api/scrape-sources/:id/scrape", authMiddleware, requirePermission("integrations.write"), requireRole("master"), requireDealership'
     );
   });
+
+  it("requires auth, integration permissions, and dealership context for manual scraper diagnostics", () => {
+    const scraperRoutesBlock = routesSource.match(
+      /\/\/ ===== SCRAPER ROUTES =====[\s\S]*?\/\/ ===== CHAT ROUTES =====/
+    )?.[0];
+
+    expect(scraperRoutesBlock).toBeDefined();
+    expect(scraperRoutesBlock).toContain(
+      'app.post("/api/scraper/sync", authMiddleware, requirePermission("integrations.write"), requireRole("master"), requireDealership, sensitiveLimiter'
+    );
+    expect(scraperRoutesBlock).toContain(
+      'app.get("/api/scraper/test-badges", authMiddleware, requirePermission("integrations.read"), requireRole("master"), requireDealership'
+    );
+    expect(scraperRoutesBlock).toContain("const dealershipId = req.dealershipId!;");
+    expect(scraperRoutesBlock).toContain("triggerManualSync(dealershipId)");
+    expect(scraperRoutesBlock).not.toContain("req.body?.dealershipId");
+  });
 });
