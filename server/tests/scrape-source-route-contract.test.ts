@@ -3,6 +3,7 @@ import { resolve } from "path";
 
 describe("scrape source route RBAC and tenant contract", () => {
   const routesSource = readFileSync(resolve(process.cwd(), "server/routes.ts"), "utf8");
+  const storageSource = readFileSync(resolve(process.cwd(), "server/storage.ts"), "utf8");
 
   it("requires explicit integration permissions for super-admin scrape source management", () => {
     expect(routesSource).toContain(
@@ -58,5 +59,11 @@ describe("scrape source route RBAC and tenant contract", () => {
     expect(scraperRoutesBlock).toContain("const dealershipId = req.dealershipId!;");
     expect(scraperRoutesBlock).toContain("triggerManualSync(dealershipId)");
     expect(scraperRoutesBlock).not.toContain("req.body?.dealershipId");
+  });
+
+  it("strips immutable tenant ownership fields before dealership scrape source updates", () => {
+    expect(routesSource).not.toContain("storage.updateScrapeSource(id, dealershipId, req.body)");
+    expect(routesSource).toContain("storage.updateScrapeSource(id, dealershipId, updates)");
+    expect(storageSource).toContain(".set({ ...stripTenantOwnershipFields(source), updatedAt: new Date() })");
   });
 });

@@ -2740,7 +2740,7 @@ export class DatabaseStorage implements IStorage {
 
   async updateScrapeSource(id: number, dealershipId: number, source: Partial<InsertScrapeSource>): Promise<ScrapeSource | undefined> {
     const result = await db.update(scrapeSources)
-      .set({ ...source, updatedAt: new Date() })
+      .set({ ...stripTenantOwnershipFields(source), updatedAt: new Date() })
       .where(and(
         eq(scrapeSources.id, id),
         eq(scrapeSources.dealershipId, dealershipId)
