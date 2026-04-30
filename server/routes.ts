@@ -1207,7 +1207,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Get audit logs (super admin only)
-  app.get("/api/super-admin/audit-logs", authMiddleware, superAdminOnly, async (req, res) => {
+  app.get("/api/super-admin/audit-logs", authMiddleware, requirePermission("admin.audit"), superAdminOnly, async (req, res) => {
     try {
       const limit = parseInt(req.query.limit as string) || 50;
       const offset = parseInt(req.query.offset as string) || 0;
@@ -1221,7 +1221,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Get scraper activity logs (super admin only)
-  app.get("/api/super-admin/scraper-logs", authMiddleware, superAdminOnly, async (req, res) => {
+  app.get("/api/super-admin/scraper-logs", authMiddleware, requirePermission("admin.audit"), superAdminOnly, async (req, res) => {
     try {
       const dealershipId = req.query.dealershipId ? parseInt(req.query.dealershipId as string) : undefined;
       const limit = parseInt(req.query.limit as string) || 50;
@@ -1235,7 +1235,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Get system health status (super admin only)
-  app.get("/api/super-admin/system-health", authMiddleware, superAdminOnly, async (req, res) => {
+  app.get("/api/super-admin/system-health", authMiddleware, requirePermission("admin.audit"), superAdminOnly, async (req, res) => {
     try {
       // Check database connection with simple heartbeat query
       let databaseStatus = { connected: false, latencyMs: 0, error: null as string | null };
@@ -1327,7 +1327,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ===== ADMIN DASHBOARD ROUTES (wired from services/admin-dashboard) =====
   
   // Get system health with external service checks
-  app.get("/api/super-admin/dashboard/health", authMiddleware, superAdminOnly, async (req, res) => {
+  app.get("/api/super-admin/dashboard/health", authMiddleware, requirePermission("admin.audit"), superAdminOnly, async (req, res) => {
     try {
       const { getSystemHealth } = await import('./services/admin-dashboard');
       const health = await getSystemHealth();
@@ -1339,7 +1339,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Get business metrics
-  app.get("/api/super-admin/dashboard/business-metrics", authMiddleware, superAdminOnly, async (req, res) => {
+  app.get("/api/super-admin/dashboard/business-metrics", authMiddleware, requirePermission("admin.audit"), superAdminOnly, async (req, res) => {
     try {
       const { getBusinessMetrics } = await import('./services/admin-dashboard');
       const metrics = await getBusinessMetrics();
@@ -1351,7 +1351,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Get dealership activity
-  app.get("/api/super-admin/dashboard/dealership-activity", authMiddleware, superAdminOnly, async (req, res) => {
+  app.get("/api/super-admin/dashboard/dealership-activity", authMiddleware, requirePermission("admin.audit"), superAdminOnly, async (req, res) => {
     try {
       const { getDealershipActivity } = await import('./services/admin-dashboard');
       const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
@@ -1364,7 +1364,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Get AI usage metrics
-  app.get("/api/super-admin/dashboard/ai-metrics", authMiddleware, superAdminOnly, async (req, res) => {
+  app.get("/api/super-admin/dashboard/ai-metrics", authMiddleware, requirePermission("admin.audit"), superAdminOnly, async (req, res) => {
     try {
       const { getAIMetrics } = await import('./services/admin-dashboard');
       const metrics = await getAIMetrics();
@@ -1376,7 +1376,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Get scraping metrics
-  app.get("/api/super-admin/dashboard/scraping-metrics", authMiddleware, superAdminOnly, async (req, res) => {
+  app.get("/api/super-admin/dashboard/scraping-metrics", authMiddleware, requirePermission("admin.audit"), superAdminOnly, async (req, res) => {
     try {
       const { getScrapingMetrics } = await import('./services/admin-dashboard');
       const metrics = await getScrapingMetrics();
@@ -1388,7 +1388,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Get FB Marketplace metrics
-  app.get("/api/super-admin/dashboard/fb-marketplace-metrics", authMiddleware, superAdminOnly, async (req, res) => {
+  app.get("/api/super-admin/dashboard/fb-marketplace-metrics", authMiddleware, requirePermission("admin.audit"), superAdminOnly, async (req, res) => {
     try {
       const { getFBMarketplaceMetrics } = await import('./services/admin-dashboard');
       const metrics = await getFBMarketplaceMetrics();
@@ -1400,7 +1400,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Get system alerts
-  app.get("/api/super-admin/dashboard/alerts", authMiddleware, superAdminOnly, async (req, res) => {
+  app.get("/api/super-admin/dashboard/alerts", authMiddleware, requirePermission("admin.audit"), superAdminOnly, async (req, res) => {
     try {
       const { getSystemAlerts } = await import('./services/admin-dashboard');
       const minSeverity = (req.query.minSeverity as 'low' | 'medium' | 'high' | 'critical') || 'low';
@@ -1413,7 +1413,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Resolve a system alert
-  app.post("/api/super-admin/dashboard/alerts/:alertId/resolve", authMiddleware, superAdminOnly, async (req: AuthRequest, res) => {
+  app.post("/api/super-admin/dashboard/alerts/:alertId/resolve", authMiddleware, requirePermission("admin.audit"), superAdminOnly, async (req: AuthRequest, res) => {
     try {
       const { resolveAlert } = await import('./services/admin-dashboard');
       const resolved = await resolveAlert(req.params.alertId, req.user!.id);
