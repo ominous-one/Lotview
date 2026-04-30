@@ -774,7 +774,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Secrets password management
-  app.get("/api/super-admin/secrets/password-status", authMiddleware, superAdminOnly, async (req: AuthRequest, res) => {
+  app.get("/api/super-admin/secrets/password-status", authMiddleware, requirePermission("integrations.read"), superAdminOnly, async (req: AuthRequest, res) => {
     try {
       const config = await storage.getSuperAdminConfig('secrets_password_hash');
       res.json({ isSet: !!config });
@@ -784,7 +784,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/super-admin/secrets/verify-password", authMiddleware, superAdminOnly, async (req: AuthRequest, res) => {
+  app.post("/api/super-admin/secrets/verify-password", authMiddleware, requirePermission("integrations.read"), superAdminOnly, async (req: AuthRequest, res) => {
     try {
       const { password } = req.body;
       if (!password) {
@@ -806,7 +806,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  app.post("/api/super-admin/secrets/set-password", authMiddleware, superAdminOnly, async (req: AuthRequest, res) => {
+  app.post("/api/super-admin/secrets/set-password", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req: AuthRequest, res) => {
     try {
       const { password, currentPassword } = req.body;
       if (!password || password.length < 12) {
@@ -851,7 +851,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Get all dealership API keys (requires secrets password verification via header)
-  app.get("/api/super-admin/secrets/all-api-keys", authMiddleware, superAdminOnly, async (req: AuthRequest, res) => {
+  app.get("/api/super-admin/secrets/all-api-keys", authMiddleware, requirePermission("integrations.read"), superAdminOnly, async (req: AuthRequest, res) => {
     try {
       const secretsPassword = req.headers['x-secrets-password'] as string;
       if (!secretsPassword) {
@@ -1699,7 +1699,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Get API keys for a specific dealership (super admin only)
-  app.get("/api/super-admin/dealerships/:dealershipId/api-keys", authMiddleware, superAdminOnly, async (req, res) => {
+  app.get("/api/super-admin/dealerships/:dealershipId/api-keys", authMiddleware, requirePermission("integrations.read"), superAdminOnly, async (req, res) => {
     try {
       const dealershipId = parseInt(req.params.dealershipId);
       const apiKeys = await storage.getDealershipApiKeys(dealershipId);
@@ -1731,7 +1731,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Update API keys for a specific dealership (super admin only)
-  app.patch("/api/super-admin/dealerships/:dealershipId/api-keys", authMiddleware, superAdminOnly, async (req, res) => {
+  app.patch("/api/super-admin/dealerships/:dealershipId/api-keys", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
       const dealershipId = parseInt(req.params.dealershipId);
       const updates = req.body;
@@ -1775,7 +1775,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Test OpenAI API key for a dealership (super admin only)
-  app.post("/api/super-admin/dealerships/:dealershipId/test-openai", authMiddleware, superAdminOnly, async (req, res) => {
+  app.post("/api/super-admin/dealerships/:dealershipId/test-openai", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
       const dealershipId = parseInt(req.params.dealershipId);
       const apiKeys = await storage.getDealershipApiKeys(dealershipId);
@@ -1804,7 +1804,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Test Facebook App credentials for a dealership (super admin only)
-  app.post("/api/super-admin/dealerships/:dealershipId/test-facebook", authMiddleware, superAdminOnly, async (req, res) => {
+  app.post("/api/super-admin/dealerships/:dealershipId/test-facebook", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
       const dealershipId = parseInt(req.params.dealershipId);
       const apiKeys = await storage.getDealershipApiKeys(dealershipId);
@@ -1831,7 +1831,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Test GoHighLevel API key for a dealership (super admin only)
-  app.post("/api/super-admin/dealerships/:dealershipId/test-ghl", authMiddleware, superAdminOnly, async (req, res) => {
+  app.post("/api/super-admin/dealerships/:dealershipId/test-ghl", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
       const dealershipId = parseInt(req.params.dealershipId);
       const apiKeys = await storage.getDealershipApiKeys(dealershipId);
@@ -1865,7 +1865,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Test MarketCheck API key for a dealership (super admin only)
-  app.post("/api/super-admin/dealerships/:dealershipId/test-marketcheck", authMiddleware, superAdminOnly, async (req, res) => {
+  app.post("/api/super-admin/dealerships/:dealershipId/test-marketcheck", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
       const dealershipId = parseInt(req.params.dealershipId);
       const apiKeys = await storage.getDealershipApiKeys(dealershipId);
@@ -1893,7 +1893,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Test Apify API token for a dealership (super admin only)
-  app.post("/api/super-admin/dealerships/:dealershipId/test-apify", authMiddleware, superAdminOnly, async (req, res) => {
+  app.post("/api/super-admin/dealerships/:dealershipId/test-apify", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
       const dealershipId = parseInt(req.params.dealershipId);
       const apiKeys = await storage.getDealershipApiKeys(dealershipId);
@@ -1925,7 +1925,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Test Gemini API key for a dealership (super admin only)
-  app.post("/api/super-admin/dealerships/:dealershipId/test-gemini", authMiddleware, superAdminOnly, async (req, res) => {
+  app.post("/api/super-admin/dealerships/:dealershipId/test-gemini", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
       const dealershipId = parseInt(req.params.dealershipId);
       const { GeminiService } = await import("./gemini-service");
