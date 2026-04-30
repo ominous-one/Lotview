@@ -1952,7 +1952,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Run Apify market scrape for a dealership (super admin only)
-  app.post("/api/super-admin/dealerships/:dealershipId/apify-scrape", authMiddleware, superAdminOnly, async (req: AuthRequest, res) => {
+  app.post("/api/super-admin/dealerships/:dealershipId/apify-scrape", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req: AuthRequest, res) => {
     try {
       const dealershipId = parseInt(req.params.dealershipId);
       const { make, model, yearMin, yearMax, postalCode, province, radiusKm, maxResults } = req.body;
@@ -2012,7 +2012,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get all dealerships with API key status (super admin only)
-  app.get("/api/super-admin/dealerships-with-integrations", authMiddleware, superAdminOnly, async (req, res) => {
+  app.get("/api/super-admin/dealerships-with-integrations", authMiddleware, requirePermission("integrations.read"), superAdminOnly, async (req, res) => {
     try {
       const dealerships = await storage.getAllDealerships();
       
@@ -2052,7 +2052,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ===== SUPER ADMIN FACEBOOK CATALOG CONFIG ROUTES =====
   
   // Get all Facebook catalog configs across all dealerships (super admin only)
-  app.get("/api/super-admin/facebook-catalogs", authMiddleware, superAdminOnly, async (req, res) => {
+  app.get("/api/super-admin/facebook-catalogs", authMiddleware, requirePermission("integrations.read"), superAdminOnly, async (req, res) => {
     try {
       const configs = await storage.getAllFacebookCatalogConfigs();
       res.json(configs);
@@ -2063,7 +2063,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get Facebook catalog config for a specific dealership (super admin only)
-  app.get("/api/super-admin/dealerships/:dealershipId/facebook-catalog", authMiddleware, superAdminOnly, async (req, res) => {
+  app.get("/api/super-admin/dealerships/:dealershipId/facebook-catalog", authMiddleware, requirePermission("integrations.read"), superAdminOnly, async (req, res) => {
     try {
       const dealershipId = parseInt(req.params.dealershipId);
       const config = await storage.getFacebookCatalogConfig(dealershipId);
@@ -2080,7 +2080,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Save/update Facebook catalog config for a dealership (super admin only)
-  app.post("/api/super-admin/dealerships/:dealershipId/facebook-catalog", authMiddleware, superAdminOnly, async (req, res) => {
+  app.post("/api/super-admin/dealerships/:dealershipId/facebook-catalog", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
       const dealershipId = parseInt(req.params.dealershipId);
       const { catalogId, accessToken, catalogName, isActive, autoSyncEnabled } = req.body;
@@ -2124,7 +2124,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete Facebook catalog config for a dealership (super admin only)
-  app.delete("/api/super-admin/dealerships/:dealershipId/facebook-catalog", authMiddleware, superAdminOnly, async (req, res) => {
+  app.delete("/api/super-admin/dealerships/:dealershipId/facebook-catalog", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
       const dealershipId = parseInt(req.params.dealershipId);
       const authReq = req as AuthRequest;
@@ -2155,7 +2155,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Test Facebook catalog connection (super admin only)
-  app.post("/api/super-admin/dealerships/:dealershipId/test-facebook-catalog", authMiddleware, superAdminOnly, async (req, res) => {
+  app.post("/api/super-admin/dealerships/:dealershipId/test-facebook-catalog", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
       const dealershipId = parseInt(req.params.dealershipId);
       const { catalogId, accessToken } = req.body;
@@ -2202,7 +2202,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Sync inventory to Facebook catalog (super admin only)
-  app.post("/api/super-admin/dealerships/:dealershipId/sync-facebook-catalog", authMiddleware, superAdminOnly, async (req, res) => {
+  app.post("/api/super-admin/dealerships/:dealershipId/sync-facebook-catalog", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
       const dealershipId = parseInt(req.params.dealershipId);
       const authReq = req as AuthRequest;
