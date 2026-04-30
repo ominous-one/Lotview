@@ -60,6 +60,8 @@ services:
         - client/**
         - Dockerfile
         - package.json
+        - package-lock.json
+        - render.yaml
 
   # ─── Background Worker (Schedulers + Queue Processing) ───
   # Owns ALL scheduled tasks and background jobs.
@@ -111,6 +113,8 @@ services:
         - shared/**
         - Dockerfile
         - package.json
+        - package-lock.json
+        - render.yaml
 
 databases:
   # ─── PostgreSQL Database ───

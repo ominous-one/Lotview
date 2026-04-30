@@ -63,6 +63,7 @@ check("Frontend entrypoint exists", exists("client/src/main.tsx"));
 check("Frontend smoke test exists", exists("client/src/main.test.ts"));
 check("Frontend Vitest config exists", exists("vitest.frontend.config.ts"));
 check("Dockerfile exists", exists("Dockerfile"));
+check("package-lock.json exists", exists("package-lock.json"));
 
 const packageJson = readJson<{ scripts?: Record<string, string> }>("package.json");
 const scripts = packageJson.scripts || {};
@@ -72,6 +73,22 @@ check("npm script test:server exists", typeof scripts["test:server"] === "string
 check("npm script build exists", typeof scripts.build === "string");
 check("npm script check exists", typeof scripts.check === "string");
 check("npm script lint exists", typeof scripts.lint === "string");
+
+if (exists("Dockerfile")) {
+  const dockerfile = read("Dockerfile");
+  check("Dockerfile copies package-lock.json for deterministic installs", dockerfile.includes("package-lock.json"));
+  check("Dockerfile uses npm ci --ignore-scripts", dockerfile.includes("npm ci --ignore-scripts"));
+}
+
+if (exists("render.yaml")) {
+  const renderYaml = read("render.yaml");
+  const renderLockfileReferences = renderYaml.match(/package-lock\.json/g) ?? [];
+  check(
+    "Render build filters include package-lock.json for all Docker services",
+    renderLockfileReferences.length >= 2,
+    "Render must redeploy when the committed npm lockfile changes because Docker builds use npm ci.",
+  );
+}
 
 const workflowFiles = [
   ".github/workflows/ci.yml",
