@@ -20,7 +20,6 @@ let appWithoutTenant: Express;
 let appWithDealerOne: Express;
 
 const completeVehiclePayload = {
-  dealershipId: 999,
   year: 2003,
   make: "Honda",
   model: "Accord",
@@ -257,6 +256,32 @@ describe("vehicle route tenant contracts", () => {
 
     expect(storageMock.getVehicles).not.toHaveBeenCalled();
     expect(storageMock.createVehicle).not.toHaveBeenCalled();
+  });
+
+  it("creates inventory with the resolved dealership context instead of a client-supplied dealership id", async () => {
+    storageMock.getVehicles.mockResolvedValue({ vehicles: [], total: 0 });
+    storageMock.createVehicle.mockImplementation(async (vehicle: any) => ({ id: 42, ...vehicle }));
+
+    await request(appWithDealerOne)
+      .post("/api/vehicles")
+      .set("x-test-role", "dealer_manager")
+      .send({ ...completeVehiclePayload, vin: " 1hgcm82633a004352 ", dealershipId: 999 })
+      .expect(201)
+      .expect((res) => {
+        expect(res.body).toMatchObject({
+          id: 42,
+          dealershipId: 1,
+          vin: "1HGCM82633A004352",
+        });
+      });
+
+    expect(storageMock.getVehicles).toHaveBeenCalledWith(1, 100, 0);
+    expect(storageMock.createVehicle).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dealershipId: 1,
+        vin: "1HGCM82633A004352",
+      }),
+    );
   });
 
   it("blocks sales reps from updating inventory", async () => {

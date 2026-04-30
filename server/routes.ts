@@ -5,7 +5,6 @@ import { db } from "./db";
 import { logError, logWarn, logInfo } from './error-utils';
 import { authLimiter, sensitiveLimiter } from "./app";
 import {
-  insertVehicleSchema, 
   insertVehicleViewSchema, 
   insertFacebookPageSchema,
   insertFacebookAccountSchema,
@@ -72,6 +71,7 @@ import { createExternalApiMiddleware } from "./services/external-api-guard";
 import { scrapeCarfaxReportCloud } from "./services/carfax-browserless";
 import { initializeFlagsFromEnv, isEnabled } from "./services/feature-flags";
 import { hasVehicleVINWriteError, normalizeVehicleWriteVIN, vehicleVINWriteErrorResponse } from "./services/vehicle-vin-write-guard";
+import { vehicleCreateRequestSchema, vehicleUpdateRequestSchema, withResolvedVehicleDealership } from "./services/vehicle-write-schema";
 
 import { authMiddleware, requireRole, requirePermission, requireCapability, generateToken, generateImpersonationToken, comparePassword, hashPassword, verifyToken, extensionHmacMiddleware, generatePostingToken, validatePostingToken, type AuthRequest } from "./auth";
 import { requireDealership, superAdminOnly } from "./tenant-middleware";
@@ -4084,7 +4084,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create vehicle (master only)
   app.post("/api/vehicles", authMiddleware, requirePermission("inventory.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
-      const parsed = insertVehicleSchema.safeParse(req.body);
+      const parsed = vehicleCreateRequestSchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ error: fromZodError(parsed.error).message });
       }
@@ -4112,7 +4112,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      const vehicle = await storage.createVehicle({ ...vehicleInput, dealershipId });
+      const vehicle = await storage.createVehicle(withResolvedVehicleDealership(vehicleInput, dealershipId));
       res.status(201).json(vehicle);
     } catch (error) {
       logError('Error creating vehicle:', error instanceof Error ? error : new Error(String(error)), { route: 'api-vehicles' });
@@ -4124,7 +4124,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/vehicles/:id", authMiddleware, requirePermission("inventory.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const parsed = insertVehicleSchema.partial().safeParse(req.body);
+      const parsed = vehicleUpdateRequestSchema.safeParse(req.body);
       
       if (!parsed.success) {
         return res.status(400).json({ error: fromZodError(parsed.error).message });
@@ -4132,9 +4132,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const dealershipId = req.dealershipId!;
       
-      // SECURITY: Strip dealershipId from payload to prevent cross-tenant reassignment
-      const { dealershipId: _removed, ...parsedUpdateData } = parsed.data;
-      const vinGuard = normalizeVehicleWriteVIN(parsedUpdateData);
+      const vinGuard = normalizeVehicleWriteVIN(parsed.data);
       if (hasVehicleVINWriteError(vinGuard)) {
         return res.status(400).json(vehicleVINWriteErrorResponse(vinGuard.error));
       }

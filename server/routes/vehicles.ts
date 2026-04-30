@@ -14,12 +14,12 @@ import { authMiddleware, requirePermission, requireRole } from "../auth";
 import { hasPermission } from "@shared/authz";
 import { requireDealership } from "../tenant-middleware";
 import { logError, logWarn } from "../error-utils";
-import { insertVehicleSchema } from "@shared/schema";
 import { initializeFlagsFromEnv, isEnabled } from "../services/feature-flags";
 import { deduplicateAndStore } from "../services/vehicle-dedup";
 import { enrichPhotosSafely } from "../services/photo-guard";
 import { scrapeCarfaxReportCloud } from "../services/carfax-browserless";
 import { hasVehicleVINWriteError, normalizeVehicleWriteVIN, vehicleVINWriteErrorResponse } from "../services/vehicle-vin-write-guard";
+import { vehicleCreateRequestSchema, vehicleUpdateRequestSchema, withResolvedVehicleDealership } from "../services/vehicle-write-schema";
 
 const router = Router();
 initializeFlagsFromEnv();
@@ -190,7 +190,7 @@ router.get("/:id/views", async (req, res) => {
 // POST /api/vehicles — Create vehicle
 router.post("/", authMiddleware, requirePermission("inventory.write"), requireDealership, async (req, res) => {
   try {
-    const parsed = insertVehicleSchema.safeParse(req.body);
+    const parsed = vehicleCreateRequestSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: fromZodError(parsed.error).message });
     }
@@ -233,7 +233,7 @@ router.post("/", authMiddleware, requirePermission("inventory.write"), requireDe
       });
     }
 
-    const vehicle = await storage.createVehicle({ ...vehicleInput, dealershipId });
+    const vehicle = await storage.createVehicle(withResolvedVehicleDealership(vehicleInput, dealershipId));
     res.status(201).json(vehicle);
   } catch (error) {
     logError("Error creating vehicle:", error instanceof Error ? error : new Error(String(error)), { route: "api-vehicles" });
@@ -245,13 +245,12 @@ router.post("/", authMiddleware, requirePermission("inventory.write"), requireDe
 router.patch("/:id", authMiddleware, requirePermission("inventory.write"), requireDealership, async (req, res) => {
   try {
     const id = parseInt(req.params.id);
-    const parsed = insertVehicleSchema.partial().safeParse(req.body);
+    const parsed = vehicleUpdateRequestSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: fromZodError(parsed.error).message });
     }
     const dealershipId = req.dealershipId!;
-    const { dealershipId: _removed, ...parsedUpdateData } = parsed.data;
-    const vinGuard = normalizeVehicleWriteVIN(parsedUpdateData);
+    const vinGuard = normalizeVehicleWriteVIN(parsed.data);
     if (hasVehicleVINWriteError(vinGuard)) {
       return res.status(400).json(vehicleVINWriteErrorResponse(vinGuard.error));
     }
