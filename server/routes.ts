@@ -2832,7 +2832,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ===== SUPER ADMIN ONBOARDING ROUTES =====
   
   // Validate onboarding input (dry run)
-  app.post("/api/super-admin/onboarding/validate", authMiddleware, superAdminOnly, async (req, res) => {
+  app.post("/api/super-admin/onboarding/validate", authMiddleware, requireCapability("tenant.manage"), requirePermission("users.invite"), superAdminOnly, async (req, res) => {
     try {
       const { OnboardingService } = await import("./onboarding-service");
       const validation = OnboardingService.validateInput(req.body);
@@ -2859,7 +2859,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Execute onboarding (one-click setup)
-  app.post("/api/super-admin/onboarding/start", authMiddleware, superAdminOnly, async (req, res) => {
+  app.post("/api/super-admin/onboarding/start", authMiddleware, requireCapability("tenant.manage"), requirePermission("users.invite"), superAdminOnly, sensitiveLimiter, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
       const { OnboardingService, onboardingService } = await import("./onboarding-service");
@@ -2907,7 +2907,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Get onboarding run status
-  app.get("/api/super-admin/onboarding/runs/:runId", authMiddleware, superAdminOnly, async (req, res) => {
+  app.get("/api/super-admin/onboarding/runs/:runId", authMiddleware, requirePermission("admin.audit"), superAdminOnly, async (req, res) => {
     try {
       const { OnboardingService } = await import("./onboarding-service");
       const runId = parseInt(req.params.runId);
@@ -2925,7 +2925,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Get all onboarding runs
-  app.get("/api/super-admin/onboarding/runs", authMiddleware, superAdminOnly, async (req, res) => {
+  app.get("/api/super-admin/onboarding/runs", authMiddleware, requirePermission("admin.audit"), superAdminOnly, async (req, res) => {
     try {
       const { OnboardingService } = await import("./onboarding-service");
       const runs = await OnboardingService.getAllRuns();
@@ -2939,7 +2939,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ===== LAUNCH CHECKLIST ROUTES (Super Admin) =====
   
   // Get launch checklist for a dealership
-  app.get("/api/super-admin/dealerships/:dealershipId/launch-checklist", authMiddleware, superAdminOnly, async (req, res) => {
+  app.get("/api/super-admin/dealerships/:dealershipId/launch-checklist", authMiddleware, requireCapability("tenant.manage"), superAdminOnly, async (req, res) => {
     try {
       const dealershipId = parseInt(req.params.dealershipId);
       const items = await storage.getLaunchChecklist(dealershipId);
@@ -2952,7 +2952,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Get launch checklist progress for a dealership
-  app.get("/api/super-admin/dealerships/:dealershipId/launch-checklist/progress", authMiddleware, superAdminOnly, async (req, res) => {
+  app.get("/api/super-admin/dealerships/:dealershipId/launch-checklist/progress", authMiddleware, requireCapability("tenant.manage"), superAdminOnly, async (req, res) => {
     try {
       const dealershipId = parseInt(req.params.dealershipId);
       const progress = await storage.getLaunchChecklistProgress(dealershipId);
@@ -2964,7 +2964,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Complete a launch checklist item
-  app.post("/api/super-admin/dealerships/:dealershipId/launch-checklist/:itemId/complete", authMiddleware, superAdminOnly, async (req, res) => {
+  app.post("/api/super-admin/dealerships/:dealershipId/launch-checklist/:itemId/complete", authMiddleware, requireCapability("tenant.manage"), superAdminOnly, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
       const dealershipId = parseInt(req.params.dealershipId);
@@ -2982,7 +2982,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Skip a launch checklist item
-  app.post("/api/super-admin/dealerships/:dealershipId/launch-checklist/:itemId/skip", authMiddleware, superAdminOnly, async (req, res) => {
+  app.post("/api/super-admin/dealerships/:dealershipId/launch-checklist/:itemId/skip", authMiddleware, requireCapability("tenant.manage"), superAdminOnly, async (req, res) => {
     try {
       const dealershipId = parseInt(req.params.dealershipId);
       const itemId = parseInt(req.params.itemId);
@@ -3000,7 +3000,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Update checklist item notes
-  app.patch("/api/super-admin/dealerships/:dealershipId/launch-checklist/:itemId", authMiddleware, superAdminOnly, async (req, res) => {
+  app.patch("/api/super-admin/dealerships/:dealershipId/launch-checklist/:itemId", authMiddleware, requireCapability("tenant.manage"), superAdminOnly, async (req, res) => {
     try {
       const dealershipId = parseInt(req.params.dealershipId);
       const itemId = parseInt(req.params.itemId);
