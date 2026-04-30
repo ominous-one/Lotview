@@ -1067,7 +1067,7 @@ export interface IStorage {
 
   // Scrape Runs - Inventory scrape logging
   createScrapeRun(run: InsertScrapeRun): Promise<ScrapeRun>;
-  updateScrapeRun(id: number, updates: Partial<InsertScrapeRun>): Promise<ScrapeRun | undefined>;
+  updateScrapeRun(id: number, dealershipId: number | null, updates: Partial<InsertScrapeRun>): Promise<ScrapeRun | undefined>;
   getScrapeRuns(dealershipId?: number, limit?: number): Promise<ScrapeRun[]>;
   getLatestScrapeRun(dealershipId?: number): Promise<ScrapeRun | undefined>;
 
@@ -6869,10 +6869,14 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
-  async updateScrapeRun(id: number, updates: Partial<InsertScrapeRun>): Promise<ScrapeRun | undefined> {
+  async updateScrapeRun(id: number, dealershipId: number | null, updates: Partial<InsertScrapeRun>): Promise<ScrapeRun | undefined> {
+    const dealershipBoundary = dealershipId === null
+      ? isNull(scrapeRuns.dealershipId)
+      : eq(scrapeRuns.dealershipId, dealershipId);
+
     const result = await db.update(scrapeRuns)
       .set(updates)
-      .where(eq(scrapeRuns.id, id))
+      .where(and(eq(scrapeRuns.id, id), dealershipBoundary))
       .returning();
     return result[0];
   }

@@ -207,7 +207,7 @@ export async function runBrowserlessInventoryScrape(
 
     const duration = Date.now() - startTime;
 
-    await storage.updateScrapeRun(run.id, {
+    await storage.updateScrapeRun(run.id, run.dealershipId ?? null, {
       status: totalFound > 0 ? 'success' : 'failed',
       scrapeMethod: usedMethod,
       vehiclesFound: totalFound,
@@ -238,7 +238,7 @@ export async function runBrowserlessInventoryScrape(
     const duration = Date.now() - startTime;
     const errorMessage = error instanceof Error ? error.message : String(error);
 
-    await storage.updateScrapeRun(run.id, {
+    await storage.updateScrapeRun(run.id, run.dealershipId ?? null, {
       status: 'failed',
       scrapeMethod: 'browserless',
       errorMessage,
