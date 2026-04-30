@@ -890,7 +890,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Get all dealerships (super admin only)
-  app.get("/api/super-admin/dealerships", authMiddleware, superAdminOnly, async (req, res) => {
+  app.get("/api/super-admin/dealerships", authMiddleware, requireCapability("tenant.manage"), superAdminOnly, async (req, res) => {
     try {
       const dealerships = await storage.getAllDealerships();
       res.json(dealerships);
@@ -901,7 +901,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Create new dealership with full setup (super admin only)
-  app.post("/api/super-admin/dealerships", authMiddleware, superAdminOnly, async (req, res) => {
+  app.post("/api/super-admin/dealerships", authMiddleware, requireCapability("tenant.manage"), requirePermission("users.invite"), superAdminOnly, async (req, res) => {
     try {
       const { 
         name, 
@@ -995,7 +995,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Update dealership settings (super admin only)
-  app.patch("/api/super-admin/dealerships/:dealershipId", authMiddleware, superAdminOnly, async (req, res) => {
+  app.patch("/api/super-admin/dealerships/:dealershipId", authMiddleware, requireCapability("tenant.manage"), requirePermission("users.manage"), superAdminOnly, async (req, res) => {
     try {
       const dealershipId = parseInt(req.params.dealershipId);
       const { 
@@ -1106,7 +1106,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Get dealership details with master user (super admin only)
-  app.get("/api/super-admin/dealerships/:dealershipId", authMiddleware, superAdminOnly, async (req, res) => {
+  app.get("/api/super-admin/dealerships/:dealershipId", authMiddleware, requireCapability("tenant.manage"), superAdminOnly, async (req, res) => {
     try {
       const dealershipId = parseInt(req.params.dealershipId);
       
@@ -1130,7 +1130,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Get all global settings (super admin only)
-  app.get("/api/super-admin/global-settings", authMiddleware, superAdminOnly, async (req, res) => {
+  app.get("/api/super-admin/global-settings", authMiddleware, requirePermission("admin.audit"), superAdminOnly, async (req, res) => {
     try {
       const settings = await storage.getAllGlobalSettings();
       res.json(settings);
@@ -1141,7 +1141,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Set or update a global setting (super admin only)
-  app.put("/api/super-admin/global-settings/:key", authMiddleware, superAdminOnly, async (req, res) => {
+  app.put("/api/super-admin/global-settings/:key", authMiddleware, requireCapability("tenant.settings.write"), superAdminOnly, async (req, res) => {
     try {
       const { key } = req.params;
       const { value, description, isSecret } = req.body;
@@ -1178,7 +1178,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Delete a global setting (super admin only)
-  app.delete("/api/super-admin/global-settings/:key", authMiddleware, superAdminOnly, async (req, res) => {
+  app.delete("/api/super-admin/global-settings/:key", authMiddleware, requireCapability("tenant.settings.write"), superAdminOnly, async (req, res) => {
     try {
       const { key } = req.params;
       
