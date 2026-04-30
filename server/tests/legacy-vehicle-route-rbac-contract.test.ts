@@ -6,6 +6,9 @@ describe("legacy vehicle route RBAC contract", () => {
   const legacyVehicleBlock = routesSource.match(
     /\/\/ Create vehicle \(master only\)[\s\S]*?\/\/ Force re-scrape a specific vehicle/
   )?.[0];
+  const legacyVehicleActionBlock = routesSource.match(
+    /\/\/ Generate video for vehicle using Gemini Veo[\s\S]*?\/\/ ===== VIEW TRACKING ROUTES =====/
+  )?.[0];
 
   it("requires explicit inventory write permission for legacy vehicle mutations", () => {
     expect(legacyVehicleBlock).toBeDefined();
@@ -28,5 +31,19 @@ describe("legacy vehicle route RBAC contract", () => {
     expect(legacyVehicleBlock).toContain("storage.updateVehicle(id, updateData, dealershipId)");
     expect(legacyVehicleBlock).toContain("storage.deleteVehicle(id, dealershipId)");
     expect(legacyVehicleBlock).toContain("eq(vehicles.dealershipId, dealershipId)");
+  });
+
+  it("requires explicit permissions for legacy vehicle AI, scraper, and Carfax action routes", () => {
+    expect(legacyVehicleActionBlock).toBeDefined();
+
+    for (const route of [
+      'app.post("/api/vehicles/:id/generate-video", authMiddleware, requirePermission("ai.use"), requireRole("master"), requireDealership',
+      'app.post("/api/vehicles/:id/generate-description", authMiddleware, requirePermission("ai.use"), requirePermission("inventory.write"), requireRole("master"), requireDealership',
+      'app.post("/api/vehicles/generate-descriptions", authMiddleware, requirePermission("ai.use"), requirePermission("inventory.write"), requireRole("master"), requireDealership',
+      'app.post("/api/vehicles/:id/force-rescrape", authMiddleware, requirePermission("integrations.write"), requireRole("manager"), requireDealership',
+      'app.post("/api/vehicles/batch-carfax-update", authMiddleware, requirePermission("integrations.write"), requirePermission("inventory.write"), requireRole("manager"), requireDealership',
+    ]) {
+      expect(legacyVehicleActionBlock).toContain(route);
+    }
   });
 });
