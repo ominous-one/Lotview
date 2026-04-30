@@ -265,13 +265,21 @@ describe("vehicle route tenant contracts", () => {
     await request(appWithDealerOne)
       .post("/api/vehicles")
       .set("x-test-role", "dealer_manager")
-      .send({ ...completeVehiclePayload, vin: " 1hgcm82633a004352 ", dealershipId: 999 })
+      .send({
+        ...completeVehiclePayload,
+        vin: " 1hgcm82633a004352 ",
+        stockNumber: " st-123 a ",
+        dealershipId: 999,
+        normalizedStockNumber: "SPOOFED",
+      })
       .expect(201)
       .expect((res) => {
         expect(res.body).toMatchObject({
           id: 42,
           dealershipId: 1,
           vin: "1HGCM82633A004352",
+          stockNumber: " st-123 a ",
+          normalizedStockNumber: "ST123A",
         });
       });
 
@@ -280,6 +288,8 @@ describe("vehicle route tenant contracts", () => {
       expect.objectContaining({
         dealershipId: 1,
         vin: "1HGCM82633A004352",
+        stockNumber: " st-123 a ",
+        normalizedStockNumber: "ST123A",
       }),
     );
   });

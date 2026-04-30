@@ -73,6 +73,7 @@ import { initializeFlagsFromEnv, isEnabled } from "./services/feature-flags";
 import { hasVehicleVINWriteError, normalizeVehicleWriteVIN, vehicleVINWriteErrorResponse } from "./services/vehicle-vin-write-guard";
 import { vehicleCreateRequestSchema, vehicleUpdateRequestSchema, withResolvedVehicleDealership } from "./services/vehicle-write-schema";
 import { storeExternalVehicleImport } from "./services/external-vehicle-import-safety";
+import { withNormalizedStockNumber } from "./services/vehicle-stock-number";
 
 import { authMiddleware, requireRole, requirePermission, requireCapability, generateToken, generateImpersonationToken, comparePassword, hashPassword, verifyToken, extensionHmacMiddleware, generatePostingToken, validatePostingToken, type AuthRequest } from "./auth";
 import { requireDealership, superAdminOnly } from "./tenant-middleware";
@@ -4052,7 +4053,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (hasVehicleVINWriteError(vinGuard)) {
         return res.status(400).json(vehicleVINWriteErrorResponse(vinGuard.error));
       }
-      const vehicleInput = vinGuard.data;
+      const vehicleInput = withNormalizedStockNumber(vinGuard.data);
       
       // DEDUP: Check for existing VIN before creating
       if (vehicleInput.vin) {
@@ -4094,7 +4095,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (hasVehicleVINWriteError(vinGuard)) {
         return res.status(400).json(vehicleVINWriteErrorResponse(vinGuard.error));
       }
-      const updateData = vinGuard.data;
+      const updateData = withNormalizedStockNumber(vinGuard.data);
       
       const vehicle = await storage.updateVehicle(id, updateData, dealershipId);
       

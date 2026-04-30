@@ -3,6 +3,7 @@ import type { z } from "zod";
 
 export const vehicleCreateRequestSchema = insertVehicleSchema.omit({
   dealershipId: true,
+  normalizedStockNumber: true,
 });
 
 export const vehicleUpdateRequestSchema = vehicleCreateRequestSchema.partial();

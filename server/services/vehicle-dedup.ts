@@ -10,6 +10,7 @@ import { logInfo } from "../error-utils";
 import { storage } from "../storage";
 import { validateVIN } from "../vin-validation";
 import type { Vehicle } from "@shared/schema";
+import { normalizeStockNumber } from "./vehicle-stock-number";
 
 // ---- Types ----
 
@@ -362,7 +363,12 @@ async function mergeVehicle(
   if (scraped.color && !existing.exteriorColor) updates.exteriorColor = scraped.color;
   if (scraped.exteriorColor && !existing.exteriorColor) updates.exteriorColor = scraped.exteriorColor;
   if (scraped.interiorColor && !existing.interiorColor) updates.interiorColor = scraped.interiorColor;
-  if (scraped.stockNumber && !existing.stockNumber) updates.stockNumber = scraped.stockNumber;
+  if (scraped.stockNumber && !existing.stockNumber) {
+    updates.stockNumber = scraped.stockNumber;
+    updates.normalizedStockNumber = normalizeStockNumber(scraped.stockNumber);
+  } else if (scraped.stockNumber && !existing.normalizedStockNumber) {
+    updates.normalizedStockNumber = normalizeStockNumber(scraped.stockNumber);
+  }
   if (scraped.transmission && !existing.transmission) updates.transmission = scraped.transmission;
   if (scraped.engine && !existing.engine) updates.engine = scraped.engine;
   if (scraped.drivetrain && !existing.drivetrain) updates.drivetrain = scraped.drivetrain;
@@ -398,6 +404,7 @@ async function insertVehicle(scraped: ScrapedVehicleData, dealershipId: number):
     dealership: scraped.dealership || "",
     description: scraped.description || "",
     stockNumber: scraped.stockNumber || null,
+    normalizedStockNumber: normalizeStockNumber(scraped.stockNumber),
     exteriorColor: scraped.exteriorColor || scraped.color || null,
     interiorColor: scraped.interiorColor || null,
     transmission: scraped.transmission || null,
