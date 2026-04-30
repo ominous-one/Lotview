@@ -19,6 +19,7 @@ import { initializeFlagsFromEnv, isEnabled } from "../services/feature-flags";
 import { deduplicateAndStore } from "../services/vehicle-dedup";
 import { enrichPhotosSafely } from "../services/photo-guard";
 import { scrapeCarfaxReportCloud } from "../services/carfax-browserless";
+import { hasVehicleVINWriteError, normalizeVehicleWriteVIN, vehicleVINWriteErrorResponse } from "../services/vehicle-vin-write-guard";
 
 const router = Router();
 initializeFlagsFromEnv();
@@ -194,12 +195,17 @@ router.post("/", authMiddleware, requirePermission("inventory.write"), requireDe
       return res.status(400).json({ error: fromZodError(parsed.error).message });
     }
     const dealershipId = req.dealershipId!;
+    const vinGuard = normalizeVehicleWriteVIN(parsed.data);
+    if (hasVehicleVINWriteError(vinGuard)) {
+      return res.status(400).json(vehicleVINWriteErrorResponse(vinGuard.error));
+    }
+    const vehicleInput = vinGuard.data;
 
     // DEDUP: Check for existing VIN
-    if (parsed.data.vin) {
+    if (vehicleInput.vin) {
       const existingVehicles = await storage.getVehicles(dealershipId, 100, 0);
       const duplicate = existingVehicles.vehicles.find((v: any) =>
-        v.vin && v.vin.toUpperCase() === parsed.data.vin!.toUpperCase()
+        v.vin && v.vin.toUpperCase() === vehicleInput.vin!.toUpperCase()
       );
       if (duplicate) {
         return res.status(409).json({
@@ -212,13 +218,13 @@ router.post("/", authMiddleware, requirePermission("inventory.write"), requireDe
     }
 
     // DEDUP service (feature-flagged)
-    if (parsed.data.vin && await isEnabled("vehicle_deduplication", dealershipId)) {
+    if (vehicleInput.vin && await isEnabled("vehicle_deduplication", dealershipId)) {
       const dedupResult = await deduplicateAndStore(dealershipId, {
-        vin: parsed.data.vin,
+        vin: vehicleInput.vin,
         sourceId: `manual_${Date.now()}`,
         sourceType: "manual_create",
         scrapedAt: new Date(),
-        data: { ...parsed.data, dealershipId },
+        data: { ...vehicleInput, dealershipId },
       });
       return res.status(dedupResult.action === "created" ? 201 : 200).json({
         vehicleId: dedupResult.vehicleId,
@@ -227,7 +233,7 @@ router.post("/", authMiddleware, requirePermission("inventory.write"), requireDe
       });
     }
 
-    const vehicle = await storage.createVehicle({ ...parsed.data, dealershipId });
+    const vehicle = await storage.createVehicle({ ...vehicleInput, dealershipId });
     res.status(201).json(vehicle);
   } catch (error) {
     logError("Error creating vehicle:", error instanceof Error ? error : new Error(String(error)), { route: "api-vehicles" });
@@ -244,8 +250,12 @@ router.patch("/:id", authMiddleware, requirePermission("inventory.write"), requi
       return res.status(400).json({ error: fromZodError(parsed.error).message });
     }
     const dealershipId = req.dealershipId!;
-    const { dealershipId: _removed, ...updateData } = parsed.data;
-    const vehicle = await storage.updateVehicle(id, updateData, dealershipId);
+    const { dealershipId: _removed, ...parsedUpdateData } = parsed.data;
+    const vinGuard = normalizeVehicleWriteVIN(parsedUpdateData);
+    if (hasVehicleVINWriteError(vinGuard)) {
+      return res.status(400).json(vehicleVINWriteErrorResponse(vinGuard.error));
+    }
+    const vehicle = await storage.updateVehicle(id, vinGuard.data, dealershipId);
     if (!vehicle) return res.status(404).json({ error: "Vehicle not found" });
     res.json(vehicle);
   } catch (error) {
