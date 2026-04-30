@@ -40,7 +40,7 @@ Every production feature must have CI proof, automated tests, staging proof, log
 | AI Lead Response | Code Exists | Partial | Partial | No | No | No | engineering | AI prompt management routes require explicit ai.configure RBAC and dealership context where dealership-scoped. AI runtime generation routes require explicit ai.use RBAC, AI settings and FB inbox auto-send controls require ai.configure RBAC, and public chat fails closed without dealership context. Must still pass guardrail, inventory-grounding, prompt-injection, escalation, human approval, observability, staging, and real user-flow proof. |
 | Admin Dashboard | Code Exists | No | No | No | Partial | No | TBD | Test permissions and audit logs. |
 | Billing/Plans | Not Started | No | No | No | No | No | TBD | Needed before self-serve SaaS. |
-| Render Deploy | Not Verified | Partial | Partial | No | Partial | No | engineering | CI now has a gated Render staging proof job that verifies health, readiness, and deployed commit when `RENDER_STAGING_ENABLED=true` and `RENDER_STAGING_BASE_URL` are configured. Current live Render proof remains absent until that job runs green against staging. |
+| Render Deploy | Not Verified | Partial | Partial | No | Partial | No | engineering | CI now has a gated Render staging proof job that verifies health, readiness, and deployed commit when `RENDER_STAGING_ENABLED=true` and `RENDER_STAGING_BASE_URL` are configured. Render Docker build filters include `package-lock.json` so lockfile-only dependency changes trigger rebuilds. Current live Render proof remains absent until that job runs green against staging. |
 
 ## Launch Rule
 

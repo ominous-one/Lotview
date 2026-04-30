@@ -4,16 +4,17 @@ This checklist is the production gate. Do not mark a feature complete until it h
 
 ## Build and CI
 
-- [ ] Fresh checkout installs dependencies.
-- [ ] Lockfile exists and is committed, or every workflow consistently uses npm install.
-- [ ] Lint passes.
-- [ ] Typecheck passes.
-- [ ] Server tests pass.
-- [ ] Smoke tests pass.
-- [ ] Production build passes.
-- [ ] Docker build passes.
-- [ ] No workflow hides failures with shell fallbacks.
-- [ ] No workflow references missing files.
+- [x] Fresh checkout installs dependencies through CI `npm ci --ignore-scripts`.
+- [x] Lockfile exists and is committed.
+- [x] Render build filters include `package-lock.json` so lockfile-only dependency changes redeploy Docker services.
+- [x] Lint passes in CI.
+- [x] Typecheck passes in CI.
+- [x] Server tests pass in CI.
+- [x] Smoke tests pass in CI.
+- [x] Production build passes in CI.
+- [x] Docker build passes in CI.
+- [x] No workflow hides failures with shell fallbacks.
+- [x] No workflow references missing files.
 - [ ] Branch protection requires verification checks.
 
 ## Frontend
