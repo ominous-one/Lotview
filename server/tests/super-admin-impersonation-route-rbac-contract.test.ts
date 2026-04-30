@@ -30,7 +30,7 @@ describe("super-admin impersonation route RBAC contract", () => {
     expect(impersonationBlock).toBeDefined();
 
     expect(impersonationBlock).toContain(
-      'app.post("/api/super-admin/impersonate/end", authMiddleware, async'
+      'app.post("/api/super-admin/impersonate/end", authMiddleware, sensitiveLimiter, async'
     );
     expect(impersonationBlock).toContain(
       'const canManageImpersonation = req.user?.role ? hasPermission(req.user.role, "admin.impersonate") : false;'
@@ -49,5 +49,21 @@ describe("super-admin impersonation route RBAC contract", () => {
     expect(impersonationBlock).toContain("action: 'impersonate_start'");
     expect(impersonationBlock).toContain("action: 'impersonate_end'");
     expect(impersonationBlock).toContain("await storage.logAuditAction");
+  });
+
+  it("keeps all other super-admin routes behind explicit permission or capability middleware", () => {
+    const routeLines = routesSource
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => /app\.(get|post|patch|put|delete)\("\/api\/super-admin/.test(line));
+
+    const routesWithoutExplicitMiddleware = routeLines.filter(
+      (line) => !line.includes("requirePermission(") && !line.includes("requireCapability(")
+    );
+
+    expect(routeLines.length).toBeGreaterThanOrEqual(90);
+    expect(routesWithoutExplicitMiddleware).toEqual([
+      'app.post("/api/super-admin/impersonate/end", authMiddleware, sensitiveLimiter, async (req: AuthRequest, res) => {',
+    ]);
   });
 });
