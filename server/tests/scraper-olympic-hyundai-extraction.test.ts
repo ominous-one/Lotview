@@ -1,4 +1,6 @@
 import { extractVehiclesFromHtml } from "../services/scraper-olympic-hyundai";
+import { readFileSync } from "fs";
+import { resolve } from "path";
 
 const BASE_URL = "https://olympichyundaivancouver.com/vehicles/";
 
@@ -83,5 +85,12 @@ describe("Olympic Hyundai scraper extraction", () => {
     expect(vehicles[0].year).toBeUndefined();
     expect(vehicles[0].make).toBeUndefined();
     expect(vehicles[0].model).toBeUndefined();
+  });
+
+  it("surfaces storage integration failures instead of hiding them", () => {
+    const source = readFileSync(resolve(process.cwd(), "server/services/scraper-olympic-hyundai.ts"), "utf8");
+
+    expect(source).toContain("errors.push(`Vehicle dedup service unavailable: ${message}`)");
+    expect(source).not.toContain("} catch {\n      console.log");
   });
 });
