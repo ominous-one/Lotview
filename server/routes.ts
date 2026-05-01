@@ -3367,7 +3367,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ===== PUBLIC FINANCING RULES (Customer-facing, no auth required) =====
   
   // Get financing rules for payment calculator (public endpoint)
-  app.get("/api/public/financing-rules", async (req, res) => {
+  app.get("/api/public/financing-rules", requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       
@@ -3415,7 +3415,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get filter groups for the current dealership (public endpoint for inventory filtering)
-  app.get("/api/public/filter-groups", async (req, res) => {
+  app.get("/api/public/filter-groups", requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       
@@ -3430,7 +3430,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get tracking/remarketing pixel configuration (public endpoint for frontend)
-  app.get("/api/public/tracking-config", async (req, res) => {
+  app.get("/api/public/tracking-config", requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       
@@ -3451,10 +3451,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Serve cached vehicle images from PostgreSQL (permanent, no CDN expiry)
-  app.get("/api/public/vehicle-image/:vehicleId/:index", async (req, res) => {
+  app.get("/api/public/vehicle-image/:vehicleId/:index", requireDealership, async (req, res) => {
     try {
       const vehicleId = parseInt(req.params.vehicleId);
       const imageIndex = parseInt(req.params.index);
+      const dealershipId = req.dealershipId!;
 
       if (isNaN(vehicleId) || isNaN(imageIndex)) {
         return res.status(400).json({ error: "Invalid vehicleId or index" });
@@ -3464,6 +3465,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .from(vehicleImages)
         .where(and(
           eq(vehicleImages.vehicleId, vehicleId),
+          eq(vehicleImages.dealershipId, dealershipId),
           eq(vehicleImages.imageIndex, imageIndex)
         ))
         .limit(1);
