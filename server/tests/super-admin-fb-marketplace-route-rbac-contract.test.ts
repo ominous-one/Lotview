@@ -62,4 +62,19 @@ describe("super-admin FB Marketplace route RBAC contract", () => {
     expect(routeCount).toBe(13);
     expect(superAdminMarketplaceBlock).not.toContain("authMiddleware, superAdminOnly");
   });
+
+  it("strips client-supplied ownership fields from marketplace settings writes", () => {
+    expect(superAdminMarketplaceBlock).toBeDefined();
+
+    [
+      "const settingsData = req.body",
+      "dealershipId,\n          ...settingsData",
+    ].forEach((unsafePattern) => expect(superAdminMarketplaceBlock).not.toContain(unsafePattern));
+
+    [
+      "const settingsData = stripTenantOwnershipFields((req.body ?? {}) as Record<string, unknown>)",
+      ".set({ ...settingsData, updatedAt: new Date() })",
+      "...settingsData,\n          dealershipId",
+    ].forEach((safePattern) => expect(superAdminMarketplaceBlock).toContain(safePattern));
+  });
 });
