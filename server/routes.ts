@@ -13192,7 +13192,7 @@ Format your response in clear sections with actionable recommendations.`;
       }
       const dealershipId = req.dealershipId!;
       
-      const result = await storage.getCallScoringSheetWithResponses(callId);
+      const result = await storage.getCallScoringSheetWithResponses(callId, dealershipId);
       if (!result) {
         return res.status(404).json({ error: "Scoring sheet not found" });
       }
@@ -13219,13 +13219,13 @@ Format your response in clear sections with actionable recommendations.`;
       
       const { templateId, status, employeeId, employeeName, employeeDepartment, reviewerNotes, coachingNotes, reviewerTotalScore, finalScore } = req.body;
       
-      let sheet = await storage.getCallScoringSheet(callId);
+      let sheet = await storage.getCallScoringSheet(callId, dealershipId);
       
       if (sheet) {
         if (sheet.dealershipId !== dealershipId) {
           return res.status(404).json({ error: "Scoring sheet not found" });
         }
-        sheet = await storage.updateCallScoringSheet(sheet.id, {
+        sheet = await storage.updateCallScoringSheet(sheet.id, dealershipId, {
           status,
           reviewerId: req.user?.id,
           employeeId,
@@ -13326,7 +13326,7 @@ Format your response in clear sections with actionable recommendations.`;
         return res.status(400).json({ error: "Responses must be an array" });
       }
       
-      const sheet = await storage.getCallScoringSheet(callId);
+      const sheet = await storage.getCallScoringSheet(callId, dealershipId);
       if (!sheet) {
         return res.status(404).json({ error: "Scoring sheet not found" });
       }
@@ -13339,7 +13339,11 @@ Format your response in clear sections with actionable recommendations.`;
         sheetId: sheet.id,
       }));
       
-      const savedResponses = await storage.bulkUpsertCallScoringResponses(responsesWithSheetId);
+      const savedResponses = await storage.bulkUpsertCallScoringResponses(responsesWithSheetId, dealershipId);
+      if (!savedResponses) {
+        return res.status(404).json({ error: "Scoring response criterion not found" });
+      }
+
       res.json(savedResponses);
     } catch (error) {
       logError('Error bulk updating responses:', error instanceof Error ? error : new Error(String(error)), { route: 'api-call-recordings-callId-scoring-respo' });
