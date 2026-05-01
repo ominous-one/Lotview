@@ -6687,7 +6687,7 @@ Format your response in clear sections with actionable recommendations.`;
   // ===== GOHIGHLEVEL CTA ROUTES =====
   
   // Handle CTA action (send lead to GoHighLevel)
-  app.post("/api/cta/send", async (req, res) => {
+  app.post("/api/cta/send", requireDealership, async (req, res) => {
     try {
       const { vehicleInfo, ctaType, contactInfo } = req.body;
 
@@ -6735,7 +6735,7 @@ Format your response in clear sections with actionable recommendations.`;
   // ===== SMS HANDOFF ROUTES =====
   
   // Request SMS handoff (sync conversation to GHL via API or webhook) - PUBLIC (user initiates)
-  app.post("/api/chat/handoff", async (req, res) => {
+  app.post("/api/chat/handoff", requireDealership, async (req, res) => {
     try {
       const { conversationId, phoneNumber, messages, vehicleInfo, category } = req.body;
 
@@ -6851,7 +6851,7 @@ Format your response in clear sections with actionable recommendations.`;
 
   // Auto-sync chat lead to GHL when contact info is captured (PUBLIC - called automatically by chatbot)
   // Tenant middleware provides dealershipId from subdomain/header
-  app.post("/api/chat/auto-sync-lead", async (req, res) => {
+  app.post("/api/chat/auto-sync-lead", requireDealership, async (req, res) => {
     try {
       const { 
         conversationId, 
@@ -6872,16 +6872,7 @@ Format your response in clear sections with actionable recommendations.`;
         return res.status(400).json({ error: "Phone or email is required" });
       }
 
-      // Gracefully handle missing dealership - tenant middleware may not resolve
-      const dealershipId = req.dealershipId;
-      if (!dealershipId) {
-        console.log(`[Auto-Sync] No dealership resolved - skipping sync`);
-        return res.json({ 
-          success: false, 
-          skipped: true,
-          message: "Dealership not resolved" 
-        });
-      }
+      const dealershipId = req.dealershipId!;
       
       // Get GHL client for this dealership
       const { GHLClient } = await import("./ghl-client");
