@@ -39,4 +39,22 @@ describe("FB Marketplace my-route RBAC and tenant contract", () => {
     expect(myMarketplaceBlock).toContain("service.verifyAndSaveSession(accountId)");
     expect(myMarketplaceBlock).toContain("service.queueVehicleForPosting(vehicleId, priority || 5, { userId, accountId })");
   });
+
+  it("scopes listing and queue joins to the resolved dealership", () => {
+    expect(myMarketplaceBlock).toBeDefined();
+
+    [
+      ".leftJoin(vehicles, eq(fbMarketplaceListings.vehicleId, vehicles.id))",
+      ".leftJoin(fbMarketplaceAccounts, eq(fbMarketplaceListings.accountId, fbMarketplaceAccounts.id))",
+      ".leftJoin(vehicles, eq(fbMarketplaceQueue.vehicleId, vehicles.id))",
+      ".leftJoin(fbMarketplaceAccounts, eq(fbMarketplaceQueue.accountId, fbMarketplaceAccounts.id))",
+    ].forEach((unsafePattern) => expect(myMarketplaceBlock).not.toContain(unsafePattern));
+
+    [
+      ".leftJoin(vehicles, and(eq(fbMarketplaceListings.vehicleId, vehicles.id), eq(vehicles.dealershipId, dealershipId)))",
+      ".leftJoin(fbMarketplaceAccounts, and(eq(fbMarketplaceListings.accountId, fbMarketplaceAccounts.id), eq(fbMarketplaceAccounts.dealershipId, dealershipId)))",
+      ".leftJoin(vehicles, and(eq(fbMarketplaceQueue.vehicleId, vehicles.id), eq(vehicles.dealershipId, dealershipId)))",
+      ".leftJoin(fbMarketplaceAccounts, and(eq(fbMarketplaceQueue.accountId, fbMarketplaceAccounts.id), eq(fbMarketplaceAccounts.dealershipId, dealershipId)))",
+    ].forEach((safePattern) => expect(myMarketplaceBlock).toContain(safePattern));
+  });
 });

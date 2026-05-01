@@ -15880,8 +15880,8 @@ Return ONLY the enhanced description, nothing else.`;
           account: fbMarketplaceAccounts,
         })
         .from(fbMarketplaceListings)
-        .leftJoin(vehicles, eq(fbMarketplaceListings.vehicleId, vehicles.id))
-        .leftJoin(fbMarketplaceAccounts, eq(fbMarketplaceListings.accountId, fbMarketplaceAccounts.id))
+        .leftJoin(vehicles, and(eq(fbMarketplaceListings.vehicleId, vehicles.id), eq(vehicles.dealershipId, dealershipId)))
+        .leftJoin(fbMarketplaceAccounts, and(eq(fbMarketplaceListings.accountId, fbMarketplaceAccounts.id), eq(fbMarketplaceAccounts.dealershipId, dealershipId)))
         .where(eq(fbMarketplaceListings.dealershipId, dealershipId))
         .orderBy(desc(fbMarketplaceListings.createdAt))
         .limit(100);
@@ -15927,8 +15927,8 @@ Return ONLY the enhanced description, nothing else.`;
           account: fbMarketplaceAccounts,
         })
         .from(fbMarketplaceQueue)
-        .leftJoin(vehicles, eq(fbMarketplaceQueue.vehicleId, vehicles.id))
-        .leftJoin(fbMarketplaceAccounts, eq(fbMarketplaceQueue.accountId, fbMarketplaceAccounts.id))
+        .leftJoin(vehicles, and(eq(fbMarketplaceQueue.vehicleId, vehicles.id), eq(vehicles.dealershipId, dealershipId)))
+        .leftJoin(fbMarketplaceAccounts, and(eq(fbMarketplaceQueue.accountId, fbMarketplaceAccounts.id), eq(fbMarketplaceAccounts.dealershipId, dealershipId)))
         .where(eq(fbMarketplaceQueue.dealershipId, dealershipId))
         .orderBy(asc(fbMarketplaceQueue.priority), asc(fbMarketplaceQueue.createdAt))
         .limit(100);
@@ -16222,8 +16222,8 @@ Return ONLY the enhanced description, nothing else.`;
           account: fbMarketplaceAccounts,
         })
         .from(fbMarketplaceQueue)
-        .leftJoin(vehicles, eq(fbMarketplaceQueue.vehicleId, vehicles.id))
-        .leftJoin(fbMarketplaceAccounts, eq(fbMarketplaceQueue.accountId, fbMarketplaceAccounts.id))
+        .leftJoin(vehicles, and(eq(fbMarketplaceQueue.vehicleId, vehicles.id), eq(vehicles.dealershipId, dealershipId)))
+        .leftJoin(fbMarketplaceAccounts, and(eq(fbMarketplaceQueue.accountId, fbMarketplaceAccounts.id), eq(fbMarketplaceAccounts.dealershipId, dealershipId)))
         .where(and(
           eq(fbMarketplaceQueue.dealershipId, dealershipId),
           or(...accountIds.map(id => eq(fbMarketplaceQueue.accountId, id)))
@@ -16265,8 +16265,8 @@ Return ONLY the enhanced description, nothing else.`;
           account: fbMarketplaceAccounts,
         })
         .from(fbMarketplaceListings)
-        .leftJoin(vehicles, eq(fbMarketplaceListings.vehicleId, vehicles.id))
-        .leftJoin(fbMarketplaceAccounts, eq(fbMarketplaceListings.accountId, fbMarketplaceAccounts.id))
+        .leftJoin(vehicles, and(eq(fbMarketplaceListings.vehicleId, vehicles.id), eq(vehicles.dealershipId, dealershipId)))
+        .leftJoin(fbMarketplaceAccounts, and(eq(fbMarketplaceListings.accountId, fbMarketplaceAccounts.id), eq(fbMarketplaceAccounts.dealershipId, dealershipId)))
         .where(and(
           eq(fbMarketplaceListings.dealershipId, dealershipId),
           or(...accountIds.map(id => eq(fbMarketplaceListings.accountId, id)))
