@@ -46,6 +46,13 @@ beforeEach(() => {
 });
 
 describe("vehicle view storage tenant boundary", () => {
+  it("requires dealership context before legacy vehicle view routes enter storage", () => {
+    const routesSource = readFileSync(join(process.cwd(), "server/routes.ts"), "utf8");
+
+    expect(routesSource).toContain('app.post("/api/vehicles/:id/view", requireDealership, async');
+    expect(routesSource).toContain('app.get("/api/vehicles/:id/views", requireDealership, async');
+  });
+
   it("checks both vehicle ownership and view-row dealership scope", () => {
     const storageSource = readFileSync(join(process.cwd(), "server/storage.ts"), "utf8");
 
