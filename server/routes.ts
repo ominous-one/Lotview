@@ -4496,7 +4496,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ===== VIEW TRACKING ROUTES =====
   
   // Track vehicle view (for remarketing)
-  app.post("/api/vehicles/:id/view", async (req, res) => {
+  app.post("/api/vehicles/:id/view", requireDealership, async (req, res) => {
     try {
       const vehicleId = parseInt(req.params.id);
       const sessionId = req.body.sessionId || `session-${Date.now()}`;
@@ -4519,7 +4519,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get vehicle view count
-  app.get("/api/vehicles/:id/views", async (req, res) => {
+  app.get("/api/vehicles/:id/views", requireDealership, async (req, res) => {
     try {
       const vehicleId = parseInt(req.params.id);
       const hours = parseInt(req.query.hours as string) || 24;
