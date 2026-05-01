@@ -1,8 +1,40 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+type MockResponse = {
+  body: Record<string, unknown>;
+  status?: number;
+};
+
+function jsonResponse({ body, status = 200 }: MockResponse): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+function mockFetchSequence(responses: MockResponse[]) {
+  const fetchMock = vi.fn<typeof fetch>();
+  for (const response of responses) {
+    fetchMock.mockResolvedValueOnce(jsonResponse(response));
+  }
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
 
 async function renderApp() {
   await import("./main");
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  await waitForText("Dealership Operations");
+}
+
+async function waitForText(text: string): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (document.body.textContent?.includes(text)) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
+  throw new Error(`Text not found: ${text}`);
 }
 
 function buttonByText(text: string): HTMLButtonElement {
@@ -27,31 +59,78 @@ beforeEach(() => {
   document.body.innerHTML = '<div id="root"></div>';
 });
 
-describe("Lotview frontend operations workflow", () => {
-  it("renders an operations dashboard with tenant, inventory, and readiness proof signals", async () => {
-    await renderApp();
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
-    expect(document.querySelector("h1")?.textContent).toBe("Dealership Operations");
-    expect(document.body.textContent).toContain("Tenant: Olympic Hyundai Vancouver");
-    expect(document.body.textContent).toContain("Inventory Control");
-    expect(document.body.textContent).toContain("1HGCM82633A004352");
-    expect(document.body.textContent).toContain("Invalid VIN blocked");
-    expect(document.body.textContent).toContain("Staging proof pending");
+describe("Lotview frontend operations workflow", () => {
+  it("fetches backend health, readiness, and tenant-scoped inventory before rendering live rows", async () => {
+    const fetchMock = mockFetchSequence([
+      { body: { status: "healthy" } },
+      { body: { status: "ready" } },
+      {
+        body: {
+          data: [
+            {
+              stockNumber: "HY-API-1",
+              vin: "KM8J33A40MU320000",
+              year: 2021,
+              make: "Hyundai",
+              model: "Tucson",
+              trim: "Preferred",
+              price: 27995,
+              source: "Lotview API fixture",
+              status: "active",
+            },
+          ],
+          pagination: { total: 1 },
+        },
+      },
+    ]);
+
+    await renderApp();
+    await waitForText("KM8J33A40MU320000");
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/health", expect.objectContaining({ credentials: "same-origin" }));
+    expect(fetchMock).toHaveBeenCalledWith("/api/ready", expect.objectContaining({ credentials: "same-origin" }));
+    expect(fetchMock).toHaveBeenCalledWith("/api/vehicles?limit=10", expect.objectContaining({ credentials: "same-origin" }));
+    expect(document.body.textContent).toContain("Live vehicles from Lotview API");
+    expect(document.body.textContent).toContain("HY-API-1");
+    expect(document.body.textContent).toContain("$27,995");
+    expect(document.body.textContent).toContain("VIN present from API");
+    expect(document.body.textContent).not.toContain("H24019");
   });
 
-  it("lets users switch from inventory to lead inbox state", async () => {
+  it("fails closed when inventory API lacks dealership context instead of showing static vehicle facts", async () => {
+    mockFetchSequence([
+      { body: { status: "healthy" } },
+      { body: { status: "ready" } },
+      { body: { error: "Dealership context required" }, status: 400 },
+    ]);
+
+    await renderApp();
+    await waitForText("No live inventory is shown");
+
+    expect(document.body.textContent).toContain("Dealership context required");
+    expect(document.body.textContent).toContain("No unverified inventory shown");
+    expect(document.body.textContent).not.toContain("1HGCM82633A004352");
+    expect(document.body.textContent).not.toContain("2INVALIDVIN00000");
+  });
+
+  it("lets users inspect lead and scrape blockers without presenting fake customer data as live", async () => {
+    mockFetchSequence([
+      { body: { status: "healthy" } },
+      { body: { status: "ready" } },
+      { body: { error: "Dealership context required" }, status: 400 },
+    ]);
+
     await renderApp();
 
     await clickButton("Leads");
 
     expect(document.body.textContent).toContain("Lead Inbox");
-    expect(document.body.textContent).toContain("Maya C.");
-    expect(document.body.textContent).toContain("AI draft ready");
-    expect(document.body.textContent).not.toContain("Inventory Control");
-  });
-
-  it("lets users inspect scrape proof blockers", async () => {
-    await renderApp();
+    expect(document.body.textContent).toContain("No live lead data is displayed");
+    expect(document.body.textContent).not.toContain("Maya C.");
 
     await clickButton("Scrape Proof");
 
