@@ -3,6 +3,7 @@ import { resolve } from "path";
 
 describe("call scoring route RBAC and tenant contracts", () => {
   const routesSource = readFileSync(resolve(process.cwd(), "server/routes.ts"), "utf8");
+  const storageSource = readFileSync(resolve(process.cwd(), "server/storage.ts"), "utf8");
   const callScoringBlock = routesSource.match(
     /\/\/ ===== CALL SCORING TEMPLATES =====[\s\S]*?\/\/ ===== CALL PARTICIPANTS =====/
   )?.[0];
@@ -53,5 +54,35 @@ describe("call scoring route RBAC and tenant contracts", () => {
     expect(callScoringBlock).toContain("sheet.dealershipId !== dealershipId");
     expect(callScoringBlock).toContain("responseWithSheet[0].sheetDealershipId !== dealershipId");
     expect(callScoringBlock).toContain("storage.getCallRecordingById(callId, dealershipId)");
+  });
+
+  it("requires dealership context and same-template criteria for scoring sheet responses", () => {
+    expect(callScoringBlock).toBeDefined();
+
+    [
+      "storage.getCallScoringSheetWithResponses(callId)",
+      "storage.getCallScoringSheet(callId)",
+      "storage.updateCallScoringSheet(sheet.id, {",
+      "storage.bulkUpsertCallScoringResponses(responsesWithSheetId)",
+    ].forEach((unsafeCall) => expect(callScoringBlock).not.toContain(unsafeCall));
+
+    [
+      "storage.getCallScoringSheetWithResponses(callId, dealershipId)",
+      "storage.getCallScoringSheet(callId, dealershipId)",
+      "storage.updateCallScoringSheet(sheet.id, dealershipId, {",
+      "storage.bulkUpsertCallScoringResponses(responsesWithSheetId, dealershipId)",
+      'return res.status(404).json({ error: "Scoring response criterion not found" })',
+    ].forEach((safeCall) => expect(callScoringBlock).toContain(safeCall));
+
+    [
+      "getCallScoringSheet(callRecordingId: number, dealershipId: number)",
+      "getCallScoringSheetWithResponses(callRecordingId: number, dealershipId: number)",
+      "updateCallScoringSheet(id: number, dealershipId: number, sheet: Partial<InsertCallScoringSheet>)",
+      "getCallScoringResponses(sheetId: number, dealershipId: number)",
+      "bulkUpsertCallScoringResponses(responses: InsertCallScoringResponse[], dealershipId: number)",
+      "isCallScoringResponseScopedToDealerTemplate",
+      "eq(callScoringCriteria.templateId, callScoringSheets.templateId)",
+      "eq(callScoringSheets.dealershipId, dealershipId)",
+    ].forEach((storageGuard) => expect(storageSource).toContain(storageGuard));
   });
 });

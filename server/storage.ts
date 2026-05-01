@@ -1060,15 +1060,15 @@ export interface IStorage {
   reorderCriteria(templateId: number, criteriaIds: number[]): Promise<void>;
 
   // Scoring Sheets
-  getCallScoringSheet(callRecordingId: number): Promise<CallScoringSheet | undefined>;
-  getCallScoringSheetWithResponses(callRecordingId: number): Promise<{ sheet: CallScoringSheet; responses: CallScoringResponse[] } | undefined>;
+  getCallScoringSheet(callRecordingId: number, dealershipId: number): Promise<CallScoringSheet | undefined>;
+  getCallScoringSheetWithResponses(callRecordingId: number, dealershipId: number): Promise<{ sheet: CallScoringSheet; responses: CallScoringResponse[] } | undefined>;
   createCallScoringSheet(sheet: InsertCallScoringSheet): Promise<CallScoringSheet>;
-  updateCallScoringSheet(id: number, sheet: Partial<InsertCallScoringSheet>): Promise<CallScoringSheet | undefined>;
+  updateCallScoringSheet(id: number, dealershipId: number, sheet: Partial<InsertCallScoringSheet>): Promise<CallScoringSheet | undefined>;
 
   // Scoring Responses
-  getCallScoringResponses(sheetId: number): Promise<CallScoringResponse[]>;
-  upsertCallScoringResponse(response: InsertCallScoringResponse): Promise<CallScoringResponse>;
-  bulkUpsertCallScoringResponses(responses: InsertCallScoringResponse[]): Promise<CallScoringResponse[]>;
+  getCallScoringResponses(sheetId: number, dealershipId: number): Promise<CallScoringResponse[]>;
+  upsertCallScoringResponse(response: InsertCallScoringResponse, dealershipId: number): Promise<CallScoringResponse | undefined>;
+  bulkUpsertCallScoringResponses(responses: InsertCallScoringResponse[], dealershipId: number): Promise<CallScoringResponse[] | undefined>;
 
   // Call Participants
   getCallParticipants(callRecordingId: number): Promise<CallParticipant[]>;
@@ -6847,19 +6847,38 @@ export class DatabaseStorage implements IStorage {
   }
   
   // Scoring Sheets
-  async getCallScoringSheet(callRecordingId: number): Promise<CallScoringSheet | undefined> {
+  private async isCallScoringResponseScopedToDealerTemplate(response: InsertCallScoringResponse, dealershipId: number): Promise<boolean> {
+    const result = await db.select({ sheetId: callScoringSheets.id })
+      .from(callScoringSheets)
+      .innerJoin(callScoringCriteria, and(
+        eq(callScoringCriteria.id, response.criterionId),
+        eq(callScoringCriteria.templateId, callScoringSheets.templateId)
+      ))
+      .where(and(
+        eq(callScoringSheets.id, response.sheetId),
+        eq(callScoringSheets.dealershipId, dealershipId)
+      ))
+      .limit(1);
+
+    return result.length > 0;
+  }
+
+  async getCallScoringSheet(callRecordingId: number, dealershipId: number): Promise<CallScoringSheet | undefined> {
     const result = await db.select()
       .from(callScoringSheets)
-      .where(eq(callScoringSheets.callRecordingId, callRecordingId))
+      .where(and(
+        eq(callScoringSheets.callRecordingId, callRecordingId),
+        eq(callScoringSheets.dealershipId, dealershipId)
+      ))
       .limit(1);
     return result[0];
   }
   
-  async getCallScoringSheetWithResponses(callRecordingId: number): Promise<{ sheet: CallScoringSheet; responses: CallScoringResponse[] } | undefined> {
-    const sheet = await this.getCallScoringSheet(callRecordingId);
+  async getCallScoringSheetWithResponses(callRecordingId: number, dealershipId: number): Promise<{ sheet: CallScoringSheet; responses: CallScoringResponse[] } | undefined> {
+    const sheet = await this.getCallScoringSheet(callRecordingId, dealershipId);
     if (!sheet) return undefined;
     
-    const responses = await this.getCallScoringResponses(sheet.id);
+    const responses = await this.getCallScoringResponses(sheet.id, dealershipId);
     return { sheet, responses };
   }
   
@@ -6868,23 +6887,35 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
   
-  async updateCallScoringSheet(id: number, sheet: Partial<InsertCallScoringSheet>): Promise<CallScoringSheet | undefined> {
+  async updateCallScoringSheet(id: number, dealershipId: number, sheet: Partial<InsertCallScoringSheet>): Promise<CallScoringSheet | undefined> {
     const result = await db.update(callScoringSheets)
-      .set({ ...sheet, updatedAt: new Date() })
-      .where(eq(callScoringSheets.id, id))
+      .set({ ...stripTenantOwnershipFields(sheet), updatedAt: new Date() })
+      .where(and(
+        eq(callScoringSheets.id, id),
+        eq(callScoringSheets.dealershipId, dealershipId)
+      ))
       .returning();
     return result[0];
   }
   
   // Scoring Responses
-  async getCallScoringResponses(sheetId: number): Promise<CallScoringResponse[]> {
-    return await db.select()
+  async getCallScoringResponses(sheetId: number, dealershipId: number): Promise<CallScoringResponse[]> {
+    const result = await db.select({ response: callScoringResponses })
       .from(callScoringResponses)
-      .where(eq(callScoringResponses.sheetId, sheetId))
+      .innerJoin(callScoringSheets, eq(callScoringResponses.sheetId, callScoringSheets.id))
+      .where(and(
+        eq(callScoringResponses.sheetId, sheetId),
+        eq(callScoringSheets.dealershipId, dealershipId)
+      ))
       .orderBy(callScoringResponses.id);
+    return result.map(r => r.response);
   }
   
-  async upsertCallScoringResponse(response: InsertCallScoringResponse): Promise<CallScoringResponse> {
+  async upsertCallScoringResponse(response: InsertCallScoringResponse, dealershipId: number): Promise<CallScoringResponse | undefined> {
+    if (!(await this.isCallScoringResponseScopedToDealerTemplate(response, dealershipId))) {
+      return undefined;
+    }
+
     const existing = await db.select()
       .from(callScoringResponses)
       .where(and(
@@ -6905,10 +6936,19 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
   
-  async bulkUpsertCallScoringResponses(responses: InsertCallScoringResponse[]): Promise<CallScoringResponse[]> {
+  async bulkUpsertCallScoringResponses(responses: InsertCallScoringResponse[], dealershipId: number): Promise<CallScoringResponse[] | undefined> {
+    for (const response of responses) {
+      if (!(await this.isCallScoringResponseScopedToDealerTemplate(response, dealershipId))) {
+        return undefined;
+      }
+    }
+
     const results: CallScoringResponse[] = [];
     for (const response of responses) {
-      const result = await this.upsertCallScoringResponse(response);
+      const result = await this.upsertCallScoringResponse(response, dealershipId);
+      if (!result) {
+        return undefined;
+      }
       results.push(result);
     }
     return results;
