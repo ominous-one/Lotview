@@ -3177,12 +3177,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const offset = (page - 1) * limit;
 
       if (wantsFullView) {
+        if (!req.user) {
+          return res.status(401).json({ error: "Authentication required for full inventory view" });
+        }
+        if (!hasPermission(req.user.role, "inventory.read")) {
+          return res.status(403).json({ error: "Insufficient permissions" });
+        }
+
         const { vehicles: vehiclesList, total } = await storage.getVehicles(dealershipId, limit, offset);
-        const vehiclesWithViews = vehiclesList.map(vehicle => ({
+        const vehiclesWithViews = await Promise.all(vehiclesList.map(async vehicle => ({
           ...vehicle,
           images: (vehicle.localImages && vehicle.localImages.length > 0) ? vehicle.localImages : vehicle.images,
-          views: Math.floor(Math.random() * (35 - 5 + 1)) + 5
-        }));
+          views: await storage.getVehicleViews(vehicle.id, dealershipId, 24)
+        })));
 
         return res.json({
           data: vehiclesWithViews,
@@ -3196,10 +3203,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { vehicles: vehiclesList, total } = await storage.getPublicInventoryVehicles(dealershipId, limit, offset);
-      const vehiclesWithViews = vehiclesList.map(vehicle => ({
+      const vehiclesWithViews = await Promise.all(vehiclesList.map(async vehicle => ({
         ...vehicle,
-        views: Math.floor(Math.random() * (35 - 5 + 1)) + 5
-      }));
+        views: await storage.getVehicleViews(vehicle.id, dealershipId, 24)
+      })));
 
       res.json({
         data: vehiclesWithViews,
@@ -3216,8 +3223,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get vehicle by ID with view count (randomized for engagement)
-  app.get("/api/vehicles/:id", async (req, res) => {
+  // Get vehicle by ID with tenant-scoped view count
+  app.get("/api/vehicles/:id", requireDealership, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       // Dealership ID extracted from tenant middleware
@@ -3228,8 +3235,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Vehicle not found" });
       }
 
-      // Generate randomized view count (5-35 views) for social proof
-      const views = Math.floor(Math.random() * (35 - 5 + 1)) + 5;
+      const views = await storage.getVehicleViews(id, dealershipId, 24);
       
       // Use localImages (deduplicated) when available, fall back to images
       // This ensures the VDP page shows the same images as the Chrome extension
@@ -3247,7 +3253,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get full Carfax report for a vehicle
-  app.get("/api/vehicles/:id/carfax", async (req, res) => {
+  app.get("/api/vehicles/:id/carfax", requireDealership, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const dealershipId = req.dealershipId!;
@@ -3271,7 +3277,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get Carfax summary for a vehicle (badges, accident count, owner count)
-  app.get("/api/vehicles/:id/carfax/summary", async (req, res) => {
+  app.get("/api/vehicles/:id/carfax/summary", requireDealership, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const dealershipId = req.dealershipId!;
