@@ -164,13 +164,24 @@ export async function runBrowserlessInventoryScrape(
                 continue;
               }
 
-              const vehicleData = convertListingToScrapedVehicle(listing);
+              const vehicleData = {
+                ...convertListingToScrapedVehicle(listing),
+                dealershipId: source.dealershipId,
+              };
               const saved = await upsertVehicleByVin(vehicleData);
 
               if (saved.action === 'inserted') {
                 totalInserted++;
-              } else {
+              } else if (saved.action === 'updated') {
                 totalUpdated++;
+              } else {
+                totalSkipped++;
+                logWarn('[Browserless Robust] Skipped vehicle persistence', {
+                  service: 'scraper',
+                  reason: saved.reason || 'dedup_skip',
+                  vehicle: `${listing.year} ${listing.make} ${listing.model}`,
+                  vin: listing.vin,
+                });
               }
             } catch (saveError) {
               logWarn('[Browserless Robust] Failed to save vehicle', {

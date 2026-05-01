@@ -195,7 +195,7 @@
       "status": "fail_closed",
       "exposure": "disabled",
       "owner": "engineering",
-      "paths": ["server/robust-scraper.ts", "server/routes.ts", "server/storage.ts", "server/tests/feature-gates.test.ts", "server/tests/scrape-run-storage-tenant-update.test.ts", "server/tests/scrape-queue-storage-tenant-boundary.test.ts", "server/tests/scrape-source-route-contract.test.ts", "server/tests/super-admin-scrape-provider-route-rbac-contract.test.ts", "server/tests/super-admin-facebook-catalog-route-rbac-contract.test.ts"],
+      "paths": ["server/robust-scraper.ts", "server/browserless-robust-scraper.ts", "server/scraper.ts", "server/routes.ts", "server/storage.ts", "server/tests/feature-gates.test.ts", "server/tests/scraper-persistence-contract.test.ts", "server/tests/scrape-run-storage-tenant-update.test.ts", "server/tests/scrape-queue-storage-tenant-boundary.test.ts", "server/tests/scrape-source-route-contract.test.ts", "server/tests/super-admin-scrape-provider-route-rbac-contract.test.ts", "server/tests/super-admin-facebook-catalog-route-rbac-contract.test.ts"],
       "proof": {
         "ci": true,
         "tests": true,
@@ -204,7 +204,7 @@
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "Compiles and fails closed. Robust scrape completion/failure updates and scrape queue item reads/writes require the recorded dealership boundary. Manual single-vehicle scrape diagnostics, manual scraper sync, and test badge routes require auth, explicit integration permissions, and dealership context; external scrape trigger routes are sensitive-limited and manual sync uses the resolved dealership instead of a body-selected dealership id. Dealership scrape-source updates strip immutable ownership fields at both the route and storage layers. Super-admin Browserless, ZenRows, Zyte, Apify, and robust scrape provider status/test/trigger routes require explicit integration permissions. Not certified as a working scraper."
+      "notes": "Compiles and fails closed. Generic scrape entrypoints reject unconfigured scrape calls instead of returning empty/null success-shaped results. Browserless scrape persistence now writes through the existing vehicle deduplication path with the source dealership boundary, and dedup skips are counted as skipped rather than fake updates. Robust scrape completion/failure updates and scrape queue item reads/writes require the recorded dealership boundary. Manual single-vehicle scrape diagnostics, manual scraper sync, and test badge routes require auth, explicit integration permissions, and dealership context; external scrape trigger routes are sensitive-limited and manual sync uses the resolved dealership instead of a body-selected dealership id. Dealership scrape-source updates strip immutable ownership fields at both the route and storage layers. Super-admin Browserless, ZenRows, Zyte, Apify, and robust scrape provider status/test/trigger routes require explicit integration permissions. Not certified as a working scraper."
     },
     {
       "id": "facebook.marketplace",
