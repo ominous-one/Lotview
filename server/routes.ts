@@ -9563,7 +9563,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get unique makes from market listings (for autocomplete)
-  app.get("/api/inventory/makes", authMiddleware, requireRole("manager"), async (req, res) => {
+  app.get("/api/inventory/makes", authMiddleware, requireRole("manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       // Get all market listings to populate makes
@@ -9577,7 +9577,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get unique models for a specific make from market listings (for autocomplete)
-  app.get("/api/inventory/models", authMiddleware, requireRole("manager"), async (req, res) => {
+  app.get("/api/inventory/models", authMiddleware, requireRole("manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { make } = req.query;
@@ -9598,7 +9598,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get unique trims for a specific make/model from market listings (for autocomplete)
-  app.get("/api/inventory/trims", authMiddleware, requireRole("manager"), async (req, res) => {
+  app.get("/api/inventory/trims", authMiddleware, requireRole("manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { make, model } = req.query;
@@ -9623,7 +9623,7 @@ Format your response in clear sections with actionable recommendations.`;
   // ===== MANAGER SETTINGS ROUTES =====
 
   // Get manager settings
-  app.get("/api/manager/settings", authMiddleware, requireRole("manager"), async (req, res) => {
+  app.get("/api/manager/settings", authMiddleware, requireRole("manager"), requireDealership, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
       const userId = authReq.user!.id;
@@ -9637,7 +9637,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Save manager settings
-  app.post("/api/manager/settings", authMiddleware, requireRole("manager"), async (req, res) => {
+  app.post("/api/manager/settings", authMiddleware, requireRole("manager"), requireDealership, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
       const userId = authReq.user!.id;
@@ -9679,7 +9679,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get dealership branding (manager)
-  app.get("/api/manager/branding", authMiddleware, requireRole("manager"), async (req, res) => {
+  app.get("/api/manager/branding", authMiddleware, requireRole("manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const branding = await storage.getDealershipBranding(dealershipId);
@@ -9691,7 +9691,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Update dealership branding (manager)
-  app.post("/api/manager/branding", authMiddleware, requireRole("manager"), async (req, res) => {
+  app.post("/api/manager/branding", authMiddleware, requireRole("manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { logoUrl, faviconUrl, primaryColor, secondaryColor, heroHeadline, heroSubheadline, heroImageUrl, tagline } = req.body;
