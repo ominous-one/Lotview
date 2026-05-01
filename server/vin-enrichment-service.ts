@@ -1,17 +1,13 @@
-export async function enrichVehicleData(vin: string): Promise<any> {
-  return { vin };
+import { decodeVIN, type VINDecodeResult } from "./vin-decoder";
+
+export async function enrichVehicleData(vin: string, dealershipId?: number): Promise<VINDecodeResult> {
+  return decodeVIN(vin, dealershipId);
 }
 
-export async function enrichVIN(vin: string, _dealershipId?: number): Promise<any> {
-  return {
-    vin: String(vin || "").trim().toUpperCase(),
-    source: "local",
-    confidence: 0,
-    errorCode: "VIN_ENRICHMENT_NOT_CONFIGURED",
-    errorMessage: "VIN enrichment is not configured",
-  };
+export async function enrichVIN(vin: string, dealershipId?: number): Promise<VINDecodeResult> {
+  return decodeVIN(vin, dealershipId);
 }
 
-export function toVINDecodeResult(result: any): any {
+export function toVINDecodeResult(result: VINDecodeResult): VINDecodeResult {
   return result;
 }

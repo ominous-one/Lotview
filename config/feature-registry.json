@@ -161,7 +161,7 @@
       "status": "ci_verified",
       "exposure": "production",
       "owner": "engineering",
-      "paths": ["server/vin-validation.ts", "server/vin-decoder.ts", "server/services/scrape-validator.ts", "server/services/vehicle-vin-write-guard.ts", "server/tests/vin-validation.test.ts", "server/tests/vin-decoder-provider-proof.test.ts", "server/tests/vehicle-vin-write-guard.test.ts", "server/tests/vehicle-route-tenant-contract.test.ts"],
+      "paths": ["server/vin-validation.ts", "server/vin-decoder.ts", "server/vin-enrichment-service.ts", "server/services/scrape-validator.ts", "server/services/vehicle-vin-write-guard.ts", "server/tests/vin-validation.test.ts", "server/tests/vin-decoder-provider-proof.test.ts", "server/tests/vin-enrichment-service.test.ts", "server/tests/vehicle-vin-write-guard.test.ts", "server/tests/vehicle-route-tenant-contract.test.ts"],
       "proof": {
         "ci": true,
         "tests": true,
@@ -170,7 +170,7 @@
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "VIN format/check-digit validation, model-year-aware NHTSA decode calls, tenant-scoped decode cache behavior, NHTSA 50-record batch boundaries, generated-CARFAX-link labeling, provider disagreement metadata, and manual/external vehicle write VIN guard behavior are covered by automated tests. Live provider staging proof, operational rate-limit monitoring, rollback proof, and real user-flow proof remain required."
+      "notes": "VIN format/check-digit validation, model-year-aware NHTSA decode calls, tenant-scoped decode cache behavior, NHTSA 50-record batch boundaries, generated-CARFAX-link labeling, provider disagreement metadata, manager VIN enrichment route wiring to the production decoder, and manual/external vehicle write VIN guard behavior are covered by automated tests. Live provider staging proof, operational rate-limit monitoring, rollback proof, and real user-flow proof remain required."
     },
     {
       "id": "scraper.olympic_hyundai",
