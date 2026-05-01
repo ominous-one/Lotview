@@ -8,7 +8,7 @@
       "status": "ci_verified",
       "exposure": "production",
       "owner": "engineering",
-      "paths": ["client/src/main.tsx", "client/src/main.test.ts", "client/src/styles.css", "vitest.frontend.config.ts"],
+      "paths": ["client/src/api.ts", "client/src/main.tsx", "client/src/main.test.ts", "client/src/styles.css", "vitest.frontend.config.ts"],
       "proof": {
         "ci": true,
         "tests": true,
@@ -17,7 +17,7 @@
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "Frontend now renders a tested operations dashboard surface instead of a title-only shell. Real authenticated SaaS UI flows still require backend-connected Playwright and staging proof."
+      "notes": "Frontend now renders a tested operations dashboard surface instead of a title-only shell, fetches health/readiness/inventory APIs on load, and fails closed without showing demo inventory when backend or tenant context is unavailable. Real authenticated SaaS UI flows still require Playwright and staging proof."
     },
     {
       "id": "frontend.product_ux",
@@ -25,7 +25,7 @@
       "status": "ci_verified",
       "exposure": "staging_only",
       "owner": "engineering",
-      "paths": ["client/src/main.tsx", "client/src/main.test.ts", "client/src/styles.css"],
+      "paths": ["client/src/api.ts", "client/src/main.tsx", "client/src/main.test.ts", "client/src/styles.css"],
       "proof": {
         "ci": true,
         "tests": true,
@@ -34,7 +34,7 @@
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "Operations dashboard, inventory control table, lead inbox state, scrape proof state, tenant/readiness signals, and invalid-VIN blocker visibility have automated frontend tests. This is not yet a backend-connected authenticated user flow."
+      "notes": "Operations dashboard, backend health/readiness/inventory API loading, live inventory rendering from /api/vehicles, fail-closed inventory blocking when dealership context is missing, lead workflow blocking, scrape proof state, and tenant/readiness signals have automated frontend tests. This is not yet an authenticated user flow, Playwright flow, or staging-proven product UX."
     },
     {
       "id": "health.observability",

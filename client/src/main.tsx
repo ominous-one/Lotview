@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   AlertTriangle,
@@ -11,86 +11,24 @@ import {
   Truck,
   Users,
 } from "lucide-react";
+import { loadOperationsSnapshot, type InventoryRow, type OperationsSnapshot } from "./api";
 import "./styles.css";
 
 type QueueTab = "inventory" | "leads" | "scrape";
-
-interface InventoryRow {
-  stock: string;
-  vin: string;
-  vehicle: string;
-  status: "active" | "pending_review" | "blocked";
-  price: string;
-  source: string;
-  proof: string;
-}
-
-interface LeadRow {
-  name: string;
-  vehicle: string;
-  stage: string;
-  owner: string;
-  age: string;
-}
-
-const inventoryRows: InventoryRow[] = [
-  {
-    stock: "H24019",
-    vin: "1HGCM82633A004352",
-    vehicle: "2024 Hyundai Tucson Preferred",
-    status: "active",
-    price: "$34,995",
-    source: "Olympic Hyundai",
-    proof: "VIN checked",
-  },
-  {
-    stock: "Q-118",
-    vin: "2INVALIDVIN00000",
-    vehicle: "Quarantined scrape candidate",
-    status: "blocked",
-    price: "Review",
-    source: "Scrape candidate",
-    proof: "Invalid VIN blocked",
-  },
-  {
-    stock: "P24077",
-    vin: "5NMS3CAD4PH123456",
-    vehicle: "2023 Hyundai Santa Fe Luxury",
-    status: "pending_review",
-    price: "$41,880",
-    source: "Manual review",
-    proof: "Source mismatch",
-  },
-];
-
-const leadRows: LeadRow[] = [
-  {
-    name: "Maya C.",
-    vehicle: "2024 Tucson",
-    stage: "AI draft ready",
-    owner: "BDC",
-    age: "12m",
-  },
-  {
-    name: "Jordan L.",
-    vehicle: "2023 Santa Fe",
-    stage: "Needs manager",
-    owner: "Sales manager",
-    age: "31m",
-  },
-  {
-    name: "Priya S.",
-    vehicle: "Inventory request",
-    stage: "Waiting on source truth",
-    owner: "Sales rep",
-    age: "44m",
-  },
-];
 
 const statusLabels: Record<InventoryRow["status"], string> = {
   active: "Active",
   pending_review: "Review",
   blocked: "Blocked",
+};
+
+const initialSnapshot: OperationsSnapshot = {
+  backendStatus: "blocked",
+  healthStatus: "loading",
+  readinessStatus: "loading",
+  inventoryRows: [],
+  inventoryTotal: null,
+  blocker: null,
 };
 
 function StatusPill({ status }: { status: InventoryRow["status"] }) {
@@ -120,49 +58,72 @@ function Metric({
   );
 }
 
-function InventoryTable() {
+function InventoryTable({ snapshot, loading }: { snapshot: OperationsSnapshot; loading: boolean }) {
+  const liveInventoryAvailable = snapshot.backendStatus === "connected";
+
   return (
     <section className="workspace-panel" aria-labelledby="inventory-heading">
       <div className="panel-heading">
         <div>
           <h2 id="inventory-heading">Inventory Control</h2>
-          <p>Olympic Hyundai Vancouver</p>
+          <p>{liveInventoryAvailable ? "Live vehicles from Lotview API" : "Live inventory blocked"}</p>
         </div>
-        <button className="primary-action" type="button">
+        <button className="primary-action" type="button" disabled={!liveInventoryAvailable}>
           <ClipboardCheck size={17} />
           Review Queue
         </button>
       </div>
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Stock</th>
-              <th>Vehicle</th>
-              <th>VIN</th>
-              <th>Status</th>
-              <th>Price</th>
-              <th>Source</th>
-              <th>Proof</th>
-            </tr>
-          </thead>
-          <tbody>
-            {inventoryRows.map((row) => (
-              <tr key={row.stock}>
-                <td>{row.stock}</td>
-                <td>{row.vehicle}</td>
-                <td className="mono">{row.vin}</td>
-                <td>
-                  <StatusPill status={row.status} />
-                </td>
-                <td>{row.price}</td>
-                <td>{row.source}</td>
-                <td>{row.proof}</td>
+
+      {loading ? (
+        <div className="empty-state">
+          <Gauge size={22} />
+          <strong>Loading backend inventory</strong>
+          <span>Waiting for Lotview health, readiness, and inventory APIs.</span>
+        </div>
+      ) : !liveInventoryAvailable ? (
+        <div className="empty-state empty-state-blocked">
+          <AlertTriangle size={22} />
+          <strong>No live inventory is shown</strong>
+          <span>{snapshot.blocker || "Backend inventory could not be verified."}</span>
+        </div>
+      ) : snapshot.inventoryRows.length === 0 ? (
+        <div className="empty-state">
+          <Truck size={22} />
+          <strong>No active inventory returned</strong>
+          <span>The API responded, but no vehicles were available for this tenant.</span>
+        </div>
+      ) : (
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Stock</th>
+                <th>Vehicle</th>
+                <th>VIN</th>
+                <th>Status</th>
+                <th>Price</th>
+                <th>Source</th>
+                <th>Proof</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {snapshot.inventoryRows.map((row) => (
+                <tr key={`${row.stock}-${row.vin}`}>
+                  <td>{row.stock}</td>
+                  <td>{row.vehicle}</td>
+                  <td className="mono">{row.vin}</td>
+                  <td>
+                    <StatusPill status={row.status} />
+                  </td>
+                  <td>{row.price}</td>
+                  <td>{row.source}</td>
+                  <td>{row.proof}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </section>
   );
 }
@@ -173,25 +134,28 @@ function LeadQueue() {
       <div className="panel-heading">
         <div>
           <h2 id="lead-heading">Lead Inbox</h2>
-          <p>Drafts stay review-only until certification</p>
+          <p>CRM and AI lead workflows remain certification-blocked</p>
         </div>
-        <button className="secondary-action" type="button">
+        <button className="secondary-action" type="button" disabled>
           <Inbox size={17} />
           Open Inbox
         </button>
       </div>
-      <div className="lead-list">
-        {leadRows.map((lead) => (
-          <article className="lead-row" key={`${lead.name}-${lead.vehicle}`}>
-            <div>
-              <strong>{lead.name}</strong>
-              <span>{lead.vehicle}</span>
-            </div>
-            <span>{lead.stage}</span>
-            <span>{lead.owner}</span>
-            <small>{lead.age}</small>
-          </article>
-        ))}
+      <div className="proof-stack" aria-label="Lead workflow blockers">
+        <article>
+          <AlertTriangle size={17} />
+          <div>
+            <strong>No live lead data is displayed</strong>
+            <span>Route contracts, tenant isolation, and staging user-flow proof are still required.</span>
+          </div>
+        </article>
+        <article>
+          <AlertTriangle size={17} />
+          <div>
+            <strong>AI drafts remain review-only</strong>
+            <span>Inventory grounding, finance guardrails, and escalation tests must pass before exposure.</span>
+          </div>
+        </article>
       </div>
     </section>
   );
@@ -203,9 +167,9 @@ function ScrapeRunPanel() {
       <div className="panel-heading">
         <div>
           <h2 id="scrape-heading">Scrape Run Review</h2>
-          <p>Latest candidate import</p>
+          <p>Certification blockers for live scraper launch</p>
         </div>
-        <button className="secondary-action" type="button">
+        <button className="secondary-action" type="button" disabled>
           <BarChart3 size={17} />
           View Report
         </button>
@@ -213,19 +177,19 @@ function ScrapeRunPanel() {
       <div className="run-grid">
         <div>
           <span>Vehicles extracted</span>
-          <strong>47</strong>
+          <strong>Not certified</strong>
         </div>
         <div>
           <span>Stored</span>
-          <strong>44</strong>
+          <strong>Blocked</strong>
         </div>
         <div>
-          <span>Blocked</span>
-          <strong>3</strong>
+          <span>Quarantine</span>
+          <strong>Required</strong>
         </div>
         <div>
           <span>Source accuracy</span>
-          <strong>Not certified</strong>
+          <strong>Missing proof</strong>
         </div>
       </div>
       <ol className="proof-list" aria-label="Scrape proof blockers">
@@ -248,12 +212,49 @@ function ScrapeRunPanel() {
 
 function App() {
   const [activeTab, setActiveTab] = useState<QueueTab>("inventory");
+  const [snapshot, setSnapshot] = useState<OperationsSnapshot>(initialSnapshot);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let ignore = false;
+
+    loadOperationsSnapshot()
+      .then((nextSnapshot) => {
+        if (!ignore) {
+          setSnapshot(nextSnapshot);
+        }
+      })
+      .catch((error) => {
+        if (!ignore) {
+          setSnapshot({
+            ...initialSnapshot,
+            blocker: error instanceof Error ? error.message : "Frontend data load failed",
+          });
+        }
+      })
+      .finally(() => {
+        if (!ignore) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   const activePanel = useMemo(() => {
     if (activeTab === "leads") return <LeadQueue />;
     if (activeTab === "scrape") return <ScrapeRunPanel />;
-    return <InventoryTable />;
-  }, [activeTab]);
+    return <InventoryTable snapshot={snapshot} loading={loading} />;
+  }, [activeTab, loading, snapshot]);
+
+  const inventoryValue =
+    snapshot.backendStatus === "connected" && snapshot.inventoryTotal !== null
+      ? `${snapshot.inventoryTotal} live`
+      : "Blocked";
+  const tenantGuardDetail =
+    snapshot.backendStatus === "connected" ? "Tenant-scoped API response" : "No unverified inventory shown";
 
   return (
     <main className="app-shell">
@@ -293,15 +294,26 @@ function App() {
         <header className="topbar">
           <div>
             <h1>Dealership Operations</h1>
-            <span>Tenant: Olympic Hyundai Vancouver</span>
+            <span>Backend: {loading ? "loading" : snapshot.backendStatus}</span>
           </div>
           <div className="environment-badge">Staging only</div>
         </header>
+        {snapshot.blocker && !loading ? (
+          <div className="system-banner" role="status">
+            <AlertTriangle size={18} />
+            <span>{snapshot.blocker}</span>
+          </div>
+        ) : null}
         <div className="metrics-grid">
-          <Metric icon={Truck} label="Inventory" value="44 active" detail="3 blocked candidates" />
-          <Metric icon={Inbox} label="Leads" value="12 open" detail="2 manager escalations" />
-          <Metric icon={ShieldCheck} label="Tenant Guard" value="Enabled" detail="No header fallback" />
-          <Metric icon={Gauge} label="Readiness" value="CI verified" detail="Staging proof pending" />
+          <Metric icon={Truck} label="Inventory" value={loading ? "Loading" : inventoryValue} detail="From /api/vehicles" />
+          <Metric icon={Inbox} label="Leads" value="Blocked" detail="CRM route proof pending" />
+          <Metric icon={ShieldCheck} label="Tenant Guard" value="Fail closed" detail={tenantGuardDetail} />
+          <Metric
+            icon={Gauge}
+            label="Readiness"
+            value={loading ? "Loading" : snapshot.readinessStatus}
+            detail={`Health: ${snapshot.healthStatus}`}
+          />
         </div>
         {activePanel}
       </section>

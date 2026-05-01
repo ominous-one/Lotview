@@ -78,6 +78,12 @@ button {
   color: #ffffff;
 }
 
+.primary-action:disabled,
+.secondary-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
 .content {
   display: grid;
   align-content: start;
@@ -123,6 +129,23 @@ button {
   color: #405168;
   font-size: 14px;
   font-weight: 700;
+}
+
+.system-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 10px 12px;
+  border: 1px solid #f3bf76;
+  border-radius: 6px;
+  background: #fff8eb;
+  color: #6e4300;
+  font-weight: 700;
+}
+
+.system-banner svg {
+  flex: 0 0 auto;
 }
 
 .metrics-grid {
@@ -261,6 +284,53 @@ th {
 
 .lead-list {
   display: grid;
+}
+
+.empty-state,
+.proof-stack {
+  display: grid;
+  gap: 10px;
+  padding: 22px 18px;
+}
+
+.empty-state {
+  justify-items: start;
+  color: #526276;
+}
+
+.empty-state svg,
+.proof-stack svg {
+  color: #aa6a00;
+}
+
+.empty-state strong,
+.proof-stack strong {
+  color: #172033;
+}
+
+.empty-state span,
+.proof-stack span {
+  color: #617084;
+}
+
+.empty-state-blocked {
+  background: #fff8eb;
+}
+
+.proof-stack article {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 14px;
+  border: 1px solid #e5ebf1;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+
+.proof-stack article div {
+  display: grid;
+  gap: 4px;
 }
 
 .lead-row {
