@@ -94,10 +94,14 @@ export async function runBrowserlessInventoryScrape(
 
     let sources;
     if (sourceId) {
+      const sourceFilter = dealershipId
+        ? and(eq(scrapeSources.id, sourceId), eq(scrapeSources.dealershipId, dealershipId), eq(scrapeSources.isActive, true))
+        : and(eq(scrapeSources.id, sourceId), eq(scrapeSources.isActive, true));
+
       sources = await db
         .select()
         .from(scrapeSources)
-        .where(and(eq(scrapeSources.id, sourceId), eq(scrapeSources.isActive, true)));
+        .where(sourceFilter);
     } else if (dealershipId) {
       sources = await db
         .select()
@@ -199,7 +203,7 @@ export async function runBrowserlessInventoryScrape(
               lastScrapedAt: new Date(),
               vehicleCount: result.vehicles.length,
             })
-            .where(eq(scrapeSources.id, source.id));
+            .where(and(eq(scrapeSources.id, source.id), eq(scrapeSources.dealershipId, source.dealershipId)));
         } else {
           logWarn('[Browserless Robust] Source scrape failed or found no vehicles', {
             service: 'scraper',
