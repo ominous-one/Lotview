@@ -15718,7 +15718,7 @@ Return ONLY the enhanced description, nothing else.`;
   app.put("/api/super-admin/fb-marketplace/settings/:dealershipId", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
       const dealershipId = parseInt(req.params.dealershipId);
-      const settingsData = req.body;
+      const settingsData = stripTenantOwnershipFields((req.body ?? {}) as Record<string, unknown>);
 
       const [existing] = await db
         .select()
@@ -15731,8 +15731,8 @@ Return ONLY the enhanced description, nothing else.`;
           .where(eq(fbMarketplaceSettings.dealershipId, dealershipId));
       } else {
         await db.insert(fbMarketplaceSettings).values({
-          dealershipId,
           ...settingsData,
+          dealershipId,
         });
       }
 
