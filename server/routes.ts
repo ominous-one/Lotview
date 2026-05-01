@@ -14474,11 +14474,16 @@ Format your response in clear sections with actionable recommendations.`;
   // Add tag to contact
   app.post("/api/crm/contacts/:id/tags/:tagId", authMiddleware, requirePermission("leads.write"), requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
+      const dealershipId = req.dealershipId!;
       const contactId = parseInt(req.params.id);
       const tagId = parseInt(req.params.tagId);
       const userId = req.user?.id;
       
-      const contactTag = await storage.addTagToContact(contactId, tagId, userId);
+      const contactTag = await storage.addTagToContact(contactId, tagId, dealershipId, userId);
+      if (!contactTag) {
+        return res.status(404).json({ error: "Contact or tag not found" });
+      }
+
       res.status(201).json(contactTag);
     } catch (error) {
       logError('Error adding tag to contact:', error instanceof Error ? error : new Error(String(error)), { route: 'api-crm-contacts-id-tags-tagId' });
@@ -14489,10 +14494,11 @@ Format your response in clear sections with actionable recommendations.`;
   // Remove tag from contact
   app.delete("/api/crm/contacts/:id/tags/:tagId", authMiddleware, requirePermission("leads.write"), requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
+      const dealershipId = req.dealershipId!;
       const contactId = parseInt(req.params.id);
       const tagId = parseInt(req.params.tagId);
       
-      const removed = await storage.removeTagFromContact(contactId, tagId);
+      const removed = await storage.removeTagFromContact(contactId, tagId, dealershipId);
       
       if (!removed) {
         return res.status(404).json({ error: "Tag not found on contact" });
@@ -14508,8 +14514,9 @@ Format your response in clear sections with actionable recommendations.`;
   // Get tags for a contact
   app.get("/api/crm/contacts/:id/tags", authMiddleware, requirePermission("leads.read"), requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
+      const dealershipId = req.dealershipId!;
       const contactId = parseInt(req.params.id);
-      const tags = await storage.getContactTags(contactId);
+      const tags = await storage.getContactTags(contactId, dealershipId);
       res.json(tags);
     } catch (error) {
       logError('Error fetching contact tags:', error instanceof Error ? error : new Error(String(error)), { route: 'api-crm-contacts-id-tags' });

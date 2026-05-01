@@ -1005,9 +1005,9 @@ export interface IStorage {
   createCrmTag(tag: InsertCrmTag): Promise<CrmTag>;
   updateCrmTag(id: number, dealershipId: number, tag: Partial<InsertCrmTag>): Promise<CrmTag | undefined>;
   deleteCrmTag(id: number, dealershipId: number): Promise<boolean>;
-  addTagToContact(contactId: number, tagId: number, addedById?: number): Promise<CrmContactTag>;
-  removeTagFromContact(contactId: number, tagId: number): Promise<boolean>;
-  getContactTags(contactId: number): Promise<CrmTag[]>;
+  addTagToContact(contactId: number, tagId: number, dealershipId: number, addedById?: number): Promise<CrmContactTag | undefined>;
+  removeTagFromContact(contactId: number, tagId: number, dealershipId: number): Promise<boolean>;
+  getContactTags(contactId: number, dealershipId: number): Promise<CrmTag[]>;
   
   // ====== CRM ACTIVITIES ======
   getCrmActivities(contactId: number, dealershipId: number, limit?: number): Promise<CrmActivity[]>;
@@ -6461,7 +6461,23 @@ export class DatabaseStorage implements IStorage {
     return result.length > 0;
   }
   
-  async addTagToContact(contactId: number, tagId: number, addedById?: number): Promise<CrmContactTag> {
+  async addTagToContact(contactId: number, tagId: number, dealershipId: number, addedById?: number): Promise<CrmContactTag | undefined> {
+    const matchingRecords = await db.select({ contactId: crmContacts.id, tagId: crmTags.id })
+      .from(crmContacts)
+      .innerJoin(crmTags, and(
+        eq(crmTags.id, tagId),
+        eq(crmTags.dealershipId, dealershipId)
+      ))
+      .where(and(
+        eq(crmContacts.id, contactId),
+        eq(crmContacts.dealershipId, dealershipId)
+      ))
+      .limit(1);
+
+    if (!matchingRecords[0]) {
+      return undefined;
+    }
+
     const result = await db.insert(crmContactTags).values({
       contactId,
       tagId,
@@ -6470,7 +6486,23 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
   
-  async removeTagFromContact(contactId: number, tagId: number): Promise<boolean> {
+  async removeTagFromContact(contactId: number, tagId: number, dealershipId: number): Promise<boolean> {
+    const matchingRecords = await db.select({ contactId: crmContacts.id, tagId: crmTags.id })
+      .from(crmContacts)
+      .innerJoin(crmTags, and(
+        eq(crmTags.id, tagId),
+        eq(crmTags.dealershipId, dealershipId)
+      ))
+      .where(and(
+        eq(crmContacts.id, contactId),
+        eq(crmContacts.dealershipId, dealershipId)
+      ))
+      .limit(1);
+
+    if (!matchingRecords[0]) {
+      return false;
+    }
+
     const result = await db.delete(crmContactTags)
       .where(and(
         eq(crmContactTags.contactId, contactId),
@@ -6480,11 +6512,16 @@ export class DatabaseStorage implements IStorage {
     return result.length > 0;
   }
   
-  async getContactTags(contactId: number): Promise<CrmTag[]> {
+  async getContactTags(contactId: number, dealershipId: number): Promise<CrmTag[]> {
     const result = await db.select({ tag: crmTags })
       .from(crmContactTags)
+      .innerJoin(crmContacts, eq(crmContactTags.contactId, crmContacts.id))
       .innerJoin(crmTags, eq(crmContactTags.tagId, crmTags.id))
-      .where(eq(crmContactTags.contactId, contactId));
+      .where(and(
+        eq(crmContactTags.contactId, contactId),
+        eq(crmContacts.dealershipId, dealershipId),
+        eq(crmTags.dealershipId, dealershipId)
+      ));
     return result.map(r => r.tag);
   }
   

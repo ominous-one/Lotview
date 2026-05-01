@@ -84,4 +84,26 @@ describe("CRM route RBAC and tenant contract", () => {
       ".set({ ...stripTenantOwnershipFields(template), updatedAt: new Date() })",
     ].forEach((storageGuard) => expect(storageSource).toContain(storageGuard));
   });
+
+  it("requires dealership context for CRM contact tag assignments", () => {
+    [
+      "storage.addTagToContact(contactId, tagId, userId)",
+      "storage.removeTagFromContact(contactId, tagId)",
+      "storage.getContactTags(contactId)",
+    ].forEach((unsafeCall) => expect(routesSource).not.toContain(unsafeCall));
+
+    [
+      "storage.addTagToContact(contactId, tagId, dealershipId, userId)",
+      "storage.removeTagFromContact(contactId, tagId, dealershipId)",
+      "storage.getContactTags(contactId, dealershipId)",
+    ].forEach((safeCall) => expect(routesSource).toContain(safeCall));
+
+    [
+      "addTagToContact(contactId: number, tagId: number, dealershipId: number",
+      "removeTagFromContact(contactId: number, tagId: number, dealershipId: number)",
+      "getContactTags(contactId: number, dealershipId: number)",
+      "eq(crmContacts.dealershipId, dealershipId)",
+      "eq(crmTags.dealershipId, dealershipId)",
+    ].forEach((tenantGuard) => expect(storageSource).toContain(tenantGuard));
+  });
 });
