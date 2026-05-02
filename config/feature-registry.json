@@ -17,7 +17,7 @@
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "Frontend now renders a tested operations dashboard surface instead of a title-only shell, fetches health/readiness/inventory APIs on load, and fails closed without showing demo inventory when backend or tenant context is unavailable. Real authenticated SaaS UI flows still require Playwright and staging proof."
+      "notes": "Frontend now renders a tested operations dashboard surface instead of a title-only shell, fetches health/readiness/auth/inventory APIs on load, and fails closed without showing demo inventory when backend, authenticated session, or tenant context is unavailable. Real authenticated SaaS UI flows still require Playwright and staging proof."
     },
     {
       "id": "frontend.product_ux",
@@ -34,7 +34,7 @@
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "Operations dashboard, backend health/readiness/inventory API loading, live inventory rendering from /api/vehicles, fail-closed inventory blocking when dealership context is missing, lead workflow blocking, scrape proof state, and tenant/readiness signals have automated frontend tests. This is not yet an authenticated user flow, Playwright flow, or staging-proven product UX."
+      "notes": "Operations dashboard, backend health/readiness/auth/inventory API loading, live inventory rendering from /api/vehicles only after /api/auth/me returns an authenticated dealership session, fail-closed inventory blocking when session or dealership context is missing, lead workflow blocking, scrape proof state, and tenant/readiness signals have automated frontend tests. This is not yet a complete login-to-inventory Playwright flow or staging-proven product UX."
     },
     {
       "id": "health.observability",

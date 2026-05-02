@@ -144,8 +144,26 @@ button {
   font-weight: 700;
 }
 
+.session-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 10px 12px;
+  border: 1px solid #bbd6cf;
+  border-radius: 6px;
+  background: #edf8f4;
+  color: #174e44;
+  font-weight: 700;
+}
+
 .system-banner svg {
   flex: 0 0 auto;
+}
+
+.session-strip svg {
+  flex: 0 0 auto;
+  color: #286f6c;
 }
 
 .metrics-grid {

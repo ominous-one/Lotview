@@ -24,11 +24,13 @@ const statusLabels: Record<InventoryRow["status"], string> = {
 
 const initialSnapshot: OperationsSnapshot = {
   backendStatus: "blocked",
+  authStatus: "unknown",
   healthStatus: "loading",
   readinessStatus: "loading",
   inventoryRows: [],
   inventoryTotal: null,
   blocker: null,
+  user: null,
 };
 
 function StatusPill({ status }: { status: InventoryRow["status"] }) {
@@ -254,7 +256,8 @@ function App() {
       ? `${snapshot.inventoryTotal} live`
       : "Blocked";
   const tenantGuardDetail =
-    snapshot.backendStatus === "connected" ? "Tenant-scoped API response" : "No unverified inventory shown";
+    snapshot.backendStatus === "connected" ? "Authenticated tenant API response" : "No unverified inventory shown";
+  const sessionValue = snapshot.authStatus === "authenticated" ? "Verified" : "Blocked";
 
   return (
     <main className="app-shell">
@@ -294,10 +297,21 @@ function App() {
         <header className="topbar">
           <div>
             <h1>Dealership Operations</h1>
-            <span>Backend: {loading ? "loading" : snapshot.backendStatus}</span>
+            <span>
+              Backend: {loading ? "loading" : snapshot.backendStatus} | Session:{" "}
+              {loading ? "loading" : snapshot.authStatus}
+            </span>
           </div>
           <div className="environment-badge">Staging only</div>
         </header>
+        {snapshot.user && !loading ? (
+          <section className="session-strip" aria-label="Authenticated user">
+            <ShieldCheck size={18} />
+            <span>
+              {snapshot.user.name} | {snapshot.user.role} | {snapshot.user.dealershipLabel}
+            </span>
+          </section>
+        ) : null}
         {snapshot.blocker && !loading ? (
           <div className="system-banner" role="status">
             <AlertTriangle size={18} />
@@ -307,7 +321,7 @@ function App() {
         <div className="metrics-grid">
           <Metric icon={Truck} label="Inventory" value={loading ? "Loading" : inventoryValue} detail="From /api/vehicles" />
           <Metric icon={Inbox} label="Leads" value="Blocked" detail="CRM route proof pending" />
-          <Metric icon={ShieldCheck} label="Tenant Guard" value="Fail closed" detail={tenantGuardDetail} />
+          <Metric icon={ShieldCheck} label="Session" value={loading ? "Loading" : sessionValue} detail={tenantGuardDetail} />
           <Metric
             icon={Gauge}
             label="Readiness"

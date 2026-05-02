@@ -70,6 +70,18 @@ describe("Lotview frontend operations workflow", () => {
       { body: { status: "ready" } },
       {
         body: {
+          user: {
+            id: 12,
+            name: "Avery Manager",
+            email: "avery@example.com",
+            role: "manager",
+            dealershipId: 7,
+            dealershipName: "Olympic Hyundai",
+          },
+        },
+      },
+      {
+        body: {
           data: [
             {
               stockNumber: "HY-API-1",
@@ -93,7 +105,11 @@ describe("Lotview frontend operations workflow", () => {
 
     expect(fetchMock).toHaveBeenCalledWith("/api/health", expect.objectContaining({ credentials: "same-origin" }));
     expect(fetchMock).toHaveBeenCalledWith("/api/ready", expect.objectContaining({ credentials: "same-origin" }));
+    expect(fetchMock).toHaveBeenCalledWith("/api/auth/me", expect.objectContaining({ credentials: "same-origin" }));
     expect(fetchMock).toHaveBeenCalledWith("/api/vehicles?limit=10", expect.objectContaining({ credentials: "same-origin" }));
+    expect(document.body.textContent).toContain("Avery Manager");
+    expect(document.body.textContent).toContain("Olympic Hyundai");
+    expect(document.body.textContent).toContain("Session: authenticated");
     expect(document.body.textContent).toContain("Live vehicles from Lotview API");
     expect(document.body.textContent).toContain("HY-API-1");
     expect(document.body.textContent).toContain("$27,995");
@@ -101,10 +117,38 @@ describe("Lotview frontend operations workflow", () => {
     expect(document.body.textContent).not.toContain("H24019");
   });
 
+  it("fails closed before inventory loads when the session is unauthenticated", async () => {
+    const fetchMock = mockFetchSequence([
+      { body: { status: "healthy" } },
+      { body: { status: "ready" } },
+      { body: { error: "No token provided" }, status: 401 },
+    ]);
+
+    await renderApp();
+    await waitForText("No live inventory is shown");
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledWith("/api/auth/me", expect.objectContaining({ credentials: "same-origin" }));
+    expect(document.body.textContent).toContain("No token provided");
+    expect(document.body.textContent).toContain("Session: unauthenticated");
+    expect(document.body.textContent).not.toContain("HY-API-1");
+  });
+
   it("fails closed when inventory API lacks dealership context instead of showing static vehicle facts", async () => {
     mockFetchSequence([
       { body: { status: "healthy" } },
       { body: { status: "ready" } },
+      {
+        body: {
+          user: {
+            id: 13,
+            name: "No Tenant User",
+            email: "no-tenant@example.com",
+            role: "manager",
+            dealershipId: 7,
+          },
+        },
+      },
       { body: { error: "Dealership context required" }, status: 400 },
     ]);
 
@@ -121,6 +165,17 @@ describe("Lotview frontend operations workflow", () => {
     mockFetchSequence([
       { body: { status: "healthy" } },
       { body: { status: "ready" } },
+      {
+        body: {
+          user: {
+            id: 14,
+            name: "Proof Reviewer",
+            email: "proof@example.com",
+            role: "manager",
+            dealershipId: 7,
+          },
+        },
+      },
       { body: { error: "Dealership context required" }, status: 400 },
     ]);
 
