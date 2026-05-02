@@ -180,13 +180,32 @@ function isNonEmptyString(value: unknown): value is string {
 }
 
 function isHttpUrl(value: unknown): value is string {
-  if (typeof value !== "string" || value.trim().length === 0) return false;
+  return normalizeHttpUrl(value) !== null;
+}
+
+function normalizeHttpUrl(value: unknown): string | null {
+  if (typeof value !== "string" || value.trim().length === 0) return null;
   try {
-    const url = new URL(value);
-    return url.protocol === "http:" || url.protocol === "https:";
+    const url = new URL(value.trim());
+    return url.protocol === "http:" || url.protocol === "https:" ? url.href : null;
   } catch {
-    return false;
+    return null;
   }
+}
+
+function sanitizeScrapedImageUrls(values: unknown): string[] {
+  if (!Array.isArray(values)) return [];
+  const normalized = new Set<string>();
+  for (const value of values) {
+    const url = normalizeHttpUrl(value);
+    if (url) normalized.add(url);
+  }
+  return [...normalized];
+}
+
+function preferredScrapedImages(scraped: ScrapedVehicleData): string[] {
+  const rawImages = scraped.images && scraped.images.length > 0 ? scraped.images : scraped.photos;
+  return sanitizeScrapedImageUrls(rawImages);
 }
 
 // ---- Core Deduplication ----
@@ -367,7 +386,7 @@ export async function mergeDuplicates(
   for (const v of toRemove) {
     if (isPositiveFiniteNumber(v.price) && v.price !== keeper.price) merged.price = v.price;
     if (isNonNegativeFiniteNumber(v.odometer) && v.odometer !== keeper.odometer) merged.odometer = v.odometer;
-    const duplicateImages = ((v.images as string[]) || (v.photos as string[]) || []);
+    const duplicateImages = sanitizeScrapedImageUrls((v.images as string[]) || (v.photos as string[]) || []);
     if (duplicateImages.length > 0) {
       const existingImages = ((keeper.images as string[]) || (keeper.photos as string[]) || []);
       const allImages = [...new Set([...existingImages, ...duplicateImages])];
@@ -418,7 +437,7 @@ async function mergeVehicle(
   }
 
   // Photos: merge sets, preserve manual photos
-  const scrapedImages = scraped.images && scraped.images.length > 0 ? scraped.images : scraped.photos;
+  const scrapedImages = preferredScrapedImages(scraped);
   if (scrapedImages && scrapedImages.length > 0) {
     const existingImages = ((existing.images as string[]) || (existing.photos as string[]) || []);
     const existingImageUrls = new Set(existingImages.map((p) => p.replace(/^manual:/, "")));
@@ -474,7 +493,7 @@ async function mergeVehicle(
 
 async function insertVehicle(scraped: ScrapedVehicleData, dealershipId: number): Promise<Vehicle> {
   const odometer = scraped.odometer ?? scraped.mileage ?? 0;
-  const images = scraped.images && scraped.images.length > 0 ? scraped.images : scraped.photos || [];
+  const images = preferredScrapedImages(scraped);
 
   return storage.createVehicle({
     dealershipId,
