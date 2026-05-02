@@ -11502,7 +11502,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Save AI prompt template
-  app.post("/api/admin/ai-prompt", authMiddleware, requireRole("master"), async (req, res) => {
+  app.post("/api/admin/ai-prompt", authMiddleware, requirePermission("ai.configure"), requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { name, promptText, isActive } = req.body;
