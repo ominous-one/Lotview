@@ -112,4 +112,41 @@ describe("scrape validator invalid VIN handling", () => {
     );
     expect(sendQualityAlertMock).not.toHaveBeenCalled();
   });
+
+  it("fails closed when a scraped vehicle is missing required price facts", async () => {
+    const vinMissingPrice = validVin(12);
+    const vehicles = [
+      ...Array.from({ length: 9 }, (_, index) => scrapedVehicle(index + 1)),
+      {
+        vin: vinMissingPrice,
+        year: 2003,
+        make: "Honda",
+        model: "Accord",
+        photos: ["missing-price.jpg"],
+      },
+    ];
+
+    const result = await scrapeValidator.validateScrape(7, vehicles);
+
+    expect(result).toMatchObject({
+      isValid: false,
+      vehiclesFound: 10,
+      validVins: 10,
+      invalidVins: [],
+      missingRequiredFields: [
+        {
+          vin: vinMissingPrice,
+          missing: ["price"],
+        },
+      ],
+    });
+    expect(result.errors).toContain(
+      `Missing required scrape fields in scrape result: ${vinMissingPrice}(price)`
+    );
+    expect(sendScrapeFailureAlertMock).toHaveBeenCalledWith(
+      7,
+      expect.stringContaining(vinMissingPrice)
+    );
+    expect(sendQualityAlertMock).not.toHaveBeenCalled();
+  });
 });
