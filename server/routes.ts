@@ -10802,7 +10802,7 @@ Format your response in clear sections with actionable recommendations.`;
   // ===== PBS SALES MODULE =====
 
   // Search contacts by phone, email, or name
-  app.get("/api/pbs/sales/contacts/search", authMiddleware, requireRole("master", "sales_manager"), async (req, res) => {
+  app.get("/api/pbs/sales/contacts/search", authMiddleware, requireRole("master", "sales_manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { phone, email, firstName, lastName } = req.query;
@@ -10831,7 +10831,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get contact by ID
-  app.get("/api/pbs/sales/contacts/:contactId", authMiddleware, requireRole("master", "sales_manager"), async (req, res) => {
+  app.get("/api/pbs/sales/contacts/:contactId", authMiddleware, requireRole("master", "sales_manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { contactId } = req.params;
@@ -10851,7 +10851,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Create new contact
-  app.post("/api/pbs/sales/contacts", authMiddleware, requireRole("master", "sales_manager"), async (req, res) => {
+  app.post("/api/pbs/sales/contacts", authMiddleware, requireRole("master", "sales_manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const contactData = req.body;
@@ -10875,7 +10875,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Update contact
-  app.patch("/api/pbs/sales/contacts/:contactId", authMiddleware, requireRole("master", "sales_manager"), async (req, res) => {
+  app.patch("/api/pbs/sales/contacts/:contactId", authMiddleware, requireRole("master", "sales_manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { contactId } = req.params;
@@ -10896,7 +10896,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get contact vehicles
-  app.get("/api/pbs/sales/contacts/:contactId/vehicles", authMiddleware, requireRole("master", "sales_manager"), async (req, res) => {
+  app.get("/api/pbs/sales/contacts/:contactId/vehicles", authMiddleware, requireRole("master", "sales_manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { contactId } = req.params;
@@ -10916,7 +10916,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get workplan events for contact
-  app.get("/api/pbs/sales/workplan/events", authMiddleware, requireRole("master", "sales_manager"), async (req, res) => {
+  app.get("/api/pbs/sales/workplan/events", authMiddleware, requireRole("master", "sales_manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { contactId } = req.query;
@@ -10940,7 +10940,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get single workplan event
-  app.get("/api/pbs/sales/workplan/events/:eventId", authMiddleware, requireRole("master", "sales_manager"), async (req, res) => {
+  app.get("/api/pbs/sales/workplan/events/:eventId", authMiddleware, requireRole("master", "sales_manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { eventId } = req.params;
@@ -10960,7 +10960,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Update workplan event
-  app.patch("/api/pbs/sales/workplan/events/:eventId", authMiddleware, requireRole("master", "sales_manager"), async (req, res) => {
+  app.patch("/api/pbs/sales/workplan/events/:eventId", authMiddleware, requireRole("master", "sales_manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { eventId } = req.params;
@@ -10981,7 +10981,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get workplan appointments for contact
-  app.get("/api/pbs/sales/workplan/appointments", authMiddleware, requireRole("master", "sales_manager"), async (req, res) => {
+  app.get("/api/pbs/sales/workplan/appointments", authMiddleware, requireRole("master", "sales_manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { contactId } = req.query;
@@ -11005,7 +11005,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get single workplan appointment
-  app.get("/api/pbs/sales/workplan/appointments/:appointmentId", authMiddleware, requireRole("master", "sales_manager"), async (req, res) => {
+  app.get("/api/pbs/sales/workplan/appointments/:appointmentId", authMiddleware, requireRole("master", "sales_manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { appointmentId } = req.params;
@@ -11025,7 +11025,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Create workplan appointment
-  app.post("/api/pbs/sales/workplan/appointments", authMiddleware, requireRole("master", "sales_manager"), async (req, res) => {
+  app.post("/api/pbs/sales/workplan/appointments", authMiddleware, requireRole("master", "sales_manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const appointmentData = req.body;
@@ -11049,7 +11049,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Update workplan appointment
-  app.patch("/api/pbs/sales/workplan/appointments/:appointmentId", authMiddleware, requireRole("master", "sales_manager"), async (req, res) => {
+  app.patch("/api/pbs/sales/workplan/appointments/:appointmentId", authMiddleware, requireRole("master", "sales_manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { appointmentId } = req.params;
@@ -11070,7 +11070,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get reminders for contact
-  app.get("/api/pbs/sales/workplan/reminders", authMiddleware, requireRole("master", "sales_manager"), async (req, res) => {
+  app.get("/api/pbs/sales/workplan/reminders", authMiddleware, requireRole("master", "sales_manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { contactId } = req.query;
