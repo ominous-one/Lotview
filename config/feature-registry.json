@@ -17,7 +17,7 @@
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "Frontend now renders a tested operations dashboard surface instead of a title-only shell, fetches health/readiness/auth/inventory APIs on load, and fails closed without showing demo inventory when backend, authenticated session, or tenant context is unavailable. Real authenticated SaaS UI flows still require Playwright and staging proof."
+      "notes": "Frontend now renders a tested operations dashboard surface instead of a title-only shell, supports a JWT login/logout session path, fetches health/readiness/auth/inventory APIs on load, sends the stored session token as a Bearer token, and fails closed without showing demo inventory when backend, authenticated session, or tenant context is unavailable. Real authenticated SaaS UI flows still require Playwright and staging proof."
     },
     {
       "id": "frontend.product_ux",
@@ -34,7 +34,7 @@
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "Operations dashboard, backend health/readiness/auth/inventory API loading, live inventory rendering from /api/vehicles only after /api/auth/me returns an authenticated dealership session, fail-closed inventory blocking when session or dealership context is missing, lead workflow blocking, scrape proof state, and tenant/readiness signals have automated frontend tests. This is not yet a complete login-to-inventory Playwright flow or staging-proven product UX."
+      "notes": "Operations dashboard, backend health/readiness/auth/inventory API loading, JWT login/logout session handling, Bearer-token API calls, live inventory rendering from /api/vehicles only after /api/auth/me returns an authenticated dealership session, fail-closed inventory blocking when session or dealership context is missing, lead workflow blocking, scrape proof state, and tenant/readiness signals have automated frontend tests. This is not yet a Playwright-verified or staging-proven product UX."
     },
     {
       "id": "health.observability",
@@ -93,7 +93,7 @@
       "status": "code_exists",
       "exposure": "staging_only",
       "owner": "engineering",
-      "paths": ["server/routes"],
+      "paths": ["server/routes", "server/routes/auth.ts", "client/src/api.ts", "client/src/main.tsx", "client/src/main.test.ts"],
       "proof": {
         "ci": false,
         "tests": false,
@@ -102,7 +102,7 @@
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "Must not be called production-ready until session/JWT/reset/rate-limit/protected-route tests exist."
+      "notes": "Frontend login-to-inventory flow now posts credentials to /api/auth/login, stores the returned JWT in session storage, sends it as a Bearer token to /api/auth/me and /api/vehicles, and clears it on logout. Must not be called production-ready until backend JWT, failed-login, reset, rate-limit, protected-route, staging, observability, and rollback tests exist."
     },
     {
       "id": "rbac.permissions",
