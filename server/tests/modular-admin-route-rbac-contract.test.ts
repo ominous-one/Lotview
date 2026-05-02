@@ -29,6 +29,36 @@ describe("modular admin route RBAC contract", () => {
     }
   });
 
+  it("strictly parses modular dealership identifiers instead of using permissive parseInt", () => {
+    expect(adminRoutesSource).toContain("const dealershipId = parsePositiveInteger(req.params.dealershipId);");
+    expect(adminRoutesSource).toContain('return res.status(400).json({ error: "dealershipId must be a positive integer" })');
+    expect(adminRoutesSource).not.toContain("parseInt(req.params.dealershipId");
+  });
+
+  it("does not pass raw request bodies into modular dealership writes", () => {
+    expect(adminRoutesSource).toContain("function buildDealershipUpdates(body: Record<string, unknown>)");
+    expect(adminRoutesSource).toContain("const { updates, errors } = buildDealershipUpdates(req.body ?? {});");
+    expect(adminRoutesSource).toContain('return res.status(400).json({ error: "No valid dealership fields provided" })');
+    expect(adminRoutesSource).toContain("const dealership = await storage.updateDealership(dealershipId, updates);");
+    expect(adminRoutesSource).not.toContain("storage.updateDealership(parseInt(req.params.dealershipId), req.body)");
+    expect(adminRoutesSource).not.toContain("storage.updateDealership(dealershipId, req.body)");
+  });
+
+  it("checks dealership identity collisions before modular create or update", () => {
+    expect(adminRoutesSource).toContain("async function validateTenantIdentityAvailability");
+    expect(adminRoutesSource).toContain("const existing = await storage.getDealershipBySlug(options.slug);");
+    expect(adminRoutesSource).toContain("const existing = await storage.getDealershipBySubdomain(options.subdomain);");
+    expect(adminRoutesSource).toContain("const identityErrors = await validateTenantIdentityAvailability({ slug, subdomain });");
+    expect(adminRoutesSource).toContain("dealershipIdToExclude: dealershipId");
+  });
+
+  it("audits modular dealership lifecycle writes and strips master user password hashes", () => {
+    expect(adminRoutesSource).toContain("function stripPasswordHash");
+    expect(adminRoutesSource).toContain('action: "dealership_created"');
+    expect(adminRoutesSource).toContain('action: "dealership_updated"');
+    expect(adminRoutesSource).toContain("masterUser: stripPasswordHash(masterUser)");
+  });
+
   it("uses explicit super-admin user listing instead of tenant-scoped list fallback", () => {
     expect(adminRoutesSource).toContain("function parsePositiveInteger(value: unknown): number | null");
     expect(adminRoutesSource).toContain("const users = await storage.getAllUsersForSuperAdmin({ dealershipId, role, search });");

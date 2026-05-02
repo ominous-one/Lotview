@@ -10,6 +10,7 @@ import { sensitiveLimiter } from "../middleware/http-rate-limiters";
 import { authMiddleware, requireCapability, requirePermission, type AuthRequest } from "../auth";
 import { hashPassword } from "../auth";
 import { normalizeRole } from "@shared/authz";
+import type { InsertDealership } from "@shared/schema";
 import { superAdminOnly } from "../tenant-middleware";
 import { logError } from "../error-utils";
 import { getSystemHealth, getBusinessMetrics, getDealershipActivity, getAIMetrics, getScrapingMetrics, getFBMarketplaceMetrics, getSystemAlerts, resolveAlert } from "../services/admin-dashboard";
@@ -24,6 +25,100 @@ function parsePositiveInteger(value: unknown): number | null {
 
   const parsed = Number(raw);
   return Number.isSafeInteger(parsed) ? parsed : null;
+}
+
+function requireNonEmptyString(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function stripPasswordHash<T extends { passwordHash?: unknown }>(user: T | null | undefined): Omit<T, "passwordHash"> | null {
+  if (!user) {
+    return null;
+  }
+
+  const { passwordHash: _passwordHash, ...safeUser } = user;
+  return safeUser;
+}
+
+async function validateTenantIdentityAvailability(options: {
+  slug?: string;
+  subdomain?: string;
+  dealershipIdToExclude?: number;
+}) {
+  const errors: string[] = [];
+
+  if (options.slug) {
+    const existing = await storage.getDealershipBySlug(options.slug);
+    if (existing && existing.id !== options.dealershipIdToExclude) {
+      errors.push(`Slug "${options.slug}" is already in use`);
+    }
+  }
+
+  if (options.subdomain) {
+    const existing = await storage.getDealershipBySubdomain(options.subdomain);
+    if (existing && existing.id !== options.dealershipIdToExclude) {
+      errors.push(`Subdomain "${options.subdomain}" is already in use`);
+    }
+  }
+
+  return errors;
+}
+
+function buildDealershipUpdates(body: Record<string, unknown>) {
+  const updates: Partial<InsertDealership> = {};
+  const errors: string[] = [];
+
+  for (const field of [
+    "name",
+    "slug",
+    "subdomain",
+    "address",
+    "city",
+    "province",
+    "postalCode",
+    "phone",
+    "timezone",
+    "defaultCurrency",
+    "vdpFooterDescription",
+  ] as const) {
+    if (!Object.prototype.hasOwnProperty.call(body, field)) {
+      continue;
+    }
+
+    const value = body[field];
+    if (value === null && field !== "name" && field !== "slug") {
+      updates[field] = null;
+      continue;
+    }
+
+    if (typeof value !== "string") {
+      errors.push(`${field} must be a string`);
+      continue;
+    }
+
+    const trimmed = value.trim();
+    if ((field === "name" || field === "slug" || field === "subdomain") && trimmed.length === 0) {
+      errors.push(`${field} cannot be empty`);
+      continue;
+    }
+
+    updates[field] = trimmed;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, "isActive")) {
+    if (typeof body.isActive !== "boolean") {
+      errors.push("isActive must be a boolean");
+    } else {
+      updates.isActive = body.isActive;
+    }
+  }
+
+  return { updates, errors };
 }
 
 /* ─── System Control ─── */
@@ -79,12 +174,29 @@ router.get("/dealerships", authMiddleware, requireCapability("tenant.manage"), s
 
 router.post("/dealerships", authMiddleware, requireCapability("tenant.manage"), requirePermission("users.invite"), superAdminOnly, async (req, res) => {
   try {
-    const { name, slug, subdomain, masterAdminEmail, masterAdminName, masterAdminPassword } = req.body;
+    const authReq = req as AuthRequest;
+    const name = requireNonEmptyString(req.body?.name);
+    const slug = requireNonEmptyString(req.body?.slug);
+    const subdomain = requireNonEmptyString(req.body?.subdomain);
+    const masterAdminEmail = requireNonEmptyString(req.body?.masterAdminEmail)?.toLowerCase();
+    const masterAdminName = requireNonEmptyString(req.body?.masterAdminName);
+    const masterAdminPassword = typeof req.body?.masterAdminPassword === "string" ? req.body.masterAdminPassword : null;
+
     if (!name || !slug || !subdomain || !masterAdminEmail || !masterAdminName || !masterAdminPassword) {
       return res.status(400).json({ error: "Missing required fields" });
     }
+
+    if (masterAdminPassword.length < 12) {
+      return res.status(400).json({ error: "Password must be at least 12 characters" });
+    }
+
     const existingUser = await storage.getUserByEmail(masterAdminEmail);
     if (existingUser) return res.status(400).json({ error: "Email already exists" });
+
+    const identityErrors = await validateTenantIdentityAvailability({ slug, subdomain });
+    if (identityErrors.length > 0) {
+      return res.status(400).json({ error: identityErrors[0], errors: identityErrors });
+    }
 
     const dealership = await storage.createDealership({ name, slug, subdomain });
     const passwordHash = await hashPassword(masterAdminPassword);
@@ -92,7 +204,19 @@ router.post("/dealerships", authMiddleware, requireCapability("tenant.manage"), 
       email: masterAdminEmail, name: masterAdminName, passwordHash,
       role: "master", dealershipId: dealership.id
     });
-    res.status(201).json({ dealership, masterUser });
+
+    await storage.logAuditAction({
+      userId: authReq.user!.id,
+      userEmail: authReq.user!.email,
+      action: "dealership_created",
+      resource: "dealership",
+      resourceId: String(dealership.id),
+      details: JSON.stringify({ name, slug, subdomain, masterAdminEmail }),
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    res.status(201).json({ dealership, masterUser: stripPasswordHash(masterUser) });
   } catch (error) {
     logError("Error creating dealership:", error instanceof Error ? error : new Error(String(error)), { route: "api-super-admin-dealerships" });
     res.status(500).json({ error: "Failed to create dealership" });
@@ -101,11 +225,16 @@ router.post("/dealerships", authMiddleware, requireCapability("tenant.manage"), 
 
 router.get("/dealerships/:dealershipId", authMiddleware, requireCapability("tenant.manage"), superAdminOnly, async (req, res) => {
   try {
-    const dealership = await storage.getDealershipById(parseInt(req.params.dealershipId));
+    const dealershipId = parsePositiveInteger(req.params.dealershipId);
+    if (dealershipId === null) {
+      return res.status(400).json({ error: "dealershipId must be a positive integer" });
+    }
+
+    const dealership = await storage.getDealershipById(dealershipId);
     if (!dealership) return res.status(404).json({ error: "Dealership not found" });
     const users = await storage.getUsersByDealership(dealership.id);
     const masterUser = users.find((u: any) => u.role === "master");
-    res.json({ ...dealership, masterUser });
+    res.json({ ...dealership, masterUser: stripPasswordHash(masterUser) });
   } catch (error) {
     logError("Error fetching dealership:", error instanceof Error ? error : new Error(String(error)), { route: "api-super-admin-dealerships-id" });
     res.status(500).json({ error: "Failed to fetch dealership" });
@@ -114,7 +243,48 @@ router.get("/dealerships/:dealershipId", authMiddleware, requireCapability("tena
 
 router.patch("/dealerships/:dealershipId", authMiddleware, requireCapability("tenant.manage"), requirePermission("users.manage"), superAdminOnly, async (req, res) => {
   try {
-    const dealership = await storage.updateDealership(parseInt(req.params.dealershipId), req.body);
+    const authReq = req as AuthRequest;
+    const dealershipId = parsePositiveInteger(req.params.dealershipId);
+    if (dealershipId === null) {
+      return res.status(400).json({ error: "dealershipId must be a positive integer" });
+    }
+
+    const existingDealership = await storage.getDealershipById(dealershipId);
+    if (!existingDealership) {
+      return res.status(404).json({ error: "Dealership not found" });
+    }
+
+    const { updates, errors } = buildDealershipUpdates(req.body ?? {});
+    if (errors.length > 0) {
+      return res.status(400).json({ error: errors[0], errors });
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: "No valid dealership fields provided" });
+    }
+
+    const identityErrors = await validateTenantIdentityAvailability({
+      slug: updates.slug ?? undefined,
+      subdomain: updates.subdomain ?? undefined,
+      dealershipIdToExclude: dealershipId,
+    });
+    if (identityErrors.length > 0) {
+      return res.status(400).json({ error: identityErrors[0], errors: identityErrors });
+    }
+
+    const dealership = await storage.updateDealership(dealershipId, updates);
+
+    await storage.logAuditAction({
+      userId: authReq.user!.id,
+      userEmail: authReq.user!.email,
+      action: "dealership_updated",
+      resource: "dealership",
+      resourceId: String(dealershipId),
+      details: JSON.stringify({ changedFields: Object.keys(updates) }),
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
     res.json(dealership);
   } catch (error) {
     logError("Error updating dealership:", error instanceof Error ? error : new Error(String(error)), { route: "api-super-admin-dealerships-id" });
