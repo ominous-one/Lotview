@@ -10473,7 +10473,7 @@ Format your response in clear sections with actionable recommendations.`;
   // ===== PBS DMS INTEGRATION ROUTES =====
   
   // Get PBS configuration
-  app.get("/api/pbs/config", authMiddleware, requireRole("master"), async (req, res) => {
+  app.get("/api/pbs/config", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const config = await storage.getPbsConfig(dealershipId);
@@ -10485,7 +10485,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Create or update PBS configuration
-  app.post("/api/pbs/config", authMiddleware, requireRole("master"), async (req, res) => {
+  app.post("/api/pbs/config", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
     try {
       const { partnerId, username, password, webhookUrl, webhookSecret, pbsApiUrl } = req.body;
       
@@ -10530,7 +10530,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Delete PBS configuration
-  app.delete("/api/pbs/config/:id", authMiddleware, requireRole("master"), async (req, res) => {
+  app.delete("/api/pbs/config/:id", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const id = parseInt(req.params.id);
@@ -10719,7 +10719,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Get PBS webhook events (for monitoring)
-  app.get("/api/pbs/webhook-events", authMiddleware, requireRole("master"), async (req, res) => {
+  app.get("/api/pbs/webhook-events", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
@@ -10732,7 +10732,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Update webhook event status (mark as processed/failed)
-  app.patch("/api/pbs/webhook-events/:id", authMiddleware, requireRole("master"), async (req, res) => {
+  app.patch("/api/pbs/webhook-events/:id", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const id = parseInt(req.params.id);
@@ -10759,7 +10759,7 @@ Format your response in clear sections with actionable recommendations.`;
   // These routes expose PBS DMS functionality to the frontend and AI assistant
 
   // Test PBS connection
-  app.post("/api/pbs/test-connection", authMiddleware, requireRole("master"), async (req, res) => {
+  app.post("/api/pbs/test-connection", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const pbsService = createPbsApiService(dealershipId);
@@ -10772,7 +10772,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get PBS API logs
-  app.get("/api/pbs/api-logs", authMiddleware, requireRole("master"), async (req, res) => {
+  app.get("/api/pbs/api-logs", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
@@ -10786,7 +10786,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Clear PBS session and cache
-  app.post("/api/pbs/clear-cache", authMiddleware, requireRole("master"), async (req, res) => {
+  app.post("/api/pbs/clear-cache", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const pbsService = createPbsApiService(dealershipId);
