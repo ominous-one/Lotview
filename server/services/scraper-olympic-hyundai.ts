@@ -118,6 +118,28 @@ function parseVehicleYear(value: unknown): number | undefined {
   return year >= 1981 && year <= new Date().getFullYear() + 2 ? year : undefined;
 }
 
+function parsePositiveMoney(value: unknown): number | undefined {
+  const raw = typeof value === "number" ? String(value) : cleanText(value);
+  if (!raw) return undefined;
+
+  const normalized = raw.replace(/[$,\s]/g, "");
+  if (!/^\d+(\.\d+)?$/.test(normalized)) return undefined;
+
+  const amount = Number(normalized);
+  return Number.isFinite(amount) && amount > 0 ? amount : undefined;
+}
+
+function parseNonNegativeInteger(value: unknown): number | undefined {
+  const raw = typeof value === "number" ? String(value) : cleanText(value);
+  if (!raw) return undefined;
+
+  const normalized = raw.replace(/[,\s]/g, "");
+  if (!/^\d+$/.test(normalized)) return undefined;
+
+  const amount = Number(normalized);
+  return Number.isSafeInteger(amount) && amount >= 0 ? amount : undefined;
+}
+
 /**
  * Core extraction engine — handles TAdvantage data-attribute format.
  * This is the SAME logic proven in scripts/30-vehicle-test.mjs
@@ -161,9 +183,9 @@ export function extractVehiclesFromHtml(html: string, baseUrl: string): ScrapedV
       trim: cleanText(trimMatch?.[1]),
       vin,
       stockNumber: cleanText(stockMatch?.[1]),
-      price: priceMatch ? parseInt(priceMatch[1].replace(/,/g, "")) : undefined,
-      msrp: msrpMatch ? parseInt(msrpMatch[1].replace(/,/g, "")) : undefined,
-      odometer: odoMatch ? parseInt(odoMatch[1].replace(/,/g, "")) : undefined,
+      price: parsePositiveMoney(priceMatch?.[1]),
+      msrp: parsePositiveMoney(msrpMatch?.[1]),
+      odometer: parseNonNegativeInteger(odoMatch?.[1]),
       exteriorColor: cleanText(colorMatch?.[1]),
       interiorColor: cleanText(intColorMatch?.[1]),
       images: toImageUrls(imgMatch?.[1], baseUrl),
@@ -193,9 +215,9 @@ export function extractVehiclesFromHtml(html: string, baseUrl: string): ScrapedV
                 trim: cleanText(item.vehicleConfiguration) || cleanText(item.trim),
                 vin: vin || undefined,
                 stockNumber: cleanText(item.sku),
-                price: item.offers?.price ? parseFloat(item.offers.price) : undefined,
-                msrp: item.msrp ? parseFloat(item.msrp) : undefined,
-                odometer: item.mileageFromOdometer?.value ? parseInt(item.mileageFromOdometer.value) : undefined,
+                price: parsePositiveMoney(item.offers?.price),
+                msrp: parsePositiveMoney(item.msrp),
+                odometer: parseNonNegativeInteger(item.mileageFromOdometer?.value),
                 exteriorColor: cleanText(item.color),
                 interiorColor: cleanText(item.vehicleInteriorColor),
                 bodyStyle: cleanText(item.bodyType),

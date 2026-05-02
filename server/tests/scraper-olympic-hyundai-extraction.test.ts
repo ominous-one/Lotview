@@ -171,6 +171,62 @@ describe("Olympic Hyundai scraper extraction", () => {
     expect(vehicles[0].model).toBeUndefined();
   });
 
+  it("parses JSON-LD currency and mileage facts strictly", () => {
+    const vehicles = extractVehiclesFromHtml(
+      `<script type="application/ld+json">${JSON.stringify({
+        "@type": "Vehicle",
+        vehicleIdentificationNumber: "1HGCM82633A004352",
+        offers: { price: "$24,995.50" },
+        msrp: "32,000",
+        mileageFromOdometer: { value: "12,345" },
+      })}</script>`,
+      BASE_URL
+    );
+
+    expect(vehicles).toHaveLength(1);
+    expect(vehicles[0]).toMatchObject({
+      price: 24995.5,
+      msrp: 32000,
+      odometer: 12345,
+    });
+  });
+
+  it("omits invalid JSON-LD numeric facts instead of emitting bad scrape facts", () => {
+    const vehicles = extractVehiclesFromHtml(
+      `<script type="application/ld+json">${JSON.stringify({
+        "@type": "Vehicle",
+        vehicleIdentificationNumber: "1HGCM82633A004352",
+        offers: { price: "-1" },
+        msrp: "not-a-price",
+        mileageFromOdometer: { value: "-10" },
+      })}</script>`,
+      BASE_URL
+    );
+
+    expect(vehicles).toHaveLength(1);
+    expect(vehicles[0].price).toBeUndefined();
+    expect(vehicles[0].msrp).toBeUndefined();
+    expect(vehicles[0].odometer).toBeUndefined();
+  });
+
+  it("does not emit zero data-attribute prices as source facts", () => {
+    const vehicles = extractVehiclesFromHtml(
+      [
+        '<article data-vin="1HGCM82633A004352"',
+        ' data-year="2023"',
+        ' data-make="Honda"',
+        ' data-model="Accord"',
+        ' data-price="0"',
+        ' data-mileage="0"></article>',
+      ].join(""),
+      BASE_URL
+    );
+
+    expect(vehicles).toHaveLength(1);
+    expect(vehicles[0].price).toBeUndefined();
+    expect(vehicles[0].odometer).toBe(0);
+  });
+
   it("normalizes and deduplicates JSON-LD image arrays", () => {
     const vehicles = extractVehiclesFromHtml(
       `<script type="application/ld+json">${JSON.stringify({
