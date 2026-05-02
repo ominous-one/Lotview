@@ -10207,7 +10207,7 @@ Format your response in clear sections with actionable recommendations.`;
   // ===== VEHICLE APPRAISAL ROUTES (Manager+) =====
   
   // Get all appraisals for dealership
-  app.get("/api/manager/appraisals", authMiddleware, requireRole("manager"), async (req, res) => {
+  app.get("/api/manager/appraisals", authMiddleware, requireRole("manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const limit = parseInt(req.query.limit as string) || 50;
@@ -10229,7 +10229,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Get look-to-book stats for dealership
-  app.get("/api/manager/appraisals/stats", authMiddleware, requireRole("manager"), async (req, res) => {
+  app.get("/api/manager/appraisals/stats", authMiddleware, requireRole("manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const stats = await storage.getAppraisalStats(dealershipId);
@@ -10241,7 +10241,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Get missed trades stats for dealership
-  app.get("/api/manager/appraisals/missed-stats", authMiddleware, requireRole("manager"), async (req, res) => {
+  app.get("/api/manager/appraisals/missed-stats", authMiddleware, requireRole("manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const stats = await storage.getMissedTradesStats(dealershipId);
@@ -10253,7 +10253,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Get appraisal accuracy report for dealership
-  app.get("/api/manager/appraisals/accuracy-report", authMiddleware, requireRole("manager"), async (req, res) => {
+  app.get("/api/manager/appraisals/accuracy-report", authMiddleware, requireRole("manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const report = await storage.getAppraisalAccuracyReport(dealershipId);
@@ -10265,7 +10265,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Check if VIN has previous appraisal (must be before /:id route to avoid matching)
-  app.get("/api/manager/appraisals/vin/:vin", authMiddleware, requireRole("manager"), async (req, res) => {
+  app.get("/api/manager/appraisals/vin/:vin", authMiddleware, requireRole("manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const vin = req.params.vin.toUpperCase().trim();
@@ -10283,7 +10283,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Get single appraisal by ID
-  app.get("/api/manager/appraisals/:id", authMiddleware, requireRole("manager"), async (req, res) => {
+  app.get("/api/manager/appraisals/:id", authMiddleware, requireRole("manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const id = parseInt(req.params.id);
@@ -10305,7 +10305,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Create new appraisal
-  app.post("/api/manager/appraisals", authMiddleware, requireRole("manager"), async (req, res) => {
+  app.post("/api/manager/appraisals", authMiddleware, requireRole("manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const authReq = req as AuthRequest;
@@ -10333,7 +10333,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Update appraisal
-  app.patch("/api/manager/appraisals/:id", authMiddleware, requireRole("manager"), async (req, res) => {
+  app.patch("/api/manager/appraisals/:id", authMiddleware, requireRole("manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const id = parseInt(req.params.id);
@@ -10360,7 +10360,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Delete appraisal
-  app.delete("/api/manager/appraisals/:id", authMiddleware, requireRole("manager"), async (req, res) => {
+  app.delete("/api/manager/appraisals/:id", authMiddleware, requireRole("manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const id = parseInt(req.params.id);
