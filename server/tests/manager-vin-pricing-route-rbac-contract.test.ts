@@ -23,6 +23,18 @@ describe("manager VIN and pricing route RBAC contract", () => {
     );
     expect(managerRoutesBlock).toContain("const dealershipId = req.dealershipId!;");
     expect(managerRoutesBlock).toContain("storage.getMarketListings(dealershipId");
-    expect(managerRoutesBlock).toContain("storage.getVehicleAppraisalByVin(vin, dealershipId)");
+    expect(managerRoutesBlock).toContain("storage.getVehicleAppraisalByVin(normalizedAutoSaveVin, dealershipId)");
+  });
+
+  it("requires full VIN validation before manager market-pricing auto-save appraisal writes", () => {
+    expect(managerRoutesBlock).toBeDefined();
+    expect(routesSource).toContain('import { validateVIN } from "./vin-validation";');
+    expect(managerRoutesBlock).toContain('const vinValidation = typeof vin === "string" ? validateVIN(vin) : null;');
+    expect(managerRoutesBlock).toContain("const normalizedAutoSaveVin = vinValidation?.isValid ? vinValidation.vin : undefined;");
+    expect(managerRoutesBlock).toContain("if (autoSave && appraisalFlagEnabled && normalizedAutoSaveVin)");
+    expect(managerRoutesBlock).toContain("if (autoSave && appraisalFlagEnabled2 && normalizedAutoSaveVin)");
+    expect(managerRoutesBlock).toContain("vin: normalizedAutoSaveVin");
+    expect(managerRoutesBlock).not.toContain("vin.length >= 11");
+    expect(managerRoutesBlock).not.toContain("storage.getVehicleAppraisalByVin(vin, dealershipId)");
   });
 });
