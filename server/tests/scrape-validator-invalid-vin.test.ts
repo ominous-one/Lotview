@@ -217,4 +217,43 @@ describe("scrape validator invalid VIN handling", () => {
     );
     expect(sendQualityAlertMock).not.toHaveBeenCalled();
   });
+
+  it("fails closed when required identity facts have invalid runtime values", async () => {
+    const invalidYearVin = validVin(17);
+    const invalidMakeVin = validVin(18);
+    const invalidModelVin = validVin(19);
+    const vehicles = [
+      ...Array.from({ length: 7 }, (_, index) => scrapedVehicle(index + 1)),
+      {
+        ...scrapedVehicle(17, invalidYearVin),
+        year: 0,
+      },
+      {
+        ...scrapedVehicle(18, invalidMakeVin),
+        make: 123 as any,
+      },
+      {
+        ...scrapedVehicle(19, invalidModelVin),
+        model: "   ",
+      },
+    ];
+
+    const result = await scrapeValidator.validateScrape(7, vehicles);
+
+    expect(result).toMatchObject({
+      isValid: false,
+      vehiclesFound: 10,
+      validVins: 10,
+      invalidVins: [],
+      missingRequiredFields: [],
+    });
+    expect(result.errors).toContain(
+      `Invalid required identity facts in scrape result: ${invalidYearVin}(year=0); ${invalidMakeVin}(make=123); ${invalidModelVin}(model=   )`
+    );
+    expect(sendScrapeFailureAlertMock).toHaveBeenCalledWith(
+      7,
+      expect.stringContaining("Invalid required identity facts")
+    );
+    expect(sendQualityAlertMock).not.toHaveBeenCalled();
+  });
 });
