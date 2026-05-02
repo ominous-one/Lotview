@@ -8789,6 +8789,8 @@ Format your response in clear sections with actionable recommendations.`;
       const authReq = req as AuthRequest;
       const userId = authReq.user!.id;
       const dealershipId = req.dealershipId!;
+      const vinValidation = typeof vin === "string" ? validateVIN(vin) : null;
+      const normalizedAutoSaveVin = vinValidation?.isValid ? vinValidation.vin : undefined;
       const userSettings = await storage.getManagerSettings(userId, dealershipId);
       
       const searchPostalCode = postalCode || userSettings?.postalCode;
@@ -8850,13 +8852,13 @@ Format your response in clear sections with actionable recommendations.`;
         // Auto-save appraisal even with no listings if VIN provided and feature flag enabled
         let appraisalId: number | undefined;
         const appraisalFlagEnabled = await isFeatureEnabled(FEATURE_FLAGS.ENABLE_APPRAISAL_AUTOSAVE, req.dealershipId);
-        if (autoSave && appraisalFlagEnabled && vin && typeof vin === 'string' && vin.length >= 11) {
+        if (autoSave && appraisalFlagEnabled && normalizedAutoSaveVin) {
           try {
             const dealershipId = requireResolvedDealershipId(req);
             if (!dealershipId) {
               throw new Error("Dealership context required for appraisal auto-save");
             }
-            const existing = await storage.getVehicleAppraisalByVin(vin, dealershipId);
+            const existing = await storage.getVehicleAppraisalByVin(normalizedAutoSaveVin, dealershipId);
             
             if (existing) {
               await storage.updateVehicleAppraisal(existing.id, dealershipId, {
@@ -8868,7 +8870,7 @@ Format your response in clear sections with actionable recommendations.`;
               const newAppraisal = await storage.createVehicleAppraisal({
                 dealershipId,
                 createdBy: req.user?.id || null,
-                vin,
+                vin: normalizedAutoSaveVin,
                 year: targetYear,
                 make,
                 model,
@@ -9069,13 +9071,13 @@ Format your response in clear sections with actionable recommendations.`;
       // Auto-save market analysis to appraisal if VIN is provided and feature flag enabled
       let appraisalId: number | undefined;
       const appraisalFlagEnabled2 = await isFeatureEnabled(FEATURE_FLAGS.ENABLE_APPRAISAL_AUTOSAVE, req.dealershipId);
-      if (autoSave && appraisalFlagEnabled2 && vin && typeof vin === 'string' && vin.length >= 11) {
+      if (autoSave && appraisalFlagEnabled2 && normalizedAutoSaveVin) {
         try {
           const dealershipId = requireResolvedDealershipId(req);
           if (!dealershipId) {
             throw new Error("Dealership context required for appraisal auto-save");
           }
-          const existing = await storage.getVehicleAppraisalByVin(vin, dealershipId);
+          const existing = await storage.getVehicleAppraisalByVin(normalizedAutoSaveVin, dealershipId);
           
           if (existing) {
             // Update existing appraisal with market analysis data
@@ -9099,7 +9101,7 @@ Format your response in clear sections with actionable recommendations.`;
             const newAppraisal = await storage.createVehicleAppraisal({
               dealershipId,
               createdBy: req.user?.id || null,
-              vin,
+              vin: normalizedAutoSaveVin,
               year: targetYear,
               make,
               model,
