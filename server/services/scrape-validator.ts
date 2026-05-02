@@ -143,6 +143,7 @@ export async function validateScrape(
   const missingNonIdentityFields: Array<{ vin: string; missing: string[] }> = [];
   const invalidPriceFields: Array<{ vin: string; price: unknown }> = [];
   const invalidMileageFields: Array<{ vin: string; field: "mileage" | "odometer"; value: unknown }> = [];
+  const invalidIdentityFields: Array<{ vin: string; field: "year" | "make" | "model"; value: unknown }> = [];
   for (const v of vehicles) {
     const missing = VALIDATION_RULES.requiredFields.filter(
       (field) => v[field] === undefined || v[field] === null || v[field] === ""
@@ -175,6 +176,18 @@ export async function validateScrape(
     if (v.odometer !== undefined && v.odometer !== null && !isNonNegativeFiniteNumber(v.odometer)) {
       invalidMileageFields.push({ vin: v.vin || "(unknown)", field: "odometer", value: v.odometer });
     }
+    const yearValue = v.year as unknown;
+    const makeValue = v.make as unknown;
+    const modelValue = v.model as unknown;
+    if (yearValue !== undefined && yearValue !== null && yearValue !== "" && !isValidModelYear(yearValue)) {
+      invalidIdentityFields.push({ vin: v.vin || "(unknown)", field: "year", value: yearValue });
+    }
+    if (makeValue !== undefined && makeValue !== null && makeValue !== "" && !isNonEmptyString(makeValue)) {
+      invalidIdentityFields.push({ vin: v.vin || "(unknown)", field: "make", value: makeValue });
+    }
+    if (modelValue !== undefined && modelValue !== null && modelValue !== "" && !isNonEmptyString(modelValue)) {
+      invalidIdentityFields.push({ vin: v.vin || "(unknown)", field: "model", value: modelValue });
+    }
   }
   if (missingIdentityFields.length > 0) {
     errors.push(
@@ -203,6 +216,14 @@ export async function validateScrape(
   if (invalidMileageFields.length > 0) {
     errors.push(
       `Invalid scraped mileage facts in scrape result: ${invalidMileageFields
+        .slice(0, 10)
+        .map((entry) => `${entry.vin}(${entry.field}=${String(entry.value)})`)
+        .join("; ")}`
+    );
+  }
+  if (invalidIdentityFields.length > 0) {
+    errors.push(
+      `Invalid required identity facts in scrape result: ${invalidIdentityFields
         .slice(0, 10)
         .map((entry) => `${entry.vin}(${entry.field}=${String(entry.value)})`)
         .join("; ")}`
@@ -292,6 +313,16 @@ function isPositiveFiniteNumber(value: unknown): value is number {
 
 function isNonNegativeFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+function isValidModelYear(value: unknown): value is number {
+  if (typeof value !== "number" || !Number.isInteger(value)) return false;
+  const maxModelYear = new Date().getUTCFullYear() + 2;
+  return value >= 1981 && value <= maxModelYear;
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
 }
 
 function median(values: number[]): number {
