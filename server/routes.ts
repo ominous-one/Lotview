@@ -10384,7 +10384,7 @@ Format your response in clear sections with actionable recommendations.`;
   // ===== REMARKETING ROUTES (Master only) =====
   
   // Get all remarketing vehicles
-  app.get("/api/remarketing/vehicles", authMiddleware, requireRole("master"), async (req, res) => {
+  app.get("/api/remarketing/vehicles", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const remarketingVehicles = await storage.getRemarketingVehicles(dealershipId);
@@ -10396,7 +10396,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Add vehicle to remarketing
-  app.post("/api/remarketing/vehicles", authMiddleware, requireRole("master"), async (req, res) => {
+  app.post("/api/remarketing/vehicles", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
     try {
       const { vehicleId, budgetPriority } = req.body;
       
@@ -10433,7 +10433,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Update remarketing vehicle priority
-  app.patch("/api/remarketing/vehicles/:id", authMiddleware, requireRole("master"), async (req, res) => {
+  app.patch("/api/remarketing/vehicles/:id", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const id = parseInt(req.params.id);
@@ -10453,7 +10453,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Remove vehicle from remarketing
-  app.delete("/api/remarketing/vehicles/:id", authMiddleware, requireRole("master"), async (req, res) => {
+  app.delete("/api/remarketing/vehicles/:id", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const id = parseInt(req.params.id);
