@@ -171,6 +171,34 @@ describe("Olympic Hyundai scraper extraction", () => {
     expect(vehicles[0].model).toBeUndefined();
   });
 
+  it("extracts JSON-LD year only from strict four-digit source facts", () => {
+    const vehicles = extractVehiclesFromHtml(
+      `<script type="application/ld+json">${JSON.stringify({
+        "@type": "Vehicle",
+        vehicleIdentificationNumber: "1HGCM82633A004352",
+        vehicleModelDate: "2023",
+      })}</script>`,
+      BASE_URL
+    );
+
+    expect(vehicles).toHaveLength(1);
+    expect(vehicles[0].year).toBe(2023);
+  });
+
+  it("does not parse partial JSON-LD model-year strings as source facts", () => {
+    const vehicles = extractVehiclesFromHtml(
+      `<script type="application/ld+json">${JSON.stringify({
+        "@type": "Vehicle",
+        vehicleIdentificationNumber: "1HGCM82633A004352",
+        vehicleModelDate: "2023 model year",
+      })}</script>`,
+      BASE_URL
+    );
+
+    expect(vehicles).toHaveLength(1);
+    expect(vehicles[0].year).toBeUndefined();
+  });
+
   it("parses JSON-LD currency and mileage facts strictly", () => {
     const vehicles = extractVehiclesFromHtml(
       `<script type="application/ld+json">${JSON.stringify({

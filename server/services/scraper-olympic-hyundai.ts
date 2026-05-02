@@ -113,8 +113,9 @@ function toImageUrls(value: unknown, baseUrl: string): string[] {
 function parseVehicleYear(value: unknown): number | undefined {
   const raw = typeof value === "number" ? String(value) : cleanText(value);
   if (!raw) return undefined;
+  if (!/^\d{4}$/.test(raw)) return undefined;
 
-  const year = parseInt(raw, 10);
+  const year = Number(raw);
   return year >= 1981 && year <= new Date().getFullYear() + 2 ? year : undefined;
 }
 
