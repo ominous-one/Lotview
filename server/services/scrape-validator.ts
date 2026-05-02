@@ -140,6 +140,7 @@ export async function validateScrape(
   const missingRequiredFields: Array<{ vin: string; missing: string[] }> = [];
   const missingIdentityFields: Array<{ vin: string; missing: string[] }> = [];
   const missingNonIdentityFields: Array<{ vin: string; missing: string[] }> = [];
+  const invalidPriceFields: Array<{ vin: string; price: unknown }> = [];
   for (const v of vehicles) {
     const missing = VALIDATION_RULES.requiredFields.filter(
       (field) => v[field] === undefined || v[field] === null || v[field] === ""
@@ -162,6 +163,10 @@ export async function validateScrape(
         missingNonIdentityFields.push({ vin, missing: missingNonIdentity });
       }
     }
+
+    if (v.price !== undefined && v.price !== null && !isPositiveFiniteNumber(v.price)) {
+      invalidPriceFields.push({ vin: v.vin || "(unknown)", price: v.price });
+    }
   }
   if (missingIdentityFields.length > 0) {
     errors.push(
@@ -179,13 +184,21 @@ export async function validateScrape(
         .join("; ")}`
     );
   }
+  if (invalidPriceFields.length > 0) {
+    errors.push(
+      `Invalid required price facts in scrape result: ${invalidPriceFields
+        .slice(0, 10)
+        .map((entry) => `${entry.vin}(${String(entry.price)})`)
+        .join("; ")}`
+    );
+  }
 
   // 7. Price variance check
-  const prices = vehicles.map((v) => v.price).filter((p): p is number => p !== undefined && p > 0);
+  const prices = vehicles.map((v) => v.price).filter(isPositiveFiniteNumber);
   const medianPrice = prices.length > 0 ? median(prices) : null;
   const previousPrices = previousInventory
     .map((v) => v.price)
-    .filter((p): p is number => p !== null && p > 0);
+    .filter(isPositiveFiniteNumber);
   const previousMedianPrice = previousPrices.length > 0 ? median(previousPrices) : null;
   let priceVariance: number | null = null;
   if (medianPrice && previousMedianPrice && previousMedianPrice > 0) {
@@ -255,6 +268,10 @@ export async function validateScrape(
 
 function isValidVin(vin: string | undefined): boolean {
   return validateVIN(vin).isValid;
+}
+
+function isPositiveFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
 function median(values: number[]): number {
