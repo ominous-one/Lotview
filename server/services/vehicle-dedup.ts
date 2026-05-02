@@ -135,6 +135,47 @@ function getMissingNewInventoryFacts(scraped: ScrapedVehicleData): string[] {
   return missing;
 }
 
+function getInvalidSourceFacts(scraped: ScrapedVehicleData): string[] {
+  const invalid: string[] = [];
+  if (scraped.price !== undefined && scraped.price !== null && !isPositiveFiniteNumber(scraped.price)) {
+    invalid.push("price");
+  }
+  if (scraped.year !== undefined && scraped.year !== null && !isValidModelYear(scraped.year)) {
+    invalid.push("year");
+  }
+  if (scraped.make !== undefined && scraped.make !== null && !isNonEmptyString(scraped.make)) {
+    invalid.push("make");
+  }
+  if (scraped.model !== undefined && scraped.model !== null && !isNonEmptyString(scraped.model)) {
+    invalid.push("model");
+  }
+
+  const odometer = scraped.odometer ?? scraped.mileage;
+  if (odometer !== undefined && odometer !== null && !isNonNegativeFiniteNumber(odometer)) {
+    invalid.push("odometer");
+  }
+
+  return invalid;
+}
+
+function isPositiveFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
+function isNonNegativeFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+function isValidModelYear(value: unknown): value is number {
+  if (typeof value !== "number" || !Number.isInteger(value)) return false;
+  const maxModelYear = new Date().getUTCFullYear() + 2;
+  return value >= 1981 && value <= maxModelYear;
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
 // ---- Core Deduplication ----
 
 /**
@@ -177,6 +218,18 @@ export async function deduplicateAndStore(
 
       const normalizedVin = vinValidation.vin;
       const normalizedScraped = normalizeScrapedVehicle({ ...scraped, vin: normalizedVin });
+      const invalidSourceFacts = getInvalidSourceFacts(normalizedScraped);
+      if (invalidSourceFacts.length > 0) {
+        result.skipped++;
+        result.action = "skip";
+        result.details.push({
+          vin: normalizedVin,
+          action: "skip",
+          reason: `INVALID_SOURCE_FACTS:${invalidSourceFacts.join(",")}`,
+        });
+        continue;
+      }
+
       const existing = existingByVin.get(normalizedVin);
       const stockConflict = findActiveStockNumberConflict(existingVehicles, normalizedScraped.stockNumber);
 

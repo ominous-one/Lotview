@@ -111,6 +111,33 @@ describe("vehicle dedup VIN storage guard", () => {
     expect(storageMock.createVehicle).not.toHaveBeenCalled();
   });
 
+  it("does not create active inventory records from invalid source facts", async () => {
+    const result = await vehicleDedup.deduplicateAndStore(7, {
+      vin: VALID_VIN,
+      price: -1,
+      year: 1970,
+      make: "Honda",
+      model: "Accord",
+      mileage: -10,
+    });
+
+    expect(result).toMatchObject({
+      inserted: 0,
+      merged: 0,
+      skipped: 1,
+      errors: 0,
+      details: [
+        {
+          vin: VALID_VIN,
+          action: "skip",
+          reason: "INVALID_SOURCE_FACTS:price,year,odometer",
+        },
+      ],
+    });
+    expect(storageMock.createVehicle).not.toHaveBeenCalled();
+    expect(storageMock.updateVehicle).not.toHaveBeenCalled();
+  });
+
   it("maps nested route payload facts onto the vehicle storage schema", async () => {
     storageMock.createVehicle.mockResolvedValue({ id: 99 });
 
@@ -243,6 +270,44 @@ describe("vehicle dedup VIN storage guard", () => {
       }),
       7
     );
+  });
+
+  it("does not merge invalid source facts into existing inventory", async () => {
+    storageMock.getVehiclesByDealership.mockResolvedValue([
+      {
+        id: 42,
+        vin: VALID_VIN,
+        price: 21000,
+        odometer: 90000,
+        status: "available",
+        photos: [],
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      },
+    ]);
+
+    const result = await vehicleDedup.deduplicateAndStore(7, {
+      vin: VALID_VIN,
+      price: -1,
+      mileage: -10,
+      photos: ["new.jpg"],
+      status: "available",
+    });
+
+    expect(result).toMatchObject({
+      inserted: 0,
+      merged: 0,
+      skipped: 1,
+      errors: 0,
+      details: [
+        {
+          vin: VALID_VIN,
+          action: "skip",
+          reason: "INVALID_SOURCE_FACTS:price,odometer",
+        },
+      ],
+    });
+    expect(storageMock.updateVehicle).not.toHaveBeenCalled();
+    expect(storageMock.createVehicle).not.toHaveBeenCalled();
   });
 
   it("derives normalized stock identity when merging scraped stock into existing inventory", async () => {
