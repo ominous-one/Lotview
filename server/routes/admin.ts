@@ -7,13 +7,24 @@
 import { Router } from "express";
 import { storage } from "../storage";
 import { sensitiveLimiter } from "../middleware/http-rate-limiters";
-import { authMiddleware, requireCapability, requirePermission } from "../auth";
+import { authMiddleware, requireCapability, requirePermission, type AuthRequest } from "../auth";
 import { hashPassword } from "../auth";
+import { normalizeRole } from "@shared/authz";
 import { superAdminOnly } from "../tenant-middleware";
 import { logError } from "../error-utils";
 import { getSystemHealth, getBusinessMetrics, getDealershipActivity, getAIMetrics, getScrapingMetrics, getFBMarketplaceMetrics, getSystemAlerts, resolveAlert } from "../services/admin-dashboard";
 
 const router = Router();
+
+function parsePositiveInteger(value: unknown): number | null {
+  const raw = typeof value === "number" ? String(value) : typeof value === "string" ? value.trim() : "";
+  if (!/^[1-9]\d*$/.test(raw)) {
+    return null;
+  }
+
+  const parsed = Number(raw);
+  return Number.isSafeInteger(parsed) ? parsed : null;
+}
 
 /* ─── System Control ─── */
 
@@ -115,7 +126,15 @@ router.patch("/dealerships/:dealershipId", authMiddleware, requireCapability("te
 
 router.get("/users", authMiddleware, requirePermission("users.manage"), superAdminOnly, async (req, res) => {
   try {
-    const users = await (storage as any).getAllUsers();
+    const dealershipId = req.query.dealershipId ? parsePositiveInteger(req.query.dealershipId) : undefined;
+    const role = req.query.role as string | undefined;
+    const search = req.query.search as string | undefined;
+
+    if (req.query.dealershipId && dealershipId === null) {
+      return res.status(400).json({ error: "dealershipId must be a positive integer" });
+    }
+
+    const users = await storage.getAllUsersForSuperAdmin({ dealershipId, role, search });
     res.json(users);
   } catch (error) {
     logError("Error fetching users:", error instanceof Error ? error : new Error(String(error)), { route: "api-super-admin-users" });
@@ -125,8 +144,68 @@ router.get("/users", authMiddleware, requirePermission("users.manage"), superAdm
 
 router.post("/users", authMiddleware, requirePermission("users.invite"), superAdminOnly, async (req, res) => {
   try {
-    const user = await storage.createUser(req.body);
-    res.status(201).json(user);
+    const authReq = req as AuthRequest;
+    const { email, name, password, role, dealershipId } = req.body;
+    const normalizedRole = normalizeRole(role);
+    const parsedDealershipId = parsePositiveInteger(dealershipId);
+
+    if (
+      typeof email !== "string" ||
+      typeof name !== "string" ||
+      typeof password !== "string" ||
+      typeof role !== "string" ||
+      dealershipId === undefined ||
+      dealershipId === null
+    ) {
+      return res.status(400).json({ error: "Email, name, password, role, and dealershipId are required" });
+    }
+
+    if (password.length < 12) {
+      return res.status(400).json({ error: "Password must be at least 12 characters" });
+    }
+
+    if (!normalizedRole || normalizedRole === "super_admin") {
+      return res.status(400).json({ error: "Invalid role" });
+    }
+
+    if (parsedDealershipId === null) {
+      return res.status(400).json({ error: "dealershipId must be a positive integer" });
+    }
+
+    const existingUser = await storage.getUserByEmail(email);
+    if (existingUser) {
+      return res.status(400).json({ error: "A user with this email already exists" });
+    }
+
+    const dealership = await storage.getDealershipById(parsedDealershipId);
+    if (!dealership) {
+      return res.status(400).json({ error: "Dealership not found" });
+    }
+
+    const passwordHash = await hashPassword(password);
+    const user = await storage.createUser({
+      email,
+      name,
+      passwordHash,
+      role: normalizedRole,
+      dealershipId: parsedDealershipId,
+      isActive: true,
+      createdBy: authReq.user!.id,
+    });
+
+    await storage.logAuditAction({
+      userId: authReq.user!.id,
+      userEmail: authReq.user!.email,
+      action: "user_created",
+      resource: "user",
+      resourceId: String(user.id),
+      details: JSON.stringify({ email, name, role: normalizedRole, dealershipId: parsedDealershipId, requestedRole: role }),
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    const { passwordHash: _, ...userWithoutPassword } = user;
+    res.status(201).json(userWithoutPassword);
   } catch (error) {
     logError("Error creating user:", error instanceof Error ? error : new Error(String(error)), { route: "api-super-admin-users" });
     res.status(500).json({ error: "Failed to create user" });

@@ -29,6 +29,32 @@ describe("modular admin route RBAC contract", () => {
     }
   });
 
+  it("uses explicit super-admin user listing instead of tenant-scoped list fallback", () => {
+    expect(adminRoutesSource).toContain("function parsePositiveInteger(value: unknown): number | null");
+    expect(adminRoutesSource).toContain("const users = await storage.getAllUsersForSuperAdmin({ dealershipId, role, search });");
+    expect(adminRoutesSource).toContain('return res.status(400).json({ error: "dealershipId must be a positive integer" })');
+    expect(adminRoutesSource).not.toContain("parseInt(req.query.dealershipId");
+    expect(adminRoutesSource).not.toContain("getAllUsers();");
+  });
+
+  it("requires explicit dealership binding before creating tenant users", () => {
+    expect(adminRoutesSource).toContain("const normalizedRole = normalizeRole(role);");
+    expect(adminRoutesSource).toContain("const parsedDealershipId = parsePositiveInteger(dealershipId);");
+    expect(adminRoutesSource).toContain('typeof password !== "string"');
+    expect(adminRoutesSource).toContain('return res.status(400).json({ error: "Email, name, password, role, and dealershipId are required" })');
+    expect(adminRoutesSource).toContain('return res.status(400).json({ error: "dealershipId must be a positive integer" })');
+    expect(adminRoutesSource).toContain('if (!normalizedRole || normalizedRole === "super_admin")');
+    expect(adminRoutesSource).toContain("const dealership = await storage.getDealershipById(parsedDealershipId);");
+    expect(adminRoutesSource).toContain("dealershipId: parsedDealershipId");
+  });
+
+  it("audits modular super-admin user creation and does not return password hashes", () => {
+    expect(adminRoutesSource).toContain("await storage.logAuditAction({");
+    expect(adminRoutesSource).toContain('action: "user_created"');
+    expect(adminRoutesSource).toContain("const { passwordHash: _, ...userWithoutPassword } = user;");
+    expect(adminRoutesSource).toContain("res.status(201).json(userWithoutPassword);");
+  });
+
   it("requires audit permission for dashboard, audit, log, and health surfaces", () => {
     for (const route of [
       'router.get("/global-settings", authMiddleware, requirePermission("admin.audit"), superAdminOnly',
