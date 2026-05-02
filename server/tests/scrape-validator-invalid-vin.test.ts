@@ -77,4 +77,39 @@ describe("scrape validator invalid VIN handling", () => {
     );
     expect(sendQualityAlertMock).toHaveBeenCalledWith(7, 0.9, 1);
   });
+
+  it("fails closed when a scraped vehicle is missing identity facts", async () => {
+    const vinMissingFacts = validVin(11);
+    const vehicles = [
+      ...Array.from({ length: 9 }, (_, index) => scrapedVehicle(index + 1)),
+      {
+        vin: vinMissingFacts,
+        price: 24995,
+        photos: ["missing-identity.jpg"],
+      },
+    ];
+
+    const result = await scrapeValidator.validateScrape(7, vehicles);
+
+    expect(result).toMatchObject({
+      isValid: false,
+      vehiclesFound: 10,
+      validVins: 10,
+      invalidVins: [],
+      missingRequiredFields: [
+        {
+          vin: vinMissingFacts,
+          missing: ["year", "make", "model"],
+        },
+      ],
+    });
+    expect(result.errors).toContain(
+      `Missing required identity fields in scrape result: ${vinMissingFacts}(year,make,model)`
+    );
+    expect(sendScrapeFailureAlertMock).toHaveBeenCalledWith(
+      7,
+      expect.stringContaining(vinMissingFacts)
+    );
+    expect(sendQualityAlertMock).not.toHaveBeenCalled();
+  });
 });

@@ -21,6 +21,7 @@ const VALIDATION_RULES = {
   photoCoverageRatio: 0.5,      // At least 50% of vehicles should have photos
   maxDuplicates: 0,              // Zero duplicates allowed (will be merged instead)
   maxPriceVariance: 0.5,        // Median price shouldn't change by more than 50%
+  identityFields: ["vin", "year", "make", "model"] as const,
   requiredFields: ["vin", "price", "year", "make", "model"] as const,
 };
 
@@ -137,13 +138,30 @@ export async function validateScrape(
 
   // 6. Required fields check
   const missingRequiredFields: Array<{ vin: string; missing: string[] }> = [];
+  const missingIdentityFields: Array<{ vin: string; missing: string[] }> = [];
   for (const v of vehicles) {
     const missing = VALIDATION_RULES.requiredFields.filter(
       (field) => v[field] === undefined || v[field] === null || v[field] === ""
     );
     if (missing.length > 0) {
-      missingRequiredFields.push({ vin: v.vin || "(unknown)", missing });
+      const vin = v.vin || "(unknown)";
+      missingRequiredFields.push({ vin, missing });
+
+      const missingIdentity = missing.filter((field) =>
+        (VALIDATION_RULES.identityFields as readonly string[]).includes(field)
+      );
+      if (missingIdentity.length > 0) {
+        missingIdentityFields.push({ vin, missing: missingIdentity });
+      }
     }
+  }
+  if (missingIdentityFields.length > 0) {
+    errors.push(
+      `Missing required identity fields in scrape result: ${missingIdentityFields
+        .slice(0, 10)
+        .map((entry) => `${entry.vin}(${entry.missing.join(",")})`)
+        .join("; ")}`
+    );
   }
   if (missingRequiredFields.length > vehiclesFound * 0.2) {
     warnings.push(
