@@ -10281,12 +10281,16 @@ Format your response in clear sections with actionable recommendations.`;
   app.get("/api/manager/appraisals/vin/:vin", authMiddleware, requireRole("manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const vin = req.params.vin.toUpperCase().trim();
+      const vinValidation = validateVIN(req.params.vin);
       
-      if (!vin || vin.length < 11) {
-        return res.status(400).json({ error: "Invalid VIN" });
+      if (!vinValidation.isValid) {
+        return res.status(400).json({
+          error: vinValidation.errorMessage || "Invalid VIN",
+          errorCode: vinValidation.errorCode
+        });
       }
       
+      const vin = vinValidation.vin;
       const appraisal = await storage.getVehicleAppraisalByVin(vin, dealershipId);
       res.json({ exists: !!appraisal, appraisal: appraisal || null });
     } catch (error) {
