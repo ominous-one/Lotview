@@ -210,13 +210,16 @@ function cacheExpiresAt(): Date {
   return expiresAt;
 }
 
-function decodeResultFromCache(cache: { baselinePayload: unknown }): VINDecodeResult | null {
+function decodeResultFromCache(cache: { baselinePayload: unknown }, expectedVIN: string): VINDecodeResult | null {
   if (!cache.baselinePayload || typeof cache.baselinePayload !== 'object') return null;
   const cached = cache.baselinePayload as VINDecodeResult;
   if (!cached.vin) return null;
+  const cachedVIN = typeof cached.vin === 'string' ? cached.vin.trim().toUpperCase() : '';
+  if (cachedVIN !== expectedVIN) return null;
 
   return {
     ...cached,
+    vin: expectedVIN,
     cacheStatus: 'hit',
     responseTimeMs: 0,
   };
@@ -233,7 +236,7 @@ async function getCachedVINDecode(
 
   try {
     const cached = await storage.getVinDecodeCache(dealershipId, cleanVIN);
-    return cached ? decodeResultFromCache(cached) : null;
+    return cached ? decodeResultFromCache(cached, cleanVIN) : null;
   } catch (error) {
     console.log('[VIN Decoder] Cache lookup failed:', error);
     return null;

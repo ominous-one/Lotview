@@ -1,6 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it, jest } from "@jest/globals";
 
 const VALID_VIN = "1HGCM82633A004352";
+const OTHER_VALID_VIN = "1M8GDM9AXKP042788";
 
 const storageMock = {
   getDealershipApiKeys: jest.fn() as any,
@@ -110,6 +111,40 @@ describe("VIN decoder provider proof", () => {
     });
     expect(globalThis.fetch).not.toHaveBeenCalled();
     expect(storageMock.getDealershipApiKeys).not.toHaveBeenCalled();
+  });
+
+  it("ignores cached VIN decode payloads that do not match the requested VIN", async () => {
+    storageMock.getVinDecodeCache.mockResolvedValue({
+      baselinePayload: {
+        vin: OTHER_VALID_VIN,
+        year: "2019",
+        make: "MCI",
+        model: "Bus",
+        source: "nhtsa",
+        confidence: "high",
+      },
+    });
+    const fetchMock = globalThis.fetch as any;
+    fetchMock.mockResolvedValue(jsonResponse({ Results: [nhtsaResult()] }));
+
+    const result = await vinDecoder.decodeVIN(VALID_VIN, 7, { modelYear: 2003 });
+
+    expect(result).toMatchObject({
+      vin: VALID_VIN,
+      year: "2003",
+      make: "HONDA",
+      model: "Accord",
+      source: "nhtsa",
+      cacheStatus: "stored",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(storageMock.upsertVinDecodeCache).toHaveBeenCalledWith(
+      7,
+      VALID_VIN,
+      expect.objectContaining({
+        baselinePayload: expect.objectContaining({ vin: VALID_VIN }),
+      })
+    );
   });
 
   it("marks provider disagreements instead of treating conflicting facts as verified", async () => {
