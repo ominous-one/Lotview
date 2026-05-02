@@ -352,8 +352,8 @@ export async function mergeDuplicates(
   // Merge: use most recent data for each field
   const merged: Record<string, unknown> = {};
   for (const v of toRemove) {
-    if (v.price && v.price !== keeper.price) merged.price = v.price;
-    if (v.odometer && v.odometer !== keeper.odometer) merged.odometer = v.odometer;
+    if (isPositiveFiniteNumber(v.price) && v.price !== keeper.price) merged.price = v.price;
+    if (isNonNegativeFiniteNumber(v.odometer) && v.odometer !== keeper.odometer) merged.odometer = v.odometer;
     const duplicateImages = ((v.images as string[]) || (v.photos as string[]) || []);
     if (duplicateImages.length > 0) {
       const existingImages = ((keeper.images as string[]) || (keeper.photos as string[]) || []);

@@ -540,6 +540,43 @@ describe("vehicle dedup VIN storage guard", () => {
     expect(storageMock.deleteVehicle).toHaveBeenCalledWith(43, 7);
   });
 
+  it("does not promote invalid duplicate facts into the kept inventory record", async () => {
+    storageMock.getVehiclesByDealership.mockResolvedValue([
+      {
+        id: 42,
+        vin: VALID_VIN,
+        price: 21000,
+        odometer: 90000,
+        images: ["keeper.jpg"],
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      },
+      {
+        id: 43,
+        vin: VALID_VIN,
+        price: -1,
+        odometer: -10,
+        images: ["new.jpg"],
+        createdAt: new Date("2026-02-01T00:00:00.000Z"),
+      },
+    ]);
+
+    const result = await vehicleDedup.mergeDuplicates(7, VALID_VIN, [42, 43]);
+
+    expect(result).toMatchObject({
+      success: true,
+      keptId: 42,
+      removedIds: [43],
+    });
+    expect(storageMock.updateVehicle).toHaveBeenCalledWith(
+      42,
+      {
+        images: ["keeper.jpg", "new.jpg"],
+      },
+      7
+    );
+    expect(storageMock.deleteVehicle).toHaveBeenCalledWith(43, 7);
+  });
+
   it("merges only the selected duplicate vehicle ids", async () => {
     storageMock.getVehiclesByDealership.mockResolvedValue([
       {
