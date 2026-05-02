@@ -183,4 +183,38 @@ describe("scrape validator invalid VIN handling", () => {
     );
     expect(sendQualityAlertMock).not.toHaveBeenCalled();
   });
+
+  it("fails closed when scraped mileage facts are negative or non-numeric", async () => {
+    const negativeMileageVin = validVin(15);
+    const stringOdometerVin = validVin(16);
+    const vehicles = [
+      ...Array.from({ length: 8 }, (_, index) => scrapedVehicle(index + 1)),
+      {
+        ...scrapedVehicle(15, negativeMileageVin),
+        mileage: -1,
+      },
+      {
+        ...scrapedVehicle(16, stringOdometerVin),
+        odometer: "88000" as any,
+      },
+    ];
+
+    const result = await scrapeValidator.validateScrape(7, vehicles);
+
+    expect(result).toMatchObject({
+      isValid: false,
+      vehiclesFound: 10,
+      validVins: 10,
+      invalidVins: [],
+      missingRequiredFields: [],
+    });
+    expect(result.errors).toContain(
+      `Invalid scraped mileage facts in scrape result: ${negativeMileageVin}(mileage=-1); ${stringOdometerVin}(odometer=88000)`
+    );
+    expect(sendScrapeFailureAlertMock).toHaveBeenCalledWith(
+      7,
+      expect.stringContaining("Invalid scraped mileage facts")
+    );
+    expect(sendQualityAlertMock).not.toHaveBeenCalled();
+  });
 });

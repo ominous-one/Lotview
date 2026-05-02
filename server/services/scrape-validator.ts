@@ -36,6 +36,7 @@ export interface ScrapedVehicle {
   trim?: string;
   color?: string;
   mileage?: number;
+  odometer?: number;
   photos?: string[];
   sourceUrl?: string;
   [key: string]: unknown;
@@ -141,6 +142,7 @@ export async function validateScrape(
   const missingIdentityFields: Array<{ vin: string; missing: string[] }> = [];
   const missingNonIdentityFields: Array<{ vin: string; missing: string[] }> = [];
   const invalidPriceFields: Array<{ vin: string; price: unknown }> = [];
+  const invalidMileageFields: Array<{ vin: string; field: "mileage" | "odometer"; value: unknown }> = [];
   for (const v of vehicles) {
     const missing = VALIDATION_RULES.requiredFields.filter(
       (field) => v[field] === undefined || v[field] === null || v[field] === ""
@@ -167,6 +169,12 @@ export async function validateScrape(
     if (v.price !== undefined && v.price !== null && !isPositiveFiniteNumber(v.price)) {
       invalidPriceFields.push({ vin: v.vin || "(unknown)", price: v.price });
     }
+    if (v.mileage !== undefined && v.mileage !== null && !isNonNegativeFiniteNumber(v.mileage)) {
+      invalidMileageFields.push({ vin: v.vin || "(unknown)", field: "mileage", value: v.mileage });
+    }
+    if (v.odometer !== undefined && v.odometer !== null && !isNonNegativeFiniteNumber(v.odometer)) {
+      invalidMileageFields.push({ vin: v.vin || "(unknown)", field: "odometer", value: v.odometer });
+    }
   }
   if (missingIdentityFields.length > 0) {
     errors.push(
@@ -189,6 +197,14 @@ export async function validateScrape(
       `Invalid required price facts in scrape result: ${invalidPriceFields
         .slice(0, 10)
         .map((entry) => `${entry.vin}(${String(entry.price)})`)
+        .join("; ")}`
+    );
+  }
+  if (invalidMileageFields.length > 0) {
+    errors.push(
+      `Invalid scraped mileage facts in scrape result: ${invalidMileageFields
+        .slice(0, 10)
+        .map((entry) => `${entry.vin}(${entry.field}=${String(entry.value)})`)
         .join("; ")}`
     );
   }
@@ -272,6 +288,10 @@ function isValidVin(vin: string | undefined): boolean {
 
 function isPositiveFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
+function isNonNegativeFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
 
 function median(values: number[]): number {
