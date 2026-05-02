@@ -10633,71 +10633,99 @@ Format your response in clear sections with actionable recommendations.`;
   });
   
   // Webhook receiver endpoint (no auth - PBS will call this)
-  app.post("/api/pbs/webhook", async (req, res) => {
+  app.post(["/api/pbs/webhook", "/api/pbs/webhook/:dealershipId"], async (req, res) => {
     try {
-      // Single-dealership mode: Tenant middleware defaults to dealershipId=1
-      // Multi-tenant expansion: Parse dealershipId from webhook URL path (e.g., /api/pbs/webhook/:dealershipId) or custom header
-      const dealershipId = req.dealershipId!;
+      const rawDealershipId =
+        req.params.dealershipId ??
+        req.headers["x-lotview-dealership-id"] ??
+        req.headers["x-dealership-id"] ??
+        req.body?.dealershipId;
+      const rawDealershipIdValue = Array.isArray(rawDealershipId)
+        ? rawDealershipId[0]
+        : rawDealershipId;
+      const dealershipId = Number.parseInt(String(rawDealershipIdValue ?? ""), 10);
+
+      if (!Number.isInteger(dealershipId) || dealershipId <= 0) {
+        logError(
+          "PBS webhook rejected: Missing explicit dealership binding",
+          new Error("PBS webhook rejected: Missing explicit dealership binding"),
+          { route: "api-pbs-webhook" }
+        );
+        return res.status(400).json({
+          error: "Bad Request",
+          message: "Explicit dealership binding is required"
+        });
+      }
       
       // Get PBS config to validate webhook secret
       const pbsConfig = await storage.getPbsConfig(dealershipId);
       
-      // If webhook secret is configured, validate the signature
-      if (pbsConfig?.webhookSecret) {
-        const signature = req.headers['x-pbs-signature'] as string;
-        const timestamp = req.headers['x-pbs-timestamp'] as string;
-        
-        if (!signature || !timestamp) {
-          logError('PBS webhook rejected: Missing signature or timestamp headers', new Error('PBS webhook rejected: Missing signature or timestamp headers'), { route: 'api-pbs-webhook' });
-          return res.status(401).json({ 
-            error: "Unauthorized", 
-            message: "Missing signature headers" 
-          });
-        }
-        
-        // Verify signature using HMAC-SHA256
-        const payload = timestamp + '.' + JSON.stringify(req.body);
-        const expectedSignature = crypto
-          .createHmac('sha256', pbsConfig.webhookSecret)
-          .update(payload)
-          .digest('hex');
-        
-        // Use timing-safe comparison to prevent timing attacks
-        // First check if lengths match (if not, signature is definitely invalid)
-        if (signature.length !== expectedSignature.length) {
-          logError('PBS webhook rejected: Invalid signature length', new Error('PBS webhook rejected: Invalid signature length'), { route: 'api-pbs-webhook' });
-          return res.status(403).json({ 
-            error: "Forbidden", 
-            message: "Invalid signature" 
-          });
-        }
-        
-        if (!crypto.timingSafeEqual(
-          Buffer.from(signature),
-          Buffer.from(expectedSignature)
-        )) {
-          logError('PBS webhook rejected: Invalid signature', new Error('PBS webhook rejected: Invalid signature'), { route: 'api-pbs-webhook' });
-          return res.status(403).json({ 
-            error: "Forbidden", 
-            message: "Invalid signature" 
-          });
-        }
-        
-        // Verify timestamp is recent (within 5 minutes) to prevent replay attacks
-        const timestampAge = Date.now() - parseInt(timestamp);
-        const MAX_AGE = 5 * 60 * 1000; // 5 minutes in milliseconds
-        
-        if (timestampAge > MAX_AGE || timestampAge < 0) {
-          logError('PBS webhook rejected: Timestamp too old or in future', new Error('PBS webhook rejected: Timestamp too old or in future'), { route: 'api-pbs-webhook' });
-          return res.status(403).json({ 
-            error: "Forbidden", 
-            message: "Timestamp outside valid window" 
-          });
-        }
+      if (!pbsConfig?.webhookSecret) {
+        logError(
+          "PBS webhook rejected: Webhook secret not configured",
+          new Error("PBS webhook rejected: Webhook secret not configured"),
+          { route: "api-pbs-webhook", dealershipId }
+        );
+        return res.status(403).json({
+          error: "Forbidden",
+          message: "PBS webhook is not configured for this dealership"
+        });
       }
-      
+
+      const signature = req.headers["x-pbs-signature"] as string | undefined;
+      const timestamp = req.headers["x-pbs-timestamp"] as string | undefined;
+
+      if (!signature || !timestamp) {
+        logError("PBS webhook rejected: Missing signature or timestamp headers", new Error("PBS webhook rejected: Missing signature or timestamp headers"), { route: "api-pbs-webhook", dealershipId });
+        return res.status(401).json({
+          error: "Unauthorized",
+          message: "Missing signature headers"
+        });
+      }
+
+      const timestampMs = Number.parseInt(timestamp, 10);
+      const MAX_AGE = 5 * 60 * 1000; // 5 minutes in milliseconds
+      const timestampAge = Date.now() - timestampMs;
+
+      if (!Number.isFinite(timestampMs) || timestampAge > MAX_AGE || timestampAge < 0) {
+        logError("PBS webhook rejected: Timestamp too old or in future", new Error("PBS webhook rejected: Timestamp too old or in future"), { route: "api-pbs-webhook", dealershipId });
+        return res.status(403).json({
+          error: "Forbidden",
+          message: "Timestamp outside valid window"
+        });
+      }
+
+      // Verify signature using HMAC-SHA256 over timestamp and body.
+      const providedSignature = signature.startsWith("sha256=")
+        ? signature.slice("sha256=".length)
+        : signature;
+      const payload = `${timestamp}.${JSON.stringify(req.body)}`;
+      const expectedSignature = crypto
+        .createHmac("sha256", pbsConfig.webhookSecret)
+        .update(payload)
+        .digest("hex");
+
+      if (!/^[a-f0-9]{64}$/i.test(providedSignature)) {
+        logError("PBS webhook rejected: Invalid signature format", new Error("PBS webhook rejected: Invalid signature format"), { route: "api-pbs-webhook", dealershipId });
+        return res.status(403).json({
+          error: "Forbidden",
+          message: "Invalid signature"
+        });
+      }
+
+      if (!crypto.timingSafeEqual(
+        Buffer.from(providedSignature, "hex"),
+        Buffer.from(expectedSignature, "hex")
+      )) {
+        logError("PBS webhook rejected: Invalid signature", new Error("PBS webhook rejected: Invalid signature"), { route: "api-pbs-webhook", dealershipId });
+        return res.status(403).json({
+          error: "Forbidden",
+          message: "Invalid signature"
+        });
+      }
+
       const { event, id: eventId, data } = req.body;
-      
+
       // Log the webhook event
       await storage.createPbsWebhookEvent({
         dealershipId,
