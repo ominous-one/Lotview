@@ -9767,7 +9767,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Inventory Analysis - Get all vehicles with market comparison data
-  app.get("/api/manager/inventory-analysis", authMiddleware, requireRole("manager"), async (req, res) => {
+  app.get("/api/manager/inventory-analysis", authMiddleware, requireRole("manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { radiusKm = '50' } = req.query;
@@ -9943,7 +9943,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Trigger full inventory market analysis refresh
-  app.post("/api/manager/inventory-analysis/refresh", authMiddleware, requireRole("manager"), async (req, res) => {
+  app.post("/api/manager/inventory-analysis/refresh", authMiddleware, requireRole("manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { radiusKm = 50 } = req.body;
@@ -10150,7 +10150,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get Apify market pricing for a specific vehicle (Manager+)
-  app.post("/api/manager/apify-market-pricing", authMiddleware, requireRole("manager"), async (req: AuthRequest, res) => {
+  app.post("/api/manager/apify-market-pricing", authMiddleware, requireRole("manager"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { make, model, yearMin, yearMax, postalCode, province, radiusKm, maxResults } = req.body;
