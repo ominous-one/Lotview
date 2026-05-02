@@ -66,6 +66,38 @@ describe("Olympic Hyundai scraper extraction", () => {
     expect(vehicles[0].images).toHaveLength(1);
   });
 
+  it("normalizes relative image URLs against the inventory page origin", () => {
+    const vehicles = extractVehiclesFromHtml(
+      [
+        '<article data-vin="1HGCM82633A004352"',
+        ' data-year="2023"',
+        ' data-make="Honda"',
+        ' data-model="Accord"',
+        ' data-image="/photos/a.jpg"></article>',
+      ].join(""),
+      "https://olympichyundaivancouver.com/vehicles/?sale_class=used"
+    );
+
+    expect(vehicles).toHaveLength(1);
+    expect(vehicles[0].images).toEqual(["https://olympichyundaivancouver.com/photos/a.jpg"]);
+  });
+
+  it("filters non-http scraped image URLs", () => {
+    const vehicles = extractVehiclesFromHtml(
+      [
+        '<article data-vin="1HGCM82633A004352"',
+        ' data-year="2023"',
+        ' data-make="Honda"',
+        ' data-model="Accord"',
+        ' data-image="javascript:alert(1)"></article>',
+      ].join(""),
+      BASE_URL
+    );
+
+    expect(vehicles).toHaveLength(1);
+    expect(vehicles[0].images).toEqual([]);
+  });
+
   it("maps extracted vehicle facts into the dedup storage contract", () => {
     const scrapedAt = new Date("2026-04-30T00:00:00.000Z");
 
@@ -137,6 +169,22 @@ describe("Olympic Hyundai scraper extraction", () => {
     expect(vehicles[0].year).toBeUndefined();
     expect(vehicles[0].make).toBeUndefined();
     expect(vehicles[0].model).toBeUndefined();
+  });
+
+  it("normalizes and deduplicates JSON-LD image arrays", () => {
+    const vehicles = extractVehiclesFromHtml(
+      `<script type="application/ld+json">${JSON.stringify({
+        "@type": "Vehicle",
+        vehicleIdentificationNumber: "1HGCM82633A004352",
+        image: ["/photos/front.jpg", "/photos/front.jpg", "ftp://example.com/bad.jpg"],
+        url: "/vehicles/1HGCM82633A004352/",
+      })}</script>`,
+      BASE_URL
+    );
+
+    expect(vehicles).toHaveLength(1);
+    expect(vehicles[0].images).toEqual(["https://olympichyundaivancouver.com/photos/front.jpg"]);
+    expect(vehicles[0].sourceUrl).toBe("https://olympichyundaivancouver.com/vehicles/1HGCM82633A004352/");
   });
 
   it("surfaces storage integration failures instead of hiding them", () => {

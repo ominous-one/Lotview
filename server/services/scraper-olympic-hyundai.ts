@@ -82,6 +82,34 @@ function cleanText(value: unknown): string | undefined {
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
+function toAbsoluteHttpUrl(value: unknown, baseUrl: string): string | undefined {
+  const text = cleanText(value);
+  if (!text) return undefined;
+
+  try {
+    const url = new URL(text, baseUrl);
+    return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function toImageUrls(value: unknown, baseUrl: string): string[] {
+  const rawValues = Array.isArray(value) ? value : [value];
+  const seen = new Set<string>();
+  const urls: string[] = [];
+
+  for (const rawValue of rawValues) {
+    const url = toAbsoluteHttpUrl(rawValue, baseUrl);
+    if (url && !seen.has(url)) {
+      seen.add(url);
+      urls.push(url);
+    }
+  }
+
+  return urls;
+}
+
 function parseVehicleYear(value: unknown): number | undefined {
   const raw = typeof value === "number" ? String(value) : cleanText(value);
   if (!raw) return undefined;
@@ -138,7 +166,7 @@ export function extractVehiclesFromHtml(html: string, baseUrl: string): ScrapedV
       odometer: odoMatch ? parseInt(odoMatch[1].replace(/,/g, "")) : undefined,
       exteriorColor: cleanText(colorMatch?.[1]),
       interiorColor: cleanText(intColorMatch?.[1]),
-      images: imgMatch ? [imgMatch[1].startsWith("http") ? imgMatch[1] : `${baseUrl}${imgMatch[1]}`] : [],
+      images: toImageUrls(imgMatch?.[1], baseUrl),
       sourceUrl: baseUrl,
       scrapedAt: new Date(),
     });
@@ -175,9 +203,9 @@ export function extractVehiclesFromHtml(html: string, baseUrl: string): ScrapedV
                 engine: cleanText(item.vehicleEngine?.name),
                 drivetrain: cleanText(item.driveWheelConfiguration?.name),
                 fuelType: cleanText(item.fuelType),
-                images: item.image ? [item.image] : [],
+                images: toImageUrls(item.image, baseUrl),
                 description: cleanText(item.description),
-                sourceUrl: cleanText(item.url) || baseUrl,
+                sourceUrl: toAbsoluteHttpUrl(item.url, baseUrl) || baseUrl,
                 scrapedAt: new Date(),
               });
             }
