@@ -139,6 +139,7 @@ export async function validateScrape(
   // 6. Required fields check
   const missingRequiredFields: Array<{ vin: string; missing: string[] }> = [];
   const missingIdentityFields: Array<{ vin: string; missing: string[] }> = [];
+  const missingNonIdentityFields: Array<{ vin: string; missing: string[] }> = [];
   for (const v of vehicles) {
     const missing = VALIDATION_RULES.requiredFields.filter(
       (field) => v[field] === undefined || v[field] === null || v[field] === ""
@@ -153,6 +154,13 @@ export async function validateScrape(
       if (missingIdentity.length > 0) {
         missingIdentityFields.push({ vin, missing: missingIdentity });
       }
+
+      const missingNonIdentity = missing.filter(
+        (field) => !(VALIDATION_RULES.identityFields as readonly string[]).includes(field)
+      );
+      if (missingNonIdentity.length > 0) {
+        missingNonIdentityFields.push({ vin, missing: missingNonIdentity });
+      }
     }
   }
   if (missingIdentityFields.length > 0) {
@@ -163,9 +171,12 @@ export async function validateScrape(
         .join("; ")}`
     );
   }
-  if (missingRequiredFields.length > vehiclesFound * 0.2) {
-    warnings.push(
-      `${missingRequiredFields.length} vehicles missing required fields`
+  if (missingNonIdentityFields.length > 0) {
+    errors.push(
+      `Missing required scrape fields in scrape result: ${missingNonIdentityFields
+        .slice(0, 10)
+        .map((entry) => `${entry.vin}(${entry.missing.join(",")})`)
+        .join("; ")}`
     );
   }
 
