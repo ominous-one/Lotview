@@ -96,6 +96,11 @@ export async function validateScrape(
     }
   }
   const vinRatio = vehiclesFound > 0 ? validVins.length / vehiclesFound : 0;
+  if (invalidVins.length > 0) {
+    errors.push(
+      `Invalid VINs present in scrape result: ${invalidVins.slice(0, 10).join(", ")}`
+    );
+  }
   if (vinRatio < VALIDATION_RULES.validVinRatio) {
     errors.push(
       `VIN validity ${Math.round(vinRatio * 100)}% below threshold ${Math.round(
@@ -189,7 +194,11 @@ export async function validateScrape(
   } else if (isPartial) {
     await sendPartialScrapeAlert(dealershipId, vehiclesFound, expectedVehicles);
   }
-  if (vinRatio < VALIDATION_RULES.validVinRatio || photoRatio < VALIDATION_RULES.photoCoverageRatio) {
+  if (
+    invalidVins.length > 0 ||
+    vinRatio < VALIDATION_RULES.validVinRatio ||
+    photoRatio < VALIDATION_RULES.photoCoverageRatio
+  ) {
     await sendQualityAlert(dealershipId, vinRatio, photoRatio);
   }
 
