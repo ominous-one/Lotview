@@ -12,13 +12,24 @@ export interface InventoryRow {
   proof: string;
 }
 
+export interface AuthUserSummary {
+  id: number | null;
+  name: string;
+  email: string;
+  role: string;
+  dealershipId: number | null;
+  dealershipLabel: string;
+}
+
 export interface OperationsSnapshot {
   backendStatus: "connected" | "blocked";
+  authStatus: "authenticated" | "unauthenticated" | "unknown";
   healthStatus: string;
   readinessStatus: string;
   inventoryRows: InventoryRow[];
   inventoryTotal: number | null;
   blocker: string | null;
+  user: AuthUserSummary | null;
 }
 
 interface RequestOptions {
@@ -113,6 +124,29 @@ function mapVehicleToInventoryRow(vehicle: unknown, index: number): InventoryRow
   };
 }
 
+function readAuthUser(body: JsonRecord): AuthUserSummary | null {
+  const user = isRecord(body.user) ? body.user : null;
+  if (!user) {
+    return null;
+  }
+
+  const id = readNumber(user, ["id"]);
+  const dealershipId = readNumber(user, ["dealershipId", "dealership_id"]);
+  const name = readString(user, ["name"], "Signed-in user");
+  const email = readString(user, ["email"]);
+  const role = readString(user, ["role"], "unknown");
+  const dealershipLabel = readString(user, ["dealershipName", "dealership"], dealershipId ? `Dealership #${dealershipId}` : "No dealership");
+
+  return {
+    id,
+    name,
+    email,
+    role,
+    dealershipId,
+    dealershipLabel,
+  };
+}
+
 async function fetchJson<T>(
   path: string,
   fetcher: FetchLike,
@@ -142,11 +176,13 @@ async function fetchJson<T>(
 function blockedSnapshot(blocker: string): OperationsSnapshot {
   return {
     backendStatus: "blocked",
+    authStatus: "unknown",
     healthStatus: "unknown",
     readinessStatus: "unknown",
     inventoryRows: [],
     inventoryTotal: null,
     blocker,
+    user: null,
   };
 }
 
@@ -160,9 +196,10 @@ export async function loadOperationsSnapshot(fetcher?: FetchLike): Promise<Opera
   let readinessStatus = "unknown";
 
   try {
-    const [healthResult, readinessResult] = await Promise.all([
+    const [healthResult, readinessResult, authResult] = await Promise.all([
       fetchJson<JsonRecord>("/api/health", activeFetcher, { allowHttpError: true }),
       fetchJson<JsonRecord>("/api/ready", activeFetcher, { allowHttpError: true }),
+      fetchJson<JsonRecord>("/api/auth/me", activeFetcher, { allowHttpError: true }),
     ]);
 
     healthStatus = readString(healthResult.body, ["status"], healthResult.ok ? "healthy" : "unhealthy");
@@ -179,35 +216,62 @@ export async function loadOperationsSnapshot(fetcher?: FetchLike): Promise<Opera
         readinessStatus,
       };
     }
+
+    if (!authResult.ok) {
+      const blocker = isRecord(authResult.body) && typeof authResult.body.error === "string"
+        ? authResult.body.error
+        : "Authenticated session is required";
+      return {
+        ...blockedSnapshot(blocker),
+        authStatus: "unauthenticated",
+        healthStatus,
+        readinessStatus,
+      };
+    }
+
+    const user = readAuthUser(authResult.body);
+    if (!user || !user.dealershipId) {
+      return {
+        ...blockedSnapshot("Authenticated dealership context is required"),
+        authStatus: user ? "authenticated" : "unknown",
+        healthStatus,
+        readinessStatus,
+        user,
+      };
+    }
+
+    try {
+      const inventoryResult = await fetchJson<JsonRecord>("/api/vehicles?limit=10", activeFetcher);
+      const data = Array.isArray(inventoryResult.body.data) ? inventoryResult.body.data : [];
+      const inventoryRows = data
+        .map((vehicle, index) => mapVehicleToInventoryRow(vehicle, index))
+        .filter((row): row is InventoryRow => row !== null);
+      const pagination = isRecord(inventoryResult.body.pagination) ? inventoryResult.body.pagination : {};
+      const total = readNumber(pagination, ["total"]);
+
+      return {
+        backendStatus: "connected",
+        authStatus: "authenticated",
+        healthStatus,
+        readinessStatus,
+        inventoryRows,
+        inventoryTotal: total ?? inventoryRows.length,
+        blocker: readinessStatus === "ready" ? null : "Readiness check is not green",
+        user,
+      };
+    } catch (error) {
+      return {
+        backendStatus: "blocked",
+        authStatus: "authenticated",
+        healthStatus,
+        readinessStatus,
+        inventoryRows: [],
+        inventoryTotal: null,
+        blocker: error instanceof Error ? error.message : "Inventory API failed",
+        user,
+      };
+    }
   } catch (error) {
     return blockedSnapshot(error instanceof Error ? error.message : "Backend health check failed");
-  }
-
-  try {
-    const inventoryResult = await fetchJson<JsonRecord>("/api/vehicles?limit=10", activeFetcher);
-    const data = Array.isArray(inventoryResult.body.data) ? inventoryResult.body.data : [];
-    const inventoryRows = data
-      .map((vehicle, index) => mapVehicleToInventoryRow(vehicle, index))
-      .filter((row): row is InventoryRow => row !== null);
-    const pagination = isRecord(inventoryResult.body.pagination) ? inventoryResult.body.pagination : {};
-    const total = readNumber(pagination, ["total"]);
-
-    return {
-      backendStatus: "connected",
-      healthStatus,
-      readinessStatus,
-      inventoryRows,
-      inventoryTotal: total ?? inventoryRows.length,
-      blocker: readinessStatus === "ready" ? null : "Readiness check is not green",
-    };
-  } catch (error) {
-    return {
-      backendStatus: "blocked",
-      healthStatus,
-      readinessStatus,
-      inventoryRows: [],
-      inventoryTotal: null,
-      blocker: error instanceof Error ? error.message : "Inventory API failed",
-    };
   }
 }
