@@ -147,6 +147,25 @@ describe("VIN decoder provider proof", () => {
     );
   });
 
+  it("rejects NHTSA decode payloads that echo a different VIN", async () => {
+    const fetchMock = globalThis.fetch as any;
+    fetchMock.mockResolvedValue(jsonResponse({ Results: [nhtsaResult(OTHER_VALID_VIN)] }));
+
+    const result = await vinDecoder.decodeVIN(VALID_VIN, 7, { modelYear: 2003 });
+
+    expect(result).toMatchObject({
+      vin: VALID_VIN,
+      errorCode: "VIN_PROVIDER_MISMATCH",
+      source: "nhtsa",
+      confidence: "invalid",
+    });
+    expect(result.errorMessage).toContain(OTHER_VALID_VIN);
+    expect(result.warnings).toContain(
+      "VIN provider response identity did not match request; decoded facts were not trusted."
+    );
+    expect(storageMock.upsertVinDecodeCache).not.toHaveBeenCalled();
+  });
+
   it("marks provider disagreements instead of treating conflicting facts as verified", async () => {
     storageMock.getDealershipApiKeys.mockResolvedValue({ marketcheckKey: "marketcheck-test-key" });
     const fetchMock = globalThis.fetch as any;
@@ -212,6 +231,27 @@ describe("VIN decoder provider proof", () => {
 
     expect(getPostedBatchData(fetchMock.mock.calls[0]).split(";")).toHaveLength(50);
     expect(getPostedBatchData(fetchMock.mock.calls[1]).split(";")).toHaveLength(1);
+  });
+
+  it("rejects NHTSA batch results that echo a different VIN", async () => {
+    const fetchMock = globalThis.fetch as any;
+    fetchMock.mockResolvedValue(jsonResponse({ Results: [nhtsaResult(OTHER_VALID_VIN)] }));
+
+    const results = await vinDecoder.decodeVINBatch([{ vin: VALID_VIN, modelYear: 2003 }], 7);
+
+    expect(results).toEqual([
+      expect.objectContaining({
+        vin: VALID_VIN,
+        errorCode: "VIN_PROVIDER_MISMATCH",
+        source: "nhtsa",
+        confidence: "invalid",
+      }),
+    ]);
+    expect(results[0].errorMessage).toContain(OTHER_VALID_VIN);
+    expect(results[0].warnings).toContain(
+      "VIN provider response identity did not match request; decoded facts were not trusted."
+    );
+    expect(storageMock.upsertVinDecodeCache).not.toHaveBeenCalled();
   });
 
   it("does not call external batch providers for invalid VINs", async () => {
