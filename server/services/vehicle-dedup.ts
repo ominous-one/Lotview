@@ -154,6 +154,9 @@ function getInvalidSourceFacts(scraped: ScrapedVehicleData): string[] {
   if (odometer !== undefined && odometer !== null && !isNonNegativeFiniteNumber(odometer)) {
     invalid.push("odometer");
   }
+  if (scraped.sourceUrl !== undefined && scraped.sourceUrl !== null && !isHttpUrl(scraped.sourceUrl)) {
+    invalid.push("sourceUrl");
+  }
 
   return invalid;
 }
@@ -174,6 +177,16 @@ function isValidModelYear(value: unknown): value is number {
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+function isHttpUrl(value: unknown): value is string {
+  if (typeof value !== "string" || value.trim().length === 0) return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 // ---- Core Deduplication ----
