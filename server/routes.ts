@@ -11096,7 +11096,7 @@ Format your response in clear sections with actionable recommendations.`;
   // ===== PBS SERVICE MODULE =====
 
   // Get service appointment bookings
-  app.get("/api/pbs/service/appointments/booking", authMiddleware, requireRole("master", "service_manager"), async (req, res) => {
+  app.get("/api/pbs/service/appointments/booking", authMiddleware, requireRole("master", "service_manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { date } = req.query;
@@ -11116,7 +11116,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get service appointments for contact
-  app.get("/api/pbs/service/appointments", authMiddleware, requireRole("master", "service_manager"), async (req, res) => {
+  app.get("/api/pbs/service/appointments", authMiddleware, requireRole("master", "service_manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { contactId, vehicleId } = req.query;
@@ -11142,7 +11142,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get single service appointment
-  app.get("/api/pbs/service/appointments/:appointmentId", authMiddleware, requireRole("master", "service_manager"), async (req, res) => {
+  app.get("/api/pbs/service/appointments/:appointmentId", authMiddleware, requireRole("master", "service_manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { appointmentId } = req.params;
@@ -11162,7 +11162,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Create service appointment
-  app.post("/api/pbs/service/appointments", authMiddleware, requireRole("master", "service_manager"), async (req, res) => {
+  app.post("/api/pbs/service/appointments", authMiddleware, requireRole("master", "service_manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const appointmentData = req.body;
@@ -11186,7 +11186,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Update service appointment
-  app.patch("/api/pbs/service/appointments/:appointmentId", authMiddleware, requireRole("master", "service_manager"), async (req, res) => {
+  app.patch("/api/pbs/service/appointments/:appointmentId", authMiddleware, requireRole("master", "service_manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { appointmentId } = req.params;
@@ -11207,7 +11207,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Update service appointment contact/vehicle
-  app.patch("/api/pbs/service/appointments/:appointmentId/vehicle", authMiddleware, requireRole("master", "service_manager"), async (req, res) => {
+  app.patch("/api/pbs/service/appointments/:appointmentId/vehicle", authMiddleware, requireRole("master", "service_manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { appointmentId } = req.params;
@@ -11228,7 +11228,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get repair orders for contact
-  app.get("/api/pbs/service/repair-orders", authMiddleware, requireRole("master", "service_manager"), async (req, res) => {
+  app.get("/api/pbs/service/repair-orders", authMiddleware, requireRole("master", "service_manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { contactId } = req.query;
@@ -11252,7 +11252,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get single repair order
-  app.get("/api/pbs/service/repair-orders/:repairOrderId", authMiddleware, requireRole("master", "service_manager"), async (req, res) => {
+  app.get("/api/pbs/service/repair-orders/:repairOrderId", authMiddleware, requireRole("master", "service_manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { repairOrderId } = req.params;
@@ -11272,7 +11272,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Update repair order
-  app.patch("/api/pbs/service/repair-orders/:repairOrderId", authMiddleware, requireRole("master", "service_manager"), async (req, res) => {
+  app.patch("/api/pbs/service/repair-orders/:repairOrderId", authMiddleware, requireRole("master", "service_manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { repairOrderId } = req.params;
@@ -11293,7 +11293,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Update repair order contact/vehicle
-  app.patch("/api/pbs/service/repair-orders/:repairOrderId/vehicle", authMiddleware, requireRole("master", "service_manager"), async (req, res) => {
+  app.patch("/api/pbs/service/repair-orders/:repairOrderId/vehicle", authMiddleware, requireRole("master", "service_manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { repairOrderId } = req.params;
@@ -11420,7 +11420,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get shops
-  app.get("/api/pbs/service/shops", authMiddleware, requireRole("master", "service_manager"), async (req, res) => {
+  app.get("/api/pbs/service/shops", authMiddleware, requireRole("master", "service_manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       
