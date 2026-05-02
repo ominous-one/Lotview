@@ -117,7 +117,34 @@ function buildNHTSADecodeUrl(vin: string, modelYear?: number | string): string {
   return url.toString();
 }
 
+function normalizeProviderVIN(value: unknown): string | undefined {
+  const text = normalizeOptionalText(value);
+  return text ? text.toUpperCase() : undefined;
+}
+
+function providerVINMismatchResult(
+  requestedVIN: string,
+  returnedVIN: string,
+  source: 'nhtsa',
+  responseTimeMs: number
+): VINDecodeResult {
+  return {
+    vin: requestedVIN,
+    errorCode: 'VIN_PROVIDER_MISMATCH',
+    errorMessage: `${source.toUpperCase()} returned VIN ${returnedVIN} for requested VIN ${requestedVIN}`,
+    source,
+    responseTimeMs,
+    confidence: 'invalid',
+    warnings: ['VIN provider response identity did not match request; decoded facts were not trusted.'],
+  };
+}
+
 function mapNHTSAResult(vin: string, result: Record<string, unknown>, responseTimeMs: number): VINDecodeResult {
+  const returnedVIN = normalizeProviderVIN(result.VIN);
+  if (returnedVIN && returnedVIN !== vin) {
+    return providerVINMismatchResult(vin, returnedVIN, 'nhtsa', responseTimeMs);
+  }
+
   const errorCode = normalizeOptionalText(result.ErrorCode);
   if (errorCode && errorCode !== '0') {
     return {
