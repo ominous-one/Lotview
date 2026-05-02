@@ -35,6 +35,12 @@ describe("AI prompt route RBAC and tenant contract", () => {
     );
   });
 
+  it("requires AI configuration permission and dealership context for legacy admin prompt template writes", () => {
+    expect(routesSource).toContain(
+      'app.post("/api/admin/ai-prompt", authMiddleware, requirePermission("ai.configure"), requireRole("master"), requireDealership'
+    );
+  });
+
   it("requires AI configuration permission for admin prompt management", () => {
     expect(routesSource).toContain(
       'app.get("/api/admin/prompts", authMiddleware, requirePermission("ai.configure"), requireRole("master", "super_admin")'
