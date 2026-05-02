@@ -32,13 +32,23 @@ export interface OperationsSnapshot {
   user: AuthUserSummary | null;
 }
 
+export interface LoginCredentials {
+  email: string;
+  password: string;
+}
+
 interface RequestOptions {
   allowHttpError?: boolean;
+  authToken?: string | null;
+  body?: unknown;
+  method?: "GET" | "POST";
 }
 
 type JsonRecord = Record<string, unknown>;
 
 const requestTimeoutMs = 8_000;
+const authTokenStorageKey = "lotview.auth.token";
+let inMemoryAuthToken: string | null = null;
 
 function isRecord(value: unknown): value is JsonRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -147,6 +157,32 @@ function readAuthUser(body: JsonRecord): AuthUserSummary | null {
   };
 }
 
+function readStoredAuthToken(): string | null {
+  try {
+    return window.sessionStorage.getItem(authTokenStorageKey) ?? inMemoryAuthToken;
+  } catch {
+    return inMemoryAuthToken;
+  }
+}
+
+function writeStoredAuthToken(token: string): void {
+  inMemoryAuthToken = token;
+  try {
+    window.sessionStorage.setItem(authTokenStorageKey, token);
+  } catch {
+    // Session storage is a convenience. Auth still works for the current request.
+  }
+}
+
+export function clearStoredAuthToken(): void {
+  inMemoryAuthToken = null;
+  try {
+    window.sessionStorage.removeItem(authTokenStorageKey);
+  } catch {
+    // Ignore unavailable storage in locked-down browsers.
+  }
+}
+
 async function fetchJson<T>(
   path: string,
   fetcher: FetchLike,
@@ -156,9 +192,20 @@ async function fetchJson<T>(
   const timeout = window.setTimeout(() => controller.abort(), requestTimeoutMs);
 
   try {
+    const headers: Record<string, string> = { Accept: "application/json" };
+    const token = options.authToken === undefined ? readStoredAuthToken() : options.authToken;
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    if (options.body !== undefined) {
+      headers["Content-Type"] = "application/json";
+    }
+
     const response = await fetcher(path, {
       credentials: "same-origin",
-      headers: { Accept: "application/json" },
+      headers,
+      method: options.method ?? "GET",
+      ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
       signal: controller.signal,
     });
     const body = (await response.json()) as T;
@@ -184,6 +231,65 @@ function blockedSnapshot(blocker: string): OperationsSnapshot {
     blocker,
     user: null,
   };
+}
+
+export async function loginWithCredentials(
+  credentials: LoginCredentials,
+  fetcher?: FetchLike,
+): Promise<AuthUserSummary> {
+  const email = credentials.email.trim();
+  const password = credentials.password;
+  if (!email || !password) {
+    throw new Error("Email and password are required");
+  }
+
+  const activeFetcher = fetcher ?? window.fetch?.bind(window);
+  if (!activeFetcher) {
+    throw new Error("Browser fetch API is unavailable");
+  }
+
+  const result = await fetchJson<JsonRecord>("/api/auth/login", activeFetcher, {
+    allowHttpError: true,
+    authToken: null,
+    body: { email, password },
+    method: "POST",
+  });
+
+  if (!result.ok) {
+    const errorMessage = isRecord(result.body) && typeof result.body.error === "string"
+      ? result.body.error
+      : "Login failed";
+    throw new Error(errorMessage);
+  }
+
+  const token = typeof result.body.token === "string" ? result.body.token : "";
+  if (!token) {
+    throw new Error("Login response did not include an auth token");
+  }
+
+  const user = readAuthUser(result.body);
+  if (!user || !user.dealershipId) {
+    throw new Error("Login response did not include dealership context");
+  }
+
+  writeStoredAuthToken(token);
+  return user;
+}
+
+export async function logoutCurrentSession(fetcher?: FetchLike): Promise<void> {
+  const activeFetcher = fetcher ?? window.fetch?.bind(window);
+  const token = readStoredAuthToken();
+  clearStoredAuthToken();
+
+  if (!activeFetcher || !token) {
+    return;
+  }
+
+  await fetchJson<JsonRecord>("/api/auth/logout", activeFetcher, {
+    allowHttpError: true,
+    authToken: token,
+    method: "POST",
+  });
 }
 
 export async function loadOperationsSnapshot(fetcher?: FetchLike): Promise<OperationsSnapshot> {

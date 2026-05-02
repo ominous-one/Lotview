@@ -54,9 +54,22 @@ async function clickButton(text: string): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
+async function typeIntoInput(name: string, value: string): Promise<void> {
+  const input = document.querySelector(`input[name="${name}"]`) as HTMLInputElement | null;
+  if (!input) {
+    throw new Error(`Input not found: ${name}`);
+  }
+
+  const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+  valueSetter?.call(input, value);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 beforeEach(() => {
   vi.resetModules();
   document.body.innerHTML = '<div id="root"></div>';
+  window.sessionStorage.clear();
 });
 
 afterEach(() => {
@@ -65,6 +78,7 @@ afterEach(() => {
 
 describe("Lotview frontend operations workflow", () => {
   it("fetches backend health, readiness, and tenant-scoped inventory before rendering live rows", async () => {
+    window.sessionStorage.setItem("lotview.auth.token", "existing-session-token");
     const fetchMock = mockFetchSequence([
       { body: { status: "healthy" } },
       { body: { status: "ready" } },
@@ -105,8 +119,20 @@ describe("Lotview frontend operations workflow", () => {
 
     expect(fetchMock).toHaveBeenCalledWith("/api/health", expect.objectContaining({ credentials: "same-origin" }));
     expect(fetchMock).toHaveBeenCalledWith("/api/ready", expect.objectContaining({ credentials: "same-origin" }));
-    expect(fetchMock).toHaveBeenCalledWith("/api/auth/me", expect.objectContaining({ credentials: "same-origin" }));
-    expect(fetchMock).toHaveBeenCalledWith("/api/vehicles?limit=10", expect.objectContaining({ credentials: "same-origin" }));
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/auth/me",
+      expect.objectContaining({
+        credentials: "same-origin",
+        headers: expect.objectContaining({ Authorization: "Bearer existing-session-token" }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/vehicles?limit=10",
+      expect.objectContaining({
+        credentials: "same-origin",
+        headers: expect.objectContaining({ Authorization: "Bearer existing-session-token" }),
+      }),
+    );
     expect(document.body.textContent).toContain("Avery Manager");
     expect(document.body.textContent).toContain("Olympic Hyundai");
     expect(document.body.textContent).toContain("Session: authenticated");
@@ -125,16 +151,97 @@ describe("Lotview frontend operations workflow", () => {
     ]);
 
     await renderApp();
-    await waitForText("No live inventory is shown");
+    await waitForText("Sign In");
 
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(fetchMock).toHaveBeenCalledWith("/api/auth/me", expect.objectContaining({ credentials: "same-origin" }));
     expect(document.body.textContent).toContain("No token provided");
     expect(document.body.textContent).toContain("Session: unauthenticated");
+    expect(document.body.textContent).toContain("Lotview requires an authenticated dealership session.");
     expect(document.body.textContent).not.toContain("HY-API-1");
   });
 
+  it("logs in with backend credentials before loading tenant inventory", async () => {
+    const fetchMock = mockFetchSequence([
+      { body: { status: "healthy" } },
+      { body: { status: "ready" } },
+      { body: { error: "No token provided" }, status: 401 },
+      {
+        body: {
+          success: true,
+          token: "fresh-session-token",
+          user: {
+            id: 31,
+            name: "Login Manager",
+            email: "login@example.com",
+            role: "manager",
+            dealershipId: 7,
+            dealershipName: "Olympic Hyundai",
+          },
+        },
+      },
+      { body: { status: "healthy" } },
+      { body: { status: "ready" } },
+      {
+        body: {
+          user: {
+            id: 31,
+            name: "Login Manager",
+            email: "login@example.com",
+            role: "manager",
+            dealershipId: 7,
+            dealershipName: "Olympic Hyundai",
+          },
+        },
+      },
+      {
+        body: {
+          data: [
+            {
+              stockNumber: "HY-LOGIN-1",
+              vin: "KM8J33A40MU320001",
+              year: 2022,
+              make: "Hyundai",
+              model: "Santa Fe",
+              price: 31995,
+              source: "Lotview API fixture",
+              status: "active",
+            },
+          ],
+          pagination: { total: 1 },
+        },
+      },
+    ]);
+
+    await renderApp();
+    await waitForText("Sign In");
+
+    await typeIntoInput("email", "login@example.com");
+    await typeIntoInput("password", "correct horse battery staple");
+    await clickButton("Sign In");
+    await waitForText("HY-LOGIN-1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/auth/login",
+      expect.objectContaining({
+        body: JSON.stringify({ email: "login@example.com", password: "correct horse battery staple" }),
+        headers: expect.objectContaining({ "Content-Type": "application/json" }),
+        method: "POST",
+      }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/vehicles?limit=10",
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: "Bearer fresh-session-token" }),
+      }),
+    );
+    expect(window.sessionStorage.getItem("lotview.auth.token")).toBe("fresh-session-token");
+    expect(document.body.textContent).toContain("Login Manager");
+    expect(document.body.textContent).toContain("Session: authenticated");
+  });
+
   it("fails closed when inventory API lacks dealership context instead of showing static vehicle facts", async () => {
+    window.sessionStorage.setItem("lotview.auth.token", "tenant-session-token");
     mockFetchSequence([
       { body: { status: "healthy" } },
       { body: { status: "ready" } },
@@ -162,6 +269,7 @@ describe("Lotview frontend operations workflow", () => {
   });
 
   it("lets users inspect lead and scrape blockers without presenting fake customer data as live", async () => {
+    window.sessionStorage.setItem("lotview.auth.token", "proof-session-token");
     mockFetchSequence([
       { body: { status: "healthy" } },
       { body: { status: "ready" } },

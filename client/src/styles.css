@@ -131,6 +131,12 @@ button {
   font-weight: 700;
 }
 
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .system-banner {
   display: flex;
   align-items: center;
@@ -155,6 +161,90 @@ button {
   background: #edf8f4;
   color: #174e44;
   font-weight: 700;
+}
+
+.login-panel {
+  display: grid;
+  gap: 18px;
+  max-width: 460px;
+  padding: 22px;
+  border: 1px solid #dbe2ea;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+.login-heading {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.login-heading svg,
+.input-wrap svg {
+  color: #286f6c;
+}
+
+.login-heading h2 {
+  margin: 0;
+  color: #172033;
+  font-size: 21px;
+  letter-spacing: 0;
+}
+
+.login-heading span,
+.login-form label span {
+  color: #617084;
+}
+
+.login-form {
+  display: grid;
+  gap: 14px;
+}
+
+.login-form label {
+  display: grid;
+  gap: 7px;
+  font-weight: 700;
+}
+
+.input-wrap {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  min-height: 42px;
+  padding: 0 11px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.input-wrap input {
+  min-width: 0;
+  height: 38px;
+  border: 0;
+  outline: 0;
+  color: #172033;
+  font: inherit;
+}
+
+.login-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 9px 10px;
+  border: 1px solid #f2b9b9;
+  border-radius: 6px;
+  background: #fff0f0;
+  color: #8b1d1d;
+  font-weight: 700;
+}
+
+.login-submit {
+  width: 100%;
 }
 
 .system-banner svg {
@@ -443,6 +533,12 @@ th {
   .panel-heading {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .topbar-actions {
+    align-items: stretch;
+    flex-direction: column;
+    width: 100%;
   }
 
   .topbar h1 {

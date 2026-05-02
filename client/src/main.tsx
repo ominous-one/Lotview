@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   AlertTriangle,
@@ -7,11 +7,21 @@ import {
   ClipboardCheck,
   Gauge,
   Inbox,
+  KeyRound,
+  LogIn,
+  LogOut,
+  Mail,
   ShieldCheck,
   Truck,
   Users,
 } from "lucide-react";
-import { loadOperationsSnapshot, type InventoryRow, type OperationsSnapshot } from "./api";
+import {
+  loadOperationsSnapshot,
+  loginWithCredentials,
+  logoutCurrentSession,
+  type InventoryRow,
+  type OperationsSnapshot,
+} from "./api";
 import "./styles.css";
 
 type QueueTab = "inventory" | "leads" | "scrape";
@@ -35,6 +45,78 @@ const initialSnapshot: OperationsSnapshot = {
 
 function StatusPill({ status }: { status: InventoryRow["status"] }) {
   return <span className={`status-pill status-${status}`}>{statusLabels[status]}</span>;
+}
+
+function LoginPanel({ onLogin }: { onLogin: (email: string, password: string) => Promise<void> }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  function submitLogin(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    onLogin(email, password)
+      .catch((loginError) => {
+        setError(loginError instanceof Error ? loginError.message : "Login failed");
+      })
+      .finally(() => {
+        setSubmitting(false);
+      });
+  }
+
+  return (
+    <section className="login-panel" aria-labelledby="login-heading">
+      <div className="login-heading">
+        <ShieldCheck size={22} />
+        <div>
+          <h2 id="login-heading">Sign In</h2>
+          <span>Lotview requires an authenticated dealership session.</span>
+        </div>
+      </div>
+      <form className="login-form" onSubmit={submitLogin}>
+        <label>
+          <span>Email</span>
+          <div className="input-wrap">
+            <Mail size={17} />
+            <input
+              autoComplete="email"
+              name="email"
+              onChange={(event) => setEmail(event.currentTarget.value)}
+              required
+              type="email"
+              value={email}
+            />
+          </div>
+        </label>
+        <label>
+          <span>Password</span>
+          <div className="input-wrap">
+            <KeyRound size={17} />
+            <input
+              autoComplete="current-password"
+              name="password"
+              onChange={(event) => setPassword(event.currentTarget.value)}
+              required
+              type="password"
+              value={password}
+            />
+          </div>
+        </label>
+        {error ? (
+          <div className="login-error" role="alert">
+            <AlertTriangle size={17} />
+            <span>{error}</span>
+          </div>
+        ) : null}
+        <button className="primary-action login-submit" type="submit" disabled={submitting}>
+          <LogIn size={17} />
+          {submitting ? "Signing In" : "Sign In"}
+        </button>
+      </form>
+    </section>
+  );
 }
 
 function Metric({
@@ -217,17 +299,16 @@ function App() {
   const [snapshot, setSnapshot] = useState<OperationsSnapshot>(initialSnapshot);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let ignore = false;
-
+  const refreshSnapshot = useCallback((ignoreUpdate?: () => boolean) => {
+    setLoading(true);
     loadOperationsSnapshot()
       .then((nextSnapshot) => {
-        if (!ignore) {
+        if (!ignoreUpdate?.()) {
           setSnapshot(nextSnapshot);
         }
       })
       .catch((error) => {
-        if (!ignore) {
+        if (!ignoreUpdate?.()) {
           setSnapshot({
             ...initialSnapshot,
             blocker: error instanceof Error ? error.message : "Frontend data load failed",
@@ -235,15 +316,38 @@ function App() {
         }
       })
       .finally(() => {
-        if (!ignore) {
+        if (!ignoreUpdate?.()) {
           setLoading(false);
         }
       });
+  }, []);
+
+  useEffect(() => {
+    let ignore = false;
+
+    refreshSnapshot(() => ignore);
 
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [refreshSnapshot]);
+
+  async function handleLogin(email: string, password: string): Promise<void> {
+    await loginWithCredentials({ email, password });
+    refreshSnapshot();
+  }
+
+  async function handleLogout(): Promise<void> {
+    setLoading(true);
+    await logoutCurrentSession();
+    setActiveTab("inventory");
+    setSnapshot({
+      ...initialSnapshot,
+      authStatus: "unauthenticated",
+      blocker: "Signed out",
+    });
+    setLoading(false);
+  }
 
   const activePanel = useMemo(() => {
     if (activeTab === "leads") return <LeadQueue />;
@@ -258,6 +362,7 @@ function App() {
   const tenantGuardDetail =
     snapshot.backendStatus === "connected" ? "Authenticated tenant API response" : "No unverified inventory shown";
   const sessionValue = snapshot.authStatus === "authenticated" ? "Verified" : "Blocked";
+  const loginRequired = !loading && snapshot.authStatus === "unauthenticated";
 
   return (
     <main className="app-shell">
@@ -302,7 +407,15 @@ function App() {
               {loading ? "loading" : snapshot.authStatus}
             </span>
           </div>
-          <div className="environment-badge">Staging only</div>
+          <div className="topbar-actions">
+            <div className="environment-badge">Staging only</div>
+            {snapshot.authStatus === "authenticated" ? (
+              <button className="secondary-action" type="button" onClick={() => void handleLogout()}>
+                <LogOut size={17} />
+                Sign Out
+              </button>
+            ) : null}
+          </div>
         </header>
         {snapshot.user && !loading ? (
           <section className="session-strip" aria-label="Authenticated user">
@@ -318,18 +431,24 @@ function App() {
             <span>{snapshot.blocker}</span>
           </div>
         ) : null}
-        <div className="metrics-grid">
-          <Metric icon={Truck} label="Inventory" value={loading ? "Loading" : inventoryValue} detail="From /api/vehicles" />
-          <Metric icon={Inbox} label="Leads" value="Blocked" detail="CRM route proof pending" />
-          <Metric icon={ShieldCheck} label="Session" value={loading ? "Loading" : sessionValue} detail={tenantGuardDetail} />
-          <Metric
-            icon={Gauge}
-            label="Readiness"
-            value={loading ? "Loading" : snapshot.readinessStatus}
-            detail={`Health: ${snapshot.healthStatus}`}
-          />
-        </div>
-        {activePanel}
+        {loginRequired ? (
+          <LoginPanel onLogin={handleLogin} />
+        ) : (
+          <>
+            <div className="metrics-grid">
+              <Metric icon={Truck} label="Inventory" value={loading ? "Loading" : inventoryValue} detail="From /api/vehicles" />
+              <Metric icon={Inbox} label="Leads" value="Blocked" detail="CRM route proof pending" />
+              <Metric icon={ShieldCheck} label="Session" value={loading ? "Loading" : sessionValue} detail={tenantGuardDetail} />
+              <Metric
+                icon={Gauge}
+                label="Readiness"
+                value={loading ? "Loading" : snapshot.readinessStatus}
+                detail={`Health: ${snapshot.healthStatus}`}
+              />
+            </div>
+            {activePanel}
+          </>
+        )}
       </section>
     </main>
   );
