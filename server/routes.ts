@@ -88,6 +88,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { decodeVIN } from "./vin-decoder";
+import { validateVIN } from "./vin-validation";
 import { enrichVIN, toVINDecodeResult } from "./vin-enrichment-service";
 import { createPbsApiService } from "./pbs-api-service";
 import { ObjectStorageService } from "./objectStorage";
@@ -3947,11 +3948,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Token does not have delete:vehicles permission" });
       }
       
-      // Validate VIN format (basic check: 17 alphanumeric characters)
-      const normalizedVin = vin.trim().toUpperCase();
-      if (!normalizedVin || normalizedVin.length < 5) {
-        return res.status(400).json({ error: "Invalid VIN format" });
+      const vinValidation = validateVIN(vin);
+      if (!vinValidation.isValid) {
+        return res.status(400).json({
+          error: vinValidation.errorMessage || "Invalid VIN",
+          errorCode: vinValidation.errorCode
+        });
       }
+      const normalizedVin = vinValidation.vin;
       
       // Use efficient indexed lookup instead of full table scan
       const vehicle = await storage.getVehicleByVin(normalizedVin, dealershipId);
@@ -3999,12 +4003,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // Normalize VINs
-      const normalizedVins = vins.map((v: string) => v.trim().toUpperCase()).filter((v: string) => v.length >= 5);
-      
-      if (normalizedVins.length === 0) {
-        return res.status(400).json({ error: "No valid VINs provided after normalization" });
+      const vinValidations = vins.map((vin: unknown) => validateVIN(typeof vin === "string" ? vin : ""));
+      const invalidVins = vinValidations.filter((validation) => !validation.isValid);
+
+      if (invalidVins.length > 0) {
+        return res.status(400).json({
+          error: "All VINs must pass full VIN validation before inventory sync",
+          invalidVins: invalidVins.slice(0, 10).map((validation) => ({
+            vin: validation.vin || "(missing)",
+            errorCode: validation.errorCode,
+            error: validation.errorMessage
+          }))
+        });
       }
+
+      const normalizedVins = Array.from(new Set(vinValidations.map((validation) => validation.vin)));
       
       // Get current inventory count for context
       const { total: totalInSystem } = await storage.getVehicles(dealershipId, 1, 0);
