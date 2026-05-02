@@ -11316,7 +11316,7 @@ Format your response in clear sections with actionable recommendations.`;
   // ===== PBS PARTS MODULE (Read-Only) =====
 
   // Search parts inventory
-  app.get("/api/pbs/parts/inventory/search", authMiddleware, requireRole("master", "service_manager", "parts_manager"), async (req, res) => {
+  app.get("/api/pbs/parts/inventory/search", authMiddleware, requireRole("master", "service_manager", "parts_manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { q } = req.query;
@@ -11340,7 +11340,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get part by part number
-  app.get("/api/pbs/parts/inventory/:partNumber", authMiddleware, requireRole("master", "service_manager", "parts_manager"), async (req, res) => {
+  app.get("/api/pbs/parts/inventory/:partNumber", authMiddleware, requireRole("master", "service_manager", "parts_manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { partNumber } = req.params;
@@ -11360,7 +11360,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get parts order
-  app.get("/api/pbs/parts/orders/:orderId", authMiddleware, requireRole("master", "parts_manager"), async (req, res) => {
+  app.get("/api/pbs/parts/orders/:orderId", authMiddleware, requireRole("master", "parts_manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { orderId } = req.params;
@@ -11380,7 +11380,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get purchase order
-  app.get("/api/pbs/parts/purchase-orders/:purchaseOrderId", authMiddleware, requireRole("master", "parts_manager"), async (req, res) => {
+  app.get("/api/pbs/parts/purchase-orders/:purchaseOrderId", authMiddleware, requireRole("master", "parts_manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { purchaseOrderId } = req.params;
@@ -11400,7 +11400,7 @@ Format your response in clear sections with actionable recommendations.`;
   });
 
   // Get tire storage
-  app.get("/api/pbs/parts/tire-storage", authMiddleware, requireRole("master", "service_manager", "parts_manager"), async (req, res) => {
+  app.get("/api/pbs/parts/tire-storage", authMiddleware, requireRole("master", "service_manager", "parts_manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
       const { contactId, vin } = req.query;
