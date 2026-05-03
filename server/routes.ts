@@ -304,6 +304,16 @@ function requireExternalTokenIdParam(req: Request, res: Response): number | null
   return tokenId;
 }
 
+function requireFacebookPageIdParam(req: Request, res: Response): number | null {
+  const pageId = parsePositiveIntegerId(req.params.id);
+  if (!pageId) {
+    res.status(400).json({ error: "Facebook page id must be a positive integer" });
+    return null;
+  }
+
+  return pageId;
+}
+
 async function validateTenantIdentityAvailability(options: {
   slug?: string;
   subdomain?: string;
@@ -4743,10 +4753,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update Facebook page (template, etc.) - protected
   app.patch("/api/facebook-pages/:id", authMiddleware, requirePermission("integrations.write"), requireDealership, async (req, res) => {
     try {
-      const id = Number(req.params.id);
-      if (!Number.isInteger(id) || id < 1) {
-        return res.status(400).json({ error: "Invalid page id" });
-      }
+      const id = requireFacebookPageIdParam(req, res);
+      if (!id) return;
 
       const {
         id: _ignoredId,
@@ -4770,7 +4778,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // These endpoints are maintained for backward compatibility only
   app.get("/api/facebook-pages/:id/priority-vehicles", authMiddleware, requirePermission("integrations.read"), requireDealership, async (req, res) => {
     try {
-      const pageId = parseInt(req.params.id);
+      const pageId = requireFacebookPageIdParam(req, res);
+      if (!pageId) return;
       const dealershipId = req.dealershipId!;
       const priorities = await storage.getPagePriorityVehicles(pageId, dealershipId);
       res.json(priorities);
@@ -4783,7 +4792,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // DEPRECATED: Set priority vehicles - replaced by remarketing system
   app.post("/api/facebook-pages/:id/priority-vehicles", authMiddleware, requirePermission("integrations.write"), requireDealership, async (req, res) => {
     try {
-      const pageId = parseInt(req.params.id);
+      const pageId = requireFacebookPageIdParam(req, res);
+      if (!pageId) return;
       const dealershipId = req.dealershipId!;
       const { vehicleIds } = req.body;
 
