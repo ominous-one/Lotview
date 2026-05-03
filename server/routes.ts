@@ -74,6 +74,7 @@ import { hasVehicleVINWriteError, normalizeVehicleWriteVIN, vehicleVINWriteError
 import { resolveForceRescrapeVINUpdate } from "./services/force-rescrape-vin-identity";
 import { resolveForceRescrapeScrapeResult } from "./services/force-rescrape-result-guard";
 import { vehicleCreateRequestSchema, vehicleUpdateRequestSchema, withResolvedVehicleDealership } from "./services/vehicle-write-schema";
+import { legacyVehicleVdpContentUpdateSchema } from "./services/vehicle-vdp-content-schema";
 import { storeExternalVehicleImport } from "./services/external-vehicle-import-safety";
 import { findActiveStockNumberConflict, withNormalizedStockNumber } from "./services/vehicle-stock-number";
 
@@ -4851,12 +4852,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const dealershipId = req.dealershipId!;
       const userId = req.user?.id;
       
-      const { manualHeadline, manualSubheadline, manualDescription } = req.body;
-      
-      // Validate that at least one field is being updated
-      if (manualHeadline === undefined && manualSubheadline === undefined && manualDescription === undefined) {
-        return res.status(400).json({ error: "At least one field (manualHeadline, manualSubheadline, or manualDescription) is required" });
+      const parsed = legacyVehicleVdpContentUpdateSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: fromZodError(parsed.error).message });
       }
+      const { manualHeadline, manualSubheadline, manualDescription } = parsed.data;
       
       // Build update object with manual edit flags
       const updateData: any = {

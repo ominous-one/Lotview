@@ -7,7 +7,6 @@
  */
 
 import { Router, type Request, type Response } from "express";
-import { z } from "zod";
 import { fromZodError } from "zod-validation-error";
 import { storage } from "../storage";
 import { authMiddleware, requirePermission, requireRole } from "../auth";
@@ -21,6 +20,7 @@ import { scrapeCarfaxReportCloud } from "../services/carfax-browserless";
 import { hasVehicleVINWriteError, normalizeVehicleWriteVIN, vehicleVINWriteErrorResponse } from "../services/vehicle-vin-write-guard";
 import { vehicleCreateRequestSchema, vehicleUpdateRequestSchema, withResolvedVehicleDealership } from "../services/vehicle-write-schema";
 import { findActiveStockNumberConflict, withNormalizedStockNumber } from "../services/vehicle-stock-number";
+import { vehicleVdpContentUpdateSchema } from "../services/vehicle-vdp-content-schema";
 
 const router = Router();
 initializeFlagsFromEnv();
@@ -526,8 +526,12 @@ router.patch("/:id/vdp-content", authMiddleware, requirePermission("inventory.wr
     const id = requireVehicleIdParam(req, res);
     if (!id) return;
     const dealershipId = req.dealershipId!;
-    const { description, videoUrl, videoProvider } = req.body;
-    const vehicle = await storage.updateVehicle(id, { description, videoUrl, videoProvider }, dealershipId);
+    const parsed = vehicleVdpContentUpdateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: fromZodError(parsed.error).message });
+    }
+
+    const vehicle = await storage.updateVehicle(id, parsed.data, dealershipId);
     if (!vehicle) return res.status(404).json({ error: "Vehicle not found" });
     res.json(vehicle);
   } catch (error) {

@@ -32,6 +32,7 @@ describe("legacy vehicle route RBAC contract", () => {
     expect(legacyVehicleBlock).toContain("const dealershipId = req.dealershipId!");
     expect(legacyVehicleBlock).toContain("vehicleCreateRequestSchema.safeParse(req.body)");
     expect(legacyVehicleBlock).toContain("vehicleUpdateRequestSchema.safeParse(req.body)");
+    expect(legacyVehicleBlock).toContain("legacyVehicleVdpContentUpdateSchema.safeParse(req.body)");
     expect(legacyVehicleBlock).toContain("normalizeVehicleWriteVIN(parsed.data)");
     expect(legacyVehicleBlock).toContain("withNormalizedStockNumber(vinGuard.data)");
     expect(legacyVehicleBlock).toContain("storage.getVehicleByVin(vehicleInput.vin, dealershipId)");
@@ -44,6 +45,7 @@ describe("legacy vehicle route RBAC contract", () => {
     expect(legacyVehicleBlock).toContain("storage.updateVehicle(id, updateData, dealershipId)");
     expect(legacyVehicleBlock).toContain("storage.deleteVehicle(id, dealershipId)");
     expect(legacyVehicleBlock).toContain("eq(vehicles.dealershipId, dealershipId)");
+    expect(legacyVehicleBlock).not.toContain("const { manualHeadline, manualSubheadline, manualDescription } = req.body");
   });
 
   it("requires external imports to store only through deduplication", () => {
