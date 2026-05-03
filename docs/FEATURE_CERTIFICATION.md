@@ -64,6 +64,8 @@ Additional partial proof: vehicle smart merge now accepts only an allowlisted se
 
 Additional partial proof: vehicle smart merge now validates allowed scrape-field values before storage patches. Numeric values must be integers within configured safety ranges, URL and image fields must be HTTP(S), status fields must be known values, date fields must parse as dates, and photo add-only merges now write the merged image array instead of a count. This improves inventory corruption resistance, but does not certify live scrape source-truth accuracy, staging, observability, or rollback proof.
 
+Additional partial proof: `storage.updateVehicle` now strips immutable `id`, `dealershipId`, and `createdAt` fields before dealership-scoped updates and refuses no-op updates when only immutable fields are supplied. This adds storage-layer defense in depth for vehicle tenant ownership, but does not certify full cross-resource tenant isolation, staging, observability, or rollback proof.
+
 ## Feature Certification Matrix
 
 | Feature | Status | CI Proof | Tests | Staging Proof | Logs/Monitoring | Real User Flow | Owner | Notes |

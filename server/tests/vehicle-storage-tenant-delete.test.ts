@@ -53,3 +53,35 @@ describe("vehicle storage tenant delete boundary", () => {
     expect(deleted).toBe(true);
   });
 });
+
+describe("vehicle storage update boundary", () => {
+  it("strips immutable vehicle ownership fields before dealership-scoped updates", async () => {
+    returningMock.mockResolvedValue([{ id: 42, price: 26000 }]);
+    const storage = new DatabaseStorageClass();
+
+    const updated = await storage.updateVehicle(42, {
+      id: 999,
+      dealershipId: 999,
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      price: 26000,
+    } as any, 7);
+
+    expect(updated).toEqual({ id: 42, price: 26000 });
+    expect(updateMock).toHaveBeenCalledTimes(1);
+    expect(setMock).toHaveBeenCalledWith({ price: 26000 });
+  });
+
+  it("does not issue a database update when only immutable fields are supplied", async () => {
+    const storage = new DatabaseStorageClass();
+
+    const updated = await storage.updateVehicle(42, {
+      id: 999,
+      dealershipId: 999,
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+    } as any, 7);
+
+    expect(updated).toBeUndefined();
+    expect(updateMock).not.toHaveBeenCalled();
+    expect(setMock).not.toHaveBeenCalled();
+  });
+});
