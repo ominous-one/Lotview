@@ -274,6 +274,26 @@ function requireScrapeSourceIdParam(req: Request, res: Response): number | null 
   return scrapeSourceId;
 }
 
+function requireConversationIdParam(req: Request, res: Response): number | null {
+  const conversationId = parsePositiveIntegerId(req.params.id);
+  if (!conversationId) {
+    res.status(400).json({ error: "Conversation id must be a positive integer" });
+    return null;
+  }
+
+  return conversationId;
+}
+
+function requireMessageIdParam(req: Request, res: Response): number | null {
+  const messageId = parsePositiveIntegerId(req.params.id);
+  if (!messageId) {
+    res.status(400).json({ error: "Message id must be a positive integer" });
+    return null;
+  }
+
+  return messageId;
+}
+
 async function validateTenantIdentityAvailability(options: {
   slug?: string;
   subdomain?: string;
@@ -5212,8 +5232,10 @@ Provide a single, concise, friendly message that continues the conversation natu
     try {
       const dealershipId = req.dealershipId!;
       
-      const id = parseInt(req.params.id);
-      const conversation = await storage.getConversationById(id, dealershipId);
+      const conversationId = requireConversationIdParam(req, res);
+      if (!conversationId) return;
+
+      const conversation = await storage.getConversationById(conversationId, dealershipId);
 
       if (!conversation) {
         return res.status(404).json({ error: "Conversation not found" });
@@ -5251,7 +5273,8 @@ Provide a single, concise, friendly message that continues the conversation natu
   app.post("/api/messenger-conversations/:id/reply", authMiddleware, requirePermission("messages.write"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const conversationId = parseInt(req.params.id);
+      const conversationId = requireConversationIdParam(req, res);
+      if (!conversationId) return;
       const { message } = req.body;
 
       if (!message || typeof message !== 'string' || message.trim().length === 0) {
@@ -5335,7 +5358,8 @@ Provide a single, concise, friendly message that continues the conversation natu
   app.post("/api/conversations/:id/fwc-message", authMiddleware, requirePermission("messages.write"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const conversationId = parseInt(req.params.id);
+      const conversationId = requireConversationIdParam(req, res);
+      if (!conversationId) return;
       const { type, message, subject } = req.body;
 
       if (!type || !['sms', 'email', 'facebook'].includes(type)) {
@@ -5411,7 +5435,8 @@ Provide a single, concise, friendly message that continues the conversation natu
   app.post("/api/conversations/:id/send-message", authMiddleware, requirePermission("messages.write"), requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const conversationId = parseInt(req.params.id);
+      const conversationId = requireConversationIdParam(req, res);
+      if (!conversationId) return;
       const { channel, message, phone, email, subject } = req.body;
 
       if (!channel || !['sms', 'email'].includes(channel)) {
@@ -5593,11 +5618,8 @@ Provide a single, concise, friendly message that continues the conversation natu
   app.get("/api/messenger-conversations/:id/messages", authMiddleware, requirePermission("messages.read"), requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const conversationId = parseInt(req.params.id);
-
-      if (isNaN(conversationId)) {
-        return res.status(400).json({ error: "Invalid conversation ID" });
-      }
+      const conversationId = requireConversationIdParam(req, res);
+      if (!conversationId) return;
 
       const messages = await storage.getMessengerMessages(dealershipId, conversationId);
       
@@ -5615,12 +5637,9 @@ Provide a single, concise, friendly message that continues the conversation natu
   app.post("/api/messenger-conversations/:id/assign", authMiddleware, requirePermission("messages.write"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const conversationId = parseInt(req.params.id);
+      const conversationId = requireConversationIdParam(req, res);
+      if (!conversationId) return;
       const { assignedToUserId } = req.body;
-
-      if (isNaN(conversationId)) {
-        return res.status(400).json({ error: "Invalid conversation ID" });
-      }
 
       if (!assignedToUserId || typeof assignedToUserId !== 'number') {
         return res.status(400).json({ error: "assignedToUserId is required" });
@@ -5813,7 +5832,8 @@ Provide a single, concise, friendly message that continues the conversation natu
   app.get("/api/messenger-conversations/:id/scheduled", authMiddleware, requirePermission("messages.read"), requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const conversationId = parseInt(req.params.id);
+      const conversationId = requireConversationIdParam(req, res);
+      if (!conversationId) return;
       
       const scheduledMessages = await storage.getScheduledMessagesByConversation(dealershipId, conversationId);
       res.json(scheduledMessages);
@@ -5841,7 +5861,8 @@ Provide a single, concise, friendly message that continues the conversation natu
   app.post("/api/scheduled-messages/:id/cancel", authMiddleware, requirePermission("messages.write"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const messageId = parseInt(req.params.id);
+      const messageId = requireMessageIdParam(req, res);
+      if (!messageId) return;
       
       const cancelled = await storage.cancelScheduledMessage(messageId, dealershipId);
       
@@ -5860,7 +5881,8 @@ Provide a single, concise, friendly message that continues the conversation natu
   app.post("/api/messenger-conversations/:id/toggle-ai", authMiddleware, requirePermission("ai.configure"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const conversationId = parseInt(req.params.id);
+      const conversationId = requireConversationIdParam(req, res);
+      if (!conversationId) return;
       const { enabled, reason } = req.body;
       
       const conversation = await storage.updateMessengerConversation(conversationId, dealershipId, {
@@ -5884,7 +5906,8 @@ Provide a single, concise, friendly message that continues the conversation natu
   app.post("/api/messenger-conversations/:id/toggle-watch-mode", authMiddleware, requirePermission("messages.write"), requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const conversationId = parseInt(req.params.id);
+      const conversationId = requireConversationIdParam(req, res);
+      if (!conversationId) return;
       const { enabled } = req.body;
       
       const conversation = await storage.updateMessengerConversation(conversationId, dealershipId, {
@@ -5911,7 +5934,8 @@ Provide a single, concise, friendly message that continues the conversation natu
   app.patch("/api/messenger-conversations/:id/metadata", authMiddleware, requirePermission("messages.write"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const conversationId = parseInt(req.params.id);
+      const conversationId = requireConversationIdParam(req, res);
+      if (!conversationId) return;
       const { leadStatus, pipelineStage, tags, vehicleOfInterest, assignedToUserId, customerPhone, customerEmail } = req.body;
       
       // Build update object with only provided fields
@@ -5961,7 +5985,8 @@ Provide a single, concise, friendly message that continues the conversation natu
   app.patch("/api/messenger-messages/:id/training", authMiddleware, requirePermission("ai.configure"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const messageId = parseInt(req.params.id);
+      const messageId = requireMessageIdParam(req, res);
+      if (!messageId) return;
       const { editedPrompt, editReason } = req.body;
       
       if (!editedPrompt) {
