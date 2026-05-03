@@ -24,4 +24,12 @@ describe("call participants route RBAC and tenant contract", () => {
     expect(callParticipantsBlock).toContain('return res.status(404).json({ error: "Call recording not found" })');
     expect(callParticipantsBlock).toContain("storage.getCallParticipants(callId)");
   });
+
+  it("rejects malformed call recording ids before scoped participant reads", () => {
+    expect(callParticipantsBlock).toBeDefined();
+    expect(callParticipantsBlock).toContain("requireCallScoringCallIdParam(req, res)");
+    expect(routesSource).toContain("function requireCallScoringCallIdParam(req: Request, res: Response): number | null");
+    expect(routesSource).toContain('res.status(400).json({ error: "Call recording id must be a positive integer" })');
+    expect(callParticipantsBlock).not.toContain("parseInt(req.params.callId");
+  });
 });
