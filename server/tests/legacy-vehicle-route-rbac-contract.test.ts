@@ -75,6 +75,11 @@ describe("legacy vehicle route RBAC contract", () => {
 
   it("requires force rescrape to validate scraped VIN identity before storage writes", () => {
     expect(legacyVehicleActionBlock).toBeDefined();
+    expect(legacyVehicleActionBlock).toContain("resolveForceRescrapeScrapeResult(rawScrapeResult)");
+    expect(legacyVehicleActionBlock).toContain("if (scrapeDecision.ok === false)");
+    expect(legacyVehicleActionBlock).toContain("const result = scrapeDecision.result");
+    expect(legacyVehicleActionBlock!.indexOf("resolveForceRescrapeScrapeResult(rawScrapeResult)"))
+      .toBeLessThan(legacyVehicleActionBlock!.indexOf("const updates: any = {"));
     expect(legacyVehicleActionBlock).toContain("resolveForceRescrapeVINUpdate({");
     expect(legacyVehicleActionBlock).toContain("scrapedVin: result.vin");
     expect(legacyVehicleActionBlock).toContain("vehicle,");
