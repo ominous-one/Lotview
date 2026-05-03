@@ -98,6 +98,8 @@ Additional partial proof: extension automated Marketplace posting now fails clos
 
 Additional partial proof: super-admin vehicle image upload now strictly parses body `dealershipId` and `vehicleId`, treats bulk uploads as `all === true` only, lists dealership inventory with the parsed dealership ID, and loads single vehicles through `storage.getVehicleById(parsedVehicleId, targetDealershipId)` before background image uploads or local image writes.
 
+Additional partial proof: deprecated legacy Facebook page priority vehicle writes now strictly parse every `vehicleIds[]` element and require `storage.getVehicleById(parsedVehicleId, dealershipId)` before saving page priority rows.
+
 ## Feature Certification Matrix
 
 | Feature | Status | CI Proof | Tests | Staging Proof | Logs/Monitoring | Real User Flow | Owner | Notes |
