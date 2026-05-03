@@ -244,6 +244,16 @@ function requireDealershipIdParam(req: Request, res: Response): number | null {
   return dealershipId;
 }
 
+function requireVehicleIdParam(req: Request, res: Response): number | null {
+  const vehicleId = parsePositiveIntegerId(req.params.id);
+  if (!vehicleId) {
+    res.status(400).json({ error: "Vehicle id must be a positive integer" });
+    return null;
+  }
+
+  return vehicleId;
+}
+
 async function validateTenantIdentityAvailability(options: {
   slug?: string;
   subdomain?: string;
@@ -3287,7 +3297,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get vehicle by ID with tenant-scoped view count
   app.get("/api/vehicles/:id", requireDealership, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = requireVehicleIdParam(req, res);
+      if (!id) return;
       // Dealership ID extracted from tenant middleware
       const dealershipId = req.dealershipId!;
       const vehicle = await storage.getVehicleById(id, dealershipId);
@@ -3316,7 +3327,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get full Carfax report for a vehicle
   app.get("/api/vehicles/:id/carfax", requireDealership, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = requireVehicleIdParam(req, res);
+      if (!id) return;
       const dealershipId = req.dealershipId!;
 
       // Verify vehicle belongs to this dealership
@@ -3340,7 +3352,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get Carfax summary for a vehicle (badges, accident count, owner count)
   app.get("/api/vehicles/:id/carfax/summary", requireDealership, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = requireVehicleIdParam(req, res);
+      if (!id) return;
       const dealershipId = req.dealershipId!;
 
       const vehicle = await storage.getVehicleById(id, dealershipId);
@@ -3974,7 +3987,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const token = req.externalToken;
       const dealershipId = req.dealershipId;
-      const vehicleId = parseInt(req.params.id);
+      const vehicleId = requireVehicleIdParam(req, res);
+      if (!vehicleId) return;
       
       // Check permission
       if (!token.permissions.includes("delete:vehicles")) {
@@ -4175,7 +4189,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update vehicle (master only)
   app.patch("/api/vehicles/:id", authMiddleware, requirePermission("inventory.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = requireVehicleIdParam(req, res);
+      if (!id) return;
       const parsed = vehicleUpdateRequestSchema.safeParse(req.body);
       
       if (!parsed.success) {
@@ -4232,7 +4247,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Soft-delete vehicle (manager+). Scrapers will not resurrect user-deleted vehicles.
   app.post("/api/vehicles/:id/soft-delete", authMiddleware, requirePermission("inventory.write"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = requireVehicleIdParam(req, res);
+      if (!id) return;
       const dealershipId = req.dealershipId!;
       const actorUserId = req.user?.id || null;
       const { reason } = req.body as { reason?: string };
@@ -4281,7 +4297,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // These manual edits are preserved across scraper updates
   app.patch("/api/vehicles/:id/vdp-content", authMiddleware, requirePermission("inventory.write"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = requireVehicleIdParam(req, res);
+      if (!id) return;
       const dealershipId = req.dealershipId!;
       const userId = req.user?.id;
       
@@ -4319,7 +4336,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete vehicle (master only)
   app.delete("/api/vehicles/:id", authMiddleware, requirePermission("inventory.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = requireVehicleIdParam(req, res);
+      if (!id) return;
       // Dealership ID extracted from authenticated user via tenant middleware
       const dealershipId = req.dealershipId!;
       const deleted = await storage.deleteVehicle(id, dealershipId);
@@ -4336,7 +4354,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Generate video for vehicle using Gemini Veo (master only)
   app.post("/api/vehicles/:id/generate-video", authMiddleware, requirePermission("ai.use"), requireRole("master"), requireDealership, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = requireVehicleIdParam(req, res);
+      if (!id) return;
       const dealershipId = req.dealershipId!;
       const vehicle = await storage.getVehicleById(id, dealershipId);
       
@@ -4400,7 +4419,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Generate AI description for vehicle using Claude (master only)
   app.post("/api/vehicles/:id/generate-description", authMiddleware, requirePermission("ai.use"), requirePermission("inventory.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = requireVehicleIdParam(req, res);
+      if (!id) return;
       const dealershipId = req.dealershipId!;
 
       const { generateDescription } = await import("./ai-description-generator");
@@ -4434,7 +4454,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Bypasses the 12+ image optimization to get fresh data
   app.post("/api/vehicles/:id/force-rescrape", authMiddleware, requirePermission("integrations.write"), requireRole("manager"), requireDealership, async (req: any, res) => {
     try {
-      const vehicleId = parseInt(req.params.id);
+      const vehicleId = requireVehicleIdParam(req, res);
+      if (!vehicleId) return;
       const dealershipId = req.dealershipId;
 
       // Get the vehicle to find its VDP URL
@@ -4575,7 +4596,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Track vehicle view (for remarketing)
   app.post("/api/vehicles/:id/view", requireDealership, async (req, res) => {
     try {
-      const vehicleId = parseInt(req.params.id);
+      const vehicleId = requireVehicleIdParam(req, res);
+      if (!vehicleId) return;
       const sessionId = req.body.sessionId || `session-${Date.now()}`;
       // Dealership ID obtained from vehicle record for validation
       const dealershipId = req.dealershipId!;
@@ -4598,7 +4620,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get vehicle view count
   app.get("/api/vehicles/:id/views", requireDealership, async (req, res) => {
     try {
-      const vehicleId = parseInt(req.params.id);
+      const vehicleId = requireVehicleIdParam(req, res);
+      if (!vehicleId) return;
       const hours = parseInt(req.query.hours as string) || 24;
       // Dealership ID obtained from vehicle record for validation
       const dealershipId = req.dealershipId!;
@@ -17213,7 +17236,8 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
   app.get("/api/extension/vehicles/:id", extensionHmacMiddleware, authMiddleware, requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const vehicleId = parseInt(req.params.id);
+      const vehicleId = requireVehicleIdParam(req, res);
+      if (!vehicleId) return;
 
       const vehicleResult = await db
         .select()
@@ -17249,7 +17273,8 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
     try {
       const dealershipId = req.dealershipId!;
       const userId = req.user!.id;
-      const vehicleId = parseInt(req.params.id);
+      const vehicleId = requireVehicleIdParam(req, res);
+      if (!vehicleId) return;
       const { platform } = req.body;
 
       // Verify vehicle exists and belongs to dealership
