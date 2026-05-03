@@ -3422,22 +3422,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/super-admin/upload-vehicle-images", authMiddleware, requirePermission("inventory.write"), superAdminOnly, async (req, res) => {
     try {
       const { dealershipId, vehicleId, all = false } = req.body;
+      const parsedDealershipId = parseOptionalPositiveIntegerBodyValue(dealershipId, res, "dealershipId");
+      if (parsedDealershipId === null) return;
+      const parsedVehicleId = parseOptionalPositiveIntegerBodyValue(vehicleId, res, "vehicleId");
+      if (parsedVehicleId === null) return;
+      const targetDealershipId = parsedDealershipId ?? req.dealershipId;
+      const uploadAll = all === true;
       const { ObjectStorageService } = await import("./objectStorage");
       const objectStorageService = new ObjectStorageService();
       
       let vehiclesToProcess: any[] = [];
       
-      if (all && dealershipId) {
+      if (uploadAll && targetDealershipId) {
         // Upload images for all vehicles in a dealership
-        const { vehicles: vehicleList } = await storage.getVehicles(dealershipId, 500, 0);
+        const { vehicles: vehicleList } = await storage.getVehicles(targetDealershipId, 500, 0);
         vehiclesToProcess = vehicleList.filter(v => v.images && v.images.length > 0 && (!v.localImages || v.localImages.length === 0));
-      } else if (vehicleId) {
-        // Upload images for a single vehicle - SECURITY: filter by dealershipId to prevent cross-tenant access
-        const targetDealershipId = dealershipId || req.dealershipId;
+      } else if (parsedVehicleId !== undefined) {
         if (!targetDealershipId) {
           return res.status(400).json({ error: "Dealership context required" });
         }
-        const [vehicle] = await db.select().from(vehicles).where(and(eq(vehicles.id, vehicleId), eq(vehicles.dealershipId, targetDealershipId))).limit(1);
+        const vehicle = await storage.getVehicleById(parsedVehicleId, targetDealershipId);
         if (vehicle && vehicle.images && vehicle.images.length > 0) {
           vehiclesToProcess = [vehicle];
         }
