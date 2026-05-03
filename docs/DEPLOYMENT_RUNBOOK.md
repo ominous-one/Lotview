@@ -75,6 +75,14 @@ Optional GitHub environment secret:
 
 - `RENDER_DEPLOY_HOOK_URL`
 
+Configure them with the GitHub CLI:
+
+```bash
+gh variable set RENDER_STAGING_ENABLED --body true
+gh variable set RENDER_STAGING_BASE_URL --body https://<staging-host>
+gh secret set RENDER_DEPLOY_HOOK_URL
+```
+
 When enabled, the job triggers the Render deploy hook if configured. If no hook is configured, it relies on Render GitHub auto-deploy and still requires proof by polling:
 
 - `/api/health`
@@ -84,6 +92,8 @@ When enabled, the job triggers the Render deploy hook if configured. If no hook 
 The `/api/version` response must report the same commit SHA as the GitHub Actions run. Render exposes `RENDER_GIT_COMMIT` at runtime, and Lotview includes that value in the version endpoint for deploy proof.
 
 If the job is skipped, Render staging is not certified for that commit.
+
+Do not use hard-coded example hosts as proof. The staging base URL must be the actual Render service serving the current commit.
 
 ## Post-Deploy Smoke Flow
 

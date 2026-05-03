@@ -1,100 +1,99 @@
-# Lotview v1.0 — Deployment Checklist
+# Lotview Deployment Checklist
 
-## ✅ What's Ready (All Complete)
+This checklist records deployment proof. It does not certify production readiness by itself.
 
-### 1. Render Infrastructure (render.yaml)
-| Service | Type | Plan | Purpose |
-|---------|------|------|---------|
-| lotview-api | Web | Standard | API + static files |
-| lotview-worker | Worker | Starter | Background jobs + schedulers |
-| lotview-daily-scrape | Cron | Starter | Daily 6 AM inventory scrape |
-| lotview-carfax-refresh | Cron | Starter | Hourly Carfax refresh |
-| lotview-db | PostgreSQL | Standard | Database |
-| lotview-redis | Redis | Starter | Cache + sessions |
+## Certification Boundary
 
-### 2. Build Pipeline
-```
-Git Push → GitHub Actions → Lint → Test → Docker Build → Deploy to Render → Health Check
-```
+- GitHub CI must pass on `main`.
+- Docker build must pass in GitHub Actions.
+- Render staging is not certified until the `Render Staging Proof` job runs green against the configured staging URL.
+- A service is not live proof because Render is connected to GitHub.
+- A feature is not production-ready because its route, worker, or UI exists.
 
-**Build outputs verified:**
-- `dist/index.js` — Web server (matches render.yaml CMD + Dockerfile)
-- `dist/index-worker.js` — Worker (matches render.yaml dockerCommand)
-- `dist/scripts/run-daily-scrape.js` — Daily scrape cron (matches render.yaml)
-- `dist/scripts/run-carfax-refresh.js` — Carfax refresh cron (matches render.yaml)
+## Required Pre-Deploy Proof
 
-### 3. Database Migrations
-- `0001_performance_indexes.sql` — Query optimization
-- `0002_carfax_merge_ai_fields.sql` — Carfax fields, smart merge, AI tracking
+- [ ] Pull request merged into `main`.
+- [ ] `Production Gates` workflow passed.
+- [ ] `Lotview SaaS Verification` workflow passed.
+- [ ] `Frontend Verification` workflow passed.
+- [ ] `Lotview SaaS - CI/CD` workflow passed.
+- [ ] CI `Docker Build` job passed for the same commit.
+- [ ] Render is building from the same `main` commit.
+- [ ] Render web service has required environment variables.
+- [ ] Render worker service has required environment variables.
+- [ ] Web service has `LOTVIEW_ENABLE_SCHEDULERS=false`.
+- [ ] Worker service has `LOTVIEW_ENABLE_SCHEDULERS=true`.
+- [ ] External integrations remain disabled, staging-only, or fail-closed unless certified.
+- [ ] Rollback target commit is identified.
 
-### 4. Core Services (29 production services)
-- **Carfax scraper** — VIN-based scraping with badge extraction
-- **Smart merge** — Field-level locking, conditional updates
-- **Role-based editing** — GM, Sales Manager, Salesperson permissions
-- **AI Carfax trainer** — Intent detection, sales response generation
-- **Market intelligence** — Pricing recommendations with seasonality
-- **Photo AI** — Quality scoring, VDP descriptions, SEO keywords
-- **Olympic Hyundai scraper** — 30/30 vehicle extraction verified
+## Render Blueprint
 
-### 5. Security
-- HMAC verification, CSRF protection
-- Rate limiting (Redis-backed)
-- Data retention policies
-- Webhook signature verification
+`render.yaml` defines the intended Render stack:
 
-## 🚀 Deploy Steps
+| Service | Type | Purpose |
+|---|---|---|
+| `lotview-api` | Web | Express API and static frontend |
+| `lotview-worker` | Worker | Background jobs and schedulers |
+| `lotview-db` | PostgreSQL | Main database |
+| `lotview-redis` | Redis | Cache, sessions, queues |
 
-### Step 1: Push to GitHub
+The committed Docker build path is `./Dockerfile`.
+
+## GitHub Actions Render Proof
+
+Set these repository variables before expecting Render staging proof:
 
 ```bash
-# Option A: Use the push script
-export GITHUB_TOKEN=ghp_your_token_here
-cd lotview-wired
-./PUSH_TO_GITHUB.sh
-
-# Option B: Manual push
-cd lotview-wired
-git remote add origin https://github.com/ominous-one/Lotview.git
-git push -u origin main --force
+gh variable set RENDER_STAGING_ENABLED --body true
+gh variable set RENDER_STAGING_BASE_URL --body https://<your-render-staging-service>
 ```
 
-### Step 2: Deploy on Render
-
-1. Go to https://dashboard.render.com/blueprints
-2. Click "New Blueprint Instance"
-3. Connect your GitHub repo (ominous-one/Lotview)
-4. Render reads `render.yaml` and provisions all 6 services
-5. Add environment secrets in Render Dashboard:
-   - `OPENAI_API_KEY`
-   - `ANTHROPIC_API_KEY`
-   - `BROWSERLESS_TOKEN`
-   - `GHL_CLIENT_ID` + `GHL_CLIENT_SECRET` + `GHL_API_KEY`
-   - `FACEBOOK_APP_ID` + `FACEBOOK_APP_SECRET`
-
-### Step 3: Verify Deployment
+If using a deploy hook, set it as a secret:
 
 ```bash
-# Check health
-curl https://lotview-api.onrender.com/api/health
-
-# Check ready (includes DB + Redis)
-curl https://lotview-api.onrender.com/api/ready
-
-# Run scraper test
-curl -X POST https://lotview-api.onrender.com/api/scrape/test
+gh secret set RENDER_DEPLOY_HOOK_URL
 ```
 
-## 📊 Production Readiness Scorecard
+The `Render Staging Proof` job must verify:
 
-| Category | Score | Status |
-|----------|-------|--------|
-| Infrastructure | 10/10 | Docker, Render Blueprint, CI/CD |
-| Scraping | 10/10 | 30/30 vehicles, Cloudflare bypass |
-| Carfax Integration | 10/10 | Scraping, AI training, caching |
-| Smart Merge | 10/10 | Field-level locking, conditional updates |
-| Role-Based Editing | 10/10 | GM, Manager, Salesperson permissions |
-| AI Integration | 10/10 | Descriptions, market intel, photo scoring |
-| Security | 10/10 | HMAC, CSRF, rate limiting, RBAC |
-| Deployment | 10/10 | Render + GitHub fully automated |
+- `/api/health`
+- `/api/ready`
+- `/api/version`
 
-**Overall: 10/10 — Production Ready**
+The `/api/version` response must report the same commit SHA as the GitHub Actions run.
+
+## Manual Smoke Verification
+
+Use the actual Render staging or production URL:
+
+```bash
+BASE_URL=https://<your-render-service>
+curl -fsS "$BASE_URL/api/health"
+curl -fsS "$BASE_URL/api/ready"
+curl -fsS "$BASE_URL/api/version"
+```
+
+Then verify the app flow:
+
+- [ ] Login page loads.
+- [ ] User can log in.
+- [ ] Dashboard loads for the correct dealership.
+- [ ] Inventory list loads from authenticated API data.
+- [ ] Vehicle detail opens from real inventory data.
+- [ ] User can log out.
+- [ ] Web logs show no boot errors.
+- [ ] Worker logs show no crash loop.
+- [ ] Failed integrations remain visible or fail-closed.
+
+## Do Not Count As Proof
+
+- A hard-coded example URL.
+- A skipped Render staging proof job.
+- A Render service connected to GitHub but serving a different commit.
+- A successful Docker build without a live health/readiness check.
+- A scraper route that exists but lacks source-truth certification.
+- A frontend shell without staging user-flow proof.
+
+## Launch Rule
+
+If any required proof is missing, keep the affected feature disabled, staging-only, or fail-closed.
