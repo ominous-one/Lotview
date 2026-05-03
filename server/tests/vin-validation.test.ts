@@ -58,6 +58,24 @@ describe("VIN validation", () => {
     });
   });
 
+  it("rejects VINs with invalid position-10 model year codes", () => {
+    expect(validateVIN("1HGCM82630A004352")).toMatchObject({
+      vin: "1HGCM82630A004352",
+      isValid: false,
+      errorCode: "INVALID_VIN_MODEL_YEAR",
+    });
+    expect(validateVIN("1HGCM8263UA004352")).toMatchObject({
+      vin: "1HGCM8263UA004352",
+      isValid: false,
+      errorCode: "INVALID_VIN_MODEL_YEAR",
+    });
+    expect(validateVIN("1HGCM8263ZA004352")).toMatchObject({
+      vin: "1HGCM8263ZA004352",
+      isValid: false,
+      errorCode: "INVALID_VIN_MODEL_YEAR",
+    });
+  });
+
   it("rejects VINs with an invalid check digit", () => {
     expect(validateVIN("1HGCM82643A004352")).toMatchObject({
       isValid: false,
