@@ -23,21 +23,41 @@ const completeVehiclePayload = {
 };
 
 describe("vehicle write request schemas", () => {
-  it("does not require or preserve client-supplied tenant or derived identity fields on create", () => {
-    const parsed = vehicleCreateRequestSchema.safeParse(completeVehiclePayload);
+  it("does not require or preserve client-supplied tenant, derived identity, or manual audit fields on create", () => {
+    const parsed = vehicleCreateRequestSchema.safeParse({
+      ...completeVehiclePayload,
+      manualHeadline: "Spoofed headline",
+      manualSubheadline: "Spoofed subheadline",
+      manualDescription: "Spoofed manual copy",
+      isManuallyEdited: true,
+      lastEditedBy: 999,
+      lastEditedAt: new Date("2026-01-01T00:00:00.000Z"),
+    });
 
     expect(parsed.success).toBe(true);
     if (parsed.success) {
       expect(parsed.data).not.toHaveProperty("dealershipId");
       expect(parsed.data).not.toHaveProperty("normalizedStockNumber");
+      expect(parsed.data).not.toHaveProperty("manualHeadline");
+      expect(parsed.data).not.toHaveProperty("manualSubheadline");
+      expect(parsed.data).not.toHaveProperty("manualDescription");
+      expect(parsed.data).not.toHaveProperty("isManuallyEdited");
+      expect(parsed.data).not.toHaveProperty("lastEditedBy");
+      expect(parsed.data).not.toHaveProperty("lastEditedAt");
       expect(parsed.data.vin).toBe("1HGCM82633A004352");
     }
   });
 
-  it("does not preserve client-supplied tenant or derived identity fields on update", () => {
+  it("does not preserve client-supplied tenant, derived identity, or manual audit fields on update", () => {
     const parsed = vehicleUpdateRequestSchema.safeParse({
       dealershipId: 999,
       normalizedStockNumber: "SPOOFED",
+      manualHeadline: "Spoofed headline",
+      manualSubheadline: "Spoofed subheadline",
+      manualDescription: "Spoofed manual copy",
+      isManuallyEdited: false,
+      lastEditedBy: 999,
+      lastEditedAt: new Date("2026-01-01T00:00:00.000Z"),
       price: 26000,
     });
 

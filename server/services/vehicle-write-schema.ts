@@ -4,6 +4,12 @@ import type { z } from "zod";
 export const vehicleCreateRequestSchema = insertVehicleSchema.omit({
   dealershipId: true,
   normalizedStockNumber: true,
+  manualHeadline: true,
+  manualSubheadline: true,
+  manualDescription: true,
+  isManuallyEdited: true,
+  lastEditedBy: true,
+  lastEditedAt: true,
 });
 
 export const vehicleUpdateRequestSchema = vehicleCreateRequestSchema.partial();
