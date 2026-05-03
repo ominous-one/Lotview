@@ -71,6 +71,7 @@ import { createExternalApiMiddleware } from "./services/external-api-guard";
 import { scrapeCarfaxReportCloud } from "./services/carfax-browserless";
 import { initializeFlagsFromEnv, isEnabled } from "./services/feature-flags";
 import { hasVehicleVINWriteError, normalizeVehicleWriteVIN, vehicleVINWriteErrorResponse } from "./services/vehicle-vin-write-guard";
+import { resolveForceRescrapeVINUpdate } from "./services/force-rescrape-vin-identity";
 import { vehicleCreateRequestSchema, vehicleUpdateRequestSchema, withResolvedVehicleDealership } from "./services/vehicle-write-schema";
 import { storeExternalVehicleImport } from "./services/external-vehicle-import-safety";
 import { findActiveStockNumberConflict, withNormalizedStockNumber } from "./services/vehicle-stock-number";
@@ -5044,9 +5045,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         updates.images = photoGuard.enrichedPhotos;
         console.log(`[PhotoGuard] Vehicle ${vehicleId}: ${photoGuard.added} added, ${photoGuard.preserved} preserved, ${photoGuard.skipped} skipped`);
       }
-      if (result.vin && result.vin.length === 17) {
-        updates.vin = result.vin;
+      const vinDecision = await resolveForceRescrapeVINUpdate({
+        scrapedVin: result.vin,
+        vehicle,
+        dealershipId,
+        findVehicleByVin: storage.getVehicleByVin.bind(storage),
+      });
+      if (vinDecision.ok === false) {
+        return res.status(vinDecision.status).json(vinDecision.body);
       }
+      Object.assign(updates, vinDecision.update);
+
       if (result.trim) {
         updates.trim = result.trim;
       }
