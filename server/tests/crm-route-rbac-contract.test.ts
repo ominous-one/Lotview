@@ -12,6 +12,10 @@ describe("CRM route RBAC and tenant contract", () => {
     routesSource.indexOf("  // ===== CRM TASKS ====="),
     routesSource.indexOf("  // ===== CRM MESSAGE TEMPLATES =====")
   );
+  const crmMessageTemplateRoutesSource = routesSource.slice(
+    routesSource.indexOf("  // ===== CRM MESSAGE TEMPLATES ====="),
+    routesSource.indexOf("  // ===== CRM MESSAGING =====")
+  );
   const crmMessagingRoutesSource = routesSource.slice(
     routesSource.indexOf("  // ===== CRM MESSAGING ====="),
     routesSource.indexOf("  // =====================\n  // Email API Routes")
@@ -165,5 +169,19 @@ describe("CRM route RBAC and tenant contract", () => {
       "const id = parseInt(req.params.id);\n      const userId = req.user?.id;\n      const userRole = req.user?.role;",
       "const id = parseInt(req.params.id);\n      \n      const deleted = await storage.deleteCrmTask(id, dealershipId);",
     ].forEach((unsafeParse) => expect(crmTaskRoutesSource).not.toContain(unsafeParse));
+  });
+
+  it("fails closed on malformed CRM message template identifiers before storage access", () => {
+    [
+      "function requireCrmMessageTemplateIdParam(req: Request, res: Response): number | null",
+      "CRM message template id must be a positive integer",
+      "const id = requireCrmMessageTemplateIdParam(req, res)",
+    ].forEach((guard) => expect(routesSource).toContain(guard));
+
+    [
+      "const id = parseInt(req.params.id);\n      \n      const template = await storage.getCrmMessageTemplateById(id, dealershipId);",
+      "const id = parseInt(req.params.id);\n      \n      const updates = stripTenantOwnershipFields(req.body ?? {});",
+      "const id = parseInt(req.params.id);\n      \n      const deleted = await storage.deleteCrmMessageTemplate(id, dealershipId);",
+    ].forEach((unsafeParse) => expect(crmMessageTemplateRoutesSource).not.toContain(unsafeParse));
   });
 });
