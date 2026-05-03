@@ -72,4 +72,15 @@ describe("legacy vehicle route RBAC contract", () => {
       expect(legacyVehicleActionBlock).toContain(route);
     }
   });
+
+  it("requires force rescrape to validate scraped VIN identity before storage writes", () => {
+    expect(legacyVehicleActionBlock).toBeDefined();
+    expect(legacyVehicleActionBlock).toContain("resolveForceRescrapeVINUpdate({");
+    expect(legacyVehicleActionBlock).toContain("scrapedVin: result.vin");
+    expect(legacyVehicleActionBlock).toContain("vehicle,");
+    expect(legacyVehicleActionBlock).toContain("findVehicleByVin: storage.getVehicleByVin.bind(storage)");
+    expect(legacyVehicleActionBlock).toContain("if (vinDecision.ok === false)");
+    expect(legacyVehicleActionBlock).toContain("Object.assign(updates, vinDecision.update)");
+    expect(legacyVehicleActionBlock).not.toContain("if (result.vin && result.vin.length === 17)");
+  });
 });
