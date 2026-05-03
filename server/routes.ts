@@ -731,6 +731,20 @@ function parseOptionalPositiveIntegerQueryParam(value: unknown, res: Response, l
   return parsed;
 }
 
+function parseOptionalPositiveIntegerBodyValue(value: unknown, res: Response, label: string): number | null | undefined {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+
+  const parsed = parsePositiveIntegerId(value);
+  if (!parsed) {
+    res.status(400).json({ error: `${label} must be a positive integer` });
+    return null;
+  }
+
+  return parsed;
+}
+
 function parseOptionalNonNegativeIntegerQueryParam(value: unknown, res: Response, label: string): number | null | undefined {
   if (value === undefined) {
     return undefined;
@@ -5665,6 +5679,24 @@ Provide a single, concise, friendly message that continues the conversation natu
 
       // Dealership ID from request context
       const dealershipId = req.dealershipId!;
+      const parsedVehicleId = parseOptionalPositiveIntegerBodyValue(vehicleId, res, "vehicleId");
+      if (parsedVehicleId === null) return;
+
+      let scopedVehicleName = typeof vehicleName === "string" && vehicleName.trim()
+        ? vehicleName.trim()
+        : null;
+
+      if (parsedVehicleId !== undefined) {
+        const scopedVehicle = await storage.getVehicleById(parsedVehicleId, dealershipId);
+        if (!scopedVehicle) {
+          return res.status(404).json({ error: "Vehicle not found" });
+        }
+
+        scopedVehicleName = [scopedVehicle.year, scopedVehicle.make, scopedVehicle.model, scopedVehicle.trim]
+          .filter((part) => part !== null && part !== undefined && String(part).trim().length > 0)
+          .map((part) => String(part).trim())
+          .join(" ") || scopedVehicleName;
+      }
 
       // Add timestamps to messages if not already present
       const messagesWithTimestamps = messages.map((msg: any, index: number) => {
@@ -5681,8 +5713,8 @@ Provide a single, concise, friendly message that continues the conversation natu
       const conversation = await storage.saveChatConversation({
         dealershipId,
         category,
-        vehicleId: vehicleId || null,
-        vehicleName: vehicleName || null,
+        vehicleId: parsedVehicleId ?? null,
+        vehicleName: scopedVehicleName,
         messages: JSON.stringify(messagesWithTimestamps),
         sessionId
       });

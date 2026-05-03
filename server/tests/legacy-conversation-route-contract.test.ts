@@ -3,9 +3,30 @@ import { resolve } from "path";
 
 describe("legacy conversation route tenant and RBAC contract", () => {
   const routesSource = readFileSync(resolve(process.cwd(), "server/routes.ts"), "utf8");
+  const saveConversationBlock = routesSource.match(
+    /\/\/ Save conversation \(public - conversations are saved automatically\)[\s\S]*?\/\/ Get all conversations/
+  )?.[0];
 
   it("requires dealership context before saving public conversations", () => {
     expect(routesSource).toContain('app.post("/api/conversations", requireDealership');
+  });
+
+  it("requires strict scoped vehicle proof before saving public conversation vehicle links", () => {
+    expect(saveConversationBlock).toBeDefined();
+    expect(routesSource).toContain("function parseOptionalPositiveIntegerBodyValue(value: unknown, res: Response, label: string)");
+    expect(saveConversationBlock).toContain('const parsedVehicleId = parseOptionalPositiveIntegerBodyValue(vehicleId, res, "vehicleId");');
+    expect(saveConversationBlock).toContain("if (parsedVehicleId === null) return;");
+    expect(saveConversationBlock).toContain("const scopedVehicle = await storage.getVehicleById(parsedVehicleId, dealershipId);");
+    expect(saveConversationBlock).toContain('return res.status(404).json({ error: "Vehicle not found" });');
+    expect(saveConversationBlock).toContain("vehicleId: parsedVehicleId ?? null");
+    expect(saveConversationBlock).not.toContain("vehicleId: vehicleId || null");
+  });
+
+  it("derives public conversation vehicle names from the scoped vehicle when a vehicle id is linked", () => {
+    expect(saveConversationBlock).toBeDefined();
+    expect(saveConversationBlock).toContain("scopedVehicleName = [scopedVehicle.year, scopedVehicle.make, scopedVehicle.model, scopedVehicle.trim]");
+    expect(saveConversationBlock).toContain("vehicleName: scopedVehicleName");
+    expect(saveConversationBlock).not.toContain("vehicleName: vehicleName || null");
   });
 
   it("requires message read permission, role floor, and dealership context for conversation reads", () => {
