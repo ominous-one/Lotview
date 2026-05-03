@@ -50,7 +50,7 @@ function scrapedVehicle(index: number, vin = validVin(index)) {
     year: 2003,
     make: "Honda",
     model: "Accord",
-    photos: [`vehicle-${index}.jpg`],
+    photos: [`https://cdn.example.com/vehicle-${index}.jpg`],
   };
 }
 
@@ -107,7 +107,7 @@ describe("scrape validator invalid VIN handling", () => {
       {
         vin: vinMissingFacts,
         price: 24995,
-        photos: ["missing-identity.jpg"],
+        photos: ["https://cdn.example.com/missing-identity.jpg"],
       },
     ];
 
@@ -144,7 +144,7 @@ describe("scrape validator invalid VIN handling", () => {
         year: 2003,
         make: "Honda",
         model: "Accord",
-        photos: ["missing-price.jpg"],
+        photos: ["https://cdn.example.com/missing-price.jpg"],
       },
     ];
 
@@ -277,5 +277,62 @@ describe("scrape validator invalid VIN handling", () => {
       expect.stringContaining("Invalid required identity facts")
     );
     expect(sendQualityAlertMock).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when scraped source URLs are unsafe", async () => {
+    const unsafeSourceVin = validVin(22);
+    const vehicles = [
+      {
+        ...scrapedVehicle(22, unsafeSourceVin),
+        sourceUrl: "javascript:alert(1)",
+      },
+    ];
+
+    const result = await scrapeValidator.validateScrape(7, vehicles);
+
+    expect(result).toMatchObject({
+      isValid: false,
+      vehiclesFound: 1,
+      validVins: 1,
+      invalidVins: [],
+      vehiclesWithPhotos: 1,
+    });
+    expect(result.errors).toContain(
+      `Invalid scraped source URLs in scrape result: ${unsafeSourceVin}(javascript:alert(1))`
+    );
+    expect(sendScrapeFailureAlertMock).toHaveBeenCalledWith(
+      7,
+      expect.stringContaining("Invalid scraped source URLs")
+    );
+    expect(sendQualityAlertMock).not.toHaveBeenCalled();
+  });
+
+  it("fails closed and does not count unsafe scraped photo URLs as coverage", async () => {
+    const unsafePhotoVin = validVin(23);
+    const vehicles = [
+      {
+        ...scrapedVehicle(23, unsafePhotoVin),
+        photos: ["javascript:alert(1)"],
+      },
+    ];
+
+    const result = await scrapeValidator.validateScrape(7, vehicles);
+
+    expect(result).toMatchObject({
+      isValid: false,
+      vehiclesFound: 1,
+      validVins: 1,
+      invalidVins: [],
+      vehiclesWithPhotos: 0,
+    });
+    expect(result.errors).toContain(
+      `Invalid scraped photo URLs in scrape result: ${unsafePhotoVin}(javascript:alert(1))`
+    );
+    expect(result.warnings).toContain("Photo coverage 0% below threshold 50%");
+    expect(sendScrapeFailureAlertMock).toHaveBeenCalledWith(
+      7,
+      expect.stringContaining("Invalid scraped photo URLs")
+    );
+    expect(sendQualityAlertMock).toHaveBeenCalledWith(7, 1, 0);
   });
 });

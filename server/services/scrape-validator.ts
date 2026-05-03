@@ -131,9 +131,28 @@ export async function validateScrape(
   }
 
   // 5. Photo coverage
-  const vehiclesWithPhotos = vehicles.filter(
-    (v) => v.photos && v.photos.length > 0
-  ).length;
+  const invalidPhotoFields: Array<{ vin: string; value: unknown }> = [];
+  const vehiclesWithPhotos = vehicles.filter((v) => {
+    if (v.photos === undefined || v.photos === null) {
+      return false;
+    }
+
+    if (!Array.isArray(v.photos)) {
+      invalidPhotoFields.push({ vin: v.vin || "(unknown)", value: v.photos });
+      return false;
+    }
+
+    let hasSafePhoto = false;
+    for (const photo of v.photos) {
+      if (isHttpUrl(photo)) {
+        hasSafePhoto = true;
+      } else {
+        invalidPhotoFields.push({ vin: v.vin || "(unknown)", value: photo });
+      }
+    }
+
+    return hasSafePhoto;
+  }).length;
   const photoRatio = vehiclesFound > 0 ? vehiclesWithPhotos / vehiclesFound : 0;
   if (photoRatio < VALIDATION_RULES.photoCoverageRatio) {
     warnings.push(
@@ -150,6 +169,7 @@ export async function validateScrape(
   const invalidPriceFields: Array<{ vin: string; price: unknown }> = [];
   const invalidMileageFields: Array<{ vin: string; field: "mileage" | "odometer"; value: unknown }> = [];
   const invalidIdentityFields: Array<{ vin: string; field: "year" | "make" | "model"; value: unknown }> = [];
+  const invalidSourceUrlFields: Array<{ vin: string; sourceUrl: unknown }> = [];
   for (const v of vehicles) {
     const missing = VALIDATION_RULES.requiredFields.filter(
       (field) => v[field] === undefined || v[field] === null || v[field] === ""
@@ -194,6 +214,9 @@ export async function validateScrape(
     if (modelValue !== undefined && modelValue !== null && modelValue !== "" && !isNonEmptyString(modelValue)) {
       invalidIdentityFields.push({ vin: v.vin || "(unknown)", field: "model", value: modelValue });
     }
+    if (v.sourceUrl !== undefined && v.sourceUrl !== null && v.sourceUrl !== "" && !isHttpUrl(v.sourceUrl)) {
+      invalidSourceUrlFields.push({ vin: v.vin || "(unknown)", sourceUrl: v.sourceUrl });
+    }
   }
   if (missingIdentityFields.length > 0) {
     errors.push(
@@ -232,6 +255,22 @@ export async function validateScrape(
       `Invalid required identity facts in scrape result: ${invalidIdentityFields
         .slice(0, 10)
         .map((entry) => `${entry.vin}(${entry.field}=${String(entry.value)})`)
+        .join("; ")}`
+    );
+  }
+  if (invalidSourceUrlFields.length > 0) {
+    errors.push(
+      `Invalid scraped source URLs in scrape result: ${invalidSourceUrlFields
+        .slice(0, 10)
+        .map((entry) => `${entry.vin}(${String(entry.sourceUrl)})`)
+        .join("; ")}`
+    );
+  }
+  if (invalidPhotoFields.length > 0) {
+    errors.push(
+      `Invalid scraped photo URLs in scrape result: ${invalidPhotoFields
+        .slice(0, 10)
+        .map((entry) => `${entry.vin}(${String(entry.value)})`)
         .join("; ")}`
     );
   }
@@ -330,6 +369,17 @@ function isValidModelYear(value: unknown): value is number {
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+function isHttpUrl(value: unknown): value is string {
+  if (typeof value !== "string" || value.trim().length === 0) return false;
+
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 function median(values: number[]): number {
