@@ -10,6 +10,19 @@ export const vehicleCreateRequestSchema = insertVehicleSchema.omit({
   isManuallyEdited: true,
   lastEditedBy: true,
   lastEditedAt: true,
+  lastScrapedAt: true,
+  verificationStatus: true,
+  verificationCheckedAt: true,
+  missedScrapeCount: true,
+  deletedAt: true,
+  deletedByUserId: true,
+  deletedReason: true,
+  lifecycleStatus: true,
+  photoEnrichFailCount: true,
+  photoEnrichLastAttemptAt: true,
+  photoEnrichLastError: true,
+  photoFingerprint: true,
+  lastPriceRefreshAt: true,
 });
 
 export const vehicleUpdateRequestSchema = vehicleCreateRequestSchema.partial();

@@ -23,7 +23,29 @@ const completeVehiclePayload = {
 };
 
 describe("vehicle write request schemas", () => {
-  it("does not require or preserve client-supplied tenant, derived identity, or manual audit fields on create", () => {
+  const spoofedSystemFields = {
+    lastScrapedAt: new Date("2026-01-01T00:00:00.000Z"),
+    verificationStatus: "VERIFIED",
+    verificationCheckedAt: new Date("2026-01-01T00:00:00.000Z"),
+    missedScrapeCount: 99,
+    deletedAt: new Date("2026-01-01T00:00:00.000Z"),
+    deletedByUserId: 999,
+    deletedReason: "SPOOFED_DELETE",
+    lifecycleStatus: "DELETED",
+    photoEnrichFailCount: 99,
+    photoEnrichLastAttemptAt: new Date("2026-01-01T00:00:00.000Z"),
+    photoEnrichLastError: "spoofed error",
+    photoFingerprint: "spoofed-fingerprint",
+    lastPriceRefreshAt: new Date("2026-01-01T00:00:00.000Z"),
+  };
+
+  function expectSpoofedSystemFieldsStripped(parsedData: Record<string, unknown>): void {
+    for (const field of Object.keys(spoofedSystemFields)) {
+      expect(parsedData).not.toHaveProperty(field);
+    }
+  }
+
+  it("does not require or preserve client-supplied tenant, derived identity, manual audit, or system provenance fields on create", () => {
     const parsed = vehicleCreateRequestSchema.safeParse({
       ...completeVehiclePayload,
       manualHeadline: "Spoofed headline",
@@ -32,6 +54,7 @@ describe("vehicle write request schemas", () => {
       isManuallyEdited: true,
       lastEditedBy: 999,
       lastEditedAt: new Date("2026-01-01T00:00:00.000Z"),
+      ...spoofedSystemFields,
     });
 
     expect(parsed.success).toBe(true);
@@ -44,11 +67,12 @@ describe("vehicle write request schemas", () => {
       expect(parsed.data).not.toHaveProperty("isManuallyEdited");
       expect(parsed.data).not.toHaveProperty("lastEditedBy");
       expect(parsed.data).not.toHaveProperty("lastEditedAt");
+      expectSpoofedSystemFieldsStripped(parsed.data);
       expect(parsed.data.vin).toBe("1HGCM82633A004352");
     }
   });
 
-  it("does not preserve client-supplied tenant, derived identity, or manual audit fields on update", () => {
+  it("does not preserve client-supplied tenant, derived identity, manual audit, or system provenance fields on update", () => {
     const parsed = vehicleUpdateRequestSchema.safeParse({
       dealershipId: 999,
       normalizedStockNumber: "SPOOFED",
@@ -58,6 +82,7 @@ describe("vehicle write request schemas", () => {
       isManuallyEdited: false,
       lastEditedBy: 999,
       lastEditedAt: new Date("2026-01-01T00:00:00.000Z"),
+      ...spoofedSystemFields,
       price: 26000,
     });
 
