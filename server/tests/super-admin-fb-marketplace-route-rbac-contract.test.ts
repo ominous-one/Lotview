@@ -52,6 +52,19 @@ describe("super-admin FB Marketplace route RBAC contract", () => {
     );
   });
 
+  it("strictly validates marketplace account route ids before account mutations and auth actions", () => {
+    expect(superAdminMarketplaceBlock).toBeDefined();
+    expect(routesSource).toContain("function requireFbMarketplaceAccountIdParam");
+    expect(routesSource).toContain("const accountId = parsePositiveIntegerId(req.params.accountId)");
+
+    const strictAccountIdChecks = superAdminMarketplaceBlock?.match(
+      /requireFbMarketplaceAccountIdParam\(req, res\)/g
+    ) ?? [];
+
+    expect(strictAccountIdChecks.length).toBe(3);
+    expect(superAdminMarketplaceBlock).not.toContain("parseInt(req.params.accountId");
+  });
+
   it("does not leave super-admin marketplace routes guarded only by superAdminOnly", () => {
     expect(superAdminMarketplaceBlock).toBeDefined();
 

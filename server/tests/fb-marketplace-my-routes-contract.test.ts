@@ -40,6 +40,19 @@ describe("FB Marketplace my-route RBAC and tenant contract", () => {
     expect(myMarketplaceBlock).toContain("service.queueVehicleForPosting(vehicleId, priority || 5, { userId, accountId })");
   });
 
+  it("strictly validates user-owned marketplace account route ids before scoped account lookups", () => {
+    expect(myMarketplaceBlock).toBeDefined();
+    expect(routesSource).toContain("function requireFbMarketplaceAccountIdParam");
+    expect(routesSource).toContain("const accountId = parsePositiveIntegerId(req.params.accountId)");
+
+    const strictAccountIdChecks = myMarketplaceBlock?.match(
+      /requireFbMarketplaceAccountIdParam\(req, res\)/g
+    ) ?? [];
+
+    expect(strictAccountIdChecks.length).toBe(3);
+    expect(myMarketplaceBlock).not.toContain("parseInt(req.params.accountId");
+  });
+
   it("scopes listing and queue joins to the resolved dealership", () => {
     expect(myMarketplaceBlock).toBeDefined();
 
