@@ -17702,7 +17702,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
     try {
       const { vehicleId, platform } = req.body;
       
-      if (!vehicleId || !platform) {
+      if (!platform) {
         return res.status(400).json({ error: "vehicleId and platform required" });
       }
 
@@ -17728,22 +17728,19 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
         return res.status(429).json({ error: "Daily posting limit reached" });
       }
 
-      // Verify vehicle exists and belongs to dealership
-      const vehicle = await db
-        .select({ id: vehicles.id })
-        .from(vehicles)
-        .where(and(
-          eq(vehicles.id, vehicleId),
-          eq(vehicles.dealershipId, dealershipId)
-        ))
-        .limit(1);
+      const parsedVehicleId = parseOptionalPositiveIntegerBodyValue(vehicleId, res, "vehicleId");
+      if (parsedVehicleId === null) return;
+      if (parsedVehicleId === undefined) {
+        return res.status(400).json({ error: "vehicleId and platform required" });
+      }
 
-      if (vehicle.length === 0) {
+      const scopedVehicle = await storage.getVehicleById(parsedVehicleId, dealershipId);
+      if (!scopedVehicle) {
         return res.status(404).json({ error: "Vehicle not found" });
       }
 
       // Generate one-time posting token
-      const postingToken = await generatePostingToken(userId, vehicleId, platform);
+      const postingToken = await generatePostingToken(userId, parsedVehicleId, platform);
 
       res.json({ postingToken });
     } catch (error: any) {

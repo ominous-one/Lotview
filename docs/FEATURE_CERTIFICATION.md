@@ -88,6 +88,8 @@ Additional partial proof: extension FB replies thread-to-vehicle mappings now st
 
 Additional partial proof: extension posting event logs now strictly parse required body `vehicleId`, verify the vehicle through `storage.getVehicleById(parsedVehicleId, dealershipId)`, and reuse the scoped vehicle for one-time posting-token validation, activity logging, and listing writes.
 
+Additional partial proof: extension one-time posting-token creation now strictly parses required body `vehicleId`, verifies the vehicle through `storage.getVehicleById(parsedVehicleId, dealershipId)`, and creates posting tokens only from the parsed scoped vehicle ID.
+
 ## Feature Certification Matrix
 
 | Feature | Status | CI Proof | Tests | Staging Proof | Logs/Monitoring | Real User Flow | Owner | Notes |
