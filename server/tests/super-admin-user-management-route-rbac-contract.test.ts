@@ -51,4 +51,11 @@ describe("super-admin user management route RBAC contract", () => {
     expect(userManagementBlock).toContain('"RESET_USER_PASSWORD"');
     expect(userManagementBlock).toContain('"UPDATE_USER"');
   });
+
+  it("does not partially parse super-admin target user ids", () => {
+    expect(userManagementBlock).toBeDefined();
+    expect(routesSource).toContain('function requireUserIdParam(req: Request, res: Response, paramName = "id"): number | null');
+    expect(userManagementBlock).toContain('const userId = requireUserIdParam(req, res, "userId")');
+    expect(userManagementBlock).not.toContain("parseInt(req.params.userId)");
+  });
 });

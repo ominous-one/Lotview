@@ -324,8 +324,8 @@ function requireExternalTokenIdParam(req: Request, res: Response): number | null
   return tokenId;
 }
 
-function requireUserIdParam(req: Request, res: Response): number | null {
-  const userId = parsePositiveIntegerId(req.params.id);
+function requireUserIdParam(req: Request, res: Response, paramName = "id"): number | null {
+  const userId = parsePositiveIntegerId(req.params[paramName]);
   if (!userId) {
     res.status(400).json({ error: "User id must be a positive integer" });
     return null;
@@ -2025,7 +2025,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete a user (super admin only)
   app.delete("/api/super-admin/users/:userId", authMiddleware, requirePermission("users.manage"), superAdminOnly, async (req, res) => {
     try {
-      const userId = parseInt(req.params.userId);
+      const userId = requireUserIdParam(req, res, "userId");
+      if (!userId) return;
       const authReq = req as AuthRequest;
       
       // Prevent deleting yourself
@@ -2071,7 +2072,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update user status (activate/deactivate) (super admin only)
   app.patch("/api/super-admin/users/:userId/status", authMiddleware, requirePermission("users.manage"), superAdminOnly, async (req, res) => {
     try {
-      const userId = parseInt(req.params.userId);
+      const userId = requireUserIdParam(req, res, "userId");
+      if (!userId) return;
       const { isActive } = req.body;
       const authReq = req as AuthRequest;
       
@@ -2117,7 +2119,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Reset user password (super admin only) - rate limited for sensitive operation
   app.post("/api/super-admin/users/:userId/reset-password", authMiddleware, requirePermission("users.manage"), superAdminOnly, sensitiveLimiter, async (req, res) => {
     try {
-      const userId = parseInt(req.params.userId);
+      const userId = requireUserIdParam(req, res, "userId");
+      if (!userId) return;
       const { newPassword } = req.body;
       const authReq = req as AuthRequest;
       
@@ -2155,7 +2158,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update user information (super admin only)
   app.patch("/api/super-admin/users/:userId", authMiddleware, requirePermission("users.manage"), superAdminOnly, async (req, res) => {
     try {
-      const userId = parseInt(req.params.userId);
+      const userId = requireUserIdParam(req, res, "userId");
+      if (!userId) return;
       const { name, email, role, dealershipId, isActive } = req.body;
       const authReq = req as AuthRequest;
       
