@@ -84,6 +84,8 @@ Additional partial proof: public chat generation now strictly parses optional bo
 
 Additional partial proof: authenticated AI sales responses now strictly parse optional body `vehicleId` and `conversationId`, verify any provided vehicle through `storage.getVehicleById(parsedVehicleId, dealershipId)`, and refuse missing or wrong-tenant vehicles before `generateSalesResponse` can build a customer-facing reply.
 
+Additional partial proof: extension FB replies thread-to-vehicle mappings now strictly parse required body `vehicleId`, verify the vehicle through `storage.getVehicleById(parsedVehicleId, dealershipId)`, and refuse missing or wrong-tenant vehicles before writing the mapping.
+
 ## Feature Certification Matrix
 
 | Feature | Status | CI Proof | Tests | Staging Proof | Logs/Monitoring | Real User Flow | Owner | Notes |
