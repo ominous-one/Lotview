@@ -52,6 +52,8 @@ Additional partial proof: scrape validation now fails closed on unrealistic nume
 
 Additional partial proof: the frontend inventory view now supports an authenticated row-inspection workflow backed by tenant-scoped `/api/vehicles` data, with test proof that selecting a row updates the inspection state without making an unscoped detail request. This improves product UI proof, but does not certify full Playwright staging flows, observability, or rollback proof.
 
+Additional partial proof: `X-Dealership-Id` tenant selection now uses strict positive-integer parsing for authenticated super-admin/master context switching, so malformed values like `2abc` or `0` fail closed before dealership lookup. This improves tenant isolation proof, but does not certify full route/storage cross-tenant isolation, staging, observability, or rollback proof.
+
 ## Feature Certification Matrix
 
 | Feature | Status | CI Proof | Tests | Staging Proof | Logs/Monitoring | Real User Flow | Owner | Notes |

@@ -149,6 +149,62 @@ describe("tenant context boundary", () => {
     expect(storage.getDealership).toHaveBeenCalledWith(2);
   });
 
+  it("rejects malformed super admin tenant selection headers before tenant lookup", async () => {
+    const storage = createStorageMock();
+    const token = signTenantToken({
+      id: 1,
+      email: "super@lotview.test",
+      role: "super_admin",
+      name: "Super Admin",
+    });
+    const req = createRequest({
+      headers: {
+        authorization: `Bearer ${token}`,
+        "x-dealership-id": "2abc",
+      },
+    });
+    const res = createResponse();
+    const next = jest.fn() as NextFunction;
+
+    await tenantMiddleware(storage)(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(req.dealershipId).toBeUndefined();
+    expect(storage.getDealership).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      error: "X-Dealership-Id must be a positive integer",
+    });
+  });
+
+  it("rejects zero-valued super admin tenant selection headers", async () => {
+    const storage = createStorageMock();
+    const token = signTenantToken({
+      id: 1,
+      email: "super@lotview.test",
+      role: "super_admin",
+      name: "Super Admin",
+    });
+    const req = createRequest({
+      headers: {
+        authorization: `Bearer ${token}`,
+        "x-dealership-id": "0",
+      },
+    });
+    const res = createResponse();
+    const next = jest.fn() as NextFunction;
+
+    await tenantMiddleware(storage)(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(req.dealershipId).toBeUndefined();
+    expect(storage.getDealership).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      error: "X-Dealership-Id must be a positive integer",
+    });
+  });
+
   it("rejects regular legacy tokens that do not include dealership context", async () => {
     const storage = createStorageMock();
     const token = signTenantToken({

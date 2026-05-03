@@ -13,6 +13,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { hasRole } from '@shared/authz';
 import { isSafeE2ERequest, seedE2E } from "./e2e-test-mode";
+import { parsePositiveIntegerId } from "./tenant-utils";
 
 // JWT_SECRET must be set in production for security (SESSION_SECRET accepted as alias)
 const JWT_SECRET_ENV = process.env.JWT_SECRET || process.env.SESSION_SECRET;
@@ -279,14 +280,18 @@ export function tenantMiddleware(storage: any) {
       // Strategy 3: Check for custom header (for authenticated API integrations only)
       // SECURITY: Only honor X-Dealership-Id header when authenticated to prevent header spoofing
       if (!dealershipId && req.headers['x-dealership-id'] && authHeader) {
-        const headerDealershipId = parseInt(req.headers['x-dealership-id'] as string);
-        if (!isNaN(headerDealershipId)) {
-          // Only allow super_admin or master users to switch dealership context via header
-          const user = req.user;
-          if (user && hasRole(user.role, 'super_admin', 'master')) {
-            dealershipId = headerDealershipId;
-            source = 'header';
-          }
+        const headerDealershipId = parsePositiveIntegerId(req.headers['x-dealership-id']);
+        if (headerDealershipId === null) {
+          return res.status(400).json({
+            error: 'X-Dealership-Id must be a positive integer',
+          });
+        }
+
+        // Only allow super_admin or master users to switch dealership context via header
+        const user = req.user;
+        if (user && hasRole(user.role, 'super_admin', 'master')) {
+          dealershipId = headerDealershipId;
+          source = 'header';
         }
       }
       
