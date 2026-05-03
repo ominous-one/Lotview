@@ -24,6 +24,8 @@ Recent partial proof: tenant and super-admin user mutation routes, modular Faceb
 
 Additional partial proof: manager autopost queue photo-override and dequeue routes validate UUID queue-item route parameters before dealership-scoped queue mutations reach storage. This improves RBAC, tenant-boundary, and Facebook posting safety, but does not certify marketplace posting or cross-tenant isolation.
 
+Additional partial proof: appointment read/mutation/follow-up routes and notification read-marker routes validate UUID route parameters before appointment, follow-up, or notification storage/service calls. This improves lead workflow RBAC and tenant-boundary proof, but appointment scheduling and notification flows still need real service implementation, staging, observability, and user-flow proof.
+
 ## Feature Certification Matrix
 
 | Feature | Status | CI Proof | Tests | Staging Proof | Logs/Monitoring | Real User Flow | Owner | Notes |

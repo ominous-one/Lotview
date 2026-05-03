@@ -545,6 +545,26 @@ function requireAutopostQueueItemUuidParam(req: Request, res: Response): string 
   return queueItemId;
 }
 
+function requireAppointmentIdParam(req: Request, res: Response): string | null {
+  const appointmentId = parseUuidRouteParam(req.params.id);
+  if (!appointmentId) {
+    res.status(400).json({ error: "Appointment id must be a valid UUID" });
+    return null;
+  }
+
+  return appointmentId;
+}
+
+function requireNotificationIdParam(req: Request, res: Response): string | null {
+  const notificationId = parseUuidRouteParam(req.params.id);
+  if (!notificationId) {
+    res.status(400).json({ error: "Notification id must be a valid UUID" });
+    return null;
+  }
+
+  return notificationId;
+}
+
 function requireReengagementCampaignIdParam(req: Request, res: Response): number | null {
   const campaignId = parsePositiveIntegerId(req.params.id);
   if (!campaignId) {
@@ -18856,7 +18876,8 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
   app.get("/api/appointments/:id", authMiddleware, requirePermission("leads.read"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const id = req.params.id;
+      const id = requireAppointmentIdParam(req, res);
+      if (!id) return;
 
       const appt = await db.query.appointments.findFirst({
         where: and(eq(appointments.id, id as any), eq(appointments.dealershipId, dealershipId)),
@@ -18884,7 +18905,8 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
   app.post("/api/appointments/:id/reschedule", authMiddleware, requirePermission("leads.write"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const id = req.params.id;
+      const id = requireAppointmentIdParam(req, res);
+      if (!id) return;
       const actor = { actorType: 'USER' as const, actorUserId: req.user!.id };
 
       const { startAt, endAt, reason, idempotencyKey } = req.body || {};
@@ -18915,7 +18937,8 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
   app.post("/api/appointments/:id/cancel", authMiddleware, requirePermission("leads.write"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const id = req.params.id;
+      const id = requireAppointmentIdParam(req, res);
+      if (!id) return;
       const actor = { actorType: 'USER' as const, actorUserId: req.user!.id };
       const { cancelledBy, reason, idempotencyKey } = req.body || {};
 
@@ -18948,7 +18971,8 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
   app.post("/api/appointments/:id/request-reschedule", authMiddleware, requirePermission("leads.write"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const id = req.params.id;
+      const id = requireAppointmentIdParam(req, res);
+      if (!id) return;
       const actor = { actorType: 'USER' as const, actorUserId: req.user!.id };
 
       const next = await transitionAppointment({
@@ -18974,7 +18998,8 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
   app.post("/api/appointments/:id/no-show", authMiddleware, requirePermission("leads.write"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const id = req.params.id;
+      const id = requireAppointmentIdParam(req, res);
+      if (!id) return;
       const actor = { actorType: 'USER' as const, actorUserId: req.user!.id };
 
       const next = await transitionAppointment({
@@ -19000,7 +19025,8 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
   app.post("/api/appointments/:id/complete", authMiddleware, requirePermission("leads.write"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const id = req.params.id;
+      const id = requireAppointmentIdParam(req, res);
+      if (!id) return;
       const actor = { actorType: 'USER' as const, actorUserId: req.user!.id };
 
       const next = await transitionAppointment({
@@ -19026,7 +19052,8 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
   app.post("/api/appointments/:id/reassign", authMiddleware, requirePermission("leads.write"), requireDealership, requireRole('master', 'manager', 'sales_manager'), async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const id = req.params.id;
+      const id = requireAppointmentIdParam(req, res);
+      if (!id) return;
       const { newOwnerUserId, reason, idempotencyKey } = req.body || {};
       if (!reason) return res.status(400).json({ error: 'reason required' });
 
@@ -19076,7 +19103,8 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
   app.post('/api/appointments/:id/follow-up/no-response', authMiddleware, requirePermission("leads.write"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const id = req.params.id;
+      const id = requireAppointmentIdParam(req, res);
+      if (!id) return;
       await db.transaction(async (tx) => {
         await createFollowUpTasksForAppointmentEvent(tx, {
           dealershipId,
@@ -19118,7 +19146,8 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
     try {
       const dealershipId = req.dealershipId!;
       const userId = req.user!.id;
-      const id = req.params.id;
+      const id = requireNotificationIdParam(req, res);
+      if (!id) return;
 
       const updated = await db
         .update(notifications)
