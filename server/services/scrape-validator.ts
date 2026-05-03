@@ -17,7 +17,7 @@ import { validateVIN } from "../vin-validation";
 
 const VALIDATION_RULES = {
   minVehiclesRatio: 0.5,        // Must find at least 50% of previously known vehicles
-  validVinRatio: 0.9,           // At least 90% of VINs must be valid 17-char codes
+  validVinRatio: 0.9,           // At least 90% of VINs must pass full format/check-digit validation
   photoCoverageRatio: 0.5,      // At least 50% of vehicles should have photos
   maxDuplicates: 0,              // Zero duplicates allowed (will be merged instead)
   maxPriceVariance: 0.5,        // Median price shouldn't change by more than 50%
@@ -91,8 +91,9 @@ export async function validateScrape(
   const validVins: string[] = [];
   const invalidVins: string[] = [];
   for (const v of vehicles) {
-    if (isValidVin(v.vin)) {
-      validVins.push(v.vin);
+    const normalizedVin = normalizeValidVin(v.vin);
+    if (normalizedVin) {
+      validVins.push(normalizedVin);
     } else {
       invalidVins.push(v.vin || "(missing)");
     }
@@ -114,7 +115,12 @@ export async function validateScrape(
   // 4. Duplicate detection
   const vinCounts = new Map<string, number>();
   for (const v of vehicles) {
-    vinCounts.set(v.vin, (vinCounts.get(v.vin) || 0) + 1);
+    const normalizedVin = normalizeValidVin(v.vin);
+    if (!normalizedVin) {
+      continue;
+    }
+
+    vinCounts.set(normalizedVin, (vinCounts.get(normalizedVin) || 0) + 1);
   }
   const duplicates = Array.from(vinCounts.entries())
     .filter(([, count]) => count > 1)
@@ -303,8 +309,9 @@ export async function validateScrape(
 
 // ---- Utility Functions ----
 
-function isValidVin(vin: string | undefined): boolean {
-  return validateVIN(vin).isValid;
+function normalizeValidVin(vin: string | undefined): string | null {
+  const result = validateVIN(vin);
+  return result.isValid ? result.vin : null;
 }
 
 function isPositiveFiniteNumber(value: unknown): value is number {
