@@ -1,5 +1,6 @@
 export type VINValidationErrorCode =
   | "VIN_REQUIRED"
+  | "INVALID_VIN_TYPE"
   | "INVALID_VIN_LENGTH"
   | "INVALID_VIN_CHARACTERS"
   | "INVALID_VIN_CHECK_DIGIT";

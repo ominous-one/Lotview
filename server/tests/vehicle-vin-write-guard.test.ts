@@ -69,6 +69,32 @@ describe("vehicle VIN write guard", () => {
     });
   });
 
+  it("rejects non-string VIN payloads instead of coercing them before storage", () => {
+    const result = normalizeVehicleWriteVIN({
+      vin: ["1HGCM82633A004352"],
+      year: 2003,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        code: "INVALID_VIN_TYPE",
+        message: "VIN must be a string",
+        vin: "",
+      },
+    });
+
+    if (hasVehicleVINWriteError(result)) {
+      expect(vehicleVINWriteErrorResponse(result.error)).toEqual({
+        error: "VIN must be a string",
+        errorCode: "INVALID_VIN_TYPE",
+        vin: "",
+        expectedCheckDigit: undefined,
+        actualCheckDigit: undefined,
+      });
+    }
+  });
+
   it("does not add a VIN field when the write payload does not include one", () => {
     expect(normalizeVehicleWriteVIN({ price: 25000 })).toEqual({
       ok: true,
