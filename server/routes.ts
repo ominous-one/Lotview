@@ -534,6 +534,26 @@ function requireAutomationSequenceMessageIdParam(req: Request, res: Response): n
   return messageId;
 }
 
+function requireCrmContactIdParam(req: Request, res: Response): number | null {
+  const contactId = parsePositiveIntegerId(req.params.id);
+  if (!contactId) {
+    res.status(400).json({ error: "CRM contact id must be a positive integer" });
+    return null;
+  }
+
+  return contactId;
+}
+
+function requireCrmTagIdParam(req: Request, res: Response): number | null {
+  const tagId = parsePositiveIntegerId(req.params.tagId);
+  if (!tagId) {
+    res.status(400).json({ error: "CRM tag id must be a positive integer" });
+    return null;
+  }
+
+  return tagId;
+}
+
 function parseOptionalPositiveIntegerQueryParam(value: unknown, res: Response, label: string): number | null | undefined {
   if (value === undefined) {
     return undefined;
@@ -14766,17 +14786,25 @@ Format your response in clear sections with actionable recommendations.`;
       // Salespeople can only see their own contacts
       if (userRole === 'salesperson') {
         filters.ownerId = userId;
-      } else if (req.query.ownerId) {
-        filters.ownerId = parseInt(req.query.ownerId as string);
+      } else {
+        const ownerId = parseOptionalPositiveIntegerQueryParam(req.query.ownerId, res, "ownerId");
+        if (ownerId === null) return;
+        if (ownerId !== undefined) {
+          filters.ownerId = ownerId;
+        }
       }
       
       if (req.query.status) filters.status = req.query.status as string;
       if (req.query.leadSource) filters.leadSource = req.query.leadSource as string;
       if (req.query.search) filters.search = req.query.search as string;
       
+      const parsedLimit = parseOptionalPositiveIntegerQueryParam(req.query.limit, res, "limit");
+      if (parsedLimit === null) return;
+      const parsedOffset = parseOptionalNonNegativeIntegerQueryParam(req.query.offset, res, "offset");
+      if (parsedOffset === null) return;
       const pagination = {
-        limit: req.query.limit ? parseInt(req.query.limit as string) : 50,
-        offset: req.query.offset ? parseInt(req.query.offset as string) : 0
+        limit: parsedLimit ?? 50,
+        offset: parsedOffset ?? 0
       };
       
       const sorting = {
@@ -14831,7 +14859,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.get("/api/crm/contacts/:id", authMiddleware, requirePermission("leads.read"), requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
-      const id = parseInt(req.params.id);
+      const id = requireCrmContactIdParam(req, res);
+      if (!id) return;
       const userId = req.user?.id;
       const userRole = req.user?.role;
       
@@ -14857,7 +14886,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.patch("/api/crm/contacts/:id", authMiddleware, requirePermission("leads.write"), requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
-      const id = parseInt(req.params.id);
+      const id = requireCrmContactIdParam(req, res);
+      if (!id) return;
       const userId = req.user?.id;
       const userRole = req.user?.role;
       
@@ -14895,7 +14925,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.delete("/api/crm/contacts/:id", authMiddleware, requirePermission("leads.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
-      const id = parseInt(req.params.id);
+      const id = requireCrmContactIdParam(req, res);
+      if (!id) return;
       
       const deleted = await storage.deleteCrmContact(id, dealershipId);
       
@@ -14991,8 +15022,10 @@ Format your response in clear sections with actionable recommendations.`;
   app.post("/api/crm/contacts/:id/tags/:tagId", authMiddleware, requirePermission("leads.write"), requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const contactId = parseInt(req.params.id);
-      const tagId = parseInt(req.params.tagId);
+      const contactId = requireCrmContactIdParam(req, res);
+      if (!contactId) return;
+      const tagId = requireCrmTagIdParam(req, res);
+      if (!tagId) return;
       const userId = req.user?.id;
       
       const contactTag = await storage.addTagToContact(contactId, tagId, dealershipId, userId);
@@ -15011,8 +15044,10 @@ Format your response in clear sections with actionable recommendations.`;
   app.delete("/api/crm/contacts/:id/tags/:tagId", authMiddleware, requirePermission("leads.write"), requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const contactId = parseInt(req.params.id);
-      const tagId = parseInt(req.params.tagId);
+      const contactId = requireCrmContactIdParam(req, res);
+      if (!contactId) return;
+      const tagId = requireCrmTagIdParam(req, res);
+      if (!tagId) return;
       
       const removed = await storage.removeTagFromContact(contactId, tagId, dealershipId);
       
@@ -15031,7 +15066,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.get("/api/crm/contacts/:id/tags", authMiddleware, requirePermission("leads.read"), requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const contactId = parseInt(req.params.id);
+      const contactId = requireCrmContactIdParam(req, res);
+      if (!contactId) return;
       const tags = await storage.getContactTags(contactId, dealershipId);
       res.json(tags);
     } catch (error) {
@@ -15046,8 +15082,11 @@ Format your response in clear sections with actionable recommendations.`;
   app.get("/api/crm/contacts/:id/activities", authMiddleware, requirePermission("leads.read"), requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
-      const contactId = parseInt(req.params.id);
-      const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
+      const contactId = requireCrmContactIdParam(req, res);
+      if (!contactId) return;
+      const parsedLimit = parseOptionalPositiveIntegerQueryParam(req.query.limit, res, "limit");
+      if (parsedLimit === null) return;
+      const limit = parsedLimit ?? 50;
       
       const activities = await storage.getCrmActivities(contactId, dealershipId, limit);
       res.json(activities);
@@ -15061,7 +15100,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.post("/api/crm/contacts/:id/activities", authMiddleware, requirePermission("leads.write"), requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
-      const contactId = parseInt(req.params.id);
+      const contactId = requireCrmContactIdParam(req, res);
+      if (!contactId) return;
       const userId = req.user?.id;
       
       const parseResult = insertCrmActivitySchema.safeParse({
@@ -15322,7 +15362,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.post("/api/crm/contacts/:id/message", authMiddleware, requirePermission("messages.write"), requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
-      const contactId = parseInt(req.params.id);
+      const contactId = requireCrmContactIdParam(req, res);
+      if (!contactId) return;
       const userId = req.user?.id;
       
       const { channel, content, subject } = req.body;
@@ -15362,7 +15403,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.post("/api/crm/contacts/:id/suggest-message", authMiddleware, requirePermission("messages.write"), requirePermission("ai.use"), requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
-      const contactId = parseInt(req.params.id);
+      const contactId = requireCrmContactIdParam(req, res);
+      if (!contactId) return;
       
       const { channel, context } = req.body;
       
@@ -15395,8 +15437,11 @@ Format your response in clear sections with actionable recommendations.`;
   app.get("/api/crm/contacts/:id/messages", authMiddleware, requirePermission("messages.read"), requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
-      const contactId = parseInt(req.params.id);
-      const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
+      const contactId = requireCrmContactIdParam(req, res);
+      if (!contactId) return;
+      const parsedLimit = parseOptionalPositiveIntegerQueryParam(req.query.limit, res, "limit");
+      if (parsedLimit === null) return;
+      const limit = parsedLimit ?? 50;
       
       const messages = await storage.getCrmMessages(contactId, dealershipId, limit);
       res.json(messages);

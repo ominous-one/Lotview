@@ -4,6 +4,15 @@ import { resolve } from "path";
 describe("CRM route RBAC and tenant contract", () => {
   const routesSource = readFileSync(resolve(process.cwd(), "server/routes.ts"), "utf8");
   const storageSource = readFileSync(resolve(process.cwd(), "server/storage.ts"), "utf8");
+  const crmContactRoutesSource = routesSource.slice(
+    routesSource.indexOf("  // ===== CRM CONTACTS ====="),
+    routesSource.indexOf("  // ===== CRM TASKS =====")
+  );
+  const crmMessagingRoutesSource = routesSource.slice(
+    routesSource.indexOf("  // ===== CRM MESSAGING ====="),
+    routesSource.indexOf("  // =====================\n  // Email API Routes")
+  );
+  const crmContactBoundarySource = `${crmContactRoutesSource}\n${crmMessagingRoutesSource}`;
 
   const salespersonLeadRoles = "requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership";
   const managerLeadRoles = "requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership";
@@ -105,5 +114,29 @@ describe("CRM route RBAC and tenant contract", () => {
       "eq(crmContacts.dealershipId, dealershipId)",
       "eq(crmTags.dealershipId, dealershipId)",
     ].forEach((tenantGuard) => expect(storageSource).toContain(tenantGuard));
+  });
+
+  it("fails closed on malformed CRM contact, tag, and pagination identifiers before storage access", () => {
+    [
+      "function requireCrmContactIdParam(req: Request, res: Response): number | null",
+      "CRM contact id must be a positive integer",
+      "function requireCrmTagIdParam(req: Request, res: Response): number | null",
+      "CRM tag id must be a positive integer",
+      'const ownerId = parseOptionalPositiveIntegerQueryParam(req.query.ownerId, res, "ownerId")',
+      'const parsedLimit = parseOptionalPositiveIntegerQueryParam(req.query.limit, res, "limit")',
+      'const parsedOffset = parseOptionalNonNegativeIntegerQueryParam(req.query.offset, res, "offset")',
+      "const id = requireCrmContactIdParam(req, res)",
+      "const contactId = requireCrmContactIdParam(req, res)",
+      "const tagId = requireCrmTagIdParam(req, res)",
+    ].forEach((guard) => expect(routesSource).toContain(guard));
+
+    [
+      "filters.ownerId = parseInt(req.query.ownerId as string)",
+      "limit: req.query.limit ? parseInt(req.query.limit as string) : 50",
+      "offset: req.query.offset ? parseInt(req.query.offset as string) : 0",
+      "const id = parseInt(req.params.id);\n      const userId = req.user?.id;\n      const userRole = req.user?.role;",
+      "const contactId = parseInt(req.params.id);\n      const tagId = parseInt(req.params.tagId);",
+      "const contactId = parseInt(req.params.id);\n      const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;",
+    ].forEach((unsafeParse) => expect(crmContactBoundarySource).not.toContain(unsafeParse));
   });
 });
