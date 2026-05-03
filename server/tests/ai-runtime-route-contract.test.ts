@@ -6,6 +6,9 @@ describe("AI runtime route RBAC and tenant contract", () => {
   const publicChatBlock = routesSource.match(
     /\/\/ Chat endpoint for AI responses[\s\S]*?\/\/ AI suggest reply for conversations/
   )?.[0];
+  const aiRespondBlock = routesSource.match(
+    /\/\/ AI Sales Agent - Generate sales-optimized response for customer messages[\s\S]*?\/\/ AI Sales Agent - Generate follow-up message for cold conversations/
+  )?.[0];
   const aiPaymentsBlock = routesSource.match(
     /\/\/ AI Payment Calculator - Calculate payment options for a vehicle[\s\S]*?\/\/ Save conversation \(public - conversations are saved automatically\)/
   )?.[0];
@@ -23,6 +26,20 @@ describe("AI runtime route RBAC and tenant contract", () => {
     expect(publicChatBlock).toContain("parsedVehicleId !== undefined ? undefined : vehicleContext");
     expect(publicChatBlock).toContain("parsedVehicleId");
     expect(publicChatBlock).not.toContain("typeof vehicleId === 'number' ? vehicleId : undefined");
+  });
+
+  it("requires scoped vehicle proof before AI sales responses can use a vehicle id", () => {
+    expect(aiRespondBlock).toBeDefined();
+    expect(aiRespondBlock).toContain('const parsedVehicleId = parseOptionalPositiveIntegerBodyValue(vehicleId, res, "vehicleId");');
+    expect(aiRespondBlock).toContain("if (parsedVehicleId === null) return;");
+    expect(aiRespondBlock).toContain('const parsedConversationId = parseOptionalPositiveIntegerBodyValue(conversationId, res, "conversationId");');
+    expect(aiRespondBlock).toContain("if (parsedConversationId === null) return;");
+    expect(aiRespondBlock).toContain("const scopedVehicle = await storage.getVehicleById(parsedVehicleId, dealershipId);");
+    expect(aiRespondBlock).toContain('return res.status(404).json({ error: "Vehicle not found" });');
+    expect(aiRespondBlock).toContain("vehicleId: parsedVehicleId");
+    expect(aiRespondBlock).toContain("conversationId: parsedConversationId");
+    expect(aiRespondBlock).not.toContain("vehicleId: vehicleId ? parseInt(vehicleId) : undefined");
+    expect(aiRespondBlock).not.toContain("conversationId: conversationId ? parseInt(conversationId) : undefined");
   });
 
   it("requires AI use permission and dealership context for AI generation actions", () => {
