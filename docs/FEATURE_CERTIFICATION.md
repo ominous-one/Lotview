@@ -40,6 +40,8 @@ Additional partial proof: vehicle deduplication now canonicalizes existing inven
 
 Additional partial proof: scrape validation now rejects unsafe scraped source URLs and unsafe/non-HTTP photo URLs before a scrape result can be marked valid, and unsafe photo URLs no longer count toward photo coverage. This improves scrape intake safety but does not certify pagination, quarantine/admin review, live source-truth reconciliation, staging, observability, or rollback proof.
 
+Additional partial proof: deployment templates and guides no longer present a hard-coded Render example host as live proof, and production gates now reject stale Render proof URLs, unsupported 10/10 production-readiness claims, missing Render Dockerfile references, and deployment docs that point operators at the non-proof verification workflow instead of the active CI Render Staging Proof job. This improves production-readiness honesty but does not certify Render staging until the CI Render Staging Proof job runs green against the configured service.
+
 ## Feature Certification Matrix
 
 | Feature | Status | CI Proof | Tests | Staging Proof | Logs/Monitoring | Real User Flow | Owner | Notes |

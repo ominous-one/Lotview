@@ -90,6 +90,39 @@ if (exists("render.yaml")) {
   );
 }
 
+const staleRenderProofUrl = "https://lotview-api.onrender.com";
+for (const deploymentDoc of [".env.template", "DEPLOYMENT_CHECKLIST.md", "RENDER_DEPLOY.md"].filter(exists)) {
+  const content = read(deploymentDoc);
+  check(
+    `${deploymentDoc} does not use the stale Render host as deployment proof`,
+    !content.includes(staleRenderProofUrl),
+    "Use a configured Render staging URL and the CI Render Staging Proof job instead of a hard-coded host that is not certified for this repo.",
+  );
+}
+
+if (exists("DEPLOYMENT_CHECKLIST.md")) {
+  const deploymentChecklist = read("DEPLOYMENT_CHECKLIST.md");
+  check(
+    "Deployment checklist does not claim unsupported 10/10 production readiness",
+    !deploymentChecklist.includes("Overall: 10/10") && !deploymentChecklist.includes("Production Ready"),
+    "The checklist must record proof required and gained, not assert launch readiness without staging evidence.",
+  );
+}
+
+if (exists("RENDER_DEPLOY.md")) {
+  const renderDeployDoc = read("RENDER_DEPLOY.md");
+  check(
+    "Render deployment guide references the committed Dockerfile",
+    !renderDeployDoc.includes("Dockerfile.render"),
+    "render.yaml and CI use ./Dockerfile; docs must not point operators at a missing Render Dockerfile.",
+  );
+  check(
+    "Render deployment guide references the active CI workflow",
+    !renderDeployDoc.includes(".github/workflows/render-deploy.yml"),
+    "Render proof lives in .github/workflows/ci.yml.",
+  );
+}
+
 const workflowFiles = [
   ".github/workflows/ci.yml",
   ".github/workflows/render-deploy.yml",

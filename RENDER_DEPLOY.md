@@ -1,245 +1,135 @@
-# Lotview SaaS — Deploy to Render + GitHub (Complete Guide)
+# Lotview Render Deployment Guide
 
-Deploy Lotview to Render.com with auto-deployment from GitHub pushes.
-
----
+This guide explains how to connect Lotview to Render without treating connection as certification.
 
 ## Prerequisites
 
-1. **GitHub repo** with your Lotview code pushed to `main` branch
-2. **Render account** at https://render.com (free tier works)
-3. **Browserless.io token** for scraping (free tier: 1000 req/month)
+- GitHub repository: `ominous-one/Lotview`
+- `main` branch protected by required CI checks
+- Render account with access to create Blueprint services
+- Required provider credentials stored only in Render or GitHub secrets
 
----
+## Render Blueprint Setup
 
-## Step 1: Push to GitHub
+1. Open `https://dashboard.render.com/blueprints`.
+2. Create a new Blueprint instance from `ominous-one/Lotview`.
+3. Render reads `render.yaml`.
+4. Confirm the web and worker services use the committed `./Dockerfile`.
+5. Confirm the web service health check path is `/api/health`.
+6. Confirm the worker service command is `node dist/index-worker.js`.
+
+Expected services:
+
+| Service | Type | Purpose |
+|---|---|---|
+| `lotview-api` | Web | API and static frontend |
+| `lotview-worker` | Worker | Queues, schedulers, background jobs |
+| `lotview-db` | PostgreSQL | Application database |
+| `lotview-redis` | Redis | Sessions, cache, queues |
+
+## Required Render Environment
+
+Minimum web service variables:
+
+```text
+NODE_ENV=production
+PORT=10000
+DATABASE_URL=<from Render database>
+REDIS_URL=<from Render redis>
+JWT_SECRET=<generated secret>
+SESSION_SECRET=<generated secret>
+ENCRYPTION_KEY=<generated secret>
+PUBLIC_APP_URL=https://<your-app-host>
+PUBLIC_API_URL=https://<your-api-host>
+CORS_ORIGIN=https://<your-app-host>
+LOTVIEW_ENABLE_SCHEDULERS=false
+LOTVIEW_SCHEDULER_PROCESS=web
+LOG_FORMAT=json
+LOG_LEVEL=info
+```
+
+Minimum worker service variables:
+
+```text
+NODE_ENV=production
+DATABASE_URL=<from Render database>
+REDIS_URL=<from Render redis>
+JWT_SECRET=<same as web>
+SESSION_SECRET=<same as web>
+ENCRYPTION_KEY=<same as web>
+LOTVIEW_ENABLE_SCHEDULERS=true
+LOTVIEW_SCHEDULER_PROCESS=worker
+LOG_FORMAT=json
+LOG_LEVEL=info
+```
+
+Keep external integrations disabled, staging-only, or fail-closed until their certification rows have proof.
+
+## GitHub Actions Render Proof
+
+The active Render proof job lives in `.github/workflows/ci.yml` under `Render Staging Proof`.
+
+Configure repository variables:
 
 ```bash
-# If you haven't already:
-git init
-git add .
-git commit -m "Lotview production build"
-git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/Lotview.git
-git push -u origin main
+gh variable set RENDER_STAGING_ENABLED --body true
+gh variable set RENDER_STAGING_BASE_URL --body https://<your-render-staging-service>
 ```
 
----
-
-## Step 2: Set Up Render (Blueprints — One-Click Deploy)
-
-### Option A: Blueprint (Recommended)
-
-1. Go to https://dashboard.render.com/blueprints
-2. Click **"New Blueprint Instance"**
-3. Connect your GitHub repo
-4. Render reads `render.yaml` and creates:
-   - ✅ `lotview-api` — Web service (API + static files)
-   - ✅ `lotview-worker` — Background worker (schedulers + queues)
-   - ✅ `lotview-db` — PostgreSQL 16 database
-   - ✅ `lotview-redis` — Redis cache
-   - ✅ `lotview-daily-scrape` — Daily scrape cron job (6 AM UTC)
-   - ✅ `lotview-carfax-refresh` — Hourly Carfax refresh cron job
-
-### Option B: Manual Setup
-
-If Blueprint doesn't work, create each service manually:
-
-```
-Dashboard → New + → Web Service → Docker
-  Name: lotview-api
-  Root Directory: .
-  Dockerfile Path: ./Dockerfile.render
-  Plan: Standard ($7/month minimum)
-  
-Dashboard → New + → Worker → Docker  
-  Name: lotview-worker
-  Root Directory: .
-  Dockerfile Path: ./Dockerfile.render
-  Docker Command: node dist/index-worker.js
-  
-Dashboard → New + → PostgreSQL
-  Name: lotview-db
-  PostgreSQL Version: 16
-  
-Dashboard → New + → Redis
-  Name: lotview-redis
-  
-Dashboard → New + → Cron Job
-  Name: lotview-daily-scrape
-  Schedule: 0 6 * * *
-  Command: node dist/scripts/run-daily-scrape.js
-```
-
----
-
-## Step 3: Set Environment Variables
-
-### In Render Dashboard → lotview-api → Environment:
-
-**Auto-set by Render (don't change):**
-```
-DATABASE_URL=postgresql://lotview:...@lotview-db/...   ← Auto
-REDIS_URL=redis://...@lotview-redis/...                  ← Auto
-PORT=10000                                                ← Auto
-```
-
-**You must set these manually:**
-```
-JWT_SECRET=abc123...   # Generate: openssl rand -hex 32
-OPENAI_API_KEY=sk-...   # From platform.openai.com
-ANTHROPIC_API_KEY=sk-ant-...  # From console.anthropic.com
-BROWSERLESS_TOKEN=...   # From browserless.io
-GHL_CLIENT_ID=...       # From GoHighLevel app settings
-GHL_CLIENT_SECRET=...   # From GoHighLevel app settings
-```
-
-### Copy from web to worker:
-
-In `lotview-worker` Environment, click **"Add from Service"** and select `lotview-api` for:
-- `JWT_SECRET`
-- `DATABASE_URL`
-- `REDIS_URL`
-
----
-
-## Step 4: Configure GitHub Secrets
-
-For auto-deployment, add these to your GitHub repo:
+If Render auto-deploy is not enough for your service, add the deploy hook as a secret:
 
 ```bash
-# Go to: GitHub → Settings → Secrets and variables → Actions → New repository secret
-
-Name: RENDER_API_KEY
-Value: rnd_xxxxxxxxxxxxxxxx   # From Render Dashboard → Account Settings → API Keys
-
-Name: RENDER_WEB_SERVICE_ID  
-Value: srv-xxxxxxxxxxxxxxxx   # From Render Dashboard → lotview-api → Settings → copy service ID
-
-Name: RENDER_WORKER_SERVICE_ID
-Value: srv-xxxxxxxxxxxxxxxx   # From Render Dashboard → lotview-worker → Settings → copy service ID
+gh secret set RENDER_DEPLOY_HOOK_URL
 ```
 
----
+The proof job polls the configured staging URL and requires:
 
-## Step 5: First Deploy
+- `/api/health` returns success.
+- `/api/ready` returns success.
+- `/api/version` returns JSON with `commit` equal to the GitHub Actions commit SHA.
 
-### Trigger manually:
-```bash
-git commit --allow-empty -m "Trigger Render deploy"
-git push origin main
-```
+If the job is skipped, Render staging is not certified for that commit.
 
-### Or wait for automatic deploy on push.
+## Manual Verification
 
-### Monitor in Render Dashboard:
-- Logs: https://dashboard.render.com/web/srv-xxx
-- Build logs appear in "Deploy" tab
-- Green dot = healthy, Red dot = failing
-
----
-
-## Step 6: Verify Deployment
+Use the actual service URL configured in GitHub Actions:
 
 ```bash
-# Check health
-curl https://lotview-api.onrender.com/api/health
-# → {"status":"healthy","service":"lotview-api"}
-
-# Check readiness
-curl https://lotview-api.onrender.com/api/ready
-# → {"status":"ready","checks":{...}}
-
-# Check version
-curl https://lotview-api.onrender.com/api/version
-
-# Seed database
-curl -X POST https://lotview-api.onrender.com/api/super-admin/setup \
-  -H "Content-Type: application/json" \
-  -d '{"password":"YourSecurePassword2026!"}'
+BASE_URL=https://<your-render-staging-service>
+curl -fsS "$BASE_URL/api/health"
+curl -fsS "$BASE_URL/api/ready"
+curl -fsS "$BASE_URL/api/version"
 ```
 
----
-
-## What Gets Deployed
-
-| Service | Type | Purpose | Plan |
-|---------|------|---------|------|
-| `lotview-api` | Web | Express API + React SPA | Standard ($7/mo) |
-| `lotview-worker` | Worker | Schedulers + BullMQ queues | Starter ($7/mo) |
-| `lotview-db` | PostgreSQL | Main database | Standard ($15/mo) |
-| `lotview-redis` | Redis | Cache + sessions + queues | Starter ($5/mo) |
-| `lotview-daily-scrape` | Cron | Daily inventory scrape | Free |
-| `lotview-carfax-refresh` | Cron | Hourly Carfax refresh | Free |
-
-**Total: ~$34/month** for full production stack.
-
----
-
-## Auto-Deploy Behavior
-
-```
-You: git push origin main
-    ↓
-GitHub Actions: .github/workflows/render-deploy.yml
-    ↓
-1. Lint & Type Check
-2. Run Tests (30-vehicle scraper test)
-3. Build Docker Image
-4. Deploy to Render (auto)
-5. Health Check (auto)
-    ↓
-Render: Rolling deploy with zero downtime
-    ↓
-Live: https://lotview-api.onrender.com
-```
-
----
+The version response must match the commit you intend to certify.
 
 ## Troubleshooting
 
-### "Build failed"
-```bash
-# Check Render logs → Deploy tab
-# Common fix: ensure package-lock.json is committed
-git add package-lock.json && git commit -m "Add lockfile" && git push
-```
+### Build failed
 
-### "Health check failed"
-```bash
-# Check: is /api/health responding?
-curl https://lotview-api.onrender.com/api/health
-# If 404: routes may not be registered. Check server/index-prod.ts
-```
+- Confirm `package-lock.json` is committed.
+- Confirm Render is using `./Dockerfile`.
+- Confirm Render build filters include `package-lock.json`.
+- Compare the failing Render commit to the latest green GitHub Actions commit.
 
-### "Database connection failed"
-```bash
-# Verify DATABASE_URL is set in Render Dashboard
-# Test: psql $DATABASE_URL -c "SELECT 1"
-```
+### Health check failed
 
-### "Scraper gets 403"
-```bash
-# Normal — Cloudflare blocks cloud IPs
-# Fix: Set BROWSERLESS_TOKEN in environment variables
-# Get free token: https://www.browserless.io/pricing
-```
+- Confirm the web service starts `node dist/index.js`.
+- Confirm `/api/health` is registered by the production server.
+- Check web logs for boot errors.
 
----
+### Readiness failed
 
-## Render Files Reference
+- Confirm `DATABASE_URL` and `REDIS_URL` are set.
+- Confirm the database and Redis services are reachable from the web service.
+- Check whether readiness is failing closed because a dependency is unavailable.
 
-| File | Purpose |
-|------|---------|
-| `render.yaml` | Blueprint defining all services |
-| `Dockerfile.render` | Optimized Docker image for Render |
-| `.github/workflows/render-deploy.yml` | CI/CD pipeline |
-| `scripts/render-start.sh` | Container startup script |
-| `scripts/render-build.sh` | Build phase script |
-| `.env.render` | Environment variable template |
-| `server/scripts/run-daily-scrape.ts` | Cron: daily inventory scrape |
-| `server/scripts/run-carfax-refresh.ts` | Cron: hourly Carfax refresh |
+### Version proof failed
 
----
+- Confirm Render is serving the same commit SHA as GitHub Actions.
+- Confirm `RENDER_GIT_COMMIT` is available at runtime.
+- Redeploy the expected commit or update the certification record to the actual deployed commit.
 
-*Deploy with confidence. Render handles the infrastructure, you handle the dealerships.*
+## Certification Rule
+
+Do not mark Render deployment production-ready until CI, Docker build, Render health/readiness/version proof, logs, rollback path, and staging user-flow proof are recorded.
