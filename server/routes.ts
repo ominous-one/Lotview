@@ -364,6 +364,16 @@ function requireCompetitorAlertIdParam(req: Request, res: Response): number | nu
   return alertId;
 }
 
+function requireAppraisalIdParam(req: Request, res: Response): number | null {
+  const appraisalId = parsePositiveIntegerId(req.params.id);
+  if (!appraisalId) {
+    res.status(400).json({ error: "Appraisal id must be a positive integer" });
+    return null;
+  }
+
+  return appraisalId;
+}
+
 function parseOptionalPositiveIntegerQueryParam(value: unknown, res: Response, label: string): number | null | undefined {
   if (value === undefined) {
     return undefined;
@@ -10563,11 +10573,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.get("/api/manager/appraisals/:id", authMiddleware, requireRole("manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const id = parseInt(req.params.id);
-      
-      if (isNaN(id)) {
-        return res.status(400).json({ error: "Invalid appraisal ID" });
-      }
+      const id = requireAppraisalIdParam(req, res);
+      if (!id) return;
       
       const appraisal = await storage.getVehicleAppraisalById(id, dealershipId);
       if (!appraisal) {
@@ -10613,11 +10620,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.patch("/api/manager/appraisals/:id", authMiddleware, requireRole("manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const id = parseInt(req.params.id);
-      
-      if (isNaN(id)) {
-        return res.status(400).json({ error: "Invalid appraisal ID" });
-      }
+      const id = requireAppraisalIdParam(req, res);
+      if (!id) return;
       
       // Check if appraisal exists
       const existing = await storage.getVehicleAppraisalById(id, dealershipId);
@@ -10640,11 +10644,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.delete("/api/manager/appraisals/:id", authMiddleware, requireRole("manager"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const id = parseInt(req.params.id);
-      
-      if (isNaN(id)) {
-        return res.status(400).json({ error: "Invalid appraisal ID" });
-      }
+      const id = requireAppraisalIdParam(req, res);
+      if (!id) return;
       
       const deleted = await storage.deleteVehicleAppraisal(id, dealershipId);
       if (!deleted) {
