@@ -45,4 +45,16 @@ describe("super-admin scrape provider route RBAC contract", () => {
       'app.post("/api/super-admin/zyte/test", authMiddleware, requirePermission("integrations.write"), superAdminOnly'
     );
   });
+
+  it("strictly parses optional dealership selectors before provider calls", () => {
+    expect(scrapeProviderBlock).toBeDefined();
+
+    expect(scrapeProviderBlock).toContain("const dealershipId = req.query.dealershipId ? parseDealershipIdParam(req.query.dealershipId) : undefined");
+    expect(scrapeProviderBlock).toContain("const parsedDealershipId = dealershipId ? parseDealershipIdParam(dealershipId) : undefined");
+    expect(scrapeProviderBlock).toContain('return res.status(400).json({ error: "dealershipId must be a positive integer" })');
+    expect(scrapeProviderBlock).toContain("runRobustScrape('manual', parsedDealershipId)");
+    expect(scrapeProviderBlock).toContain("validateScrape(parsedDealershipId ?? 0, result.vehicles)");
+    expect(scrapeProviderBlock).not.toContain("dealershipId ? parseInt(dealershipId) : undefined");
+    expect(scrapeProviderBlock).not.toContain("req.query.dealershipId ? parseInt(req.query.dealershipId as string) : undefined");
+  });
 });

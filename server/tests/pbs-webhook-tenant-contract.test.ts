@@ -15,6 +15,8 @@ describe("PBS webhook tenant and signature contract", () => {
     expect(pbsWebhookBlock).toContain('req.headers["x-dealership-id"]');
     expect(pbsWebhookBlock).toContain("req.body?.dealershipId");
     expect(pbsWebhookBlock).toContain("Explicit dealership binding is required");
+    expect(pbsWebhookBlock).toContain("const dealershipId = parseDealershipIdParam(rawDealershipIdValue)");
+    expect(pbsWebhookBlock).not.toContain("Number.parseInt(String(rawDealershipIdValue");
     expect(pbsWebhookBlock).not.toContain("req.dealershipId!");
   });
 
