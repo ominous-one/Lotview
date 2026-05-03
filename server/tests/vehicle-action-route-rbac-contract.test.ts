@@ -40,7 +40,10 @@ describe("vehicle action route RBAC contract", () => {
       'router.patch("/:id/vdp-content", authMiddleware, requirePermission("inventory.write"), requireDealership',
     );
     expect(vehicleRoutesSource).toContain("vehicleVdpContentUpdateSchema.safeParse(req.body)");
-    expect(vehicleRoutesSource).toContain("storage.updateVehicle(id, parsed.data, dealershipId)");
+    expect(vehicleRoutesSource).toContain("isManuallyEdited: true");
+    expect(vehicleRoutesSource).toContain("lastEditedBy: req.user?.id");
+    expect(vehicleRoutesSource).toContain("lastEditedAt: new Date()");
+    expect(vehicleRoutesSource).toContain("storage.updateVehicle(id, updateData, dealershipId)");
   });
 
   it("does not leave protected vehicle action routes guarded only by roles", () => {

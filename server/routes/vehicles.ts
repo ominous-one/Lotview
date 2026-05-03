@@ -531,7 +531,14 @@ router.patch("/:id/vdp-content", authMiddleware, requirePermission("inventory.wr
       return res.status(400).json({ error: fromZodError(parsed.error).message });
     }
 
-    const vehicle = await storage.updateVehicle(id, parsed.data, dealershipId);
+    const updateData = {
+      ...parsed.data,
+      isManuallyEdited: true,
+      lastEditedBy: req.user?.id,
+      lastEditedAt: new Date(),
+    };
+
+    const vehicle = await storage.updateVehicle(id, updateData, dealershipId);
     if (!vehicle) return res.status(404).json({ error: "Vehicle not found" });
     res.json(vehicle);
   } catch (error) {
