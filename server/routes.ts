@@ -374,6 +374,16 @@ function requireAppraisalIdParam(req: Request, res: Response): number | null {
   return appraisalId;
 }
 
+function requireRemarketingVehicleIdParam(req: Request, res: Response): number | null {
+  const remarketingVehicleId = parsePositiveIntegerId(req.params.id);
+  if (!remarketingVehicleId) {
+    res.status(400).json({ error: "Remarketing vehicle id must be a positive integer" });
+    return null;
+  }
+
+  return remarketingVehicleId;
+}
+
 function parseOptionalPositiveIntegerQueryParam(value: unknown, res: Response, label: string): number | null | undefined {
   if (value === undefined) {
     return undefined;
@@ -10714,7 +10724,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.patch("/api/remarketing/vehicles/:id", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const id = parseInt(req.params.id);
+      const id = requireRemarketingVehicleIdParam(req, res);
+      if (!id) return;
       const { budgetPriority } = req.body;
       
       const vehicle = await storage.updateRemarketingVehicle(id, dealershipId, { budgetPriority });
@@ -10734,7 +10745,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.delete("/api/remarketing/vehicles/:id", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const id = parseInt(req.params.id);
+      const id = requireRemarketingVehicleIdParam(req, res);
+      if (!id) return;
       const success = await storage.removeRemarketingVehicle(id, dealershipId);
       
       if (!success) {
