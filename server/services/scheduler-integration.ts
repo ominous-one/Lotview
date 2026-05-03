@@ -91,6 +91,22 @@ export async function runEnhancedScrape(
       };
     }
 
+    if (dedupResult.inserted + dedupResult.merged === 0) {
+      const error = "scrape_storage_noop";
+      logError(
+        `[ScrapePipeline] Refusing successful scrape result with no stored or merged vehicles for dealership ${dealershipId}`,
+        undefined,
+        { dealershipId, additionalContext: { dedup: dedupResult } }
+      );
+      return {
+        success: false,
+        validation: { isValid: true, score: validation.score, vehiclesFound: validation.vehiclesFound },
+        dedup: { inserted: dedupResult.inserted, merged: dedupResult.merged, skipped: dedupResult.skipped },
+        alertsSent: 0,
+        error,
+      };
+    }
+
     // Step 4: Photo enrichment with guard
     if (await isEnabled("photo_guard", dealershipId)) {
       for (const v of scrapedVehicles) {
