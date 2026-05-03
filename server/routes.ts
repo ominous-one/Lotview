@@ -17757,12 +17757,22 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
     try {
       const { vehicleId, platform, status, url, error: errMsg, postingToken } = req.body;
       
-      if (!vehicleId || !platform || !status) {
+      if (!platform || !status) {
         return res.status(400).json({ error: "vehicleId, platform, status required" });
       }
       
       const dealershipId = req.dealershipId!;
       const userId = req.user!.id;
+      const parsedVehicleId = parseOptionalPositiveIntegerBodyValue(vehicleId, res, "vehicleId");
+      if (parsedVehicleId === null) return;
+      if (parsedVehicleId === undefined) {
+        return res.status(400).json({ error: "vehicleId, platform, status required" });
+      }
+
+      const scopedVehicle = await storage.getVehicleById(parsedVehicleId, dealershipId);
+      if (!scopedVehicle) {
+        return res.status(404).json({ error: "Vehicle not found" });
+      }
 
       // For successful posts, validate the one-time posting token (server-side limit enforcement)
       if (status === "success") {
@@ -17773,7 +17783,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
         const tokenValidation = await validatePostingToken(
           postingToken,
           userId,
-          vehicleId,
+          parsedVehicleId,
           platform
         );
 
@@ -17818,7 +17828,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
         .values({
           dealershipId,
           accountId,
-          vehicleId,
+          vehicleId: parsedVehicleId,
           action: status === "success" ? "post" : "post_failed",
           status: status === "success" ? "success" : "failed",
           details: JSON.stringify({
@@ -17835,7 +17845,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
           .select()
           .from(fbMarketplaceListings)
           .where(and(
-            eq(fbMarketplaceListings.vehicleId, vehicleId),
+            eq(fbMarketplaceListings.vehicleId, parsedVehicleId),
             eq(fbMarketplaceListings.dealershipId, dealershipId),
             eq(fbMarketplaceListings.accountId, accountId)
           ))
@@ -17851,22 +17861,15 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
             })
             .where(eq(fbMarketplaceListings.id, existing[0].id));
         } else {
-          // Get vehicle price for the listing record
-          const [vehicle] = await db
-            .select({ price: vehicles.price })
-            .from(vehicles)
-            .where(and(eq(vehicles.id, vehicleId), eq(vehicles.dealershipId, dealershipId)))
-            .limit(1);
-          
           await db
             .insert(fbMarketplaceListings)
             .values({
               dealershipId,
-              vehicleId,
+              vehicleId: parsedVehicleId,
               accountId,
               status: 'posted',
-              postedPrice: vehicle?.price,
-              currentPrice: vehicle?.price,
+              postedPrice: scopedVehicle.price,
+              currentPrice: scopedVehicle.price,
               postedAt: new Date(),
             });
         }
