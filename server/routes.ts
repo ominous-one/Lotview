@@ -404,6 +404,26 @@ function requirePbsWebhookEventIdParam(req: Request, res: Response): number | nu
   return eventId;
 }
 
+function requireCallRecordingIdParam(req: Request, res: Response): number | null {
+  const recordingId = parsePositiveIntegerId(req.params.id);
+  if (!recordingId) {
+    res.status(400).json({ error: "Call recording id must be a positive integer" });
+    return null;
+  }
+
+  return recordingId;
+}
+
+function requireCallAnalysisCriteriaIdParam(req: Request, res: Response): number | null {
+  const criteriaId = parsePositiveIntegerId(req.params.id);
+  if (!criteriaId) {
+    res.status(400).json({ error: "Call analysis criteria id must be a positive integer" });
+    return null;
+  }
+
+  return criteriaId;
+}
+
 function parseOptionalPositiveIntegerQueryParam(value: unknown, res: Response, label: string): number | null | undefined {
   if (value === undefined) {
     return undefined;
@@ -13034,7 +13054,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.get("/api/call-recordings/:id", authMiddleware, requirePermission("leads.read"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const id = parseInt(req.params.id);
+      const id = requireCallRecordingIdParam(req, res);
+      if (!id) return;
       
       const recording = await storage.getCallRecordingById(id, dealershipId);
       if (!recording) {
@@ -13052,7 +13073,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.post("/api/call-recordings/:id/analyze", authMiddleware, requirePermission("leads.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const id = parseInt(req.params.id);
+      const id = requireCallRecordingIdParam(req, res);
+      if (!id) return;
       
       const recording = await storage.getCallRecordingById(id, dealershipId);
       if (!recording) {
@@ -13083,7 +13105,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.post("/api/call-recordings/:id/review", authMiddleware, requirePermission("leads.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const id = parseInt(req.params.id);
+      const id = requireCallRecordingIdParam(req, res);
+      if (!id) return;
       const { notes } = req.body;
       
       const recording = await storage.updateCallRecording(id, dealershipId, {
@@ -13143,7 +13166,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.patch("/api/call-analysis-criteria/:id", authMiddleware, requirePermission("leads.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const id = parseInt(req.params.id);
+      const id = requireCallAnalysisCriteriaIdParam(req, res);
+      if (!id) return;
       
       const updates = stripTenantOwnershipFields(req.body ?? {});
       const criteria = await storage.updateCallAnalysisCriteria(id, dealershipId, updates);
@@ -13162,7 +13186,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.delete("/api/call-analysis-criteria/:id", authMiddleware, requirePermission("leads.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const id = parseInt(req.params.id);
+      const id = requireCallAnalysisCriteriaIdParam(req, res);
+      if (!id) return;
       
       await storage.deleteCallAnalysisCriteria(id, dealershipId);
       res.json({ success: true });

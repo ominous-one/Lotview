@@ -20,7 +20,7 @@ A feature only counts as working when CI, staging, logs, tests, and a real user 
 
 Every production feature must have CI proof, automated tests, staging proof, logs or monitoring, real user-flow proof, failure or recovery behavior, an owner, and a last verified date.
 
-Recent partial proof: tenant user mutation routes, legacy Facebook posting account/template/queue routes, manager competitor alert routes, manager appraisal get/update/delete routes, remarketing vehicle update/delete routes, and PBS config/webhook-event management routes now use strict positive ID parsing before tenant-scoped storage reads or writes. Competitor alert and PBS management numeric filters also fail closed instead of partially parsing malformed values. This improves RBAC, inventory, and tenant-boundary proof but does not certify full cross-tenant isolation.
+Recent partial proof: tenant user mutation routes, legacy Facebook posting account/template/queue routes, manager competitor alert routes, manager appraisal get/update/delete routes, remarketing vehicle update/delete routes, PBS config/webhook-event management routes, and call analysis recording/criteria routes now use strict positive ID parsing before tenant-scoped storage reads or writes. Competitor alert and PBS management numeric filters also fail closed instead of partially parsing malformed values. This improves RBAC, inventory, and tenant-boundary proof but does not certify full cross-tenant isolation.
 
 ## Feature Certification Matrix
 

@@ -57,6 +57,17 @@ describe("call analysis route RBAC and tenant contracts", () => {
     expect(callAnalysisBlock).toContain("storage.deleteCallAnalysisCriteria(id, dealershipId)");
   });
 
+  it("rejects malformed call analysis ids before scoped storage access", () => {
+    expect(callAnalysisBlock).toBeDefined();
+    expect(routesSource).toContain("function requireCallRecordingIdParam(req: Request, res: Response): number | null");
+    expect(routesSource).toContain("function requireCallAnalysisCriteriaIdParam(req: Request, res: Response): number | null");
+    expect(routesSource).toContain('res.status(400).json({ error: "Call recording id must be a positive integer" })');
+    expect(routesSource).toContain('res.status(400).json({ error: "Call analysis criteria id must be a positive integer" })');
+    expect(callAnalysisBlock?.match(/requireCallRecordingIdParam\(req, res\)/g)).toHaveLength(3);
+    expect(callAnalysisBlock?.match(/requireCallAnalysisCriteriaIdParam\(req, res\)/g)).toHaveLength(2);
+    expect(callAnalysisBlock).not.toContain("parseInt(req.params.id");
+  });
+
   it("strips immutable tenant ownership fields before call analysis criteria updates", () => {
     expect(callAnalysisBlock).toContain("const updates = stripTenantOwnershipFields(req.body ?? {})");
     expect(storageSource).toContain(".set({ ...stripTenantOwnershipFields(criteria), updatedAt: new Date() })");
