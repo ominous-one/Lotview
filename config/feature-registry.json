@@ -238,7 +238,7 @@
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "AI prompt management routes require explicit ai.configure RBAC and dealership context where dealership-scoped, including the legacy admin prompt template write path. AI runtime generation routes require explicit ai.use RBAC, AI settings and FB inbox auto-send controls require ai.configure RBAC, and public chat fails closed without dealership context. Still needs inventory-grounding, finance guardrail, prompt injection, escalation, human approval, observability, staging, and real user-flow proof."
+      "notes": "AI prompt management routes require explicit ai.configure RBAC, strict prompt IDs, and dealership context where dealership-scoped, including the legacy admin prompt template write path. AI runtime generation routes require explicit ai.use RBAC, AI settings and FB inbox auto-send controls require ai.configure RBAC, and public chat fails closed without dealership context. Still needs inventory-grounding, finance guardrail, prompt injection, escalation, human approval, observability, staging, and real user-flow proof."
     },
     {
       "id": "ghl.crm_sync",

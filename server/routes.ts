@@ -314,6 +314,16 @@ function requireUserIdParam(req: Request, res: Response): number | null {
   return userId;
 }
 
+function requirePromptIdParam(req: Request, res: Response): number | null {
+  const promptId = parsePositiveIntegerId(req.params.id);
+  if (!promptId) {
+    res.status(400).json({ error: "Prompt id must be a positive integer" });
+    return null;
+  }
+
+  return promptId;
+}
+
 function requireFacebookPageIdParam(req: Request, res: Response): number | null {
   const pageId = parsePositiveIntegerId(req.params.id);
   if (!pageId) {
@@ -6135,7 +6145,8 @@ Provide a single, concise, friendly message that continues the conversation natu
   app.patch("/api/chat-prompts/:id", authMiddleware, requirePermission("ai.configure"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const promptId = parseInt(req.params.id);
+      const promptId = requirePromptIdParam(req, res);
+      if (!promptId) return;
       const { systemPrompt, greeting, isActive } = req.body;
 
       if (!systemPrompt) {
@@ -6289,7 +6300,8 @@ IMPORTANT: The suggestedPrompt should be a complete, ready-to-use system prompt.
         return res.status(400).json({ error: "Dealership ID is required" });
       }
       
-      const promptId = parseInt(req.params.id);
+      const promptId = requirePromptIdParam(req, res);
+      if (!promptId) return;
       const prompt = await storage.getChatPromptById(promptId, dealershipId);
       
       if (!prompt) {
@@ -6367,7 +6379,8 @@ IMPORTANT: The suggestedPrompt should be a complete, ready-to-use system prompt.
         return res.status(400).json({ error: "Dealership ID is required" });
       }
       
-      const promptId = parseInt(req.params.id);
+      const promptId = requirePromptIdParam(req, res);
+      if (!promptId) return;
       const updates = { ...req.body };
       delete updates.dealershipId;
 
@@ -6409,7 +6422,8 @@ IMPORTANT: The suggestedPrompt should be a complete, ready-to-use system prompt.
         return res.status(400).json({ error: "Dealership ID is required" });
       }
       
-      const promptId = parseInt(req.params.id);
+      const promptId = requirePromptIdParam(req, res);
+      if (!promptId) return;
       
       const deleted = await storage.deleteChatPrompt(promptId, dealershipId);
       
@@ -6439,7 +6453,8 @@ IMPORTANT: The suggestedPrompt should be a complete, ready-to-use system prompt.
         return res.status(400).json({ error: "Dealership ID is required" });
       }
       
-      const promptId = parseInt(req.params.id);
+      const promptId = requirePromptIdParam(req, res);
+      if (!promptId) return;
       
       // Get the prompt
       const prompt = await storage.getChatPromptById(promptId, dealershipId);
@@ -6490,7 +6505,10 @@ IMPORTANT: The suggestedPrompt should be a complete, ready-to-use system prompt.
         : req.dealershipId;
       
       if (dealershipId) {
-        const promptId = parseInt(req.params.id);
+        const promptId = parsePositiveIntegerId(req.params.id);
+        if (!promptId) {
+          return res.status(500).json({ error: "Failed to sync prompt to GHL" });
+        }
         await storage.updateChatPromptById(promptId, dealershipId, {
           ghlPromptSynced: false,
           ghlSyncError: String(error)
