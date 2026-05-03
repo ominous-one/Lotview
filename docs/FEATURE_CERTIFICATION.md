@@ -32,6 +32,8 @@ Additional partial proof: FB inbox thread/message/audit read filters now use str
 
 Additional partial proof: modular vehicle list `page` and `limit` filters now use strict positive-integer parsing instead of permissive `parseInt`, so malformed pagination fails closed before dealership-scoped inventory reads. This improves inventory route-contract proof but does not certify full inventory CRUD, UI, staging, source-truth, or rollback proof.
 
+Additional partial proof: modular vehicle batch AI-description `vehicleIds` now use strict positive-integer parsing before dealership-scoped vehicle reads and inventory writes. Malformed batch IDs fail closed instead of being partially parsed. This improves inventory and AI route-contract proof but does not certify batch AI description quality, staging, observability, or rollback proof.
+
 ## Feature Certification Matrix
 
 | Feature | Status | CI Proof | Tests | Staging Proof | Logs/Monitoring | Real User Flow | Owner | Notes |
