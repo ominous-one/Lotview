@@ -245,6 +245,87 @@ describe("vehicle route tenant contracts", () => {
     expect(storageMock.getCarfaxReport).not.toHaveBeenCalled();
   });
 
+  it("rejects malformed public Carfax IDs before tenant-scoped storage access", async () => {
+    await request(appWithDealerOne)
+      .get("/api/vehicles/42abc/carfax")
+      .expect(400)
+      .expect({ error: "Vehicle id must be a positive integer" });
+
+    await request(appWithDealerOne)
+      .get("/api/vehicles/42abc/carfax/summary")
+      .expect(400)
+      .expect({ error: "Vehicle id must be a positive integer" });
+
+    expect(storageMock.getVehicleById).not.toHaveBeenCalled();
+    expect(storageMock.getCarfaxReport).not.toHaveBeenCalled();
+  });
+
+  it("does not read Carfax reports when the dealership-scoped vehicle lookup misses", async () => {
+    storageMock.getVehicleById.mockResolvedValue(undefined);
+
+    await request(appWithDealerOne)
+      .get("/api/vehicles/42/carfax")
+      .expect(404)
+      .expect({ error: "Vehicle not found" });
+
+    expect(storageMock.getVehicleById).toHaveBeenCalledWith(42, 1);
+    expect(storageMock.getCarfaxReport).not.toHaveBeenCalled();
+  });
+
+  it("reads Carfax reports with the resolved dealership context", async () => {
+    storageMock.getVehicleById.mockResolvedValue({ id: 42, vin: "1HGCM82633A004352" });
+    storageMock.getCarfaxReport.mockResolvedValue({
+      vehicleId: 42,
+      vin: "1HGCM82633A004352",
+      badges: ["One Owner"],
+    });
+
+    await request(appWithDealerOne)
+      .get("/api/vehicles/42/carfax")
+      .expect(200)
+      .expect({
+        vehicleId: 42,
+        vin: "1HGCM82633A004352",
+        badges: ["One Owner"],
+      });
+
+    expect(storageMock.getVehicleById).toHaveBeenCalledWith(42, 1);
+    expect(storageMock.getCarfaxReport).toHaveBeenCalledWith(42, 1);
+  });
+
+  it("reads Carfax summaries with the resolved dealership context", async () => {
+    storageMock.getVehicleById.mockResolvedValue({ id: 42, vin: "1HGCM82633A004352" });
+    storageMock.getCarfaxReport.mockResolvedValue({
+      vehicleId: 42,
+      vin: "1HGCM82633A004352",
+      accidentCount: 0,
+      ownerCount: 1,
+      serviceRecordCount: 8,
+      damageReported: false,
+      lienReported: false,
+      badges: ["One Owner"],
+      lastReportedOdometer: 120000,
+      lastReportedDate: "2026-01-01",
+      reportUrl: "https://example.com/report",
+      scrapedAt: "2026-01-02",
+    });
+
+    await request(appWithDealerOne)
+      .get("/api/vehicles/42/carfax/summary")
+      .expect(200)
+      .expect((res) => {
+        expect(res.body).toMatchObject({
+          vehicleId: 42,
+          vin: "1HGCM82633A004352",
+          ownerCount: 1,
+          badges: ["One Owner"],
+        });
+      });
+
+    expect(storageMock.getVehicleById).toHaveBeenCalledWith(42, 1);
+    expect(storageMock.getCarfaxReport).toHaveBeenCalledWith(42, 1);
+  });
+
   it("requires tenant context before public vehicle view tracking", async () => {
     await request(appWithoutTenant)
       .post("/api/vehicles/42/view")
