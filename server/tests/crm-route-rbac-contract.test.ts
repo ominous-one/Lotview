@@ -120,12 +120,13 @@ describe("CRM route RBAC and tenant contract", () => {
     [
       "function requireCrmContactIdParam(req: Request, res: Response): number | null",
       "CRM contact id must be a positive integer",
-      "function requireCrmTagIdParam(req: Request, res: Response): number | null",
+      'function requireCrmTagIdParam(req: Request, res: Response, paramName = "tagId"): number | null',
       "CRM tag id must be a positive integer",
       'const ownerId = parseOptionalPositiveIntegerQueryParam(req.query.ownerId, res, "ownerId")',
       'const parsedLimit = parseOptionalPositiveIntegerQueryParam(req.query.limit, res, "limit")',
       'const parsedOffset = parseOptionalNonNegativeIntegerQueryParam(req.query.offset, res, "offset")',
       "const id = requireCrmContactIdParam(req, res)",
+      'const id = requireCrmTagIdParam(req, res, "id")',
       "const contactId = requireCrmContactIdParam(req, res)",
       "const tagId = requireCrmTagIdParam(req, res)",
     ].forEach((guard) => expect(routesSource).toContain(guard));
@@ -135,6 +136,8 @@ describe("CRM route RBAC and tenant contract", () => {
       "limit: req.query.limit ? parseInt(req.query.limit as string) : 50",
       "offset: req.query.offset ? parseInt(req.query.offset as string) : 0",
       "const id = parseInt(req.params.id);\n      const userId = req.user?.id;\n      const userRole = req.user?.role;",
+      "const id = parseInt(req.params.id);\n      \n      const updates = stripTenantOwnershipFields(req.body ?? {});",
+      "const id = parseInt(req.params.id);\n      \n      const deleted = await storage.deleteCrmTag(id, dealershipId);",
       "const contactId = parseInt(req.params.id);\n      const tagId = parseInt(req.params.tagId);",
       "const contactId = parseInt(req.params.id);\n      const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;",
     ].forEach((unsafeParse) => expect(crmContactBoundarySource).not.toContain(unsafeParse));
