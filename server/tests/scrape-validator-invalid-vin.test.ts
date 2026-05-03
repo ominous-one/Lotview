@@ -307,6 +307,36 @@ describe("scrape validator invalid VIN handling", () => {
     expect(sendQualityAlertMock).not.toHaveBeenCalled();
   });
 
+  it("fails closed when nested scraped VDP URLs are unsafe", async () => {
+    const unsafeSourceVin = validVin(24);
+    const vehicles = [
+      {
+        ...scrapedVehicle(24, unsafeSourceVin),
+        data: {
+          dealerVdpUrl: "javascript:alert(1)",
+        },
+      },
+    ];
+
+    const result = await scrapeValidator.validateScrape(7, vehicles);
+
+    expect(result).toMatchObject({
+      isValid: false,
+      vehiclesFound: 1,
+      validVins: 1,
+      invalidVins: [],
+      vehiclesWithPhotos: 1,
+    });
+    expect(result.errors).toContain(
+      `Invalid scraped source URLs in scrape result: ${unsafeSourceVin}(javascript:alert(1))`
+    );
+    expect(sendScrapeFailureAlertMock).toHaveBeenCalledWith(
+      7,
+      expect.stringContaining("Invalid scraped source URLs")
+    );
+    expect(sendQualityAlertMock).not.toHaveBeenCalled();
+  });
+
   it("fails closed and does not count unsafe scraped photo URLs as coverage", async () => {
     const unsafePhotoVin = validVin(23);
     const vehicles = [
@@ -334,5 +364,59 @@ describe("scrape validator invalid VIN handling", () => {
       expect.stringContaining("Invalid scraped photo URLs")
     );
     expect(sendQualityAlertMock).toHaveBeenCalledWith(7, 1, 0);
+  });
+
+  it("validates image aliases before counting photo coverage", async () => {
+    const imageOnlyVin = validVin(25);
+    const { photos: _photos, ...vehicle } = scrapedVehicle(25, imageOnlyVin);
+    const vehicles = [
+      {
+        ...vehicle,
+        images: ["https://cdn.example.com/image-only.jpg"],
+      },
+    ];
+
+    const result = await scrapeValidator.validateScrape(7, vehicles);
+
+    expect(result).toMatchObject({
+      isValid: true,
+      vehiclesFound: 1,
+      validVins: 1,
+      invalidVins: [],
+      vehiclesWithPhotos: 1,
+    });
+    expect(sendScrapeFailureAlertMock).not.toHaveBeenCalled();
+    expect(sendQualityAlertMock).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when nested image aliases contain unsafe URLs", async () => {
+    const unsafeImageVin = validVin(26);
+    const { photos: _photos, ...vehicle } = scrapedVehicle(26, unsafeImageVin);
+    const vehicles = [
+      {
+        ...vehicle,
+        data: {
+          images: ["https://cdn.example.com/safe.jpg", "ftp://cdn.example.com/bad.jpg"],
+        },
+      },
+    ];
+
+    const result = await scrapeValidator.validateScrape(7, vehicles);
+
+    expect(result).toMatchObject({
+      isValid: false,
+      vehiclesFound: 1,
+      validVins: 1,
+      invalidVins: [],
+      vehiclesWithPhotos: 1,
+    });
+    expect(result.errors).toContain(
+      `Invalid scraped photo URLs in scrape result: ${unsafeImageVin}(ftp://cdn.example.com/bad.jpg)`
+    );
+    expect(sendScrapeFailureAlertMock).toHaveBeenCalledWith(
+      7,
+      expect.stringContaining("Invalid scraped photo URLs")
+    );
+    expect(sendQualityAlertMock).not.toHaveBeenCalled();
   });
 });
