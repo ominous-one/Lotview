@@ -338,9 +338,13 @@ button {
   overflow-x: auto;
 }
 
+.row-action {
+  min-width: 104px;
+}
+
 table {
   width: 100%;
-  min-width: 820px;
+  min-width: 940px;
   border-collapse: collapse;
   font-size: 14px;
 }
@@ -493,6 +497,51 @@ th {
   vertical-align: text-bottom;
 }
 
+.vehicle-detail-band {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border-top: 1px solid #e5ebf1;
+  background: #fbfcfe;
+}
+
+.detail-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.detail-heading h3 {
+  margin: 0 0 5px;
+  color: #172033;
+  font-size: 18px;
+  line-height: 1.3;
+  letter-spacing: 0;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(130px, 1fr));
+  gap: 12px;
+}
+
+.detail-grid div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.detail-grid span {
+  color: #617084;
+  font-size: 13px;
+}
+
+.detail-grid strong {
+  color: #172033;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 880px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -519,7 +568,8 @@ th {
   }
 
   .metrics-grid,
-  .run-grid {
+  .run-grid,
+  .detail-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -546,7 +596,8 @@ th {
   }
 
   .metrics-grid,
-  .run-grid {
+  .run-grid,
+  .detail-grid {
     grid-template-columns: 1fr;
   }
 

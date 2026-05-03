@@ -50,6 +50,8 @@ Additional partial proof: VIN enrichment now rejects MarketCheck and API Ninjas 
 
 Additional partial proof: scrape validation now fails closed on unrealistic numeric price and mileage facts instead of accepting any positive finite number. This reduces inventory poisoning risk from malformed scraper output, but does not certify live scrape accuracy, staging, observability, or rollback proof.
 
+Additional partial proof: the frontend inventory view now supports an authenticated row-inspection workflow backed by tenant-scoped `/api/vehicles` data, with test proof that selecting a row updates the inspection state without making an unscoped detail request. This improves product UI proof, but does not certify full Playwright staging flows, observability, or rollback proof.
+
 ## Feature Certification Matrix
 
 | Feature | Status | CI Proof | Tests | Staging Proof | Logs/Monitoring | Real User Flow | Owner | Notes |
