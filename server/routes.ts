@@ -304,6 +304,16 @@ function requireExternalTokenIdParam(req: Request, res: Response): number | null
   return tokenId;
 }
 
+function requireUserIdParam(req: Request, res: Response): number | null {
+  const userId = parsePositiveIntegerId(req.params.id);
+  if (!userId) {
+    res.status(400).json({ error: "User id must be a positive integer" });
+    return null;
+  }
+
+  return userId;
+}
+
 function requireFacebookPageIdParam(req: Request, res: Response): number | null {
   const pageId = parsePositiveIntegerId(req.params.id);
   if (!pageId) {
@@ -3271,7 +3281,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update user (master only)
   app.patch("/api/users/:id", authMiddleware, requirePermission("users.manage"), requireRole("master"), requireDealership, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = requireUserIdParam(req, res);
+      if (!id) return;
       const { email, password, name, role, isActive } = req.body;
       
       const updates: any = {};

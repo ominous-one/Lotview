@@ -20,6 +20,8 @@ A feature only counts as working when CI, staging, logs, tests, and a real user 
 
 Every production feature must have CI proof, automated tests, staging proof, logs or monitoring, real user-flow proof, failure or recovery behavior, an owner, and a last verified date.
 
+Recent partial proof: tenant user mutation routes now use strict positive user ID parsing before tenant-scoped storage updates. This improves RBAC and tenant-boundary proof but does not certify full cross-tenant isolation.
+
 ## Feature Certification Matrix
 
 | Feature | Status | CI Proof | Tests | Staging Proof | Logs/Monitoring | Real User Flow | Owner | Notes |
