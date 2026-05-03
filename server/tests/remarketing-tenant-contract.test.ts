@@ -26,11 +26,24 @@ describe("remarketing tenant route contract", () => {
     expect(remarketingBlock).toBeDefined();
     expect(remarketingBlock).toContain("const dealershipId = req.dealershipId!");
     expect(remarketingBlock).toContain("storage.getRemarketingVehicles(dealershipId)");
-    expect(remarketingBlock).toContain("storage.getVehicleById(vehicleId, dealershipId)");
+    expect(remarketingBlock).toContain("storage.getVehicleById(parsedVehicleId, dealershipId)");
     expect(remarketingBlock).toContain("storage.getRemarketingVehicleCount(dealershipId)");
-    expect(remarketingBlock).toContain("storage.addRemarketingVehicle({ dealershipId, vehicleId, budgetPriority, isActive: true })");
+    expect(remarketingBlock).toContain("storage.addRemarketingVehicle({ dealershipId, vehicleId: parsedVehicleId, budgetPriority, isActive: true })");
     expect(remarketingBlock).toContain("storage.updateRemarketingVehicle(id, dealershipId");
     expect(remarketingBlock).toContain("storage.removeRemarketingVehicle(id, dealershipId)");
+  });
+
+  it("strictly parses add-vehicle body vehicle ids before scoped remarketing writes", () => {
+    expect(remarketingBlock).toBeDefined();
+    expect(remarketingBlock).toContain('const parsedVehicleId = parseOptionalPositiveIntegerBodyValue(vehicleId, res, "vehicleId");');
+    expect(remarketingBlock).toContain('return res.status(400).json({ error: "vehicleId and budgetPriority are required" });');
+    expect(remarketingBlock).toContain("if (parsedVehicleId === null) return;");
+    expect(remarketingBlock).toContain("storage.getVehicleById(parsedVehicleId, dealershipId)");
+    expect(remarketingBlock).toContain("remarketingVehicles.some(rv => rv.vehicleId === parsedVehicleId)");
+    expect(remarketingBlock).toContain("storage.addRemarketingVehicle({ dealershipId, vehicleId: parsedVehicleId, budgetPriority, isActive: true })");
+    expect(remarketingBlock).not.toContain("storage.getVehicleById(vehicleId, dealershipId)");
+    expect(remarketingBlock).not.toContain("remarketingVehicles.some(rv => rv.vehicleId === vehicleId)");
+    expect(remarketingBlock).not.toContain("storage.addRemarketingVehicle({ dealershipId, vehicleId, budgetPriority, isActive: true })");
   });
 
   it("rejects malformed remarketing vehicle ids before scoped mutations", () => {
