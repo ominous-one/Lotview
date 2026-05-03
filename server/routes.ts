@@ -314,6 +314,16 @@ function requireMessageIdParam(req: Request, res: Response): number | null {
   return messageId;
 }
 
+function requireFbInboxThreadIdParam(req: Request, res: Response): number | null {
+  const threadId = parsePositiveIntegerId(req.params.id);
+  if (!threadId) {
+    res.status(400).json({ error: "FB inbox thread id must be a positive integer" });
+    return null;
+  }
+
+  return threadId;
+}
+
 function requireExternalTokenIdParam(req: Request, res: Response): number | null {
   const tokenId = parsePositiveIntegerId(req.params.id);
   if (!tokenId) {
@@ -18560,7 +18570,8 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
   app.get("/api/fb-inbox/threads/:id", authMiddleware, requirePermission("messages.read"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const id = parseInt(req.params.id, 10);
+      const id = requireFbInboxThreadIdParam(req, res);
+      if (!id) return;
       const thread = await storage.getFbInboxThreadById(dealershipId, id);
       if (!thread) return res.status(404).json({ error: "Not found" });
       res.json(thread);
@@ -18573,7 +18584,8 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
   app.get("/api/fb-inbox/threads/:id/messages", authMiddleware, requirePermission("messages.read"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const id = parseInt(req.params.id, 10);
+      const id = requireFbInboxThreadIdParam(req, res);
+      if (!id) return;
       const limit = Math.min(parseInt((req.query.limit as string) || "200", 10) || 200, 500);
       const msgs = await storage.listFbInboxMessages(dealershipId, id, limit);
       res.json(msgs);
@@ -18586,7 +18598,8 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
   app.post("/api/fb-inbox/threads/:id/pause", authMiddleware, requirePermission("messages.write"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const id = parseInt(req.params.id, 10);
+      const id = requireFbInboxThreadIdParam(req, res);
+      if (!id) return;
       const paused = !!req.body?.paused;
       const thread = await storage.setFbInboxThreadPaused(dealershipId, id, paused);
       res.json(thread);
@@ -18600,7 +18613,8 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
   app.post("/api/fb-inbox/threads/:id/abort", authMiddleware, requirePermission("messages.write"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const id = parseInt(req.params.id, 10);
+      const id = requireFbInboxThreadIdParam(req, res);
+      if (!id) return;
       const reason = typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
       if (!reason) return res.status(400).json({ error: "reason is required" });
 
@@ -18635,7 +18649,8 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
   app.post("/api/fb-inbox/threads/:id/auto-send", authMiddleware, requirePermission("ai.configure"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const id = parseInt(req.params.id, 10);
+      const id = requireFbInboxThreadIdParam(req, res);
+      if (!id) return;
       const enabled = !!req.body?.enabled;
       const thread = await storage.setFbInboxThreadAutoSendEnabled(dealershipId, id, enabled);
       res.json(thread);
@@ -18648,7 +18663,8 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
   app.post("/api/fb-inbox/threads/:id/dnc", authMiddleware, requirePermission("messages.write"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const id = parseInt(req.params.id, 10);
+      const id = requireFbInboxThreadIdParam(req, res);
+      if (!id) return;
       const dnc = !!req.body?.dnc;
       const thread = await storage.setFbInboxThreadDnc(dealershipId, id, dnc);
       res.json(thread);
