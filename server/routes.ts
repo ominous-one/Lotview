@@ -344,8 +344,8 @@ function requireBillingSettingIdParam(req: Request, res: Response): number | nul
   return settingId;
 }
 
-function requireFacebookPostingIdParam(req: Request, res: Response, label: string): number | null {
-  const postingId = parsePositiveIntegerId(req.params.id);
+function requireFacebookPostingIdParam(req: Request, res: Response, label: string, paramName = "id"): number | null {
+  const postingId = parsePositiveIntegerId(req.params[paramName]);
   if (!postingId) {
     res.status(400).json({ error: `${label} id must be a positive integer` });
     return null;
@@ -8685,7 +8685,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.get("/api/facebook/oauth/init/:accountId", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
-      const accountId = parseInt(req.params.accountId);
+      const accountId = requireFacebookPostingIdParam(req, res, "Facebook account", "accountId");
+      if (!accountId) return;
       const userId = authReq.user!.id;
       const dealershipId = req.dealershipId!;
       
@@ -8868,7 +8869,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.get("/api/facebook/accounts/:accountId/pages", authMiddleware, requirePermission("messages.read"), requireRole("salesperson"), requireDealership, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
-      const accountId = parseInt(req.params.accountId);
+      const accountId = requireFacebookPostingIdParam(req, res, "Facebook account", "accountId");
+      if (!accountId) return;
       const userId = authReq.user!.id;
       const dealershipId = req.dealershipId!;
       
@@ -8898,7 +8900,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.post("/api/facebook/accounts/:accountId/pages/:pageId/connect", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
-      const accountId = parseInt(req.params.accountId);
+      const accountId = requireFacebookPostingIdParam(req, res, "Facebook account", "accountId");
+      if (!accountId) return;
       const pageId = req.params.pageId;
       const userId = authReq.user!.id;
       const dealershipId = req.dealershipId!;
@@ -8952,7 +8955,8 @@ Format your response in clear sections with actionable recommendations.`;
   // Disconnect a Facebook page
   app.post("/api/facebook/pages/:pageId/disconnect", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
     try {
-      const pageId = parseInt(req.params.pageId);
+      const pageId = requireFacebookPostingIdParam(req, res, "Facebook page", "pageId");
+      if (!pageId) return;
       const dealershipId = req.dealershipId!;
       
       const page = await storage.updateFacebookPage(pageId, { isActive: false, accessToken: null }, dealershipId);
@@ -8989,7 +8993,8 @@ Format your response in clear sections with actionable recommendations.`;
   // Test post to a Facebook page
   app.post("/api/facebook/pages/:pageId/test-post", authMiddleware, requirePermission("messages.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
-      const pageId = parseInt(req.params.pageId);
+      const pageId = requireFacebookPostingIdParam(req, res, "Facebook page", "pageId");
+      if (!pageId) return;
       const dealershipId = req.dealershipId!;
       const { message } = req.body;
       
@@ -9016,8 +9021,10 @@ Format your response in clear sections with actionable recommendations.`;
   // Post a vehicle to a Facebook page
   app.post("/api/facebook/pages/:pageId/post-vehicle/:vehicleId", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
     try {
-      const pageId = parseInt(req.params.pageId);
-      const vehicleId = parseInt(req.params.vehicleId);
+      const pageId = requireFacebookPostingIdParam(req, res, "Facebook page", "pageId");
+      if (!pageId) return;
+      const vehicleId = requireVehicleIdPathParam(req, res);
+      if (!vehicleId) return;
       const dealershipId = req.dealershipId!;
       
       const pages = await storage.getFacebookPages(dealershipId);
@@ -9059,7 +9066,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.post("/api/facebook/post/:queueId", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
-      const queueId = parseInt(req.params.queueId);
+      const queueId = requireFacebookPostingIdParam(req, res, "Posting queue", "queueId");
+      if (!queueId) return;
       const userId = authReq.user!.id;
       const dealershipId = req.dealershipId!;
       
