@@ -62,6 +62,8 @@ Additional partial proof: dealership owner/master guard tenant selectors now use
 
 Additional partial proof: vehicle smart merge now accepts only an allowlisted set of scrape fields and sends only the changed allowed-field patch into tenant-scoped storage. Client-supplied `id`, `dealershipId`, VIN, stock-number identity, lifecycle, delete, marketplace, and unknown system fields are skipped. This improves inventory and tenant-boundary proof, but does not certify full source-truth reconciliation, staging, observability, or rollback proof.
 
+Additional partial proof: vehicle smart merge now validates allowed scrape-field values before storage patches. Numeric values must be integers within configured safety ranges, URL and image fields must be HTTP(S), status fields must be known values, date fields must parse as dates, and photo add-only merges now write the merged image array instead of a count. This improves inventory corruption resistance, but does not certify live scrape source-truth accuracy, staging, observability, or rollback proof.
+
 ## Feature Certification Matrix
 
 | Feature | Status | CI Proof | Tests | Staging Proof | Logs/Monitoring | Real User Flow | Owner | Notes |

@@ -48,6 +48,85 @@ const PRICE_FIELDS = new Set([
   "price", "msrp", "salePrice", "internetPrice",
 ]);
 
+const INTEGER_FIELDS = new Set([
+  "year",
+  "price",
+  "odometer",
+  "cargurusPrice",
+  "carfaxConfidenceScore",
+  "missedScrapeCount",
+]);
+
+const STRING_FIELDS = new Set([
+  "make",
+  "model",
+  "trim",
+  "type",
+  "location",
+  "dealership",
+  "description",
+  "fullPageContent",
+  "interiorColor",
+  "exteriorColor",
+  "transmission",
+  "fuelType",
+  "drivetrain",
+  "engine",
+  "cargurusUrl",
+  "dealRating",
+  "carfaxUrl",
+  "highlights",
+  "vdpDescription",
+  "techSpecs",
+  "dealerVdpUrl",
+  "photoStatus",
+  "verificationStatus",
+  "photoFingerprint",
+]);
+
+const STRING_ARRAY_FIELDS = new Set([
+  "images",
+  "badges",
+  "carfaxBadges",
+]);
+
+const DATE_FIELDS = new Set([
+  "carfaxLastUpdated",
+  "lastScrapedAt",
+  "verificationCheckedAt",
+  "lastPriceRefreshAt",
+]);
+
+const URL_FIELDS = new Set([
+  "cargurusUrl",
+  "carfaxUrl",
+  "dealerVdpUrl",
+]);
+
+const IMAGE_URL_FIELDS = new Set([
+  "images",
+]);
+
+const PHOTO_STATUSES = new Set([
+  "unknown",
+  "pending",
+  "complete",
+  "no_vdp",
+  "terminal",
+]);
+
+const VERIFICATION_STATUSES = new Set([
+  "VERIFIED",
+  "UNVERIFIED",
+  "STALE",
+  "ERROR",
+]);
+
+const MIN_REASONABLE_VEHICLE_YEAR = 1900;
+const MAX_REASONABLE_FUTURE_YEAR_OFFSET = 2;
+const MAX_REASONABLE_PRICE = 1_000_000;
+const MAX_REASONABLE_ODOMETER = 1_500_000;
+
 export const SMART_MERGE_SCRAPE_FIELDS = new Set([
   "year",
   "make",
@@ -92,6 +171,114 @@ export function isSmartMergeScrapeField(field: string): boolean {
   return SMART_MERGE_SCRAPE_FIELDS.has(field);
 }
 
+export function validateSmartMergeScrapeValue(
+  field: string,
+  value: unknown,
+): { ok: true; value: any } | { ok: false; reason: string } {
+  if (INTEGER_FIELDS.has(field)) {
+    if (typeof value !== "number" || !Number.isInteger(value)) {
+      return { ok: false, reason: "Field must be an integer" };
+    }
+
+    if (field === "year") {
+      const maxYear = new Date().getFullYear() + MAX_REASONABLE_FUTURE_YEAR_OFFSET;
+      if (value < MIN_REASONABLE_VEHICLE_YEAR || value > maxYear) {
+        return { ok: false, reason: "Vehicle year is outside the allowed range" };
+      }
+    }
+
+    if ((field === "price" || field === "cargurusPrice") && (value <= 0 || value > MAX_REASONABLE_PRICE)) {
+      return { ok: false, reason: "Vehicle price is outside the allowed range" };
+    }
+
+    if (field === "odometer" && (value < 0 || value > MAX_REASONABLE_ODOMETER)) {
+      return { ok: false, reason: "Vehicle odometer is outside the allowed range" };
+    }
+
+    if (field === "carfaxConfidenceScore" && (value < 0 || value > 100)) {
+      return { ok: false, reason: "Carfax confidence score must be between 0 and 100" };
+    }
+
+    if (field === "missedScrapeCount" && value < 0) {
+      return { ok: false, reason: "Missed scrape count cannot be negative" };
+    }
+
+    return { ok: true, value };
+  }
+
+  if (STRING_FIELDS.has(field)) {
+    if (typeof value !== "string") {
+      return { ok: false, reason: "Field must be a string" };
+    }
+
+    const trimmed = value.trim();
+    if (trimmed.length === 0) {
+      return { ok: false, reason: "Field must not be empty" };
+    }
+
+    if (URL_FIELDS.has(field) && !isHttpUrl(trimmed)) {
+      return { ok: false, reason: "Field must be an HTTP or HTTPS URL" };
+    }
+
+    if (field === "photoStatus" && !PHOTO_STATUSES.has(trimmed)) {
+      return { ok: false, reason: "Photo status is not allowed" };
+    }
+
+    if (field === "verificationStatus" && !VERIFICATION_STATUSES.has(trimmed)) {
+      return { ok: false, reason: "Verification status is not allowed" };
+    }
+
+    return { ok: true, value: trimmed };
+  }
+
+  if (STRING_ARRAY_FIELDS.has(field)) {
+    if (!Array.isArray(value)) {
+      return { ok: false, reason: "Field must be a string array" };
+    }
+
+    const normalized = value
+      .filter((entry): entry is string => typeof entry === "string")
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0);
+
+    if (normalized.length !== value.length) {
+      return { ok: false, reason: "Field must contain only non-empty strings" };
+    }
+
+    if (IMAGE_URL_FIELDS.has(field) && normalized.some((entry) => !isHttpUrl(entry))) {
+      return { ok: false, reason: "Image URLs must be HTTP or HTTPS URLs" };
+    }
+
+    return { ok: true, value: normalized };
+  }
+
+  if (DATE_FIELDS.has(field)) {
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+      return { ok: true, value };
+    }
+
+    if (typeof value === "string") {
+      const parsed = new Date(value);
+      if (!Number.isNaN(parsed.getTime())) {
+        return { ok: true, value: parsed };
+      }
+    }
+
+    return { ok: false, reason: "Field must be a valid date" };
+  }
+
+  return { ok: false, reason: "Field has no scrape smart merge validator" };
+}
+
+function isHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Apply smart merge rules to incoming scraped data.
  * Returns what changed, what was skipped, and why.
@@ -117,19 +304,30 @@ export function smartMerge(
     }
   }
 
-  for (const [field, incomingValue] of Object.entries(incoming)) {
+  for (const [field, rawIncomingValue] of Object.entries(incoming)) {
     // Skip null/undefined incoming values
-    if (incomingValue === null || incomingValue === undefined) continue;
+    if (rawIncomingValue === null || rawIncomingValue === undefined) continue;
 
     if (!isSmartMergeScrapeField(field)) {
       result.skipped[field] = {
         reason: "Field is not allowed for scrape smart merge",
         currentValue: current[field],
-        incomingValue,
+        incomingValue: rawIncomingValue,
       };
       continue;
     }
 
+    const validation = validateSmartMergeScrapeValue(field, rawIncomingValue);
+    if (validation.ok === false) {
+      result.skipped[field] = {
+        reason: validation.reason,
+        currentValue: current[field],
+        incomingValue: rawIncomingValue,
+      };
+      continue;
+    }
+
+    const incomingValue = validation.value;
     const currentValue = current[field];
 
     // Check 1: Field is explicitly locked
@@ -188,16 +386,16 @@ export function smartMerge(
           }
           const toAdd = newPhotos.slice(0, allowedToAdd);
           result.updated[field] = {
-            old: currentPhotos.length,
-            new: currentPhotos.length + toAdd.length,
+            old: currentPhotos,
+            new: [...currentPhotos, ...toAdd],
             source,
           };
           continue;
         }
 
         result.updated[field] = {
-          old: currentPhotos.length,
-          new: totalAfter,
+          old: currentPhotos,
+          new: [...currentPhotos, ...newPhotos],
           source,
         };
         continue;
