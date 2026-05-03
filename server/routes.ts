@@ -324,6 +324,16 @@ function requireFbInboxThreadIdParam(req: Request, res: Response): number | null
   return threadId;
 }
 
+function requireFbMarketplaceAccountIdParam(req: Request, res: Response): number | null {
+  const accountId = parsePositiveIntegerId(req.params.accountId);
+  if (!accountId) {
+    res.status(400).json({ error: "FB Marketplace account id must be a positive integer" });
+    return null;
+  }
+
+  return accountId;
+}
+
 function requireExternalTokenIdParam(req: Request, res: Response): number | null {
   const tokenId = parsePositiveIntegerId(req.params.id);
   if (!tokenId) {
@@ -16519,7 +16529,8 @@ Return ONLY the enhanced description, nothing else.`;
   // Delete FB Marketplace account
   app.delete("/api/super-admin/fb-marketplace/accounts/:accountId", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
-      const accountId = parseInt(req.params.accountId);
+      const accountId = requireFbMarketplaceAccountIdParam(req, res);
+      if (!accountId) return;
       
       await db.delete(fbMarketplaceAccounts)
         .where(eq(fbMarketplaceAccounts.id, accountId));
@@ -16534,7 +16545,8 @@ Return ONLY the enhanced description, nothing else.`;
   // Initiate auth for an account (returns auth URL)
   app.post("/api/super-admin/fb-marketplace/accounts/:accountId/auth", authMiddleware, requirePermission("integrations.write"), superAdminOnly, sensitiveLimiter, async (req, res) => {
     try {
-      const accountId = parseInt(req.params.accountId);
+      const accountId = requireFbMarketplaceAccountIdParam(req, res);
+      if (!accountId) return;
       
       const [account] = await db
         .select()
@@ -16559,7 +16571,8 @@ Return ONLY the enhanced description, nothing else.`;
   // Verify session after auth
   app.post("/api/super-admin/fb-marketplace/accounts/:accountId/verify", authMiddleware, requirePermission("integrations.write"), superAdminOnly, sensitiveLimiter, async (req, res) => {
     try {
-      const accountId = parseInt(req.params.accountId);
+      const accountId = requireFbMarketplaceAccountIdParam(req, res);
+      if (!accountId) return;
       
       const [account] = await db
         .select()
@@ -16758,7 +16771,8 @@ Return ONLY the enhanced description, nothing else.`;
     try {
       const userId = req.user!.id;
       const dealershipId = req.dealershipId!;
-      const accountId = parseInt(req.params.accountId);
+      const accountId = requireFbMarketplaceAccountIdParam(req, res);
+      if (!accountId) return;
       
       const [account] = await db
         .select()
@@ -16788,7 +16802,8 @@ Return ONLY the enhanced description, nothing else.`;
     try {
       const userId = req.user!.id;
       const dealershipId = req.dealershipId!;
-      const accountId = parseInt(req.params.accountId);
+      const accountId = requireFbMarketplaceAccountIdParam(req, res);
+      if (!accountId) return;
       
       const [account] = await db
         .select()
@@ -16819,7 +16834,8 @@ Return ONLY the enhanced description, nothing else.`;
     try {
       const userId = req.user!.id;
       const dealershipId = req.dealershipId!;
-      const accountId = parseInt(req.params.accountId);
+      const accountId = requireFbMarketplaceAccountIdParam(req, res);
+      if (!accountId) return;
       
       const [account] = await db
         .select()
