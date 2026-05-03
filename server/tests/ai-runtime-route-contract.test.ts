@@ -3,12 +3,26 @@ import { resolve } from "path";
 
 describe("AI runtime route RBAC and tenant contract", () => {
   const routesSource = readFileSync(resolve(process.cwd(), "server/routes.ts"), "utf8");
+  const publicChatBlock = routesSource.match(
+    /\/\/ Chat endpoint for AI responses[\s\S]*?\/\/ AI suggest reply for conversations/
+  )?.[0];
   const aiPaymentsBlock = routesSource.match(
     /\/\/ AI Payment Calculator - Calculate payment options for a vehicle[\s\S]*?\/\/ Save conversation \(public - conversations are saved automatically\)/
   )?.[0];
 
   it("requires dealership context for public chat generation", () => {
     expect(routesSource).toContain('app.post("/api/chat", requireDealership');
+  });
+
+  it("requires scoped vehicle proof before public chat can ground AI on a vehicle id", () => {
+    expect(publicChatBlock).toBeDefined();
+    expect(publicChatBlock).toContain('const parsedVehicleId = parseOptionalPositiveIntegerBodyValue(vehicleId, res, "vehicleId");');
+    expect(publicChatBlock).toContain("if (parsedVehicleId === null) return;");
+    expect(publicChatBlock).toContain("const scopedVehicle = await storage.getVehicleById(parsedVehicleId, finalDealershipId);");
+    expect(publicChatBlock).toContain('return res.status(404).json({ error: "Vehicle not found" });');
+    expect(publicChatBlock).toContain("parsedVehicleId !== undefined ? undefined : vehicleContext");
+    expect(publicChatBlock).toContain("parsedVehicleId");
+    expect(publicChatBlock).not.toContain("typeof vehicleId === 'number' ? vehicleId : undefined");
   });
 
   it("requires AI use permission and dealership context for AI generation actions", () => {
