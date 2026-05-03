@@ -28,14 +28,32 @@ export function normalizeVehicleWriteVIN<T extends VehicleWritePayload>(
   }
 
   const rawVIN = payload.vin;
-  if (rawVIN === null || rawVIN === undefined || String(rawVIN).trim() === "") {
+  if (rawVIN === null || rawVIN === undefined) {
     return {
       ok: true,
       data: { ...payload, vin: null } as T,
     };
   }
 
-  const validation = validateVIN(String(rawVIN));
+  if (typeof rawVIN !== "string") {
+    return {
+      ok: false,
+      error: {
+        code: "INVALID_VIN_TYPE",
+        message: "VIN must be a string",
+        vin: "",
+      },
+    };
+  }
+
+  if (rawVIN.trim() === "") {
+    return {
+      ok: true,
+      data: { ...payload, vin: null } as T,
+    };
+  }
+
+  const validation = validateVIN(rawVIN);
   if (!validation.isValid) {
     return {
       ok: false,
