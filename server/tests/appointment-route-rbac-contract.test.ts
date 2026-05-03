@@ -44,4 +44,15 @@ describe("appointment route RBAC and tenant contract", () => {
     expect(appointmentsBlock).toContain("if (!id) return;");
     expect(appointmentsBlock).not.toContain("const id = req.params.id");
   });
+
+  it("does not partially parse appointment owner query filters", () => {
+    expect(appointmentsBlock).toBeDefined();
+
+    const ownerFilterParsers = appointmentsBlock?.match(
+      /const ownerUserId = parseOptionalPositiveIntegerQueryParam\(req\.query\.ownerUserId, res, "ownerUserId"\);/g
+    ) ?? [];
+    expect(ownerFilterParsers).toHaveLength(2);
+    expect(appointmentsBlock).toContain("if (ownerUserId === null) return;");
+    expect(appointmentsBlock).not.toContain("parseInt(req.query.ownerUserId");
+  });
 });

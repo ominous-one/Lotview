@@ -58,4 +58,16 @@ describe("manager notification route RBAC and tenant contract", () => {
     expect(notificationsBlock).toContain("if (!id) return;");
     expect(notificationsBlock).not.toContain("const id = req.params.id");
   });
+
+  it("does not partially parse notification limit query filters", () => {
+    expect(notificationsBlock).toBeDefined();
+
+    const limitParsers = notificationsBlock?.match(
+      /const parsedLimit = parseOptionalPositiveIntegerQueryParam\(req\.query\.limit, res, "limit"\);/g
+    ) ?? [];
+    expect(limitParsers).toHaveLength(2);
+    expect(notificationsBlock).toContain("const limit = Math.min(parsedLimit ?? 50, 200);");
+    expect(notificationsBlock).toContain("const limit = Math.min(parsedLimit ?? 100, 500);");
+    expect(notificationsBlock).not.toContain("parseInt((req.query.limit as string)");
+  });
 });
