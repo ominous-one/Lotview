@@ -267,6 +267,52 @@ describe("tenant context boundary", () => {
     });
   });
 
+  it("rejects malformed owner-guard route tenant ids instead of partially parsing them", () => {
+    const req = createRequest({
+      params: { dealershipId: "2abc" },
+      user: {
+        id: 10,
+        email: "manager@dealer-b.test",
+        role: "manager",
+        name: "Dealer B Manager",
+        dealershipId: 2,
+      },
+    } as Partial<Request>);
+    const res = createResponse();
+    const next = jest.fn() as NextFunction;
+
+    dealershipOwnerOrMaster(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      error: "dealershipId must be a positive integer",
+    });
+  });
+
+  it("rejects malformed owner-guard query tenant ids instead of partially parsing them", () => {
+    const req = createRequest({
+      query: { dealershipId: "2abc" },
+      user: {
+        id: 10,
+        email: "manager@dealer-b.test",
+        role: "manager",
+        name: "Dealer B Manager",
+        dealershipId: 2,
+      },
+    } as Partial<Request>);
+    const res = createResponse();
+    const next = jest.fn() as NextFunction;
+
+    dealershipOwnerOrMaster(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      error: "dealershipId must be a positive integer",
+    });
+  });
+
   it("allows super admins through the dealership owner guard", () => {
     const req = createRequest({
       dealershipId: 2,

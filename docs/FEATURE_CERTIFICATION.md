@@ -54,6 +54,8 @@ Additional partial proof: the frontend inventory view now supports an authentica
 
 Additional partial proof: `X-Dealership-Id` tenant selection now uses strict positive-integer parsing for authenticated super-admin/master context switching, so malformed values like `2abc` or `0` fail closed before dealership lookup. This improves tenant isolation proof, but does not certify full route/storage cross-tenant isolation, staging, observability, or rollback proof.
 
+Additional partial proof: dealership owner/master guard tenant selectors now use strict positive-integer parsing for route and query `dealershipId` values, so malformed values cannot be partially parsed into a matching dealership ID. This improves tenant isolation proof, but does not certify full route/storage cross-tenant isolation, staging, observability, or rollback proof.
+
 ## Feature Certification Matrix
 
 | Feature | Status | CI Proof | Tests | Staging Proof | Logs/Monitoring | Real User Flow | Owner | Notes |
