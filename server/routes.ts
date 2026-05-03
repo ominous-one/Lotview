@@ -484,6 +484,26 @@ function requireAutomationQueueItemIdParam(req: Request, res: Response): number 
   return queueItemId;
 }
 
+function requireReengagementCampaignIdParam(req: Request, res: Response): number | null {
+  const campaignId = parsePositiveIntegerId(req.params.id);
+  if (!campaignId) {
+    res.status(400).json({ error: "Re-engagement campaign id must be a positive integer" });
+    return null;
+  }
+
+  return campaignId;
+}
+
+function requireAutomationExecutionIdParam(req: Request, res: Response): number | null {
+  const executionId = parsePositiveIntegerId(req.params.executionId);
+  if (!executionId) {
+    res.status(400).json({ error: "Automation execution id must be a positive integer" });
+    return null;
+  }
+
+  return executionId;
+}
+
 function parseOptionalPositiveIntegerQueryParam(value: unknown, res: Response, label: string): number | null | undefined {
   if (value === undefined) {
     return undefined;
@@ -14389,7 +14409,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.get("/api/automation/reengagement-campaigns/:id", authMiddleware, requirePermission("messages.read"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
-      const id = parseInt(req.params.id);
+      const id = requireReengagementCampaignIdParam(req, res);
+      if (!id) return;
       const campaign = await storage.getReengagementCampaignById(id, dealershipId);
       if (!campaign) {
         return res.status(404).json({ error: "Campaign not found" });
@@ -14420,7 +14441,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.patch("/api/automation/reengagement-campaigns/:id", authMiddleware, requirePermission("messages.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
-      const id = parseInt(req.params.id);
+      const id = requireReengagementCampaignIdParam(req, res);
+      if (!id) return;
       const updates = stripTenantOwnershipFields(req.body ?? {});
       const campaign = await storage.updateReengagementCampaign(id, dealershipId, updates);
       if (!campaign) {
@@ -14437,7 +14459,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.delete("/api/automation/reengagement-campaigns/:id", authMiddleware, requirePermission("messages.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
-      const id = parseInt(req.params.id);
+      const id = requireReengagementCampaignIdParam(req, res);
+      if (!id) return;
       const deleted = await storage.deleteReengagementCampaign(id, dealershipId);
       if (!deleted) {
         return res.status(404).json({ error: "Campaign not found" });
@@ -14469,9 +14492,12 @@ Format your response in clear sections with actionable recommendations.`;
   app.get("/api/automation/analytics/executions", authMiddleware, requirePermission("messages.read"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
-      const sequenceId = req.query.sequenceId ? parseInt(req.query.sequenceId as string) : undefined;
+      const sequenceId = parseOptionalPositiveIntegerQueryParam(req.query.sequenceId, res, "sequenceId");
+      if (sequenceId === null) return;
       const status = req.query.status as string | undefined;
-      const limit = parseInt(req.query.limit as string) || 100;
+      const parsedLimit = parseOptionalPositiveIntegerQueryParam(req.query.limit, res, "limit");
+      if (parsedLimit === null) return;
+      const limit = parsedLimit ?? 100;
       const executions = await storage.getSequenceExecutions(dealershipId, sequenceId, status, limit);
       res.json(executions);
     } catch (error) {
@@ -14484,7 +14510,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.get("/api/automation/analytics/executions/:executionId/messages", authMiddleware, requirePermission("messages.read"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
-      const executionId = parseInt(req.params.executionId);
+      const executionId = requireAutomationExecutionIdParam(req, res);
+      if (!executionId) return;
       const messages = await storage.getSequenceMessages(dealershipId, executionId);
       res.json(messages);
     } catch (error) {
@@ -14497,7 +14524,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.get("/api/automation/analytics/conversions", authMiddleware, requirePermission("messages.read"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
-      const sequenceId = req.query.sequenceId ? parseInt(req.query.sequenceId as string) : undefined;
+      const sequenceId = parseOptionalPositiveIntegerQueryParam(req.query.sequenceId, res, "sequenceId");
+      if (sequenceId === null) return;
       const startDate = req.query.startDate ? new Date(req.query.startDate as string) : undefined;
       const endDate = req.query.endDate ? new Date(req.query.endDate as string) : undefined;
       const conversions = await storage.getSequenceConversions(dealershipId, sequenceId, startDate, endDate);
