@@ -3,6 +3,7 @@ export type VINValidationErrorCode =
   | "INVALID_VIN_TYPE"
   | "INVALID_VIN_LENGTH"
   | "INVALID_VIN_CHARACTERS"
+  | "INVALID_VIN_MODEL_YEAR"
   | "INVALID_VIN_CHECK_DIGIT";
 
 export interface VINValidationResult {
@@ -15,6 +16,7 @@ export interface VINValidationResult {
 }
 
 const ALLOWED_VIN_PATTERN = /^[A-HJ-NPR-Z0-9]{17}$/;
+const MODEL_YEAR_CODE_PATTERN = /^[A-HJ-NPR-TV-Y1-9]$/;
 
 const TRANSLITERATION: Record<string, number> = {
   A: 1,
@@ -106,6 +108,15 @@ export function validateVIN(vin: string | null | undefined): VINValidationResult
       isValid: false,
       errorCode: "INVALID_VIN_CHARACTERS",
       errorMessage: "VIN must contain only digits and allowed letters, excluding I, O, and Q",
+    };
+  }
+
+  if (!MODEL_YEAR_CODE_PATTERN.test(cleanVIN[9])) {
+    return {
+      vin: cleanVIN,
+      isValid: false,
+      errorCode: "INVALID_VIN_MODEL_YEAR",
+      errorMessage: "VIN model year code is invalid",
     };
   }
 

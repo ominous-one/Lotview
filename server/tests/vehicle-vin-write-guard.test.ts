@@ -62,6 +62,22 @@ describe("vehicle VIN write guard", () => {
     });
   });
 
+  it("rejects invalid model year codes before a vehicle write reaches storage", () => {
+    const result = normalizeVehicleWriteVIN({
+      vin: "1HGCM82630A004352",
+      year: 2003,
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        code: "INVALID_VIN_MODEL_YEAR",
+        message: "VIN model year code is invalid",
+        vin: "1HGCM82630A004352",
+      },
+    });
+  });
+
   it("normalizes blank optional VINs to null", () => {
     expect(normalizeVehicleWriteVIN({ vin: "  ", year: 2024 })).toEqual({
       ok: true,
