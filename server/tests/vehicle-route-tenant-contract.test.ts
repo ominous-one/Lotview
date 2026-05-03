@@ -134,6 +134,18 @@ describe("vehicle route tenant contracts", () => {
     expect(routesSource).not.toContain("Number.parseInt(req.params.id");
   });
 
+  it("does not partially parse modular vehicle list pagination filters", () => {
+    const routesSource = readFileSync(resolve(process.cwd(), "server/routes/vehicles.ts"), "utf8");
+
+    expect(routesSource).toContain("function parseOptionalPositiveIntegerQueryParam(value: unknown, res: Response, label: string)");
+    expect(routesSource).toContain('const parsedPage = parseOptionalPositiveIntegerQueryParam(req.query.page, res, "page");');
+    expect(routesSource).toContain('const parsedLimit = parseOptionalPositiveIntegerQueryParam(req.query.limit, res, "limit");');
+    expect(routesSource).toContain("if (parsedPage === null) return;");
+    expect(routesSource).toContain("if (parsedLimit === null) return;");
+    expect(routesSource).not.toContain("parseInt(req.query.page as string");
+    expect(routesSource).not.toContain("parseInt(req.query.limit as string");
+  });
+
   it("rejects malformed modular vehicle IDs before tenant-scoped storage access", async () => {
     await request(appWithDealerOne)
       .get("/api/vehicles/42abc")
@@ -141,6 +153,28 @@ describe("vehicle route tenant contracts", () => {
       .expect({ error: "Vehicle id must be a positive integer" });
 
     expect(storageMock.getVehicleById).not.toHaveBeenCalled();
+    expect(storageMock.getVehicleViews).not.toHaveBeenCalled();
+  });
+
+  it("rejects malformed modular vehicle list page filters before tenant-scoped storage access", async () => {
+    await request(appWithDealerOne)
+      .get("/api/vehicles?page=2abc")
+      .expect(400)
+      .expect({ error: "page must be a positive integer" });
+
+    expect(storageMock.getVehicles).not.toHaveBeenCalled();
+    expect(storageMock.getPublicInventoryVehicles).not.toHaveBeenCalled();
+    expect(storageMock.getVehicleViews).not.toHaveBeenCalled();
+  });
+
+  it("rejects malformed modular vehicle list limit filters before tenant-scoped storage access", async () => {
+    await request(appWithDealerOne)
+      .get("/api/vehicles?limit=12abc")
+      .expect(400)
+      .expect({ error: "limit must be a positive integer" });
+
+    expect(storageMock.getVehicles).not.toHaveBeenCalled();
+    expect(storageMock.getPublicInventoryVehicles).not.toHaveBeenCalled();
     expect(storageMock.getVehicleViews).not.toHaveBeenCalled();
   });
 

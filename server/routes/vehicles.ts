@@ -53,6 +53,25 @@ function requireVehicleIdParam(req: Request, res: Response): number | undefined 
   return vehicleId;
 }
 
+function parseOptionalPositiveIntegerQueryParam(value: unknown, res: Response, label: string): number | undefined | null {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value !== "string") {
+    res.status(400).json({ error: `${label} must be a positive integer` });
+    return null;
+  }
+
+  const parsed = parsePositiveIntegerParam(value);
+  if (!parsed) {
+    res.status(400).json({ error: `${label} must be a positive integer` });
+    return null;
+  }
+
+  return parsed;
+}
+
 /*
  * ─── PUBLIC ROUTES (no auth required) ───
  */
@@ -68,10 +87,14 @@ router.get("/", async (req, res) => {
     const dealershipId = req.dealershipId;
     const requestedView = typeof req.query.view === "string" ? req.query.view.toLowerCase() : "public";
     const wantsFullView = requestedView === "full";
-    const page = Math.max(parseInt(req.query.page as string, 10) || 1, 1);
     const limitCap = wantsFullView ? 250 : 48;
     const defaultLimit = wantsFullView ? 100 : 24;
-    const limit = Math.min(Math.max(parseInt(req.query.limit as string, 10) || defaultLimit, 1), limitCap);
+    const parsedPage = parseOptionalPositiveIntegerQueryParam(req.query.page, res, "page");
+    if (parsedPage === null) return;
+    const parsedLimit = parseOptionalPositiveIntegerQueryParam(req.query.limit, res, "limit");
+    if (parsedLimit === null) return;
+    const page = parsedPage ?? 1;
+    const limit = Math.min(parsedLimit ?? defaultLimit, limitCap);
     const offset = (page - 1) * limit;
 
     if (wantsFullView) {

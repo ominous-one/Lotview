@@ -30,6 +30,8 @@ Additional partial proof: appointment owner query filters and notification/email
 
 Additional partial proof: FB inbox thread/message/audit read filters now use strict positive/non-negative integer parsing for `limit`, `offset`, and audit `threadId` before tenant-scoped message and audit reads. This improves Facebook inbox route-contract proof but does not certify Facebook inbox automation or real user flows.
 
+Additional partial proof: modular vehicle list `page` and `limit` filters now use strict positive-integer parsing instead of permissive `parseInt`, so malformed pagination fails closed before dealership-scoped inventory reads. This improves inventory route-contract proof but does not certify full inventory CRUD, UI, staging, source-truth, or rollback proof.
+
 ## Feature Certification Matrix
 
 | Feature | Status | CI Proof | Tests | Staging Proof | Logs/Monitoring | Real User Flow | Owner | Notes |
