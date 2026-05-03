@@ -544,8 +544,8 @@ function requireCrmContactIdParam(req: Request, res: Response): number | null {
   return contactId;
 }
 
-function requireCrmTagIdParam(req: Request, res: Response): number | null {
-  const tagId = parsePositiveIntegerId(req.params.tagId);
+function requireCrmTagIdParam(req: Request, res: Response, paramName = "tagId"): number | null {
+  const tagId = parsePositiveIntegerId(req.params[paramName]);
   if (!tagId) {
     res.status(400).json({ error: "CRM tag id must be a positive integer" });
     return null;
@@ -14983,7 +14983,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.patch("/api/crm/tags/:id", authMiddleware, requirePermission("leads.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
-      const id = parseInt(req.params.id);
+      const id = requireCrmTagIdParam(req, res, "id");
+      if (!id) return;
       
       const updates = stripTenantOwnershipFields(req.body ?? {});
       const tag = await storage.updateCrmTag(id, dealershipId, updates);
@@ -15003,7 +15004,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.delete("/api/crm/tags/:id", authMiddleware, requirePermission("leads.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
-      const id = parseInt(req.params.id);
+      const id = requireCrmTagIdParam(req, res, "id");
+      if (!id) return;
       
       const deleted = await storage.deleteCrmTag(id, dealershipId);
       
