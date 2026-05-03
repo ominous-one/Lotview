@@ -504,6 +504,36 @@ function requireAutomationExecutionIdParam(req: Request, res: Response): number 
   return executionId;
 }
 
+function requireContactActivityIdParam(req: Request, res: Response): number | null {
+  const activityId = parsePositiveIntegerId(req.params.id);
+  if (!activityId) {
+    res.status(400).json({ error: "Contact activity id must be a positive integer" });
+    return null;
+  }
+
+  return activityId;
+}
+
+function requireAutomationSequenceExecutionIdParam(req: Request, res: Response): number | null {
+  const executionId = parsePositiveIntegerId(req.params.id);
+  if (!executionId) {
+    res.status(400).json({ error: "Sequence execution id must be a positive integer" });
+    return null;
+  }
+
+  return executionId;
+}
+
+function requireAutomationSequenceMessageIdParam(req: Request, res: Response): number | null {
+  const messageId = parsePositiveIntegerId(req.params.id);
+  if (!messageId) {
+    res.status(400).json({ error: "Sequence message id must be a positive integer" });
+    return null;
+  }
+
+  return messageId;
+}
+
 function parseOptionalPositiveIntegerQueryParam(value: unknown, res: Response, label: string): number | null | undefined {
   if (value === undefined) {
     return undefined;
@@ -512,6 +542,39 @@ function parseOptionalPositiveIntegerQueryParam(value: unknown, res: Response, l
   const parsed = parsePositiveIntegerId(value);
   if (!parsed) {
     res.status(400).json({ error: `${label} must be a positive integer` });
+    return null;
+  }
+
+  return parsed;
+}
+
+function parseOptionalNonNegativeIntegerQueryParam(value: unknown, res: Response, label: string): number | null | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value === 'number') {
+    if (Number.isSafeInteger(value) && value >= 0) {
+      return value;
+    }
+    res.status(400).json({ error: `${label} must be a non-negative integer` });
+    return null;
+  }
+
+  if (typeof value !== 'string') {
+    res.status(400).json({ error: `${label} must be a non-negative integer` });
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!/^(0|[1-9]\d*)$/.test(trimmed)) {
+    res.status(400).json({ error: `${label} must be a non-negative integer` });
+    return null;
+  }
+
+  const parsed = Number(trimmed);
+  if (!Number.isSafeInteger(parsed)) {
+    res.status(400).json({ error: `${label} must be a non-negative integer` });
     return null;
   }
 
@@ -14542,8 +14605,12 @@ Format your response in clear sections with actionable recommendations.`;
   app.get("/api/automation/contact-activity", authMiddleware, requirePermission("leads.read"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
-      const limit = parseInt(req.query.limit as string) || 100;
-      const offset = parseInt(req.query.offset as string) || 0;
+      const parsedLimit = parseOptionalPositiveIntegerQueryParam(req.query.limit, res, "limit");
+      if (parsedLimit === null) return;
+      const parsedOffset = parseOptionalNonNegativeIntegerQueryParam(req.query.offset, res, "offset");
+      if (parsedOffset === null) return;
+      const limit = parsedLimit ?? 100;
+      const offset = parsedOffset ?? 0;
       const result = await storage.getAllContactActivity(dealershipId, limit, offset);
       res.json(result);
     } catch (error) {
@@ -14556,8 +14623,12 @@ Format your response in clear sections with actionable recommendations.`;
   app.get("/api/automation/inactive-contacts", authMiddleware, requirePermission("leads.read"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
-      const inactiveDays = parseInt(req.query.inactiveDays as string) || 90;
-      const limit = parseInt(req.query.limit as string) || 50;
+      const parsedInactiveDays = parseOptionalPositiveIntegerQueryParam(req.query.inactiveDays, res, "inactiveDays");
+      if (parsedInactiveDays === null) return;
+      const parsedLimit = parseOptionalPositiveIntegerQueryParam(req.query.limit, res, "limit");
+      if (parsedLimit === null) return;
+      const inactiveDays = parsedInactiveDays ?? 90;
+      const limit = parsedLimit ?? 50;
       const contacts = await storage.getInactiveContacts(dealershipId, inactiveDays, limit);
       res.json(contacts);
     } catch (error) {
@@ -14585,7 +14656,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.patch("/api/automation/contact-activity/:id", authMiddleware, requirePermission("leads.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
-      const id = parseInt(req.params.id);
+      const id = requireContactActivityIdParam(req, res);
+      if (!id) return;
       const updates = stripTenantOwnershipFields(req.body ?? {});
       const activity = await storage.updateContactActivity(id, dealershipId, updates);
       if (!activity) {
@@ -14617,7 +14689,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.patch("/api/automation/sequence-executions/:id", authMiddleware, requirePermission("messages.write"), requireDealership, async (req, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
-      const id = parseInt(req.params.id);
+      const id = requireAutomationSequenceExecutionIdParam(req, res);
+      if (!id) return;
       const updates = stripTenantOwnershipFields(req.body ?? {});
       const execution = await storage.updateSequenceExecution(id, dealershipId, updates);
       if (!execution) {
@@ -14649,7 +14722,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.patch("/api/automation/sequence-messages/:id", authMiddleware, requirePermission("messages.write"), requireDealership, async (req, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
-      const id = parseInt(req.params.id);
+      const id = requireAutomationSequenceMessageIdParam(req, res);
+      if (!id) return;
       const updates = stripTenantOwnershipFields(req.body ?? {});
       const message = await storage.updateSequenceMessage(id, dealershipId, updates);
       if (!message) {
