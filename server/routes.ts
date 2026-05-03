@@ -7696,7 +7696,8 @@ Format your response in clear sections with actionable recommendations.`;
   // Update scrape source
   app.patch("/api/scrape-sources/:id", authMiddleware, requirePermission("integrations.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = requireScrapeSourceIdParam(req, res);
+      if (!id) return;
       const dealershipId = req.dealershipId!;
       
       // Validate URL if provided
@@ -7725,7 +7726,8 @@ Format your response in clear sections with actionable recommendations.`;
   // Delete scrape source
   app.delete("/api/scrape-sources/:id", authMiddleware, requirePermission("integrations.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = requireScrapeSourceIdParam(req, res);
+      if (!id) return;
       const dealershipId = req.dealershipId!;
       await storage.deleteScrapeSource(id, dealershipId);
       res.json({ success: true });
@@ -7738,7 +7740,8 @@ Format your response in clear sections with actionable recommendations.`;
   // Trigger manual scrape for a source - uses ZenRows robust scraper (same as midnight sync)
   app.post("/api/scrape-sources/:id/scrape", authMiddleware, requirePermission("integrations.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = requireScrapeSourceIdParam(req, res);
+      if (!id) return;
       const dealershipId = req.dealershipId!;
       
       const sources = await storage.getScrapeSources(dealershipId);
