@@ -6,6 +6,9 @@ describe("legacy Facebook posting route RBAC contract", () => {
   const facebookPostingBlock = routesSource.match(
     /\/\/ ===== FACEBOOK POSTING ROUTES \(Salespeople\) =====[\s\S]*?\/\/ ===== SALES MANAGER ROUTES =====/
   )?.[0];
+  const accountTemplateQueueBlock = routesSource.match(
+    /\/\/ Get Facebook accounts for current user[\s\S]*?\/\/ Get posting schedule for current user/
+  )?.[0];
 
   it("requires explicit read permissions and dealership context for legacy Facebook read routes", () => {
     expect(facebookPostingBlock).toBeDefined();
@@ -63,5 +66,15 @@ describe("legacy Facebook posting route RBAC contract", () => {
     expect(protectedRouteLines.length).toBeGreaterThanOrEqual(25);
     expect(protectedRouteLines.every((line) => line.includes("requirePermission("))).toBe(true);
     expect(protectedRouteLines.every((line) => line.includes("requireDealership"))).toBe(true);
+  });
+
+  it("does not partially parse legacy Facebook account, template, or queue item ids", () => {
+    expect(accountTemplateQueueBlock).toBeDefined();
+    expect(routesSource).toContain("function requireFacebookPostingIdParam");
+
+    const idGuardCalls = accountTemplateQueueBlock?.match(/requireFacebookPostingIdParam\(req, res,/g) ?? [];
+    expect(idGuardCalls).toHaveLength(6);
+    expect(accountTemplateQueueBlock).not.toContain("parseInt(req.params.id)");
+    expect(accountTemplateQueueBlock).not.toContain("Number.parseInt(req.params.id");
   });
 });

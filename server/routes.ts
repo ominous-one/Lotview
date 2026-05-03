@@ -344,6 +344,16 @@ function requireBillingSettingIdParam(req: Request, res: Response): number | nul
   return settingId;
 }
 
+function requireFacebookPostingIdParam(req: Request, res: Response, label: string): number | null {
+  const postingId = parsePositiveIntegerId(req.params.id);
+  if (!postingId) {
+    res.status(400).json({ error: `${label} id must be a positive integer` });
+    return null;
+  }
+
+  return postingId;
+}
+
 async function validateTenantIdentityAvailability(options: {
   slug?: string;
   subdomain?: string;
@@ -7840,7 +7850,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.patch("/api/facebook/accounts/:id", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
-      const id = parseInt(req.params.id);
+      const id = requireFacebookPostingIdParam(req, res, "Facebook account");
+      if (!id) return;
       const userId = authReq.user!.id;
       const dealershipId = req.dealershipId!;
       
@@ -7868,7 +7879,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.delete("/api/facebook/accounts/:id", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
-      const id = parseInt(req.params.id);
+      const id = requireFacebookPostingIdParam(req, res, "Facebook account");
+      if (!id) return;
       const userId = authReq.user!.id;
       const dealershipId = req.dealershipId!;
       
@@ -7929,7 +7941,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.patch("/api/facebook/templates/:id", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
-      const id = parseInt(req.params.id);
+      const id = requireFacebookPostingIdParam(req, res, "Ad template");
+      if (!id) return;
       const userId = authReq.user!.id;
       const dealershipId = req.dealershipId!;
       
@@ -7957,7 +7970,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.delete("/api/facebook/templates/:id", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
-      const id = parseInt(req.params.id);
+      const id = requireFacebookPostingIdParam(req, res, "Ad template");
+      if (!id) return;
       const userId = authReq.user!.id;
       const dealershipId = req.dealershipId!;
       
@@ -8034,7 +8048,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.patch("/api/facebook/queue/:id", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
-      const id = parseInt(req.params.id);
+      const id = requireFacebookPostingIdParam(req, res, "Posting queue");
+      if (!id) return;
       const userId = authReq.user!.id;
       const dealershipId = req.dealershipId!;
       
@@ -8077,7 +8092,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.delete("/api/facebook/queue/:id", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
-      const id = parseInt(req.params.id);
+      const id = requireFacebookPostingIdParam(req, res, "Posting queue");
+      if (!id) return;
       const userId = authReq.user!.id;
       const dealershipId = req.dealershipId!;
       
