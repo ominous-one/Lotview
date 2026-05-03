@@ -4,6 +4,9 @@ import { resolve } from "path";
 describe("financing and fee settings route RBAC and tenant contract", () => {
   const routesSource = readFileSync(resolve(process.cwd(), "server/routes.ts"), "utf8");
   const storageSource = readFileSync(resolve(process.cwd(), "server/storage.ts"), "utf8");
+  const financingAndFeeBlock = routesSource.match(
+    /\/\/ Update credit score tier[\s\S]*?\/\/ ===== DEALERSHIP CONTACTS\/WEBSITE ROUTES =====/
+  )?.[0];
 
   it("requires billing read permission and dealership context for financing setting reads", () => {
     expect(routesSource).toContain(
@@ -60,5 +63,14 @@ describe("financing and fee settings route RBAC and tenant contract", () => {
     expect(storageSource).toContain(".set({ ...stripTenantOwnershipFields(tier), updatedAt: new Date() })");
     expect(storageSource).toContain(".set({ ...stripTenantOwnershipFields(term), updatedAt: new Date() })");
     expect(storageSource).toContain(".set({ ...stripTenantOwnershipFields(fee), updatedAt: new Date() })");
+  });
+
+  it("requires strict positive IDs before financing and fee setting storage mutations", () => {
+    expect(financingAndFeeBlock).toBeDefined();
+    expect(routesSource).toContain("function requireBillingSettingIdParam");
+
+    const idGuardCalls = financingAndFeeBlock?.match(/requireBillingSettingIdParam\(req, res\)/g) ?? [];
+    expect(idGuardCalls).toHaveLength(6);
+    expect(financingAndFeeBlock).not.toContain("parseInt(req.params.id)");
   });
 });
