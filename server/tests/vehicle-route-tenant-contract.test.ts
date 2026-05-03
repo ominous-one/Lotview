@@ -146,6 +146,16 @@ describe("vehicle route tenant contracts", () => {
     expect(routesSource).not.toContain("parseInt(req.query.limit as string");
   });
 
+  it("does not partially parse modular vehicle batch body IDs", () => {
+    const routesSource = readFileSync(resolve(process.cwd(), "server/routes/vehicles.ts"), "utf8");
+
+    expect(routesSource).toContain("function parsePositiveIntegerValue(value: unknown): number | undefined");
+    expect(routesSource).toContain("const requestedVehicleIds = vehicleIds.slice(0, 20);");
+    expect(routesSource).toContain("const parsedVehicleId = parsePositiveIntegerValue(requestedVehicleIds[index]);");
+    expect(routesSource).toContain('error: "vehicleIds must contain only positive integers"');
+    expect(routesSource).not.toContain("storage.getVehicleById(parseInt(id)");
+  });
+
   it("rejects malformed modular vehicle IDs before tenant-scoped storage access", async () => {
     await request(appWithDealerOne)
       .get("/api/vehicles/42abc")
@@ -176,6 +186,43 @@ describe("vehicle route tenant contracts", () => {
     expect(storageMock.getVehicles).not.toHaveBeenCalled();
     expect(storageMock.getPublicInventoryVehicles).not.toHaveBeenCalled();
     expect(storageMock.getVehicleViews).not.toHaveBeenCalled();
+  });
+
+  it("rejects malformed modular vehicle batch IDs before tenant-scoped storage access", async () => {
+    await request(appWithDealerOne)
+      .post("/api/vehicles/generate-descriptions")
+      .set("x-test-role", "dealer_manager")
+      .send({ vehicleIds: ["42abc"] })
+      .expect(400)
+      .expect({ error: "vehicleIds must contain only positive integers", index: 0 });
+
+    expect(storageMock.getVehicleById).not.toHaveBeenCalled();
+    expect(storageMock.updateVehicle).not.toHaveBeenCalled();
+  });
+
+  it("uses parsed modular vehicle batch IDs with dealership-scoped storage access", async () => {
+    storageMock.getVehicleById.mockResolvedValue({
+      id: 42,
+      year: 2024,
+      make: "Honda",
+      model: "Accord",
+    });
+    storageMock.updateVehicle.mockResolvedValue({ id: 42 });
+
+    await request(appWithDealerOne)
+      .post("/api/vehicles/generate-descriptions")
+      .set("x-test-role", "dealer_manager")
+      .send({ vehicleIds: ["42"] })
+      .expect(200)
+      .expect((res) => {
+        expect(res.body.generated).toBe(1);
+        expect(res.body.results).toHaveLength(1);
+      });
+
+    expect(storageMock.getVehicleById).toHaveBeenCalledWith(42, 1);
+    expect(storageMock.updateVehicle).toHaveBeenCalledWith(42, expect.objectContaining({
+      description: expect.stringContaining("2024 Honda Accord"),
+    }), 1);
   });
 
   it("requires tenant context before public Carfax report lookup", async () => {

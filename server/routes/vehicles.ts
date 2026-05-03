@@ -34,13 +34,26 @@ function requireRouteDealership(req: Request, res: Response): number | undefined
   return req.dealershipId;
 }
 
-function parsePositiveIntegerParam(value: string | undefined): number | undefined {
-  if (!value || !/^[1-9]\d*$/.test(value)) {
+function parsePositiveIntegerValue(value: unknown): number | undefined {
+  if (typeof value === "number") {
+    return Number.isSafeInteger(value) && value > 0 ? value : undefined;
+  }
+
+  if (typeof value !== "string") {
     return undefined;
   }
 
-  const parsed = Number(value);
+  const trimmed = value.trim();
+  if (!/^[1-9]\d*$/.test(trimmed)) {
+    return undefined;
+  }
+
+  const parsed = Number(trimmed);
   return Number.isSafeInteger(parsed) ? parsed : undefined;
+}
+
+function parsePositiveIntegerParam(value: string | undefined): number | undefined {
+  return parsePositiveIntegerValue(value);
 }
 
 function requireVehicleIdParam(req: Request, res: Response): number | undefined {
@@ -421,9 +434,22 @@ router.post("/generate-descriptions", authMiddleware, requirePermission("ai.use"
     if (!Array.isArray(vehicleIds)) {
       return res.status(400).json({ error: "vehicleIds array required" });
     }
+    const requestedVehicleIds = vehicleIds.slice(0, 20);
+    const parsedVehicleIds: number[] = [];
+    for (let index = 0; index < requestedVehicleIds.length; index++) {
+      const parsedVehicleId = parsePositiveIntegerValue(requestedVehicleIds[index]);
+      if (!parsedVehicleId) {
+        return res.status(400).json({
+          error: "vehicleIds must contain only positive integers",
+          index,
+        });
+      }
+      parsedVehicleIds.push(parsedVehicleId);
+    }
+
     const results = [];
-    for (const id of vehicleIds.slice(0, 20)) {
-      const vehicle = await storage.getVehicleById(parseInt(id), dealershipId);
+    for (const id of parsedVehicleIds) {
+      const vehicle = await storage.getVehicleById(id, dealershipId);
       if (vehicle) {
         const description = `${vehicle.year} ${vehicle.make} ${vehicle.model} — well-maintained vehicle.`;
         await storage.updateVehicle(vehicle.id, { description }, dealershipId);
