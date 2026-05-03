@@ -1552,13 +1552,25 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
+  private stripImmutableVehicleUpdateFields(vehicle: Partial<InsertVehicle>): Partial<InsertVehicle> {
+    const updateData: Record<string, any> = { ...vehicle };
+    delete updateData.id;
+    delete updateData.dealershipId;
+    delete updateData.createdAt;
+    return updateData as Partial<InsertVehicle>;
+  }
+
   async updateVehicle(id: number, vehicle: Partial<InsertVehicle>, dealershipId: number): Promise<Vehicle | undefined> {
     // Only update vehicles belonging to this dealership
     
     // CRITICAL: If images are being updated, clear localImages to prevent stale cache
     // This ensures the new images from the database are used instead of cached local copies
-    const updateData: any = { ...vehicle };
-    if (vehicle.images && Array.isArray(vehicle.images) && vehicle.images.length > 0) {
+    const updateData: any = this.stripImmutableVehicleUpdateFields(vehicle);
+    if (Object.keys(updateData).length === 0) {
+      return undefined;
+    }
+
+    if (updateData.images && Array.isArray(updateData.images) && updateData.images.length > 0) {
       updateData.localImages = null;
       console.log(`[Storage] Clearing localImages for vehicle ${id} because images are being updated`);
     }
