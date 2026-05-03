@@ -5,6 +5,9 @@ describe("automation sequence route RBAC and tenant contract", () => {
   const routesSource = readFileSync(resolve(process.cwd(), "server/routes.ts"), "utf8");
   const storageSource = readFileSync(resolve(process.cwd(), "server/storage.ts"), "utf8");
   const managerRoles = "requireRole('manager', 'admin', 'master', 'super_admin'), requireAutomationDealershipContext";
+  const automationSequenceBlock = routesSource.match(
+    /\/\/ ===== AUTOMATION ENGINE ROUTES =====[\s\S]*?\/\/ Facebook Messenger Lead Webhook/
+  )?.[0];
 
   it("uses a fail-closed automation dealership context guard", () => {
     expect(routesSource).toContain("const requireAutomationDealershipContext = (req: Request, res: Response, next: NextFunction)");
@@ -31,5 +34,13 @@ describe("automation sequence route RBAC and tenant contract", () => {
     expect(routesSource).not.toContain("storage.updateFollowUpSequence(id, dealershipId, req.body)");
     expect(routesSource).toContain("storage.updateFollowUpSequence(id, dealershipId, updates)");
     expect(storageSource).toContain(".set({ ...stripTenantOwnershipFields(sequence), updatedAt: new Date() })");
+  });
+
+  it("rejects malformed sequence ids before scoped sequence storage access", () => {
+    expect(automationSequenceBlock).toBeDefined();
+    expect(routesSource).toContain("function requireAutomationSequenceIdParam(req: Request, res: Response): number | null");
+    expect(routesSource).toContain('res.status(400).json({ error: "Automation sequence id must be a positive integer" })');
+    expect(automationSequenceBlock?.match(/requireAutomationSequenceIdParam\(req, res\)/g)).toHaveLength(3);
+    expect(automationSequenceBlock).not.toContain("parseInt(req.params.id");
   });
 });

@@ -464,6 +464,26 @@ function requireCallScoringResponseIdParam(req: Request, res: Response): number 
   return responseId;
 }
 
+function requireAutomationSequenceIdParam(req: Request, res: Response): number | null {
+  const sequenceId = parsePositiveIntegerId(req.params.id);
+  if (!sequenceId) {
+    res.status(400).json({ error: "Automation sequence id must be a positive integer" });
+    return null;
+  }
+
+  return sequenceId;
+}
+
+function requireAutomationQueueItemIdParam(req: Request, res: Response): number | null {
+  const queueItemId = parsePositiveIntegerId(req.params.id);
+  if (!queueItemId) {
+    res.status(400).json({ error: "Automation queue item id must be a positive integer" });
+    return null;
+  }
+
+  return queueItemId;
+}
+
 function parseOptionalPositiveIntegerQueryParam(value: unknown, res: Response, label: string): number | null | undefined {
   if (value === undefined) {
     return undefined;
@@ -14081,7 +14101,8 @@ Format your response in clear sections with actionable recommendations.`;
       if (!dealershipId) {
         return res.status(400).json({ error: "Dealership ID is required" });
       }
-      const id = parseInt(req.params.id);
+      const id = requireAutomationSequenceIdParam(req, res);
+      if (!id) return;
       const sequence = await storage.getFollowUpSequenceById(id, dealershipId);
       if (!sequence) {
         return res.status(404).json({ error: "Sequence not found" });
@@ -14118,7 +14139,8 @@ Format your response in clear sections with actionable recommendations.`;
       if (!dealershipId) {
         return res.status(400).json({ error: "Dealership ID is required" });
       }
-      const id = parseInt(req.params.id);
+      const id = requireAutomationSequenceIdParam(req, res);
+      if (!id) return;
       const updates = stripTenantOwnershipFields(req.body ?? {});
       const sequence = await storage.updateFollowUpSequence(id, dealershipId, updates);
       if (!sequence) {
@@ -14138,7 +14160,8 @@ Format your response in clear sections with actionable recommendations.`;
       if (!dealershipId) {
         return res.status(400).json({ error: "Dealership ID is required" });
       }
-      const id = parseInt(req.params.id);
+      const id = requireAutomationSequenceIdParam(req, res);
+      if (!id) return;
       const deleted = await storage.deleteFollowUpSequence(id, dealershipId);
       if (!deleted) {
         return res.status(404).json({ error: "Sequence not found" });
@@ -14155,7 +14178,9 @@ Format your response in clear sections with actionable recommendations.`;
     try {
       const dealershipId = (req as any).dealershipId;
       const status = req.query.status as string | undefined;
-      const limit = parseInt(req.query.limit as string) || 50;
+      const parsedLimit = parseOptionalPositiveIntegerQueryParam(req.query.limit, res, "limit");
+      if (parsedLimit === null) return;
+      const limit = parsedLimit ?? 50;
       const items = await storage.getFollowUpQueueItems(dealershipId, status, limit);
       res.json(items);
     } catch (error) {
@@ -14168,7 +14193,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.post("/api/automation/queue/:id/cancel", authMiddleware, requirePermission("messages.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
-      const id = parseInt(req.params.id);
+      const id = requireAutomationQueueItemIdParam(req, res);
+      if (!id) return;
       const item = await storage.updateFollowUpQueueItem(id, dealershipId, { status: 'cancelled' });
       if (!item) {
         return res.status(404).json({ error: "Queue item not found" });
