@@ -30,4 +30,14 @@ describe("public tenant endpoint route contract", () => {
     expect(vehicleImageBlock).toContain("eq(vehicleImages.dealershipId, dealershipId)");
     expect(vehicleImageBlock).toContain("eq(vehicleImages.imageIndex, imageIndex)");
   });
+
+  it("fails closed on malformed cached vehicle image identifiers before the database read", () => {
+    expect(vehicleImageBlock).toBeDefined();
+    expect(routesSource).toContain("function requirePublicVehicleImageParams(req: Request, res: Response): { vehicleId: number; imageIndex: number } | null");
+    expect(routesSource).toContain("vehicleId must be a positive integer and image index must be a non-negative integer");
+    expect(vehicleImageBlock).toContain("const imageParams = requirePublicVehicleImageParams(req, res)");
+    expect(vehicleImageBlock).not.toContain("const vehicleId = parseInt(req.params.vehicleId)");
+    expect(vehicleImageBlock).not.toContain("const imageIndex = parseInt(req.params.index)");
+    expect(vehicleImageBlock).not.toContain("isNaN(vehicleId) || isNaN(imageIndex)");
+  });
 });
