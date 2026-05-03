@@ -42,4 +42,14 @@ describe("manager appraisal tenant route contract", () => {
     expect(appraisalsBlock).toContain("storage.updateVehicleAppraisal(id, dealershipId, updates)");
     expect(appraisalsBlock).toContain("storage.deleteVehicleAppraisal(id, dealershipId)");
   });
+
+  it("rejects malformed appraisal ids before dealership-scoped storage calls", () => {
+    expect(appraisalsBlock).toBeDefined();
+    expect(routesSource).toContain("function requireAppraisalIdParam");
+
+    const idGuardCalls = appraisalsBlock?.match(/requireAppraisalIdParam\(req, res\)/g) ?? [];
+    expect(idGuardCalls).toHaveLength(3);
+    expect(appraisalsBlock).not.toContain("parseInt(req.params.id)");
+    expect(appraisalsBlock).not.toContain("Number.parseInt(req.params.id");
+  });
 });
