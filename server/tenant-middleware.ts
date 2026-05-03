@@ -410,7 +410,21 @@ export function dealershipOwnerOrMaster(req: Request, res: Response, next: NextF
   }
   
   const user = req.user as any;
-  const targetDealershipId = req.dealershipId || parseInt(req.params.dealershipId) || parseInt(req.query.dealershipId as string);
+  let targetDealershipId = typeof req.dealershipId === 'number' ? req.dealershipId : null;
+
+  if (targetDealershipId === null && req.params.dealershipId !== undefined) {
+    targetDealershipId = parsePositiveIntegerId(req.params.dealershipId);
+    if (targetDealershipId === null) {
+      return res.status(400).json({ error: 'dealershipId must be a positive integer' });
+    }
+  }
+
+  if (targetDealershipId === null && req.query.dealershipId !== undefined) {
+    targetDealershipId = parsePositiveIntegerId(req.query.dealershipId);
+    if (targetDealershipId === null) {
+      return res.status(400).json({ error: 'dealershipId must be a positive integer' });
+    }
+  }
   
   // Super admins and master users can access all dealerships
   if (hasRole(user.role, 'super_admin', 'master')) {
