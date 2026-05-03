@@ -94,6 +94,8 @@ Additional partial proof: extension one-time posting-token creation now strictly
 
 Additional partial proof: super-admin and salesperson Facebook Marketplace queue routes now require a non-empty `vehicleIds` array, strictly parse each ID, and verify every queued vehicle with `storage.getVehicleById(parsedVehicleId, dealershipId)` before calling the fail-closed marketplace queue service.
 
+Additional partial proof: extension automated Marketplace posting now fails closed unless `ENABLE_AUTOPOST_QUEUE` is explicitly enabled, then still requires strict body `vehicleId` parsing plus `storage.getVehicleById(parsedVehicleId, dealershipId)` before Browserless receives inventory facts or listing rows are written.
+
 ## Feature Certification Matrix
 
 | Feature | Status | CI Proof | Tests | Staging Proof | Logs/Monitoring | Real User Flow | Owner | Notes |

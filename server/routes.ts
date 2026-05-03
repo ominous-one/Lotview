@@ -18332,7 +18332,14 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
       const userId = req.user!.id;
       const { vehicleId, sessionCookies } = req.body;
 
-      if (!vehicleId) {
+      const autopostEnabled = process.env.ENABLE_AUTOPOST_QUEUE === "true" || process.env.ENABLE_AUTOPOST_QUEUE === "1";
+      if (!autopostEnabled) {
+        return res.status(403).json({ error: "Facebook Marketplace auto-posting disabled pending certification" });
+      }
+
+      const parsedVehicleId = parseOptionalPositiveIntegerBodyValue(vehicleId, res, "vehicleId");
+      if (parsedVehicleId === null) return;
+      if (parsedVehicleId === undefined) {
         return res.status(400).json({ error: 'Vehicle ID required' });
       }
 
@@ -18340,21 +18347,12 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
         return res.status(400).json({ error: 'Facebook session cookies required' });
       }
 
-      // Fetch vehicle data
-      const vehicle = await db
-        .select()
-        .from(vehicles)
-        .where(and(
-          eq(vehicles.id, vehicleId),
-          eq(vehicles.dealershipId, dealershipId)
-        ))
-        .limit(1);
-
-      if (vehicle.length === 0) {
+      const scopedVehicle = await storage.getVehicleById(parsedVehicleId, dealershipId);
+      if (!scopedVehicle) {
         return res.status(404).json({ error: 'Vehicle not found' });
       }
 
-      const v = vehicle[0];
+      const v = scopedVehicle;
 
       // Prefer localImages (hosted in our object storage) over original CDN URLs
       // Convert relative URLs to full URLs for Browserless automation
@@ -18394,7 +18392,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
         imageUrls,
       };
 
-      console.log(`[Extension] Auto-posting vehicle ${vehicleId} for user ${userId}`);
+      console.log(`[Extension] Auto-posting vehicle ${parsedVehicleId} for user ${userId}`);
 
       // Post using Browserless automation
       const result = await facebookMarketplaceAutomation.postToMarketplace(postData, sessionCookies);
@@ -18436,7 +18434,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
           await db.insert(fbMarketplaceListings).values({
             dealershipId,
             accountId,
-            vehicleId,
+            vehicleId: parsedVehicleId,
             status: 'posted',
             postedAt: new Date(),
             fbListingUrl: result.listingUrl || null,
@@ -18450,7 +18448,7 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
             },
           });
 
-          console.log(`[Extension] Vehicle ${vehicleId} posted successfully, recorded in DB`);
+          console.log(`[Extension] Vehicle ${parsedVehicleId} posted successfully, recorded in DB`);
         } catch (dbError) {
           console.error('[Extension] Error recording posting:', dbError);
           // Don't fail the response - the posting succeeded
