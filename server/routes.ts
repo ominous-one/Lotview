@@ -524,6 +524,27 @@ function requireAutomationQueueItemIdParam(req: Request, res: Response): number 
   return queueItemId;
 }
 
+const UUID_ROUTE_PARAM_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function parseUuidRouteParam(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return UUID_ROUTE_PARAM_PATTERN.test(trimmed) ? trimmed.toLowerCase() : null;
+}
+
+function requireAutopostQueueItemUuidParam(req: Request, res: Response): string | null {
+  const queueItemId = parseUuidRouteParam(req.params.queueItemId);
+  if (!queueItemId) {
+    res.status(400).json({ error: "Autopost queue item id must be a valid UUID" });
+    return null;
+  }
+
+  return queueItemId;
+}
+
 function requireReengagementCampaignIdParam(req: Request, res: Response): number | null {
   const campaignId = parsePositiveIntegerId(req.params.id);
   if (!campaignId) {
@@ -19250,7 +19271,8 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
   app.post('/api/manager/autopost/queue/:queueItemId/photo-override', authMiddleware, requirePermission("messages.write"), requireDealership, requireRole('master', 'sales_manager'), async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const queueItemId = String(req.params.queueItemId);
+      const queueItemId = requireAutopostQueueItemUuidParam(req, res);
+      if (!queueItemId) return;
       const enabled = !!req.body?.enabled;
       const reason = req.body?.reason ? String(req.body.reason) : null;
 
@@ -19266,7 +19288,8 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
   app.post('/api/manager/autopost/queue/:queueItemId/dequeue', authMiddleware, requirePermission("messages.write"), requireDealership, requireRole('master', 'sales_manager'), async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const queueItemId = String(req.params.queueItemId);
+      const queueItemId = requireAutopostQueueItemUuidParam(req, res);
+      if (!queueItemId) return;
       const reason = req.body?.reason ? String(req.body.reason) : 'manager_dequeued';
       await dequeueAutopostQueueItem({ dealershipId, queueItemId, actorUserId: req.user?.id ?? null, reason });
       res.json({ success: true });
