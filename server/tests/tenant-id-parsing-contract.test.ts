@@ -90,4 +90,12 @@ describe("tenant id parsing contract", () => {
       expect(block).not.toContain("Number.parseInt(String(rawDealershipIdValue");
     });
   });
+
+  it("does not partially parse dealership route parameters", () => {
+    expect(routesSource).toContain("function requireDealershipIdParam(req: Request, res: Response): number | null");
+    expect(routesSource).toContain("const dealershipId = parseDealershipIdParam(req.params.dealershipId);");
+    expect(routesSource).toContain('res.status(400).json({ error: "dealershipId must be a positive integer" });');
+    expect(routesSource).not.toContain("parseInt(req.params.dealershipId)");
+    expect(routesSource).not.toContain("Number.parseInt(req.params.dealershipId");
+  });
 });

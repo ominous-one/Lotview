@@ -234,6 +234,16 @@ function parseDealershipIdParam(value: unknown): number | null {
   return parsePositiveIntegerId(value);
 }
 
+function requireDealershipIdParam(req: Request, res: Response): number | null {
+  const dealershipId = parseDealershipIdParam(req.params.dealershipId);
+  if (!dealershipId) {
+    res.status(400).json({ error: "dealershipId must be a positive integer" });
+    return null;
+  }
+
+  return dealershipId;
+}
+
 async function validateTenantIdentityAvailability(options: {
   slug?: string;
   subdomain?: string;
@@ -1739,7 +1749,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get API keys for a specific dealership (super admin only)
   app.get("/api/super-admin/dealerships/:dealershipId/api-keys", authMiddleware, requirePermission("integrations.read"), superAdminOnly, async (req, res) => {
     try {
-      const dealershipId = parseInt(req.params.dealershipId);
+      const dealershipId = requireDealershipIdParam(req, res);
+      if (!dealershipId) return;
       const apiKeys = await storage.getDealershipApiKeys(dealershipId);
       
       if (!apiKeys) {
@@ -1771,7 +1782,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update API keys for a specific dealership (super admin only)
   app.patch("/api/super-admin/dealerships/:dealershipId/api-keys", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
-      const dealershipId = parseInt(req.params.dealershipId);
+      const dealershipId = requireDealershipIdParam(req, res);
+      if (!dealershipId) return;
       const updates = req.body;
       
       // Check if dealership exists
@@ -1815,7 +1827,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Test OpenAI API key for a dealership (super admin only)
   app.post("/api/super-admin/dealerships/:dealershipId/test-openai", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
-      const dealershipId = parseInt(req.params.dealershipId);
+      const dealershipId = requireDealershipIdParam(req, res);
+      if (!dealershipId) return;
       const apiKeys = await storage.getDealershipApiKeys(dealershipId);
       
       if (!apiKeys?.openaiApiKey) {
@@ -1844,7 +1857,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Test Facebook App credentials for a dealership (super admin only)
   app.post("/api/super-admin/dealerships/:dealershipId/test-facebook", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
-      const dealershipId = parseInt(req.params.dealershipId);
+      const dealershipId = requireDealershipIdParam(req, res);
+      if (!dealershipId) return;
       const apiKeys = await storage.getDealershipApiKeys(dealershipId);
       
       if (!apiKeys?.facebookAppId || !apiKeys?.facebookAppSecret) {
@@ -1871,7 +1885,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Test GoHighLevel API key for a dealership (super admin only)
   app.post("/api/super-admin/dealerships/:dealershipId/test-ghl", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
-      const dealershipId = parseInt(req.params.dealershipId);
+      const dealershipId = requireDealershipIdParam(req, res);
+      if (!dealershipId) return;
       const apiKeys = await storage.getDealershipApiKeys(dealershipId);
       
       if (!apiKeys?.ghlApiKey || !apiKeys?.ghlLocationId) {
@@ -1905,7 +1920,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Test MarketCheck API key for a dealership (super admin only)
   app.post("/api/super-admin/dealerships/:dealershipId/test-marketcheck", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
-      const dealershipId = parseInt(req.params.dealershipId);
+      const dealershipId = requireDealershipIdParam(req, res);
+      if (!dealershipId) return;
       const apiKeys = await storage.getDealershipApiKeys(dealershipId);
       
       if (!apiKeys?.marketcheckKey) {
@@ -1933,7 +1949,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Test Apify API token for a dealership (super admin only)
   app.post("/api/super-admin/dealerships/:dealershipId/test-apify", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
-      const dealershipId = parseInt(req.params.dealershipId);
+      const dealershipId = requireDealershipIdParam(req, res);
+      if (!dealershipId) return;
       const apiKeys = await storage.getDealershipApiKeys(dealershipId);
       
       if (!apiKeys?.apifyToken) {
@@ -1965,7 +1982,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Test Gemini API key for a dealership (super admin only)
   app.post("/api/super-admin/dealerships/:dealershipId/test-gemini", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
-      const dealershipId = parseInt(req.params.dealershipId);
+      const dealershipId = requireDealershipIdParam(req, res);
+      if (!dealershipId) return;
       const { GeminiService } = await import("./gemini-service");
       const geminiService = await GeminiService.getInstanceForDealership(dealershipId);
       
@@ -1992,7 +2010,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Run Apify market scrape for a dealership (super admin only)
   app.post("/api/super-admin/dealerships/:dealershipId/apify-scrape", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req: AuthRequest, res) => {
     try {
-      const dealershipId = parseInt(req.params.dealershipId);
+      const dealershipId = requireDealershipIdParam(req, res);
+      if (!dealershipId) return;
       const { make, model, yearMin, yearMax, postalCode, province, radiusKm, maxResults } = req.body;
       
       if (!make || !model) {
@@ -2103,7 +2122,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get Facebook catalog config for a specific dealership (super admin only)
   app.get("/api/super-admin/dealerships/:dealershipId/facebook-catalog", authMiddleware, requirePermission("integrations.read"), superAdminOnly, async (req, res) => {
     try {
-      const dealershipId = parseInt(req.params.dealershipId);
+      const dealershipId = requireDealershipIdParam(req, res);
+      if (!dealershipId) return;
       const config = await storage.getFacebookCatalogConfig(dealershipId);
       
       if (!config) {
@@ -2120,7 +2140,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Save/update Facebook catalog config for a dealership (super admin only)
   app.post("/api/super-admin/dealerships/:dealershipId/facebook-catalog", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
-      const dealershipId = parseInt(req.params.dealershipId);
+      const dealershipId = requireDealershipIdParam(req, res);
+      if (!dealershipId) return;
       const { catalogId, accessToken, catalogName, isActive, autoSyncEnabled } = req.body;
       const authReq = req as AuthRequest;
       
@@ -2164,7 +2185,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete Facebook catalog config for a dealership (super admin only)
   app.delete("/api/super-admin/dealerships/:dealershipId/facebook-catalog", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
-      const dealershipId = parseInt(req.params.dealershipId);
+      const dealershipId = requireDealershipIdParam(req, res);
+      if (!dealershipId) return;
       const authReq = req as AuthRequest;
       
       const dealership = await storage.getDealership(dealershipId);
@@ -2195,7 +2217,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Test Facebook catalog connection (super admin only)
   app.post("/api/super-admin/dealerships/:dealershipId/test-facebook-catalog", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
-      const dealershipId = parseInt(req.params.dealershipId);
+      const dealershipId = requireDealershipIdParam(req, res);
+      if (!dealershipId) return;
       const { catalogId, accessToken } = req.body;
       
       // Use provided credentials or get from database
@@ -2242,7 +2265,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Sync inventory to Facebook catalog (super admin only)
   app.post("/api/super-admin/dealerships/:dealershipId/sync-facebook-catalog", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
-      const dealershipId = parseInt(req.params.dealershipId);
+      const dealershipId = requireDealershipIdParam(req, res);
+      if (!dealershipId) return;
       const authReq = req as AuthRequest;
       
       const config = await storage.getFacebookCatalogConfig(dealershipId);
@@ -3003,7 +3027,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get launch checklist for a dealership
   app.get("/api/super-admin/dealerships/:dealershipId/launch-checklist", authMiddleware, requireCapability("tenant.manage"), superAdminOnly, async (req, res) => {
     try {
-      const dealershipId = parseInt(req.params.dealershipId);
+      const dealershipId = requireDealershipIdParam(req, res);
+      if (!dealershipId) return;
       const items = await storage.getLaunchChecklist(dealershipId);
       const progress = await storage.getLaunchChecklistProgress(dealershipId);
       res.json({ items, progress });
@@ -3016,7 +3041,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get launch checklist progress for a dealership
   app.get("/api/super-admin/dealerships/:dealershipId/launch-checklist/progress", authMiddleware, requireCapability("tenant.manage"), superAdminOnly, async (req, res) => {
     try {
-      const dealershipId = parseInt(req.params.dealershipId);
+      const dealershipId = requireDealershipIdParam(req, res);
+      if (!dealershipId) return;
       const progress = await storage.getLaunchChecklistProgress(dealershipId);
       res.json(progress);
     } catch (error) {
@@ -3029,7 +3055,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/super-admin/dealerships/:dealershipId/launch-checklist/:itemId/complete", authMiddleware, requireCapability("tenant.manage"), superAdminOnly, async (req, res) => {
     try {
       const authReq = req as AuthRequest;
-      const dealershipId = parseInt(req.params.dealershipId);
+      const dealershipId = requireDealershipIdParam(req, res);
+      if (!dealershipId) return;
       const itemId = parseInt(req.params.itemId);
       
       const item = await storage.completeLaunchChecklistItem(itemId, dealershipId, authReq.user!.id);
@@ -3046,7 +3073,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Skip a launch checklist item
   app.post("/api/super-admin/dealerships/:dealershipId/launch-checklist/:itemId/skip", authMiddleware, requireCapability("tenant.manage"), superAdminOnly, async (req, res) => {
     try {
-      const dealershipId = parseInt(req.params.dealershipId);
+      const dealershipId = requireDealershipIdParam(req, res);
+      if (!dealershipId) return;
       const itemId = parseInt(req.params.itemId);
       const { notes } = req.body;
       
@@ -3064,7 +3092,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update checklist item notes
   app.patch("/api/super-admin/dealerships/:dealershipId/launch-checklist/:itemId", authMiddleware, requireCapability("tenant.manage"), superAdminOnly, async (req, res) => {
     try {
-      const dealershipId = parseInt(req.params.dealershipId);
+      const dealershipId = requireDealershipIdParam(req, res);
+      if (!dealershipId) return;
       const itemId = parseInt(req.params.itemId);
       const { notes, status } = req.body;
       
@@ -15778,7 +15807,8 @@ Return ONLY the enhanced description, nothing else.`;
   // Get FB Marketplace settings for a dealership
   app.get("/api/super-admin/fb-marketplace/settings/:dealershipId", authMiddleware, requirePermission("integrations.read"), superAdminOnly, async (req, res) => {
     try {
-      const dealershipId = parseInt(req.params.dealershipId);
+      const dealershipId = requireDealershipIdParam(req, res);
+      if (!dealershipId) return;
       const [settings] = await db
         .select()
         .from(fbMarketplaceSettings)
@@ -15794,7 +15824,8 @@ Return ONLY the enhanced description, nothing else.`;
   // Update FB Marketplace settings
   app.put("/api/super-admin/fb-marketplace/settings/:dealershipId", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
-      const dealershipId = parseInt(req.params.dealershipId);
+      const dealershipId = requireDealershipIdParam(req, res);
+      if (!dealershipId) return;
       const settingsData = stripTenantOwnershipFields((req.body ?? {}) as Record<string, unknown>);
 
       const [existing] = await db
@@ -15828,7 +15859,8 @@ Return ONLY the enhanced description, nothing else.`;
   // Get all FB Marketplace accounts for a dealership
   app.get("/api/super-admin/fb-marketplace/accounts/:dealershipId", authMiddleware, requirePermission("integrations.read"), superAdminOnly, async (req, res) => {
     try {
-      const dealershipId = parseInt(req.params.dealershipId);
+      const dealershipId = requireDealershipIdParam(req, res);
+      if (!dealershipId) return;
       const accounts = await db
         .select()
         .from(fbMarketplaceAccounts)
@@ -15845,7 +15877,8 @@ Return ONLY the enhanced description, nothing else.`;
   // Create a new FB Marketplace account
   app.post("/api/super-admin/fb-marketplace/accounts/:dealershipId", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
-      const dealershipId = parseInt(req.params.dealershipId);
+      const dealershipId = requireDealershipIdParam(req, res);
+      if (!dealershipId) return;
       const { accountName, facebookEmail, userId } = req.body;
 
       const { FBMarketplaceService } = await import("./fb-marketplace-service");
@@ -15932,7 +15965,8 @@ Return ONLY the enhanced description, nothing else.`;
   // Get FB Marketplace stats for a dealership
   app.get("/api/super-admin/fb-marketplace/stats/:dealershipId", authMiddleware, requirePermission("messages.read"), superAdminOnly, async (req, res) => {
     try {
-      const dealershipId = parseInt(req.params.dealershipId);
+      const dealershipId = requireDealershipIdParam(req, res);
+      if (!dealershipId) return;
       
       const { FBMarketplaceService } = await import("./fb-marketplace-service");
       const service = new FBMarketplaceService(dealershipId);
@@ -15948,7 +15982,8 @@ Return ONLY the enhanced description, nothing else.`;
   // Get all FB Marketplace listings for a dealership
   app.get("/api/super-admin/fb-marketplace/listings/:dealershipId", authMiddleware, requirePermission("messages.read"), superAdminOnly, async (req, res) => {
     try {
-      const dealershipId = parseInt(req.params.dealershipId);
+      const dealershipId = requireDealershipIdParam(req, res);
+      if (!dealershipId) return;
       
       const listings = await db
         .select({
@@ -15973,7 +16008,8 @@ Return ONLY the enhanced description, nothing else.`;
   // Queue a vehicle for posting
   app.post("/api/super-admin/fb-marketplace/queue/:dealershipId", authMiddleware, requirePermission("messages.write"), superAdminOnly, async (req, res) => {
     try {
-      const dealershipId = parseInt(req.params.dealershipId);
+      const dealershipId = requireDealershipIdParam(req, res);
+      if (!dealershipId) return;
       const { vehicleIds, priority } = req.body;
 
       const { FBMarketplaceService } = await import("./fb-marketplace-service");
@@ -15995,7 +16031,8 @@ Return ONLY the enhanced description, nothing else.`;
   // Get posting queue for a dealership
   app.get("/api/super-admin/fb-marketplace/queue/:dealershipId", authMiddleware, requirePermission("messages.read"), superAdminOnly, async (req, res) => {
     try {
-      const dealershipId = parseInt(req.params.dealershipId);
+      const dealershipId = requireDealershipIdParam(req, res);
+      if (!dealershipId) return;
       
       const queue = await db
         .select({
@@ -16020,7 +16057,8 @@ Return ONLY the enhanced description, nothing else.`;
   // Get activity log for a dealership
   app.get("/api/super-admin/fb-marketplace/activity/:dealershipId", authMiddleware, requirePermission("messages.read"), superAdminOnly, async (req, res) => {
     try {
-      const dealershipId = parseInt(req.params.dealershipId);
+      const dealershipId = requireDealershipIdParam(req, res);
+      if (!dealershipId) return;
       const limit = parseInt(req.query.limit as string) || 50;
       
       const activity = await db
@@ -16040,7 +16078,8 @@ Return ONLY the enhanced description, nothing else.`;
   // Manually trigger queue processing
   app.post("/api/super-admin/fb-marketplace/process-queue/:dealershipId", authMiddleware, requirePermission("messages.write"), superAdminOnly, sensitiveLimiter, async (req, res) => {
     try {
-      const dealershipId = parseInt(req.params.dealershipId);
+      const dealershipId = requireDealershipIdParam(req, res);
+      if (!dealershipId) return;
       
       const { FBMarketplaceService } = await import("./fb-marketplace-service");
       const service = new FBMarketplaceService(dealershipId);
