@@ -50,4 +50,14 @@ describe("super-admin onboarding and launch checklist route RBAC contract", () =
     expect(onboardingLaunchBlock).toContain("action: 'onboard_dealership'");
     expect(onboardingLaunchBlock).toContain("resource: 'dealership'");
   });
+
+  it("does not partially parse onboarding run or launch checklist item ids", () => {
+    expect(onboardingLaunchBlock).toBeDefined();
+    expect(routesSource).toContain("function requireOnboardingRunIdParam(req: Request, res: Response): number | null");
+    expect(routesSource).toContain("function requireLaunchChecklistItemIdParam(req: Request, res: Response): number | null");
+    expect(onboardingLaunchBlock).toContain("const runId = requireOnboardingRunIdParam(req, res)");
+    expect(onboardingLaunchBlock).toContain("const itemId = requireLaunchChecklistItemIdParam(req, res)");
+    expect(onboardingLaunchBlock).not.toContain("parseInt(req.params.runId)");
+    expect(onboardingLaunchBlock).not.toContain("parseInt(req.params.itemId)");
+  });
 });

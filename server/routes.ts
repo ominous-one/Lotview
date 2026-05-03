@@ -244,6 +244,26 @@ function requireDealershipIdParam(req: Request, res: Response): number | null {
   return dealershipId;
 }
 
+function requireOnboardingRunIdParam(req: Request, res: Response): number | null {
+  const runId = parsePositiveIntegerId(req.params.runId);
+  if (!runId) {
+    res.status(400).json({ error: "Onboarding run id must be a positive integer" });
+    return null;
+  }
+
+  return runId;
+}
+
+function requireLaunchChecklistItemIdParam(req: Request, res: Response): number | null {
+  const itemId = parsePositiveIntegerId(req.params.itemId);
+  if (!itemId) {
+    res.status(400).json({ error: "Launch checklist item id must be a positive integer" });
+    return null;
+  }
+
+  return itemId;
+}
+
 function requireVehicleIdParam(req: Request, res: Response): number | null {
   const vehicleId = parsePositiveIntegerId(req.params.id);
   if (!vehicleId) {
@@ -3465,7 +3485,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/super-admin/onboarding/runs/:runId", authMiddleware, requirePermission("admin.audit"), superAdminOnly, async (req, res) => {
     try {
       const { OnboardingService } = await import("./onboarding-service");
-      const runId = parseInt(req.params.runId);
+      const runId = requireOnboardingRunIdParam(req, res);
+      if (!runId) return;
       const status = await OnboardingService.getRunStatus(runId);
       
       if (!status) {
@@ -3526,7 +3547,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const authReq = req as AuthRequest;
       const dealershipId = requireDealershipIdParam(req, res);
       if (!dealershipId) return;
-      const itemId = parseInt(req.params.itemId);
+      const itemId = requireLaunchChecklistItemIdParam(req, res);
+      if (!itemId) return;
       
       const item = await storage.completeLaunchChecklistItem(itemId, dealershipId, authReq.user!.id);
       if (!item) {
@@ -3544,7 +3566,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const dealershipId = requireDealershipIdParam(req, res);
       if (!dealershipId) return;
-      const itemId = parseInt(req.params.itemId);
+      const itemId = requireLaunchChecklistItemIdParam(req, res);
+      if (!itemId) return;
       const { notes } = req.body;
       
       const item = await storage.skipLaunchChecklistItem(itemId, dealershipId, notes);
@@ -3563,7 +3586,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const dealershipId = requireDealershipIdParam(req, res);
       if (!dealershipId) return;
-      const itemId = parseInt(req.params.itemId);
+      const itemId = requireLaunchChecklistItemIdParam(req, res);
+      if (!itemId) return;
       const { notes, status } = req.body;
       
       const updates: any = {};
