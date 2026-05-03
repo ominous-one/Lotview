@@ -564,6 +564,16 @@ function requireCrmTaskIdParam(req: Request, res: Response): number | null {
   return taskId;
 }
 
+function requireCrmMessageTemplateIdParam(req: Request, res: Response): number | null {
+  const templateId = parsePositiveIntegerId(req.params.id);
+  if (!templateId) {
+    res.status(400).json({ error: "CRM message template id must be a positive integer" });
+    return null;
+  }
+
+  return templateId;
+}
+
 function parseOptionalPositiveIntegerQueryParam(value: unknown, res: Response, label: string): number | null | undefined {
   if (value === undefined) {
     return undefined;
@@ -15289,7 +15299,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.get("/api/crm/message-templates/:id", authMiddleware, requirePermission("messages.read"), requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
-      const id = parseInt(req.params.id);
+      const id = requireCrmMessageTemplateIdParam(req, res);
+      if (!id) return;
       
       const template = await storage.getCrmMessageTemplateById(id, dealershipId);
       
@@ -15342,7 +15353,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.patch("/api/crm/message-templates/:id", authMiddleware, requirePermission("messages.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
-      const id = parseInt(req.params.id);
+      const id = requireCrmMessageTemplateIdParam(req, res);
+      if (!id) return;
       
       const updates = stripTenantOwnershipFields(req.body ?? {});
       const template = await storage.updateCrmMessageTemplate(id, dealershipId, updates);
@@ -15362,7 +15374,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.delete("/api/crm/message-templates/:id", authMiddleware, requirePermission("messages.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
-      const id = parseInt(req.params.id);
+      const id = requireCrmMessageTemplateIdParam(req, res);
+      if (!id) return;
       
       const deleted = await storage.deleteCrmMessageTemplate(id, dealershipId);
       
