@@ -28,8 +28,8 @@ describe("user management route RBAC and tenant contract", () => {
       routesSource.indexOf("// ===== ADMIN AUTH ROUTES"),
     );
 
-    expect(routesSource).toContain("function requireUserIdParam(req: Request, res: Response): number | null");
-    expect(routesSource).toContain("const userId = parsePositiveIntegerId(req.params.id);");
+    expect(routesSource).toContain('function requireUserIdParam(req: Request, res: Response, paramName = "id"): number | null');
+    expect(routesSource).toContain("const userId = parsePositiveIntegerId(req.params[paramName]);");
     expect(userManagementBlock).toContain("const id = requireUserIdParam(req, res);");
     expect(userManagementBlock).not.toContain("parseInt(req.params.id)");
   });
