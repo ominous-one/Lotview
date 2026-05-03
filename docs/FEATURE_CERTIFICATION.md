@@ -36,6 +36,8 @@ Additional partial proof: modular vehicle batch AI-description `vehicleIds` now 
 
 Additional partial proof: scrape validation now normalizes VINs through the full format/check-digit validator before counting valid VINs or detecting duplicates. This prevents case/whitespace VIN variants from bypassing duplicate detection, but does not certify scraper pagination, live source-truth reconciliation, staging, observability, or rollback proof.
 
+Additional partial proof: vehicle deduplication now canonicalizes existing inventory VINs through the full validator before matching scraped vehicles, finding duplicate groups, or merging selected duplicates. This reduces legacy VIN formatting drift during scrape storage, but does not certify full inventory CRUD, live source-truth reconciliation, staging, observability, or rollback proof.
+
 ## Feature Certification Matrix
 
 | Feature | Status | CI Proof | Tests | Staging Proof | Logs/Monitoring | Real User Flow | Owner | Notes |

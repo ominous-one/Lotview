@@ -330,6 +330,49 @@ describe("vehicle dedup VIN storage guard", () => {
     );
   });
 
+  it("matches legacy existing VIN variants before inserting scraped inventory", async () => {
+    storageMock.getVehiclesByDealership.mockResolvedValue([
+      {
+        id: 42,
+        vin: ` ${VALID_VIN.toLowerCase()} `,
+        price: 21000,
+        odometer: 90000,
+        status: "available",
+        photos: [],
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      },
+    ]);
+
+    const result = await vehicleDedup.deduplicateAndStore(7, {
+      vin: VALID_VIN,
+      price: 24995,
+      year: 2003,
+      make: "Honda",
+      model: "Accord",
+      mileage: 88000,
+      photos: ["https://cdn.example.com/new.jpg"],
+      status: "available",
+    });
+
+    expect(result).toMatchObject({
+      inserted: 0,
+      merged: 1,
+      skipped: 0,
+      errors: 0,
+      details: [{ vin: VALID_VIN, action: "merge" }],
+    });
+    expect(storageMock.createVehicle).not.toHaveBeenCalled();
+    expect(storageMock.updateVehicle).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        price: 24995,
+        odometer: 88000,
+        images: ["https://cdn.example.com/new.jpg"],
+      }),
+      7
+    );
+  });
+
   it("does not merge invalid source facts into existing inventory", async () => {
     storageMock.getVehiclesByDealership.mockResolvedValue([
       {
@@ -654,6 +697,70 @@ describe("vehicle dedup VIN storage guard", () => {
     ]);
 
     const result = await vehicleDedup.mergeDuplicates(7, VALID_VIN, [42, 43]);
+
+    expect(result).toMatchObject({
+      success: true,
+      keptId: 42,
+      removedIds: [43],
+    });
+    expect(storageMock.updateVehicle).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        price: 24995,
+        odometer: 88000,
+        images: ["https://cdn.example.com/keeper.jpg", "https://cdn.example.com/new.jpg"],
+      }),
+      7
+    );
+    expect(storageMock.deleteVehicle).toHaveBeenCalledWith(43, 7);
+  });
+
+  it("finds duplicate legacy VIN variants by canonical VIN", async () => {
+    storageMock.getVehiclesByDealership.mockResolvedValue([
+      {
+        id: 42,
+        vin: ` ${VALID_VIN.toLowerCase()} `,
+      },
+      {
+        id: 43,
+        vin: VALID_VIN,
+      },
+      {
+        id: 44,
+        vin: INVALID_CHECK_DIGIT_VIN,
+      },
+    ]);
+
+    await expect(vehicleDedup.findDuplicates(7)).resolves.toEqual([
+      {
+        vin: VALID_VIN,
+        vehicleIds: [42, 43],
+        count: 2,
+      },
+    ]);
+  });
+
+  it("merges duplicate legacy VIN variants by canonical VIN", async () => {
+    storageMock.getVehiclesByDealership.mockResolvedValue([
+      {
+        id: 42,
+        vin: ` ${VALID_VIN.toLowerCase()} `,
+        price: 21000,
+        odometer: 90000,
+        images: ["https://cdn.example.com/keeper.jpg"],
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      },
+      {
+        id: 43,
+        vin: VALID_VIN,
+        price: 24995,
+        odometer: 88000,
+        images: ["https://cdn.example.com/new.jpg"],
+        createdAt: new Date("2026-02-01T00:00:00.000Z"),
+      },
+    ]);
+
+    const result = await vehicleDedup.mergeDuplicates(7, ` ${VALID_VIN.toLowerCase()} `, [42, 43]);
 
     expect(result).toMatchObject({
       success: true,

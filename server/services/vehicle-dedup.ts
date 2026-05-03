@@ -208,6 +208,12 @@ function preferredScrapedImages(scraped: ScrapedVehicleData): string[] {
   return sanitizeScrapedImageUrls(rawImages);
 }
 
+function canonicalValidVin(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const result = validateVIN(value);
+  return result.isValid ? result.vin : null;
+}
+
 // ---- Core Deduplication ----
 
 /**
@@ -231,7 +237,8 @@ export async function deduplicateAndStore(
   const existingVehicles = await storage.getVehiclesByDealership(dealershipId);
   const existingByVin = new Map<string, Vehicle>();
   for (const v of existingVehicles) {
-    if (v.vin) existingByVin.set(v.vin.toUpperCase(), v);
+    const normalizedVin = canonicalValidVin(v.vin);
+    if (normalizedVin) existingByVin.set(normalizedVin, v);
   }
 
   for (const scraped of vehiclesToProcess) {
@@ -273,7 +280,8 @@ export async function deduplicateAndStore(
         result.action = "merged";
         result.details.push({ vin: normalizedVin, action: "merge" });
       } else if (stockConflict) {
-        const conflictVin = typeof stockConflict.vin === "string" ? stockConflict.vin.trim().toUpperCase() : "";
+        const conflictVin = canonicalValidVin(stockConflict.vin) ??
+          (typeof stockConflict.vin === "string" ? stockConflict.vin.trim().toUpperCase() : "");
         if (conflictVin && conflictVin !== normalizedVin) {
           result.skipped++;
           result.action = "skip";
@@ -342,7 +350,8 @@ export async function findDuplicates(dealershipId: number): Promise<
 
   for (const v of vehicles) {
     if (!v.vin) continue;
-    const vin = v.vin.toUpperCase();
+    const vin = canonicalValidVin(v.vin);
+    if (!vin) continue;
     const ids = vinMap.get(vin) || [];
     ids.push(v.id);
     vinMap.set(vin, ids);
@@ -368,8 +377,13 @@ export async function mergeDuplicates(
 ): Promise<{ success: boolean; keptId: number; removedIds: number[] }> {
   const vehicles = await storage.getVehiclesByDealership(dealershipId);
   const selectedIds = new Set(vehicleIds);
+  const requestedVin = canonicalValidVin(vin);
+  if (!requestedVin) {
+    return { success: false, keptId: 0, removedIds: [] };
+  }
+
   const duplicates = vehicles.filter((v) =>
-    selectedIds.has(v.id) && v.vin?.toUpperCase() === vin.toUpperCase()
+    selectedIds.has(v.id) && canonicalValidVin(v.vin) === requestedVin
   );
 
   if (duplicates.length < 2) {
@@ -404,7 +418,7 @@ export async function mergeDuplicates(
     await (storage as any).deleteVehicle(v.id, dealershipId);
   }
 
-  logInfo(`[Dedup] Merged ${toRemove.length} duplicates for VIN ${vin}`, {
+  logInfo(`[Dedup] Merged ${toRemove.length} duplicates for VIN ${requestedVin}`, {
     dealershipId,
     keptId: keeper.id,
   });
