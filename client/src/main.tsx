@@ -5,6 +5,7 @@ import {
   BarChart3,
   CheckCircle2,
   ClipboardCheck,
+  Eye,
   Gauge,
   Inbox,
   KeyRound,
@@ -144,6 +145,9 @@ function Metric({
 
 function InventoryTable({ snapshot, loading }: { snapshot: OperationsSnapshot; loading: boolean }) {
   const liveInventoryAvailable = snapshot.backendStatus === "connected";
+  const [selectedVin, setSelectedVin] = useState<string | null>(null);
+  const selectedRow =
+    snapshot.inventoryRows.find((row) => row.vin === selectedVin) ?? snapshot.inventoryRows[0] ?? null;
 
   return (
     <section className="workspace-panel" aria-labelledby="inventory-heading">
@@ -188,6 +192,7 @@ function InventoryTable({ snapshot, loading }: { snapshot: OperationsSnapshot; l
                 <th>Price</th>
                 <th>Source</th>
                 <th>Proof</th>
+                <th>Inspect</th>
               </tr>
             </thead>
             <tbody>
@@ -202,10 +207,51 @@ function InventoryTable({ snapshot, loading }: { snapshot: OperationsSnapshot; l
                   <td>{row.price}</td>
                   <td>{row.source}</td>
                   <td>{row.proof}</td>
+                  <td>
+                    <button
+                      aria-label={`Inspect ${row.stock}`}
+                      aria-pressed={selectedRow?.vin === row.vin}
+                      className="secondary-action row-action"
+                      type="button"
+                      onClick={() => setSelectedVin(row.vin)}
+                    >
+                      <Eye size={16} />
+                      Inspect
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          {selectedRow ? (
+            <section className="vehicle-detail-band" aria-label="Selected vehicle proof">
+              <div className="detail-heading">
+                <div>
+                  <h3>{selectedRow.vehicle}</h3>
+                  <span className="mono">{selectedRow.vin}</span>
+                </div>
+                <StatusPill status={selectedRow.status} />
+              </div>
+              <div className="detail-grid">
+                <div>
+                  <span>Stock</span>
+                  <strong>{selectedRow.stock}</strong>
+                </div>
+                <div>
+                  <span>Price</span>
+                  <strong>{selectedRow.price}</strong>
+                </div>
+                <div>
+                  <span>Source</span>
+                  <strong>{selectedRow.source}</strong>
+                </div>
+                <div>
+                  <span>Proof</span>
+                  <strong>{selectedRow.proof}</strong>
+                </div>
+              </div>
+            </section>
+          ) : null}
         </div>
       )}
     </section>

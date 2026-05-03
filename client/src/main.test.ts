@@ -49,8 +49,22 @@ function buttonByText(text: string): HTMLButtonElement {
   return button as HTMLButtonElement;
 }
 
+function buttonByLabel(label: string): HTMLButtonElement {
+  const button = document.querySelector(`button[aria-label="${label}"]`);
+  if (!button) {
+    throw new Error(`Button not found: ${label}`);
+  }
+
+  return button as HTMLButtonElement;
+}
+
 async function clickButton(text: string): Promise<void> {
   buttonByText(text).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+async function clickButtonByLabel(label: string): Promise<void> {
+  buttonByLabel(label).dispatchEvent(new MouseEvent("click", { bubbles: true }));
   await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
@@ -141,6 +155,66 @@ describe("Lotview frontend operations workflow", () => {
     expect(document.body.textContent).toContain("$27,995");
     expect(document.body.textContent).toContain("VIN present from API");
     expect(document.body.textContent).not.toContain("H24019");
+  });
+
+  it("lets authenticated users inspect a selected vehicle row without loading unscoped detail data", async () => {
+    window.sessionStorage.setItem("lotview.auth.token", "existing-session-token");
+    const fetchMock = mockFetchSequence([
+      { body: { status: "healthy" } },
+      { body: { status: "ready" } },
+      {
+        body: {
+          user: {
+            id: 12,
+            name: "Avery Manager",
+            email: "avery@example.com",
+            role: "manager",
+            dealershipId: 7,
+            dealershipName: "Olympic Hyundai",
+          },
+        },
+      },
+      {
+        body: {
+          data: [
+            {
+              stockNumber: "HY-API-1",
+              vin: "KM8J33A40MU320000",
+              year: 2021,
+              make: "Hyundai",
+              model: "Tucson",
+              price: 27995,
+              source: "Lotview API fixture",
+              status: "active",
+            },
+            {
+              stockNumber: "HY-API-2",
+              vin: "5NMS4DAL4NH420001",
+              year: 2022,
+              make: "Hyundai",
+              model: "Santa Fe",
+              price: 34995,
+              source: "Lotview API fixture",
+              status: "pending_review",
+            },
+          ],
+          pagination: { total: 2 },
+        },
+      },
+    ]);
+
+    await renderApp();
+    await waitForText("HY-API-2");
+
+    expect(document.body.textContent).toContain("2021 Hyundai Tucson");
+
+    await clickButtonByLabel("Inspect HY-API-2");
+
+    expect(document.body.textContent).toContain("2022 Hyundai Santa Fe");
+    expect(document.body.textContent).toContain("5NMS4DAL4NH420001");
+    expect(document.body.textContent).toContain("$34,995");
+    expect(buttonByLabel("Inspect HY-API-2").getAttribute("aria-pressed")).toBe("true");
+    expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
   it("fails closed before inventory loads when the session is unauthenticated", async () => {
