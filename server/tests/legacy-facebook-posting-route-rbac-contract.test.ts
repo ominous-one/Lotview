@@ -77,4 +77,25 @@ describe("legacy Facebook posting route RBAC contract", () => {
     expect(accountTemplateQueueBlock).not.toContain("parseInt(req.params.id)");
     expect(accountTemplateQueueBlock).not.toContain("Number.parseInt(req.params.id");
   });
+
+  it("does not partially parse legacy Facebook OAuth, page posting, vehicle, or manual queue ids", () => {
+    expect(facebookPostingBlock).toBeDefined();
+    expect(routesSource).toContain(
+      'function requireFacebookPostingIdParam(req: Request, res: Response, label: string, paramName = "id"): number | null'
+    );
+
+    for (const expectedGuard of [
+      'const accountId = requireFacebookPostingIdParam(req, res, "Facebook account", "accountId")',
+      'const pageId = requireFacebookPostingIdParam(req, res, "Facebook page", "pageId")',
+      'const vehicleId = requireVehicleIdPathParam(req, res)',
+      'const queueId = requireFacebookPostingIdParam(req, res, "Posting queue", "queueId")',
+    ]) {
+      expect(facebookPostingBlock).toContain(expectedGuard);
+    }
+
+    expect(facebookPostingBlock).not.toContain("parseInt(req.params.accountId)");
+    expect(facebookPostingBlock).not.toContain("parseInt(req.params.pageId)");
+    expect(facebookPostingBlock).not.toContain("parseInt(req.params.vehicleId)");
+    expect(facebookPostingBlock).not.toContain("parseInt(req.params.queueId)");
+  });
 });
