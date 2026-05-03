@@ -1023,7 +1023,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update dealership settings (super admin only)
   app.patch("/api/super-admin/dealerships/:dealershipId", authMiddleware, requireCapability("tenant.manage"), requirePermission("users.manage"), superAdminOnly, async (req, res) => {
     try {
-      const dealershipId = parseInt(req.params.dealershipId);
+      const dealershipId = parseDealershipIdParam(req.params.dealershipId);
+      if (!dealershipId) {
+        return res.status(400).json({ error: "dealershipId must be a positive integer" });
+      }
       const { 
         name, 
         slug, 
@@ -1134,7 +1137,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get dealership details with master user (super admin only)
   app.get("/api/super-admin/dealerships/:dealershipId", authMiddleware, requireCapability("tenant.manage"), superAdminOnly, async (req, res) => {
     try {
-      const dealershipId = parseInt(req.params.dealershipId);
+      const dealershipId = parseDealershipIdParam(req.params.dealershipId);
+      if (!dealershipId) {
+        return res.status(400).json({ error: "dealershipId must be a positive integer" });
+      }
       
       const dealership = await storage.getDealership(dealershipId);
       if (!dealership) {

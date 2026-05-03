@@ -47,4 +47,12 @@ describe("super-admin dealership and settings route RBAC contract", () => {
     expect(dealershipSettingsBlock).toContain('"DELETE_GLOBAL_SETTING"');
     expect(dealershipSettingsBlock).toContain("await storage.logAuditAction");
   });
+
+  it("strictly parses super-admin dealership route parameters", () => {
+    expect(dealershipSettingsBlock).toBeDefined();
+
+    expect(dealershipSettingsBlock).toContain("const dealershipId = parseDealershipIdParam(req.params.dealershipId)");
+    expect(dealershipSettingsBlock).toContain('return res.status(400).json({ error: "dealershipId must be a positive integer" })');
+    expect(dealershipSettingsBlock).not.toContain("const dealershipId = parseInt(req.params.dealershipId)");
+  });
 });
