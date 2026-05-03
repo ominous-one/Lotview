@@ -83,4 +83,18 @@ describe("legacy conversation route tenant and RBAC contract", () => {
     expect(conversationReadSection).not.toContain("x-dealership-id");
     expect(conversationReadSection).not.toContain("headerDealershipId");
   });
+
+  it("uses strict positive integer parsing for conversation and message route ids", () => {
+    const conversationRouteSection = routesSource.slice(
+      routesSource.indexOf("// Get conversation by ID"),
+      routesSource.indexOf("// ===== CHAT PROMPT ROUTES ====="),
+    );
+
+    expect(routesSource).toContain("function requireConversationIdParam(req: Request, res: Response): number | null");
+    expect(routesSource).toContain("function requireMessageIdParam(req: Request, res: Response): number | null");
+    expect(routesSource).toContain("const conversationId = parsePositiveIntegerId(req.params.id);");
+    expect(routesSource).toContain("const messageId = parsePositiveIntegerId(req.params.id);");
+    expect(conversationRouteSection).not.toContain("parseInt(req.params.id)");
+    expect(conversationRouteSection).not.toContain("Number.parseInt(req.params.id");
+  });
 });
