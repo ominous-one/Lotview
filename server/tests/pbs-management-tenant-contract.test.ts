@@ -39,6 +39,19 @@ describe("PBS management tenant route contract", () => {
     expect(pbsManagementBlock).toContain("createPbsApiService(dealershipId)");
   });
 
+  it("rejects malformed PBS management ids and limits before scoped storage calls", () => {
+    expect(pbsManagementBlock).toBeDefined();
+    expect(routesSource).toContain("function requirePbsConfigIdParam(req: Request, res: Response): number | null");
+    expect(routesSource).toContain("function requirePbsWebhookEventIdParam(req: Request, res: Response): number | null");
+    expect(routesSource).toContain('res.status(400).json({ error: "PBS config id must be a positive integer" })');
+    expect(routesSource).toContain('res.status(400).json({ error: "PBS webhook event id must be a positive integer" })');
+    expect(pbsManagementBlock).toContain("const id = requirePbsConfigIdParam(req, res)");
+    expect(pbsManagementBlock).toContain("const id = requirePbsWebhookEventIdParam(req, res)");
+    expect(pbsManagementBlock).toContain('parseOptionalPositiveIntegerQueryParam(req.query.limit, res, "limit")');
+    expect(pbsManagementBlock).not.toContain("parseInt(req.params.id");
+    expect(pbsManagementBlock).not.toContain("parseInt(req.query.limit");
+  });
+
   it("keeps PBS storage scoped to dealership boundaries", () => {
     expect(pbsStorageBlock).toBeDefined();
     expect(pbsStorageBlock).toContain("eq(pbsConfig.dealershipId, dealershipId)");
