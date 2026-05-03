@@ -294,6 +294,16 @@ function requireMessageIdParam(req: Request, res: Response): number | null {
   return messageId;
 }
 
+function requireExternalTokenIdParam(req: Request, res: Response): number | null {
+  const tokenId = parsePositiveIntegerId(req.params.id);
+  if (!tokenId) {
+    res.status(400).json({ error: "External token id must be a positive integer" });
+    return null;
+  }
+
+  return tokenId;
+}
+
 async function validateTenantIdentityAvailability(options: {
   slug?: string;
   subdomain?: string;
@@ -3801,7 +3811,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete external API token (super_admin only)
   app.delete("/api/external-tokens/:id", authMiddleware, requirePermission("integrations.write"), requireRole("super_admin"), async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = requireExternalTokenIdParam(req, res);
+      if (!id) return;
       
       // Super_admin MUST specify dealership via query param - prevents cross-tenant deletion
       const dealershipId = parseDealershipId(req.query.dealershipId as string | undefined);

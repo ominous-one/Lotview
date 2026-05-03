@@ -32,6 +32,16 @@ describe("external token route RBAC and tenant contract", () => {
     expect(externalTokenBlock).toContain("await storage.deleteExternalApiToken(id, dealershipId)");
   });
 
+  it("uses strict positive integer parsing for token ids before tenant-scoped deletion", () => {
+    expect(externalTokenBlock).toBeDefined();
+
+    expect(routesSource).toContain("function requireExternalTokenIdParam(req: Request, res: Response): number | null");
+    expect(routesSource).toContain("const tokenId = parsePositiveIntegerId(req.params.id);");
+    expect(externalTokenBlock).toContain("const id = requireExternalTokenIdParam(req, res);");
+    expect(externalTokenBlock).not.toContain("parseInt(req.params.id)");
+    expect(externalTokenBlock).not.toContain("Number.parseInt(req.params.id");
+  });
+
   it("does not expose stored token hashes in list responses", () => {
     expect(externalTokenBlock).toBeDefined();
 
