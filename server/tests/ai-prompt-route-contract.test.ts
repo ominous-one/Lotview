@@ -61,4 +61,16 @@ describe("AI prompt route RBAC and tenant contract", () => {
       'app.post("/api/admin/prompts/:id/sync-ghl", authMiddleware, requirePermission("ai.configure"), requireRole("master", "super_admin")'
     );
   });
+
+  it("uses strict positive integer parsing for prompt ids", () => {
+    const promptManagementBlock = routesSource.slice(
+      routesSource.indexOf("// Update a specific prompt by ID"),
+      routesSource.indexOf("// AI-powered prompt enhancement endpoint"),
+    );
+
+    expect(routesSource).toContain("function requirePromptIdParam(req: Request, res: Response): number | null");
+    expect(routesSource).toContain("const promptId = parsePositiveIntegerId(req.params.id);");
+    expect(promptManagementBlock).toContain("const promptId = requirePromptIdParam(req, res);");
+    expect(promptManagementBlock).not.toContain("parseInt(req.params.id)");
+  });
 });
