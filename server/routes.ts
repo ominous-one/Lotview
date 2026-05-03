@@ -584,6 +584,16 @@ function requireMarketplaceAdTemplateIdParam(req: Request, res: Response): numbe
   return templateId;
 }
 
+function requireMarketplaceVehicleIdParam(req: Request, res: Response): number | null {
+  const vehicleId = parsePositiveIntegerId(req.params.vehicleId);
+  if (!vehicleId) {
+    res.status(400).json({ error: "Marketplace vehicle id must be a positive integer" });
+    return null;
+  }
+
+  return vehicleId;
+}
+
 function parseOptionalPositiveIntegerQueryParam(value: unknown, res: Response, label: string): number | null | undefined {
   if (value === undefined) {
     return undefined;
@@ -15910,7 +15920,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.get("/api/marketplace-blast/vehicle/:vehicleId", authMiddleware, requirePermission("messages.read"), requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const vehicleId = parseInt(req.params.vehicleId);
+      const vehicleId = requireMarketplaceVehicleIdParam(req, res);
+      if (!vehicleId) return;
       
       const vehicle = await storage.getVehicleById(vehicleId, dealershipId);
       if (!vehicle) {
@@ -16008,7 +16019,8 @@ Return ONLY the enhanced description, nothing else.`;
   app.post("/api/marketplace-blast/generate/:vehicleId", authMiddleware, requirePermission("ai.use"), requirePermission("messages.write"), requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const vehicleId = parseInt(req.params.vehicleId);
+      const vehicleId = requireMarketplaceVehicleIdParam(req, res);
+      if (!vehicleId) return;
       
       const vehicle = await storage.getVehicleById(vehicleId, dealershipId);
       if (!vehicle) {
@@ -16128,7 +16140,8 @@ Return ONLY the enhanced description, nothing else.`;
     try {
       const dealershipId = req.dealershipId!;
       const userId = req.user!.id;
-      const vehicleId = parseInt(req.params.vehicleId);
+      const vehicleId = requireMarketplaceVehicleIdParam(req, res);
+      if (!vehicleId) return;
       
       const vehicle = await storage.getVehicleById(vehicleId, dealershipId);
       if (!vehicle) {
@@ -16151,8 +16164,11 @@ Return ONLY the enhanced description, nothing else.`;
   app.get("/api/marketplace-blast/photos/:vehicleId", authMiddleware, requirePermission("messages.read"), requireRole("salesperson", "manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const vehicleId = parseInt(req.params.vehicleId);
-      const limit = parseInt(req.query.limit as string) || 10;
+      const vehicleId = requireMarketplaceVehicleIdParam(req, res);
+      if (!vehicleId) return;
+      const parsedLimit = parseOptionalPositiveIntegerQueryParam(req.query.limit, res, "limit");
+      if (parsedLimit === null) return;
+      const limit = parsedLimit ?? 10;
       
       const vehicle = await storage.getVehicleById(vehicleId, dealershipId);
       if (!vehicle) {
@@ -16220,7 +16236,8 @@ Return ONLY the enhanced description, nothing else.`;
     const archiver = await import('archiver');
     try {
       const dealershipId = req.dealershipId!;
-      const vehicleId = parseInt(req.params.vehicleId);
+      const vehicleId = requireMarketplaceVehicleIdParam(req, res);
+      if (!vehicleId) return;
       
       const vehicle = await storage.getVehicleById(vehicleId, dealershipId);
       if (!vehicle) {
@@ -16263,7 +16280,9 @@ Return ONLY the enhanced description, nothing else.`;
     const archiver = await import('archiver');
     try {
       const dealershipId = req.dealershipId!;
-      const imagesPerVehicle = Math.min(parseInt(req.query.limit as string) || 5, 10);
+      const parsedLimit = parseOptionalPositiveIntegerQueryParam(req.query.limit, res, "limit");
+      if (parsedLimit === null) return;
+      const imagesPerVehicle = Math.min(parsedLimit ?? 5, 10);
       
       const { vehicles } = await storage.getVehicles(dealershipId, 100, 0);
       

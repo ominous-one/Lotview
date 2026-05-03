@@ -80,4 +80,26 @@ describe("legacy Marketplace Blast route RBAC and tenant contract", () => {
       expect(marketplaceBlastBlock).not.toContain(unsafeParse);
     }
   });
+
+  it("fails closed on malformed Marketplace vehicle identifiers and photo limits before storage access", () => {
+    expect(marketplaceBlastBlock).toBeDefined();
+
+    for (const guard of [
+      "function requireMarketplaceVehicleIdParam(req: Request, res: Response): number | null",
+      "Marketplace vehicle id must be a positive integer",
+      "const vehicleId = requireMarketplaceVehicleIdParam(req, res)",
+      'const parsedLimit = parseOptionalPositiveIntegerQueryParam(req.query.limit, res, "limit")',
+      "const imagesPerVehicle = Math.min(parsedLimit ?? 5, 10)",
+    ]) {
+      expect(routesSource).toContain(guard);
+    }
+
+    for (const unsafeParse of [
+      "const vehicleId = parseInt(req.params.vehicleId)",
+      "const limit = parseInt(req.query.limit as string) || 10",
+      "const imagesPerVehicle = Math.min(parseInt(req.query.limit as string) || 5, 10)",
+    ]) {
+      expect(marketplaceBlastBlock).not.toContain(unsafeParse);
+    }
+  });
 });
