@@ -334,6 +334,16 @@ function requireFacebookPageIdParam(req: Request, res: Response): number | null 
   return pageId;
 }
 
+function requireBillingSettingIdParam(req: Request, res: Response): number | null {
+  const settingId = parsePositiveIntegerId(req.params.id);
+  if (!settingId) {
+    res.status(400).json({ error: "Billing setting id must be a positive integer" });
+    return null;
+  }
+
+  return settingId;
+}
+
 async function validateTenantIdentityAvailability(options: {
   slug?: string;
   subdomain?: string;
@@ -7203,7 +7213,8 @@ Format your response in clear sections with actionable recommendations.`;
   // Update credit score tier
   app.patch("/api/financing/credit-tiers/:id", authMiddleware, requirePermission("billing.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = requireBillingSettingIdParam(req, res);
+      if (!id) return;
       const { minScore, maxScore, interestRate } = req.body;
       
       if (minScore !== undefined && maxScore !== undefined && minScore > maxScore) {
@@ -7240,7 +7251,8 @@ Format your response in clear sections with actionable recommendations.`;
   // Delete credit score tier
   app.delete("/api/financing/credit-tiers/:id", authMiddleware, requirePermission("billing.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = requireBillingSettingIdParam(req, res);
+      if (!id) return;
       const dealershipId = req.dealershipId!;
       await storage.deleteCreditScoreTier(id, dealershipId);
       res.json({ success: true });
@@ -7305,7 +7317,8 @@ Format your response in clear sections with actionable recommendations.`;
   // Update model year term
   app.patch("/api/financing/model-year-terms/:id", authMiddleware, requirePermission("billing.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = requireBillingSettingIdParam(req, res);
+      if (!id) return;
       const { minModelYear, maxModelYear, availableTerms } = req.body;
       
       if (minModelYear !== undefined && maxModelYear !== undefined && minModelYear > maxModelYear) {
@@ -7343,7 +7356,8 @@ Format your response in clear sections with actionable recommendations.`;
   // Delete model year term
   app.delete("/api/financing/model-year-terms/:id", authMiddleware, requirePermission("billing.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = requireBillingSettingIdParam(req, res);
+      if (!id) return;
       const dealershipId = req.dealershipId!;
       await storage.deleteModelYearTerm(id, dealershipId);
       res.json({ success: true });
@@ -7438,7 +7452,8 @@ Format your response in clear sections with actionable recommendations.`;
   // Update dealership fee
   app.patch("/api/dealership-fees/:id", authMiddleware, requirePermission("billing.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = requireBillingSettingIdParam(req, res);
+      if (!id) return;
       const dealershipId = req.dealershipId!;
       
       const updates = stripTenantOwnershipFields(req.body ?? {});
@@ -7458,7 +7473,8 @@ Format your response in clear sections with actionable recommendations.`;
   // Delete dealership fee
   app.delete("/api/dealership-fees/:id", authMiddleware, requirePermission("billing.write"), requireRole("master"), requireDealership, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = requireBillingSettingIdParam(req, res);
+      if (!id) return;
       const dealershipId = req.dealershipId!;
       await storage.deleteDealershipFee(id, dealershipId);
       res.json({ success: true });
