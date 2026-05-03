@@ -38,7 +38,9 @@ export interface ScrapedVehicle {
   mileage?: number;
   odometer?: number;
   photos?: string[];
+  images?: string[];
   sourceUrl?: string;
+  data?: Record<string, unknown>;
   [key: string]: unknown;
 }
 
@@ -133,21 +135,24 @@ export async function validateScrape(
   // 5. Photo coverage
   const invalidPhotoFields: Array<{ vin: string; value: unknown }> = [];
   const vehiclesWithPhotos = vehicles.filter((v) => {
-    if (v.photos === undefined || v.photos === null) {
-      return false;
-    }
-
-    if (!Array.isArray(v.photos)) {
-      invalidPhotoFields.push({ vin: v.vin || "(unknown)", value: v.photos });
+    const photoSources = getPhotoSources(v);
+    if (photoSources.length === 0) {
       return false;
     }
 
     let hasSafePhoto = false;
-    for (const photo of v.photos) {
-      if (isHttpUrl(photo)) {
-        hasSafePhoto = true;
-      } else {
-        invalidPhotoFields.push({ vin: v.vin || "(unknown)", value: photo });
+    for (const source of photoSources) {
+      if (!Array.isArray(source.value)) {
+        invalidPhotoFields.push({ vin: v.vin || "(unknown)", value: source.value });
+        continue;
+      }
+
+      for (const photo of source.value) {
+        if (isHttpUrl(photo)) {
+          hasSafePhoto = true;
+        } else {
+          invalidPhotoFields.push({ vin: v.vin || "(unknown)", value: photo });
+        }
       }
     }
 
@@ -214,8 +219,10 @@ export async function validateScrape(
     if (modelValue !== undefined && modelValue !== null && modelValue !== "" && !isNonEmptyString(modelValue)) {
       invalidIdentityFields.push({ vin: v.vin || "(unknown)", field: "model", value: modelValue });
     }
-    if (v.sourceUrl !== undefined && v.sourceUrl !== null && v.sourceUrl !== "" && !isHttpUrl(v.sourceUrl)) {
-      invalidSourceUrlFields.push({ vin: v.vin || "(unknown)", sourceUrl: v.sourceUrl });
+    for (const sourceUrl of getSourceUrlCandidates(v)) {
+      if (!isHttpUrl(sourceUrl)) {
+        invalidSourceUrlFields.push({ vin: v.vin || "(unknown)", sourceUrl });
+      }
     }
   }
   if (missingIdentityFields.length > 0) {
@@ -369,6 +376,28 @@ function isValidModelYear(value: unknown): value is number {
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getNestedData(vehicle: ScrapedVehicle): Record<string, unknown> {
+  return isRecord(vehicle.data) ? vehicle.data : {};
+}
+
+function getPhotoSources(vehicle: ScrapedVehicle): Array<{ value: unknown }> {
+  const data = getNestedData(vehicle);
+  return [vehicle.photos, vehicle.images, data.photos, data.images]
+    .filter((value) => value !== undefined && value !== null)
+    .map((value) => ({ value }));
+}
+
+function getSourceUrlCandidates(vehicle: ScrapedVehicle): unknown[] {
+  const data = getNestedData(vehicle);
+  return [vehicle.sourceUrl, data.sourceUrl, data.dealerVdpUrl].filter(
+    (value) => value !== undefined && value !== null && value !== ""
+  );
 }
 
 function isHttpUrl(value: unknown): value is string {

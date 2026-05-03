@@ -42,6 +42,8 @@ Additional partial proof: scrape validation now rejects unsafe scraped source UR
 
 Additional partial proof: deployment templates and guides no longer present a hard-coded Render example host as live proof, and production gates now reject stale Render proof URLs, unsupported 10/10 production-readiness claims, missing Render Dockerfile references, and deployment docs that point operators at the non-proof verification workflow instead of the active CI Render Staging Proof job. This improves production-readiness honesty but does not certify Render staging until the CI Render Staging Proof job runs green against the configured service.
 
+Additional partial proof: scrape validation now evaluates `images` aliases plus nested `data.images`, `data.sourceUrl`, and `data.dealerVdpUrl` source facts before a scrape can be marked valid. This aligns the validation gate with the deduplication/storage normalization contract, but does not certify scraper pagination, live source-truth reconciliation, staging, observability, or rollback proof.
+
 ## Feature Certification Matrix
 
 | Feature | Status | CI Proof | Tests | Staging Proof | Logs/Monitoring | Real User Flow | Owner | Notes |
