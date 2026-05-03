@@ -38,6 +38,8 @@ Additional partial proof: scrape validation now normalizes VINs through the full
 
 Additional partial proof: vehicle deduplication now canonicalizes existing inventory VINs through the full validator before matching scraped vehicles, finding duplicate groups, or merging selected duplicates. This reduces legacy VIN formatting drift during scrape storage, but does not certify full inventory CRUD, live source-truth reconciliation, staging, observability, or rollback proof.
 
+Additional partial proof: scrape validation now rejects unsafe scraped source URLs and unsafe/non-HTTP photo URLs before a scrape result can be marked valid, and unsafe photo URLs no longer count toward photo coverage. This improves scrape intake safety but does not certify pagination, quarantine/admin review, live source-truth reconciliation, staging, observability, or rollback proof.
+
 ## Feature Certification Matrix
 
 | Feature | Status | CI Proof | Tests | Staging Proof | Logs/Monitoring | Real User Flow | Owner | Notes |
