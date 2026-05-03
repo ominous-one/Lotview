@@ -17655,25 +17655,21 @@ Return ONLY the enhanced description, nothing else.`;
       const { vehicleId, prompt, type, tone, useEmojis } = req.body;
       const dealershipId = req.dealershipId!;
 
-      if (!vehicleId || !prompt) {
+      if (!prompt) {
         return res.status(400).json({ error: "vehicleId and prompt required" });
       }
 
-      // Get vehicle data
-      const vehicleData = await db
-        .select()
-        .from(vehicles)
-        .where(and(
-          eq(vehicles.id, vehicleId),
-          eq(vehicles.dealershipId, dealershipId)
-        ))
-        .limit(1);
+      const parsedVehicleId = parseOptionalPositiveIntegerBodyValue(vehicleId, res, "vehicleId");
+      if (parsedVehicleId === null) return;
+      if (parsedVehicleId === undefined) {
+        return res.status(400).json({ error: "vehicleId and prompt required" });
+      }
 
-      if (vehicleData.length === 0) {
+      const vehicle = await storage.getVehicleById(parsedVehicleId, dealershipId);
+      if (!vehicle) {
         return res.status(404).json({ error: "Vehicle not found" });
       }
 
-      const vehicle = vehicleData[0];
       let techSpecs: any = {};
       try {
         if (vehicle.techSpecs) {
