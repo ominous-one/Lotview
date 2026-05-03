@@ -39,4 +39,12 @@ describe("manager notification route RBAC and tenant contract", () => {
     expect(notificationsBlock).toContain("if (!manager) return res.status(404).json({ error: 'Manager not found' })");
     expect(notificationsBlock).toContain("startNotificationEmailVerification({ userId, email })");
   });
+
+  it("does not partially parse target manager user ids", () => {
+    expect(notificationsBlock).toBeDefined();
+
+    expect(routesSource).toContain('function requireUserIdParam(req: Request, res: Response, paramName = "id"): number | null');
+    expect(notificationsBlock).toContain('const userId = requireUserIdParam(req, res, "userId")');
+    expect(notificationsBlock).not.toContain("parseInt(req.params.userId");
+  });
 });
