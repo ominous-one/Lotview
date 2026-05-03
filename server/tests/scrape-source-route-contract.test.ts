@@ -23,6 +23,23 @@ describe("scrape source route RBAC and tenant contract", () => {
     );
   });
 
+  it("does not partially parse super-admin scrape source ids", () => {
+    const scrapeSourceBlock = routesSource.match(
+      /\/\/ ===== SUPER ADMIN SCRAPE SOURCES ROUTES =====[\s\S]*?\/\/ ===== BROWSERLESS SCRAPING ROUTES =====/
+    )?.[0];
+
+    expect(scrapeSourceBlock).toBeDefined();
+    expect(routesSource).toContain("function requireScrapeSourceIdParam(req: Request, res: Response): number | null");
+    expect(routesSource).toContain('res.status(400).json({ error: "Scrape source id must be a positive integer" });');
+    expect(scrapeSourceBlock).toContain("const id = requireScrapeSourceIdParam(req, res)");
+    expect(scrapeSourceBlock).toContain("const parsedFilterGroupId =");
+    expect(scrapeSourceBlock).toContain("parsePositiveIntegerId(filterGroupId)");
+    expect(scrapeSourceBlock).toContain('return res.status(400).json({ error: "filterGroupId must be a positive integer" });');
+    expect(scrapeSourceBlock).not.toContain("parseInt(req.params.id)");
+    expect(scrapeSourceBlock).not.toContain("Number.parseInt(req.params.id");
+    expect(scrapeSourceBlock).not.toContain("filterGroupId ? parseInt(filterGroupId) : null");
+  });
+
   it("requires integration permissions and dealership context for dealership scrape source management", () => {
     expect(routesSource).toContain(
       'app.get("/api/scrape-sources", authMiddleware, requirePermission("integrations.read"), requireRole("master"), requireDealership'
