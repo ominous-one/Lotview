@@ -23,10 +23,23 @@ describe("legacy Facebook Pages route contract", () => {
   });
 
   it("scopes legacy page updates to the authenticated dealership", () => {
-    expect(routesSource).toContain("const id = Number(req.params.id)");
-    expect(routesSource).toContain("if (!Number.isInteger(id) || id < 1)");
+    expect(routesSource).toContain("const id = requireFacebookPageIdParam(req, res);");
     expect(routesSource).toContain("const page = await storage.updateFacebookPage(id, updates, req.dealershipId!)");
     expect(routesSource).not.toContain("const page = await storage.updateFacebookPage(id, req.body)");
+  });
+
+  it("uses strict positive integer parsing for page ids", () => {
+    const facebookPagesBlock = routesSource.slice(
+      routesSource.indexOf("// Get all connected Facebook pages"),
+      routesSource.indexOf("// ===== FILE DOWNLOADS ====="),
+    );
+
+    expect(routesSource).toContain("function requireFacebookPageIdParam(req: Request, res: Response): number | null");
+    expect(routesSource).toContain("const pageId = parsePositiveIntegerId(req.params.id);");
+    expect(facebookPagesBlock).toContain("const id = requireFacebookPageIdParam(req, res);");
+    expect(facebookPagesBlock).toContain("const pageId = requireFacebookPageIdParam(req, res);");
+    expect(facebookPagesBlock).not.toContain("parseInt(req.params.id)");
+    expect(facebookPagesBlock).not.toContain("Number(req.params.id)");
   });
 
   it("does not trust caller-supplied identity fields when updating a page", () => {
