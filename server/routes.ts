@@ -594,6 +594,35 @@ function requireMarketplaceVehicleIdParam(req: Request, res: Response): number |
   return vehicleId;
 }
 
+function parseNonNegativeIntegerValue(value: unknown): number | null {
+  if (typeof value === 'number') {
+    return Number.isSafeInteger(value) && value >= 0 ? value : null;
+  }
+
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!/^(0|[1-9]\d*)$/.test(trimmed)) {
+    return null;
+  }
+
+  const parsed = Number(trimmed);
+  return Number.isSafeInteger(parsed) ? parsed : null;
+}
+
+function requirePublicVehicleImageParams(req: Request, res: Response): { vehicleId: number; imageIndex: number } | null {
+  const vehicleId = parsePositiveIntegerId(req.params.vehicleId);
+  const imageIndex = parseNonNegativeIntegerValue(req.params.index);
+  if (!vehicleId || imageIndex === null) {
+    res.status(400).json({ error: "vehicleId must be a positive integer and image index must be a non-negative integer" });
+    return null;
+  }
+
+  return { vehicleId, imageIndex };
+}
+
 function parseOptionalPositiveIntegerQueryParam(value: unknown, res: Response, label: string): number | null | undefined {
   if (value === undefined) {
     return undefined;
@@ -3934,13 +3963,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Serve cached vehicle images from PostgreSQL (permanent, no CDN expiry)
   app.get("/api/public/vehicle-image/:vehicleId/:index", requireDealership, async (req, res) => {
     try {
-      const vehicleId = parseInt(req.params.vehicleId);
-      const imageIndex = parseInt(req.params.index);
+      const imageParams = requirePublicVehicleImageParams(req, res);
+      if (!imageParams) return;
+      const { vehicleId, imageIndex } = imageParams;
       const dealershipId = req.dealershipId!;
-
-      if (isNaN(vehicleId) || isNaN(imageIndex)) {
-        return res.status(400).json({ error: "Invalid vehicleId or index" });
-      }
 
       const [image] = await db.select()
         .from(vehicleImages)
