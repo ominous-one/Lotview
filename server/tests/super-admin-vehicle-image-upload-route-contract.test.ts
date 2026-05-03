@@ -15,14 +15,24 @@ describe("super-admin vehicle image upload route contract", () => {
     );
   });
 
-  it("requires dealership context before selecting a single vehicle", () => {
+  it("strictly parses body dealership and vehicle identifiers before selecting inventory", () => {
     expect(imageUploadBlock).toBeDefined();
 
-    expect(imageUploadBlock).toContain("const targetDealershipId = dealershipId || req.dealershipId");
-    expect(imageUploadBlock).toContain('return res.status(400).json({ error: "Dealership context required" })');
     expect(imageUploadBlock).toContain(
-      "and(eq(vehicles.id, vehicleId), eq(vehicles.dealershipId, targetDealershipId))"
+      'const parsedDealershipId = parseOptionalPositiveIntegerBodyValue(dealershipId, res, "dealershipId");'
     );
+    expect(imageUploadBlock).toContain("if (parsedDealershipId === null) return;");
+    expect(imageUploadBlock).toContain(
+      'const parsedVehicleId = parseOptionalPositiveIntegerBodyValue(vehicleId, res, "vehicleId");'
+    );
+    expect(imageUploadBlock).toContain("if (parsedVehicleId === null) return;");
+    expect(imageUploadBlock).toContain("const targetDealershipId = parsedDealershipId ?? req.dealershipId");
+    expect(imageUploadBlock).toContain("const uploadAll = all === true");
+    expect(imageUploadBlock).toContain('return res.status(400).json({ error: "Dealership context required" })');
+    expect(imageUploadBlock).toContain("await storage.getVehicles(targetDealershipId, 500, 0)");
+    expect(imageUploadBlock).toContain("const vehicle = await storage.getVehicleById(parsedVehicleId, targetDealershipId);");
+    expect(imageUploadBlock).not.toContain("const targetDealershipId = dealershipId || req.dealershipId");
+    expect(imageUploadBlock).not.toContain("eq(vehicles.id, vehicleId)");
   });
 
   it("keeps background local image updates scoped to the selected vehicle dealership", () => {

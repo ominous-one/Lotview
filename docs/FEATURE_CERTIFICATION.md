@@ -96,6 +96,8 @@ Additional partial proof: super-admin and salesperson Facebook Marketplace queue
 
 Additional partial proof: extension automated Marketplace posting now fails closed unless `ENABLE_AUTOPOST_QUEUE` is explicitly enabled, then still requires strict body `vehicleId` parsing plus `storage.getVehicleById(parsedVehicleId, dealershipId)` before Browserless receives inventory facts or listing rows are written.
 
+Additional partial proof: super-admin vehicle image upload now strictly parses body `dealershipId` and `vehicleId`, treats bulk uploads as `all === true` only, lists dealership inventory with the parsed dealership ID, and loads single vehicles through `storage.getVehicleById(parsedVehicleId, targetDealershipId)` before background image uploads or local image writes.
+
 ## Feature Certification Matrix
 
 | Feature | Status | CI Proof | Tests | Staging Proof | Logs/Monitoring | Real User Flow | Owner | Notes |
