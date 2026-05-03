@@ -17337,14 +17337,21 @@ Return ONLY the enhanced description, nothing else.`;
       if (!fbThreadId || typeof fbThreadId !== "string") return res.status(400).json({ error: "fbThreadId required" });
       if (!participantName || typeof participantName !== "string") return res.status(400).json({ error: "participantName required" });
       if (!listingUrl || typeof listingUrl !== "string") return res.status(400).json({ error: "listingUrl required" });
-      if (!vehicleId || typeof vehicleId !== "number") return res.status(400).json({ error: "vehicleId required" });
+      const parsedVehicleId = parseOptionalPositiveIntegerBodyValue(vehicleId, res, "vehicleId");
+      if (parsedVehicleId === null) return;
+      if (parsedVehicleId === undefined) return res.status(400).json({ error: "vehicleId required" });
+
+      const scopedVehicle = await storage.getVehicleById(parsedVehicleId, dealershipId);
+      if (!scopedVehicle) {
+        return res.status(404).json({ error: "Vehicle not found" });
+      }
 
       const row = await storage.upsertFbThreadVehicleMapping({
         dealershipId,
         fbThreadId,
         participantName,
         listingUrl,
-        vehicleId,
+        vehicleId: parsedVehicleId,
         confidence: typeof confidence === "number" ? confidence : 0,
         method: typeof method === "string" ? method : "unknown",
       });
