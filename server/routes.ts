@@ -574,6 +574,16 @@ function requireCrmMessageTemplateIdParam(req: Request, res: Response): number |
   return templateId;
 }
 
+function requireMarketplaceAdTemplateIdParam(req: Request, res: Response): number | null {
+  const templateId = parsePositiveIntegerId(req.params.id);
+  if (!templateId) {
+    res.status(400).json({ error: "Marketplace ad template id must be a positive integer" });
+    return null;
+  }
+
+  return templateId;
+}
+
 function parseOptionalPositiveIntegerQueryParam(value: unknown, res: Response, label: string): number | null | undefined {
   if (value === undefined) {
     return undefined;
@@ -15724,7 +15734,8 @@ Format your response in clear sections with actionable recommendations.`;
     try {
       const userId = req.user!.id;
       const dealershipId = req.dealershipId!;
-      const templateId = parseInt(req.params.id);
+      const templateId = requireMarketplaceAdTemplateIdParam(req, res);
+      if (!templateId) return;
       
       const template = await storage.forkAdTemplate(templateId, userId, dealershipId);
       res.json(template);
@@ -15739,7 +15750,8 @@ Format your response in clear sections with actionable recommendations.`;
     try {
       const userId = req.user!.id;
       const dealershipId = req.dealershipId!;
-      const templateId = parseInt(req.params.id);
+      const templateId = requireMarketplaceAdTemplateIdParam(req, res);
+      if (!templateId) return;
       const { templateName, titleTemplate, descriptionTemplate, isDefault } = req.body;
       
       const template = await storage.updateAdTemplate(templateId, userId, dealershipId, {
@@ -15764,7 +15776,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.patch("/api/ad-templates/shared/:id", authMiddleware, requirePermission("messages.write"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const templateId = parseInt(req.params.id);
+      const templateId = requireMarketplaceAdTemplateIdParam(req, res);
+      if (!templateId) return;
       const { templateName, titleTemplate, descriptionTemplate, isDefault } = req.body;
       
       const template = await storage.updateSharedAdTemplate(templateId, dealershipId, {
@@ -15790,7 +15803,8 @@ Format your response in clear sections with actionable recommendations.`;
     try {
       const userId = req.user!.id;
       const dealershipId = req.dealershipId!;
-      const templateId = parseInt(req.params.id);
+      const templateId = requireMarketplaceAdTemplateIdParam(req, res);
+      if (!templateId) return;
       
       await storage.deleteAdTemplate(templateId, userId, dealershipId);
       res.json({ success: true });
@@ -15804,7 +15818,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.delete("/api/ad-templates/shared/:id", authMiddleware, requirePermission("messages.write"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const templateId = parseInt(req.params.id);
+      const templateId = requireMarketplaceAdTemplateIdParam(req, res);
+      if (!templateId) return;
       
       await storage.deleteSharedAdTemplate(templateId, dealershipId);
       res.json({ success: true });
@@ -15821,7 +15836,9 @@ Format your response in clear sections with actionable recommendations.`;
     try {
       const dealershipId = req.dealershipId!;
       const includePosted = req.query.includePosted === 'true';
-      const limit = parseInt(req.query.limit as string) || 50;
+      const parsedLimit = parseOptionalPositiveIntegerQueryParam(req.query.limit, res, "limit");
+      if (parsedLimit === null) return;
+      const limit = parsedLimit ?? 50;
       
       // Get all vehicles (high limit to get full inventory)
       const result = await storage.getVehicles(dealershipId, 1000, 0);
