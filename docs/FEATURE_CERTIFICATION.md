@@ -44,6 +44,8 @@ Additional partial proof: deployment templates and guides no longer present a ha
 
 Additional partial proof: scrape validation now evaluates `images` aliases plus nested `data.images`, `data.sourceUrl`, and `data.dealerVdpUrl` source facts before a scrape can be marked valid. This aligns the validation gate with the deduplication/storage normalization contract, but does not certify scraper pagination, live source-truth reconciliation, staging, observability, or rollback proof.
 
+Additional partial proof: the enhanced scrape pipeline now fails closed when validation passes but deduplication stores or merges zero vehicles. This prevents a scrape run from being reported successful when all candidate records were skipped, but does not certify pagination, quarantine/admin review, live source-truth reconciliation, staging, observability, or rollback proof.
+
 ## Feature Certification Matrix
 
 | Feature | Status | CI Proof | Tests | Staging Proof | Logs/Monitoring | Real User Flow | Owner | Notes |

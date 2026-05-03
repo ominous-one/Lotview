@@ -128,6 +128,29 @@ describe("scrape pipeline fail-closed behavior", () => {
     expect(enrichPhotosSafelyMock).not.toHaveBeenCalled();
   });
 
+  it("does not report success when validation passes but storage writes or merges nothing", async () => {
+    deduplicateAndStoreMock.mockResolvedValue({
+      inserted: 0,
+      merged: 0,
+      skipped: 1,
+    });
+
+    const result = await schedulerIntegration.runEnhancedScrape(7, scrapedVehicles);
+
+    expect(validateScrapeMock).toHaveBeenCalledWith(7, scrapedVehicles);
+    expect(deduplicateAndStoreMock).toHaveBeenCalledWith(7, scrapedVehicles);
+    expect(result).toMatchObject({
+      success: false,
+      validation: { isValid: true, score: 96, vehiclesFound: 1 },
+      dedup: { inserted: 0, merged: 0, skipped: 1 },
+      alertsSent: 0,
+      error: "scrape_storage_noop",
+    });
+    expect(storageMock.getVehicleByVin).not.toHaveBeenCalled();
+    expect(enrichPhotosSafelyMock).not.toHaveBeenCalled();
+    expect(runScheduledAlertChecksMock).not.toHaveBeenCalled();
+  });
+
   it("uses validation, deduplication, and scoped photo enrichment when safety flags are enabled", async () => {
     const result = await schedulerIntegration.runEnhancedScrape(7, scrapedVehicles);
 
