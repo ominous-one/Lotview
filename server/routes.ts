@@ -16753,11 +16753,30 @@ Return ONLY the enhanced description, nothing else.`;
       if (!dealershipId) return;
       const { vehicleIds, priority } = req.body;
 
+      if (!Array.isArray(vehicleIds) || vehicleIds.length === 0) {
+        return res.status(400).json({ error: "vehicleIds must be a non-empty array" });
+      }
+
+      const parsedVehicleIds: number[] = [];
+      for (const rawVehicleId of vehicleIds) {
+        const parsedVehicleId = parsePositiveIntegerId(rawVehicleId);
+        if (!parsedVehicleId) {
+          return res.status(400).json({ error: "vehicleIds must contain only positive integers" });
+        }
+
+        const scopedVehicle = await storage.getVehicleById(parsedVehicleId, dealershipId);
+        if (!scopedVehicle) {
+          return res.status(404).json({ error: "Vehicle not found" });
+        }
+
+        parsedVehicleIds.push(parsedVehicleId);
+      }
+
       const { FBMarketplaceService } = await import("./fb-marketplace-service");
       const service = new FBMarketplaceService(dealershipId);
       
       const queueIds = [];
-      for (const vehicleId of vehicleIds) {
+      for (const vehicleId of parsedVehicleIds) {
         const queueId = await service.queueVehicleForPosting(vehicleId, priority || 5);
         queueIds.push(queueId);
       }
@@ -17024,6 +17043,21 @@ Return ONLY the enhanced description, nothing else.`;
         return res.status(400).json({ error: "vehicleIds must be a non-empty array" });
       }
 
+      const parsedVehicleIds: number[] = [];
+      for (const rawVehicleId of vehicleIds) {
+        const parsedVehicleId = parsePositiveIntegerId(rawVehicleId);
+        if (!parsedVehicleId) {
+          return res.status(400).json({ error: "vehicleIds must contain only positive integers" });
+        }
+
+        const scopedVehicle = await storage.getVehicleById(parsedVehicleId, dealershipId);
+        if (!scopedVehicle) {
+          return res.status(404).json({ error: "Vehicle not found" });
+        }
+
+        parsedVehicleIds.push(parsedVehicleId);
+      }
+
       if (accountId) {
         const [account] = await db
           .select()
@@ -17043,7 +17077,7 @@ Return ONLY the enhanced description, nothing else.`;
       const service = new FBMarketplaceService(dealershipId);
       
       const queueIds = [];
-      for (const vehicleId of vehicleIds) {
+      for (const vehicleId of parsedVehicleIds) {
         const queueId = await service.queueVehicleForPosting(vehicleId, priority || 5, { userId, accountId });
         queueIds.push(queueId);
       }

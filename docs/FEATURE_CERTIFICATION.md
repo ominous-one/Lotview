@@ -90,6 +90,8 @@ Additional partial proof: extension posting event logs now strictly parse requir
 
 Additional partial proof: extension one-time posting-token creation now strictly parses required body `vehicleId`, verifies the vehicle through `storage.getVehicleById(parsedVehicleId, dealershipId)`, and creates posting tokens only from the parsed scoped vehicle ID.
 
+Additional partial proof: super-admin and salesperson Facebook Marketplace queue routes now require a non-empty `vehicleIds` array, strictly parse each ID, and verify every queued vehicle with `storage.getVehicleById(parsedVehicleId, dealershipId)` before calling the fail-closed marketplace queue service.
+
 ## Feature Certification Matrix
 
 | Feature | Status | CI Proof | Tests | Staging Proof | Logs/Monitoring | Real User Flow | Owner | Notes |

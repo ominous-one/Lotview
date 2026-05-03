@@ -109,4 +109,17 @@ describe("super-admin FB Marketplace route RBAC contract", () => {
       ".leftJoin(fbMarketplaceAccounts, and(eq(fbMarketplaceQueue.accountId, fbMarketplaceAccounts.id), eq(fbMarketplaceAccounts.dealershipId, dealershipId)))",
     ].forEach((safePattern) => expect(superAdminMarketplaceBlock).toContain(safePattern));
   });
+
+  it("validates and scopes queued vehicle ids before super-admin marketplace queue writes", () => {
+    expect(superAdminMarketplaceBlock).toBeDefined();
+
+    expect(superAdminMarketplaceBlock).toContain('if (!Array.isArray(vehicleIds) || vehicleIds.length === 0)');
+    expect(superAdminMarketplaceBlock).toContain("const parsedVehicleIds: number[] = [];");
+    expect(superAdminMarketplaceBlock).toContain("const parsedVehicleId = parsePositiveIntegerId(rawVehicleId);");
+    expect(superAdminMarketplaceBlock).toContain('return res.status(400).json({ error: "vehicleIds must contain only positive integers" });');
+    expect(superAdminMarketplaceBlock).toContain("const scopedVehicle = await storage.getVehicleById(parsedVehicleId, dealershipId);");
+    expect(superAdminMarketplaceBlock).toContain('return res.status(404).json({ error: "Vehicle not found" });');
+    expect(superAdminMarketplaceBlock).toContain("for (const vehicleId of parsedVehicleIds)");
+    expect(superAdminMarketplaceBlock).not.toContain("for (const vehicleId of vehicleIds)");
+  });
 });
