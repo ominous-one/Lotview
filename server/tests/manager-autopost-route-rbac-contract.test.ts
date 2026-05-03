@@ -34,4 +34,22 @@ describe("manager autopost route RBAC and tenant contract", () => {
     expect(autopostBlock).toContain("setPhotoGateOverride({ dealershipId, queueItemId, enabled, actorUserId: req.user!.id, reason })");
     expect(autopostBlock).toContain("dequeueAutopostQueueItem({ dealershipId, queueItemId, actorUserId: req.user?.id ?? null, reason })");
   });
+
+  it("rejects malformed queue item route ids before manager queue mutations reach storage", () => {
+    expect(routesSource).toContain(
+      "const UUID_ROUTE_PARAM_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;"
+    );
+    expect(routesSource).toContain("function requireAutopostQueueItemUuidParam(req: Request, res: Response): string | null");
+    expect(routesSource).toContain("const queueItemId = parseUuidRouteParam(req.params.queueItemId);");
+    expect(routesSource).toContain('res.status(400).json({ error: "Autopost queue item id must be a valid UUID" });');
+
+    const queueMutationBlock = autopostBlock?.match(
+      /\/\/ Manager: photo gate override[\s\S]*?\/\/ Worker\/extension: claim next/
+    )?.[0];
+
+    expect(queueMutationBlock).toBeDefined();
+    expect(queueMutationBlock).toContain("const queueItemId = requireAutopostQueueItemUuidParam(req, res);");
+    expect(queueMutationBlock).toContain("if (!queueItemId) return;");
+    expect(queueMutationBlock).not.toContain("String(req.params.queueItemId)");
+  });
 });
