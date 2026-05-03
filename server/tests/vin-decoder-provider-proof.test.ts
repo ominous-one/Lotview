@@ -208,6 +208,80 @@ describe("VIN decoder provider proof", () => {
     );
   });
 
+  it("does not trust MarketCheck facts when the provider echoes a different VIN", async () => {
+    storageMock.getDealershipApiKeys.mockResolvedValue({ marketcheckKey: "marketcheck-test-key" });
+    const fetchMock = globalThis.fetch as any;
+    fetchMock.mockImplementation(async (url: unknown) => {
+      const requestUrl = String(url);
+      if (requestUrl.includes("api.marketcheck.com")) {
+        return jsonResponse({
+          vin: OTHER_VALID_VIN,
+          year: 2019,
+          make: "Toyota",
+          model: "Camry",
+        });
+      }
+
+      return jsonResponse({
+        Results: [nhtsaResult(VALID_VIN, { Make: "HONDA", Model: "Accord" })],
+      });
+    });
+
+    const result = await vinDecoder.decodeVIN(VALID_VIN, 7, { modelYear: 2003 });
+
+    expect(result).toMatchObject({
+      vin: VALID_VIN,
+      source: "nhtsa",
+      make: "HONDA",
+      model: "Accord",
+      confidence: "high",
+    });
+    expect(result.make).not.toBe("Toyota");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not trust API Ninjas facts when the provider echoes a different VIN", async () => {
+    const previousApiNinjasKey = process.env.API_NINJAS_KEY;
+    process.env.API_NINJAS_KEY = "api-ninjas-test-key";
+
+    try {
+      const fetchMock = globalThis.fetch as any;
+      fetchMock.mockImplementation(async (url: unknown) => {
+        const requestUrl = String(url);
+        if (requestUrl.includes("vpic.nhtsa.dot.gov")) {
+          return jsonResponse({
+            Results: [nhtsaResult(VALID_VIN, { ErrorCode: "1", ErrorText: "NHTSA decode failed" })],
+          });
+        }
+
+        return jsonResponse({
+          vin: OTHER_VALID_VIN,
+          model_year: 2019,
+          make: "Toyota",
+          model: "Camry",
+        });
+      });
+
+      const result = await vinDecoder.decodeVIN(VALID_VIN, 7, { modelYear: 2003 });
+
+      expect(result).toMatchObject({
+        vin: VALID_VIN,
+        source: "nhtsa",
+        errorCode: "1",
+        confidence: "invalid",
+      });
+      expect(result.errorMessage).toContain("VIN decode failed");
+      expect(result.make).toBeUndefined();
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      if (previousApiNinjasKey === undefined) {
+        delete process.env.API_NINJAS_KEY;
+      } else {
+        process.env.API_NINJAS_KEY = previousApiNinjasKey;
+      }
+    }
+  });
+
   it("decodes VINs through NHTSA batches of at most 50 records", async () => {
     const fetchMock = globalThis.fetch as any;
     fetchMock.mockImplementation(async (_url: unknown, init: unknown) => {
