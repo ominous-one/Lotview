@@ -613,6 +613,35 @@ describe("vehicle route tenant contracts", () => {
     expect(storageMock.updateVehicle).toHaveBeenCalledWith(42, expect.objectContaining({ price: 25000 }), 1);
   });
 
+  it("rejects invalid modular VDP content before storage writes", async () => {
+    await request(appWithDealerOne)
+      .patch("/api/vehicles/42/vdp-content")
+      .set("x-test-role", "dealer_manager")
+      .send({ videoUrl: "javascript:alert(1)" })
+      .expect(400);
+
+    expect(storageMock.updateVehicle).not.toHaveBeenCalled();
+  });
+
+  it("trims and scopes valid modular VDP content updates", async () => {
+    storageMock.updateVehicle.mockResolvedValue({ id: 42, description: "Fresh service completed" });
+
+    await request(appWithDealerOne)
+      .patch("/api/vehicles/42/vdp-content")
+      .set("x-test-role", "dealer_manager")
+      .send({
+        description: "  Fresh service completed  ",
+        videoProvider: "  walkaround  ",
+      })
+      .expect(200)
+      .expect({ id: 42, description: "Fresh service completed" });
+
+    expect(storageMock.updateVehicle).toHaveBeenCalledWith(42, {
+      description: "Fresh service completed",
+      videoProvider: "walkaround",
+    }, 1);
+  });
+
   it("does not let smart merge request bodies rewrite tenant or system fields", async () => {
     storageMock.getVehicleById.mockResolvedValue({
       id: 42,

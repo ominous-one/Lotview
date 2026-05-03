@@ -35,6 +35,14 @@ describe("vehicle action route RBAC contract", () => {
     }
   });
 
+  it("requires explicit inventory write permission and schema validation for modular VDP content updates", () => {
+    expect(vehicleRoutesSource).toContain(
+      'router.patch("/:id/vdp-content", authMiddleware, requirePermission("inventory.write"), requireDealership',
+    );
+    expect(vehicleRoutesSource).toContain("vehicleVdpContentUpdateSchema.safeParse(req.body)");
+    expect(vehicleRoutesSource).toContain("storage.updateVehicle(id, parsed.data, dealershipId)");
+  });
+
   it("does not leave protected vehicle action routes guarded only by roles", () => {
     const actionRouteLines = vehicleRoutesSource
       .split(/\r?\n/)
