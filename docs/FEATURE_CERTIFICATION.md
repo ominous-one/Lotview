@@ -80,6 +80,8 @@ Additional partial proof: modular public Carfax report and summary routes now ha
 
 Additional partial proof: public conversation saves now strictly parse optional body `vehicleId`, verify linked vehicles through `storage.getVehicleById(parsedVehicleId, dealershipId)`, refuse missing or wrong-tenant vehicle links before saving, and derive linked vehicle names from the scoped inventory record instead of trusting public request text.
 
+Additional partial proof: public chat generation now strictly parses optional body `vehicleId`, verifies the vehicle through `storage.getVehicleById(parsedVehicleId, finalDealershipId)`, refuses missing or wrong-tenant vehicle IDs before AI generation, and drops caller-supplied `vehicleContext` when a vehicle ID is present so AI vehicle facts come from the scoped inventory path.
+
 ## Feature Certification Matrix
 
 | Feature | Status | CI Proof | Tests | Staging Proof | Logs/Monitoring | Real User Flow | Owner | Notes |

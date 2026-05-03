@@ -5451,13 +5451,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Use dealershipId from tenant middleware (proper tenant isolation)
       const finalDealershipId = req.dealershipId!;
       const finalScenario = scenario || 'general';
+      const parsedVehicleId = parseOptionalPositiveIntegerBodyValue(vehicleId, res, "vehicleId");
+      if (parsedVehicleId === null) return;
+
+      if (parsedVehicleId !== undefined) {
+        const scopedVehicle = await storage.getVehicleById(parsedVehicleId, finalDealershipId);
+        if (!scopedVehicle) {
+          return res.status(404).json({ error: "Vehicle not found" });
+        }
+      }
 
       const response = await generateChatResponse(
         messages as ChatMessage[], 
         finalDealershipId,
         finalScenario,
-        vehicleContext,
-        typeof vehicleId === 'number' ? vehicleId : undefined
+        parsedVehicleId !== undefined ? undefined : vehicleContext,
+        parsedVehicleId
       );
 
       // Track AI cost per dealership (production wiring)
