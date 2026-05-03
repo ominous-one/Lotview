@@ -77,7 +77,7 @@ import { findActiveStockNumberConflict, withNormalizedStockNumber } from "./serv
 
 import { authMiddleware, requireRole, requirePermission, requireCapability, generateToken, generateImpersonationToken, comparePassword, hashPassword, verifyToken, extensionHmacMiddleware, generatePostingToken, validatePostingToken, type AuthRequest } from "./auth";
 import { requireDealership, superAdminOnly } from "./tenant-middleware";
-import { resolveDealershipIdStrict } from "./tenant-utils";
+import { parsePositiveIntegerId, resolveDealershipIdStrict } from "./tenant-utils";
 import { isSafeE2ERequest, seedE2E } from "./e2e-test-mode";
 import { facebookService } from "./facebook-service";
 import { facebookMarketplaceAutomation } from "./facebook-marketplace-automation";
@@ -231,12 +231,7 @@ const oauthStateCleanupInterval = setInterval(() => {
 oauthStateCleanupInterval.unref?.();
 
 function parseDealershipIdParam(value: unknown): number | null {
-  if (typeof value !== 'string' && typeof value !== 'number') {
-    return null;
-  }
-
-  const parsed = typeof value === 'number' ? value : parseInt(value, 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  return parsePositiveIntegerId(value);
 }
 
 async function validateTenantIdentityAvailability(options: {
@@ -3563,11 +3558,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Helper to parse and validate dealership ID for super_admin
   // Returns the parsed ID or null if invalid/missing - NEVER defaults to any dealership
   const parseDealershipId = (value: string | number | undefined | null): number | null => {
-    if (value === undefined || value === null || value === '') {
-      return null;
-    }
-    const parsed = typeof value === 'number' ? value : parseInt(String(value), 10);
-    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+    return parsePositiveIntegerId(value);
   };
   
   // List external API tokens (super_admin only)
@@ -6079,7 +6070,7 @@ IMPORTANT: The suggestedPrompt should be a complete, ready-to-use system prompt.
   app.get("/api/admin/prompts", authMiddleware, requirePermission("ai.configure"), requireRole("master", "super_admin"), async (req, res) => {
     try {
       const authReq = req as AuthRequest;
-      const queryDealershipId = req.query.dealershipId ? parseInt(req.query.dealershipId as string) : null;
+      const queryDealershipId = parseDealershipIdParam(req.query.dealershipId);
       
       // Super admins can specify dealershipId via query param
       let dealershipId: number;
@@ -6103,7 +6094,7 @@ IMPORTANT: The suggestedPrompt should be a complete, ready-to-use system prompt.
   app.get("/api/admin/prompts/:id", authMiddleware, requirePermission("ai.configure"), requireRole("master", "super_admin"), async (req, res) => {
     try {
       const authReq = req as AuthRequest;
-      const queryDealershipId = req.query.dealershipId ? parseInt(req.query.dealershipId as string) : null;
+      const queryDealershipId = parseDealershipIdParam(req.query.dealershipId);
       
       let dealershipId: number;
       if (authReq.user?.role === "super_admin" && queryDealershipId) {
@@ -6132,7 +6123,7 @@ IMPORTANT: The suggestedPrompt should be a complete, ready-to-use system prompt.
   app.post("/api/admin/prompts", authMiddleware, requirePermission("ai.configure"), requireRole("master", "super_admin"), async (req, res) => {
     try {
       const authReq = req as AuthRequest;
-      const bodyDealershipId = req.body.dealershipId ? parseInt(req.body.dealershipId) : null;
+      const bodyDealershipId = parseDealershipIdParam(req.body?.dealershipId);
       
       let dealershipId: number;
       if (authReq.user?.role === "super_admin" && bodyDealershipId) {
@@ -6181,7 +6172,7 @@ IMPORTANT: The suggestedPrompt should be a complete, ready-to-use system prompt.
   app.put("/api/admin/prompts/:id", authMiddleware, requirePermission("ai.configure"), requireRole("master", "super_admin"), async (req, res) => {
     try {
       const authReq = req as AuthRequest;
-      const bodyDealershipId = req.body.dealershipId ? parseInt(req.body.dealershipId) : null;
+      const bodyDealershipId = parseDealershipIdParam(req.body?.dealershipId);
       
       let dealershipId: number;
       if (authReq.user?.role === "super_admin" && bodyDealershipId) {
@@ -6223,7 +6214,7 @@ IMPORTANT: The suggestedPrompt should be a complete, ready-to-use system prompt.
   app.delete("/api/admin/prompts/:id", authMiddleware, requirePermission("ai.configure"), requireRole("master", "super_admin"), async (req, res) => {
     try {
       const authReq = req as AuthRequest;
-      const queryDealershipId = req.query.dealershipId ? parseInt(req.query.dealershipId as string) : null;
+      const queryDealershipId = parseDealershipIdParam(req.query.dealershipId);
       
       let dealershipId: number;
       if (authReq.user?.role === "super_admin" && queryDealershipId) {
@@ -6253,7 +6244,7 @@ IMPORTANT: The suggestedPrompt should be a complete, ready-to-use system prompt.
   app.post("/api/admin/prompts/:id/sync-ghl", authMiddleware, requirePermission("ai.configure"), requireRole("master", "super_admin"), async (req, res) => {
     try {
       const authReq = req as AuthRequest;
-      const bodyDealershipId = req.body.dealershipId ? parseInt(req.body.dealershipId) : null;
+      const bodyDealershipId = parseDealershipIdParam(req.body?.dealershipId);
       
       let dealershipId: number;
       if (authReq.user?.role === "super_admin" && bodyDealershipId) {
@@ -6309,7 +6300,7 @@ IMPORTANT: The suggestedPrompt should be a complete, ready-to-use system prompt.
       
       // Update prompt with error - need to get dealershipId from the request again
       const authReq = req as AuthRequest;
-      const bodyDealershipId = req.body.dealershipId ? parseInt(req.body.dealershipId) : null;
+      const bodyDealershipId = parseDealershipIdParam(req.body?.dealershipId);
       const dealershipId = (authReq.user?.role === "super_admin" && bodyDealershipId) 
         ? bodyDealershipId 
         : req.dealershipId;
@@ -6330,7 +6321,7 @@ IMPORTANT: The suggestedPrompt should be a complete, ready-to-use system prompt.
   app.post("/api/admin/enhance-prompt", authMiddleware, requirePermission("ai.configure"), requireRole("manager", "admin", "master", "super_admin"), async (req, res) => {
     try {
       const authReq = req as AuthRequest;
-      const bodyDealershipId = req.body?.dealershipId ? parseInt(String(req.body.dealershipId), 10) : null;
+      const bodyDealershipId = parseDealershipIdParam(req.body?.dealershipId);
       const dealershipId = authReq.user?.role === "super_admin"
         ? bodyDealershipId
         : requireResolvedDealershipId(authReq);
@@ -13709,8 +13700,8 @@ Format your response in clear sections with actionable recommendations.`;
   // Helper to resolve dealership ID for super admins
   const resolveAutomationDealershipId = (req: any): number | null => {
     const authReq = req as AuthRequest;
-    const queryDealershipId = req.query.dealershipId ? parseInt(req.query.dealershipId as string) : null;
-    const bodyDealershipId = req.body?.dealershipId ? parseInt(req.body.dealershipId) : null;
+    const queryDealershipId = parseDealershipIdParam(req.query.dealershipId);
+    const bodyDealershipId = parseDealershipIdParam(req.body?.dealershipId);
     
     if (authReq.user?.role === 'super_admin') {
       return queryDealershipId || bodyDealershipId || null;
