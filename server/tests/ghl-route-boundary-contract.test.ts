@@ -108,4 +108,23 @@ describe("GHL integration route RBAC and tenant contract", () => {
       'app.delete("/api/ghl/disconnect", authMiddleware, requirePermission("integrations.write"), requireRole("master"), requireDealership'
     );
   });
+
+  it("strips internal tenant ownership fields before outbound GHL mutation payloads", () => {
+    [
+      "ghlService.createContact(req.body)",
+      "ghlService.updateContact(contactId, req.body)",
+      "ghlService.createCalendarEvent(req.body)",
+      "ghlService.createOpportunity(req.body)",
+    ].forEach((rawPayloadCall) => expect(routesSource).not.toContain(rawPayloadCall));
+
+    [
+      "const contactPayload = stripTenantOwnershipFields(req.body ?? {})",
+      "ghlService.createContact(contactPayload)",
+      "ghlService.updateContact(contactId, contactPayload)",
+      "const appointmentPayload = stripTenantOwnershipFields(req.body ?? {})",
+      "ghlService.createCalendarEvent(appointmentPayload)",
+      "const opportunityPayload = stripTenantOwnershipFields(req.body ?? {})",
+      "ghlService.createOpportunity(opportunityPayload)",
+    ].forEach((sanitizedPayloadCall) => expect(routesSource).toContain(sanitizedPayloadCall));
+  });
 });

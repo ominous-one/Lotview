@@ -12097,7 +12097,8 @@ Format your response in clear sections with actionable recommendations.`;
       
       const { createGhlApiService } = await import('./ghl-api-service');
       const ghlService = createGhlApiService(dealershipId);
-      const result = await ghlService.createContact(req.body);
+      const contactPayload = stripTenantOwnershipFields(req.body ?? {});
+      const result = await ghlService.createContact(contactPayload);
       
       if (!result.success) {
         return res.status(400).json({ error: result.error, errorCode: result.errorCode });
@@ -12118,7 +12119,8 @@ Format your response in clear sections with actionable recommendations.`;
       
       const { createGhlApiService } = await import('./ghl-api-service');
       const ghlService = createGhlApiService(dealershipId);
-      const result = await ghlService.updateContact(contactId, req.body);
+      const contactPayload = stripTenantOwnershipFields(req.body ?? {});
+      const result = await ghlService.updateContact(contactId, contactPayload);
       
       if (!result.success) {
         return res.status(result.errorCode === 'NOT_FOUND' ? 404 : 400).json({ 
@@ -12170,7 +12172,8 @@ Format your response in clear sections with actionable recommendations.`;
       
       const { createGhlApiService } = await import('./ghl-api-service');
       const ghlService = createGhlApiService(dealershipId);
-      const result = await ghlService.createCalendarEvent(req.body);
+      const appointmentPayload = stripTenantOwnershipFields(req.body ?? {});
+      const result = await ghlService.createCalendarEvent(appointmentPayload);
       
       if (!result.success) {
         return res.status(400).json({ error: result.error, errorCode: result.errorCode });
@@ -12251,7 +12254,8 @@ Format your response in clear sections with actionable recommendations.`;
       
       const { createGhlApiService } = await import('./ghl-api-service');
       const ghlService = createGhlApiService(dealershipId);
-      const result = await ghlService.createOpportunity(req.body);
+      const opportunityPayload = stripTenantOwnershipFields(req.body ?? {});
+      const result = await ghlService.createOpportunity(opportunityPayload);
       
       if (!result.success) {
         return res.status(400).json({ error: result.error, errorCode: result.errorCode });
