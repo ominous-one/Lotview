@@ -424,6 +424,46 @@ function requireCallAnalysisCriteriaIdParam(req: Request, res: Response): number
   return criteriaId;
 }
 
+function requireCallScoringTemplateIdParam(req: Request, res: Response, paramName = "id"): number | null {
+  const templateId = parsePositiveIntegerId(req.params[paramName]);
+  if (!templateId) {
+    res.status(400).json({ error: "Call scoring template id must be a positive integer" });
+    return null;
+  }
+
+  return templateId;
+}
+
+function requireCallScoringCriterionIdParam(req: Request, res: Response): number | null {
+  const criterionId = parsePositiveIntegerId(req.params.id);
+  if (!criterionId) {
+    res.status(400).json({ error: "Call scoring criterion id must be a positive integer" });
+    return null;
+  }
+
+  return criterionId;
+}
+
+function requireCallScoringCallIdParam(req: Request, res: Response): number | null {
+  const callId = parsePositiveIntegerId(req.params.callId);
+  if (!callId) {
+    res.status(400).json({ error: "Call recording id must be a positive integer" });
+    return null;
+  }
+
+  return callId;
+}
+
+function requireCallScoringResponseIdParam(req: Request, res: Response): number | null {
+  const responseId = parsePositiveIntegerId(req.params.id);
+  if (!responseId) {
+    res.status(400).json({ error: "Call scoring response id must be a positive integer" });
+    return null;
+  }
+
+  return responseId;
+}
+
 function parseOptionalPositiveIntegerQueryParam(value: unknown, res: Response, label: string): number | null | undefined {
   if (value === undefined) {
     return undefined;
@@ -13229,10 +13269,8 @@ Format your response in clear sections with actionable recommendations.`;
   // Get single template with criteria
   app.get("/api/call-scoring/templates/:id", authMiddleware, requirePermission("leads.read"), requireDealership, async (req: AuthRequest, res) => {
     try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        return res.status(400).json({ error: "Invalid template ID" });
-      }
+      const id = requireCallScoringTemplateIdParam(req, res);
+      if (!id) return;
       const dealershipId = req.dealershipId!;
       
       const template = await storage.getCallScoringTemplate(id);
@@ -13282,10 +13320,8 @@ Format your response in clear sections with actionable recommendations.`;
   // Clone system template for dealership customization
   app.post("/api/call-scoring/templates/:id/clone", authMiddleware, requirePermission("leads.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
-      const templateId = parseInt(req.params.id);
-      if (isNaN(templateId)) {
-        return res.status(400).json({ error: "Invalid template ID" });
-      }
+      const templateId = requireCallScoringTemplateIdParam(req, res);
+      if (!templateId) return;
       const dealershipId = req.dealershipId!;
       
       const sourceTemplate = await storage.getCallScoringTemplate(templateId);
@@ -13311,10 +13347,8 @@ Format your response in clear sections with actionable recommendations.`;
   // Update template
   app.patch("/api/call-scoring/templates/:id", authMiddleware, requirePermission("leads.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        return res.status(400).json({ error: "Invalid template ID" });
-      }
+      const id = requireCallScoringTemplateIdParam(req, res);
+      if (!id) return;
       const dealershipId = req.dealershipId!;
       
       const template = await storage.getCallScoringTemplate(id);
@@ -13348,10 +13382,8 @@ Format your response in clear sections with actionable recommendations.`;
   // Delete template (only dealership-specific, not system defaults)
   app.delete("/api/call-scoring/templates/:id", authMiddleware, requirePermission("leads.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        return res.status(400).json({ error: "Invalid template ID" });
-      }
+      const id = requireCallScoringTemplateIdParam(req, res);
+      if (!id) return;
       const dealershipId = req.dealershipId!;
       
       const template = await storage.getCallScoringTemplate(id);
@@ -13379,10 +13411,8 @@ Format your response in clear sections with actionable recommendations.`;
   // Get criteria for a template
   app.get("/api/call-scoring/templates/:templateId/criteria", authMiddleware, requirePermission("leads.read"), requireDealership, async (req: AuthRequest, res) => {
     try {
-      const templateId = parseInt(req.params.templateId);
-      if (isNaN(templateId)) {
-        return res.status(400).json({ error: "Invalid template ID" });
-      }
+      const templateId = requireCallScoringTemplateIdParam(req, res, "templateId");
+      if (!templateId) return;
       const dealershipId = req.dealershipId!;
 
       const template = await storage.getCallScoringTemplate(templateId);
@@ -13401,10 +13431,8 @@ Format your response in clear sections with actionable recommendations.`;
   // Add criterion to template
   app.post("/api/call-scoring/templates/:templateId/criteria", authMiddleware, requirePermission("leads.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
-      const templateId = parseInt(req.params.templateId);
-      if (isNaN(templateId)) {
-        return res.status(400).json({ error: "Invalid template ID" });
-      }
+      const templateId = requireCallScoringTemplateIdParam(req, res, "templateId");
+      if (!templateId) return;
       const dealershipId = req.dealershipId!;
       
       const template = await storage.getCallScoringTemplate(templateId);
@@ -13447,10 +13475,8 @@ Format your response in clear sections with actionable recommendations.`;
   // Update criterion
   app.patch("/api/call-scoring/criteria/:id", authMiddleware, requirePermission("leads.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        return res.status(400).json({ error: "Invalid criterion ID" });
-      }
+      const id = requireCallScoringCriterionIdParam(req, res);
+      if (!id) return;
       const dealershipId = req.dealershipId!;
 
       const criterionScope = await getCallScoringCriterionTemplateScope(id);
@@ -13491,10 +13517,8 @@ Format your response in clear sections with actionable recommendations.`;
   // Delete criterion
   app.delete("/api/call-scoring/criteria/:id", authMiddleware, requirePermission("leads.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        return res.status(400).json({ error: "Invalid criterion ID" });
-      }
+      const id = requireCallScoringCriterionIdParam(req, res);
+      if (!id) return;
       const dealershipId = req.dealershipId!;
 
       const criterionScope = await getCallScoringCriterionTemplateScope(id);
@@ -13523,10 +13547,8 @@ Format your response in clear sections with actionable recommendations.`;
   // Reorder criteria
   app.post("/api/call-scoring/templates/:templateId/criteria/reorder", authMiddleware, requirePermission("leads.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
-      const templateId = parseInt(req.params.templateId);
-      if (isNaN(templateId)) {
-        return res.status(400).json({ error: "Invalid template ID" });
-      }
+      const templateId = requireCallScoringTemplateIdParam(req, res, "templateId");
+      if (!templateId) return;
       const dealershipId = req.dealershipId!;
 
       const template = await storage.getCallScoringTemplate(templateId);
@@ -13558,10 +13580,8 @@ Format your response in clear sections with actionable recommendations.`;
   // Get scoring sheet for a call
   app.get("/api/call-recordings/:callId/scoring", authMiddleware, requirePermission("leads.read"), requireDealership, async (req: AuthRequest, res) => {
     try {
-      const callId = parseInt(req.params.callId);
-      if (isNaN(callId)) {
-        return res.status(400).json({ error: "Invalid call ID" });
-      }
+      const callId = requireCallScoringCallIdParam(req, res);
+      if (!callId) return;
       const dealershipId = req.dealershipId!;
       
       const result = await storage.getCallScoringSheetWithResponses(callId, dealershipId);
@@ -13582,10 +13602,8 @@ Format your response in clear sections with actionable recommendations.`;
   // Create or update scoring sheet
   app.post("/api/call-recordings/:callId/scoring", authMiddleware, requirePermission("leads.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
-      const callId = parseInt(req.params.callId);
-      if (isNaN(callId)) {
-        return res.status(400).json({ error: "Invalid call ID" });
-      }
+      const callId = requireCallScoringCallIdParam(req, res);
+      if (!callId) return;
       
       const dealershipId = req.dealershipId!;
       
@@ -13646,10 +13664,8 @@ Format your response in clear sections with actionable recommendations.`;
   // Update individual response score
   app.patch("/api/call-scoring/responses/:id", authMiddleware, requirePermission("leads.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id)) {
-        return res.status(400).json({ error: "Invalid response ID" });
-      }
+      const id = requireCallScoringResponseIdParam(req, res);
+      if (!id) return;
       const dealershipId = req.dealershipId!;
       
       const { reviewerScore, comment, timestamp } = req.body;
@@ -13687,10 +13703,8 @@ Format your response in clear sections with actionable recommendations.`;
   // Bulk update responses (for batch saving)
   app.post("/api/call-recordings/:callId/scoring/responses", authMiddleware, requirePermission("leads.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
-      const callId = parseInt(req.params.callId);
-      if (isNaN(callId)) {
-        return res.status(400).json({ error: "Invalid call ID" });
-      }
+      const callId = requireCallScoringCallIdParam(req, res);
+      if (!callId) return;
       const dealershipId = req.dealershipId!;
       
       const { responses } = req.body;

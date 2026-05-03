@@ -85,4 +85,25 @@ describe("call scoring route RBAC and tenant contracts", () => {
       "eq(callScoringSheets.dealershipId, dealershipId)",
     ].forEach((storageGuard) => expect(storageSource).toContain(storageGuard));
   });
+
+  it("rejects malformed call scoring ids before scoped storage access", () => {
+    expect(callScoringBlock).toBeDefined();
+
+    [
+      "function requireCallScoringTemplateIdParam(req: Request, res: Response, paramName = \"id\"): number | null",
+      "function requireCallScoringCriterionIdParam(req: Request, res: Response): number | null",
+      "function requireCallScoringCallIdParam(req: Request, res: Response): number | null",
+      "function requireCallScoringResponseIdParam(req: Request, res: Response): number | null",
+      'res.status(400).json({ error: "Call scoring template id must be a positive integer" })',
+      'res.status(400).json({ error: "Call scoring criterion id must be a positive integer" })',
+      'res.status(400).json({ error: "Call recording id must be a positive integer" })',
+      'res.status(400).json({ error: "Call scoring response id must be a positive integer" })',
+    ].forEach((guard) => expect(routesSource).toContain(guard));
+
+    expect(callScoringBlock?.match(/requireCallScoringTemplateIdParam\(req, res/g)).toHaveLength(7);
+    expect(callScoringBlock?.match(/requireCallScoringCriterionIdParam\(req, res\)/g)).toHaveLength(2);
+    expect(callScoringBlock?.match(/requireCallScoringCallIdParam\(req, res\)/g)).toHaveLength(3);
+    expect(callScoringBlock?.match(/requireCallScoringResponseIdParam\(req, res\)/g)).toHaveLength(1);
+    expect(callScoringBlock).not.toContain("parseInt(req.params.");
+  });
 });
