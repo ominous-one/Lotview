@@ -19126,9 +19126,9 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
   app.post('/api/notifications/settings/manager-emails/:userId/start-verify', authMiddleware, requirePermission("messages.write"), requireDealership, requireRole('master', 'sales_manager'), async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const userId = parseInt(req.params.userId, 10);
+      const userId = requireUserIdParam(req, res, "userId");
+      if (!userId) return;
       const email = String(req.body?.email || '').trim();
-      if (!Number.isInteger(userId) || userId < 1) return res.status(400).json({ error: 'invalid userId' });
       if (!email) return res.status(400).json({ error: 'email required' });
 
       const manager = await db.query.users.findFirst({
