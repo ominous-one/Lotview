@@ -56,6 +56,24 @@ export function resolveDealershipIdStrict(req: TenantContext): number | null {
   return null;
 }
 
+export function parsePositiveIntegerId(value: unknown): number | null {
+  if (typeof value === 'number') {
+    return Number.isSafeInteger(value) && value > 0 ? value : null;
+  }
+
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!/^[1-9]\d*$/.test(trimmed)) {
+    return null;
+  }
+
+  const parsed = Number(trimmed);
+  return Number.isSafeInteger(parsed) ? parsed : null;
+}
+
 export function getDealershipIdFromParams(
   params: { dealershipId?: number | string | null }
 ): number | null {
