@@ -4,6 +4,9 @@ import { resolve } from "path";
 describe("scrape source route RBAC and tenant contract", () => {
   const routesSource = readFileSync(resolve(process.cwd(), "server/routes.ts"), "utf8");
   const storageSource = readFileSync(resolve(process.cwd(), "server/storage.ts"), "utf8");
+  const dealershipScrapeSourceBlock = routesSource.match(
+    /\/\/ Create scrape source[\s\S]*?\/\/ ===== FACEBOOK POSTING ROUTES \(Salespeople\) =====/
+  )?.[0];
 
   it("requires explicit integration permissions for super-admin scrape source management", () => {
     expect(routesSource).toContain(
@@ -56,6 +59,15 @@ describe("scrape source route RBAC and tenant contract", () => {
     expect(routesSource).toContain(
       'app.post("/api/scrape-sources/:id/scrape", authMiddleware, requirePermission("integrations.write"), requireRole("master"), requireDealership'
     );
+  });
+
+  it("does not partially parse dealership scrape source ids", () => {
+    expect(dealershipScrapeSourceBlock).toBeDefined();
+
+    const idGuardCalls = dealershipScrapeSourceBlock?.match(/requireScrapeSourceIdParam\(req, res\)/g) ?? [];
+    expect(idGuardCalls).toHaveLength(3);
+    expect(dealershipScrapeSourceBlock).not.toContain("parseInt(req.params.id)");
+    expect(dealershipScrapeSourceBlock).not.toContain("Number.parseInt(req.params.id");
   });
 
   it("requires auth, integration permissions, and dealership context for manual scraper diagnostics", () => {
