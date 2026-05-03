@@ -658,4 +658,43 @@ describe("vehicle route tenant contracts", () => {
     expect(storageMock.getVehicleById).toHaveBeenCalledWith(42, 1);
     expect(storageMock.updateVehicle).toHaveBeenCalledWith(42, { price: 26000 }, 1);
   });
+
+  it("does not let smart merge write invalid allowed-field values", async () => {
+    storageMock.getVehicleById.mockResolvedValue({
+      id: 42,
+      dealershipId: 1,
+      year: 2024,
+      make: "Honda",
+      model: "Accord",
+      trim: "EX",
+      type: "Sedan",
+      price: 25000,
+      odometer: 12000,
+      images: ["https://cdn.lotview.test/current.jpg"],
+      badges: [],
+      location: "Vancouver",
+      dealership: "Dealer One",
+      description: "Clean local unit",
+    });
+
+    await request(appWithDealerOne)
+      .post("/api/vehicles/42/smart-merge")
+      .set("x-test-role", "dealer_manager")
+      .send({
+        incoming: {
+          price: "26000",
+          images: ["javascript:alert(1)"],
+        },
+      })
+      .expect(200)
+      .expect((res) => {
+        expect(res.body.updated).toBe(0);
+        expect(res.body.skipped).toBe(2);
+        expect(res.body.changes.skipped.price.reason).toBe("Field must be an integer");
+        expect(res.body.changes.skipped.images.reason).toBe("Image URLs must be HTTP or HTTPS URLs");
+      });
+
+    expect(storageMock.getVehicleById).toHaveBeenCalledWith(42, 1);
+    expect(storageMock.updateVehicle).not.toHaveBeenCalled();
+  });
 });
