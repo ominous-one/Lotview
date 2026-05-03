@@ -1,4 +1,6 @@
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
+import { readFileSync } from "fs";
+import { resolve } from "path";
 import request from "supertest";
 import { beforeAll, beforeEach, describe, expect, it, jest } from "@jest/globals";
 import { hasPermission, type Permission } from "../../shared/authz";
@@ -123,6 +125,25 @@ beforeEach(() => {
 });
 
 describe("vehicle route tenant contracts", () => {
+  it("uses strict positive integer parsing for modular vehicle route IDs", () => {
+    const routesSource = readFileSync(resolve(process.cwd(), "server/routes/vehicles.ts"), "utf8");
+
+    expect(routesSource).toContain("function requireVehicleIdParam(req: Request, res: Response)");
+    expect(routesSource).toContain('res.status(400).json({ error: "Vehicle id must be a positive integer" });');
+    expect(routesSource).not.toContain("parseInt(req.params.id)");
+    expect(routesSource).not.toContain("Number.parseInt(req.params.id");
+  });
+
+  it("rejects malformed modular vehicle IDs before tenant-scoped storage access", async () => {
+    await request(appWithDealerOne)
+      .get("/api/vehicles/42abc")
+      .expect(400)
+      .expect({ error: "Vehicle id must be a positive integer" });
+
+    expect(storageMock.getVehicleById).not.toHaveBeenCalled();
+    expect(storageMock.getVehicleViews).not.toHaveBeenCalled();
+  });
+
   it("requires tenant context before public Carfax report lookup", async () => {
     await request(appWithoutTenant)
       .get("/api/vehicles/42/carfax")

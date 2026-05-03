@@ -34,6 +34,25 @@ function requireRouteDealership(req: Request, res: Response): number | undefined
   return req.dealershipId;
 }
 
+function parsePositiveIntegerParam(value: string | undefined): number | undefined {
+  if (!value || !/^[1-9]\d*$/.test(value)) {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) ? parsed : undefined;
+}
+
+function requireVehicleIdParam(req: Request, res: Response): number | undefined {
+  const vehicleId = parsePositiveIntegerParam(req.params.id);
+  if (!vehicleId) {
+    res.status(400).json({ error: "Vehicle id must be a positive integer" });
+    return undefined;
+  }
+
+  return vehicleId;
+}
+
 /*
  * ─── PUBLIC ROUTES (no auth required) ───
  */
@@ -94,7 +113,8 @@ router.get("/", async (req, res) => {
 // GET /api/vehicles/:id — Single vehicle with view count
 router.get("/:id", async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = requireVehicleIdParam(req, res);
+    if (!id) return;
     if (!req.dealershipId) {
       return res.status(400).json({ error: "Dealership context required" });
     }
@@ -114,7 +134,8 @@ router.get("/:id", async (req, res) => {
 // GET /api/vehicles/:id/carfax — Full Carfax report
 router.get("/:id/carfax", async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = requireVehicleIdParam(req, res);
+    if (!id) return;
     const dealershipId = requireRouteDealership(req, res);
     if (!dealershipId) return;
     const vehicle = await storage.getVehicleById(id, dealershipId);
@@ -131,7 +152,8 @@ router.get("/:id/carfax", async (req, res) => {
 // GET /api/vehicles/:id/carfax/summary — Carfax badges summary
 router.get("/:id/carfax/summary", async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = requireVehicleIdParam(req, res);
+    if (!id) return;
     const dealershipId = requireRouteDealership(req, res);
     if (!dealershipId) return;
     const vehicle = await storage.getVehicleById(id, dealershipId);
@@ -157,7 +179,8 @@ router.get("/:id/carfax/summary", async (req, res) => {
 // POST /api/vehicles/:id/view — Track view (public)
 router.post("/:id/view", async (req, res) => {
   try {
-    const vehicleId = parseInt(req.params.id);
+    const vehicleId = requireVehicleIdParam(req, res);
+    if (!vehicleId) return;
     const sessionId = req.body.sessionId || `session-${Date.now()}`;
     const dealershipId = requireRouteDealership(req, res);
     if (!dealershipId) return;
@@ -173,7 +196,8 @@ router.post("/:id/view", async (req, res) => {
 // GET /api/vehicles/:id/views — View history
 router.get("/:id/views", async (req, res) => {
   try {
-    const vehicleId = parseInt(req.params.id);
+    const vehicleId = requireVehicleIdParam(req, res);
+    if (!vehicleId) return;
     const dealershipId = requireRouteDealership(req, res);
     if (!dealershipId) return;
     const views = await storage.getVehicleViews(vehicleId, dealershipId);
@@ -254,7 +278,8 @@ router.post("/", authMiddleware, requirePermission("inventory.write"), requireDe
 // PATCH /api/vehicles/:id — Update vehicle
 router.patch("/:id", authMiddleware, requirePermission("inventory.write"), requireDealership, async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = requireVehicleIdParam(req, res);
+    if (!id) return;
     const parsed = vehicleUpdateRequestSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: fromZodError(parsed.error).message });
@@ -304,7 +329,8 @@ router.patch("/:id", authMiddleware, requirePermission("inventory.write"), requi
 // POST /api/vehicles/:id/soft-delete — Soft delete
 router.post("/:id/soft-delete", authMiddleware, requirePermission("inventory.write"), requireDealership, async (req: any, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = requireVehicleIdParam(req, res);
+    if (!id) return;
     const dealershipId = req.dealershipId!;
     const actorUserId = req.user?.id || null;
     const { reason } = req.body as { reason?: string };
@@ -320,7 +346,8 @@ router.post("/:id/soft-delete", authMiddleware, requirePermission("inventory.wri
 // DELETE /api/vehicles/:id — Hard delete
 router.delete("/:id", authMiddleware, requirePermission("inventory.write"), requireDealership, async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = requireVehicleIdParam(req, res);
+    if (!id) return;
     const dealershipId = req.dealershipId!;
     const deleted = await storage.deleteVehicle(id, dealershipId);
     if (!deleted) return res.status(404).json({ error: "Vehicle not found" });
@@ -334,7 +361,8 @@ router.delete("/:id", authMiddleware, requirePermission("inventory.write"), requ
 // POST /api/vehicles/:id/generate-video — AI video generation
 router.post("/:id/generate-video", authMiddleware, requirePermission("ai.use"), requireRole("master"), requireDealership, async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = requireVehicleIdParam(req, res);
+    if (!id) return;
     const dealershipId = req.dealershipId!;
     const vehicle = await storage.getVehicleById(id, dealershipId);
     if (!vehicle) return res.status(404).json({ error: "Vehicle not found" });
@@ -348,7 +376,8 @@ router.post("/:id/generate-video", authMiddleware, requirePermission("ai.use"), 
 // POST /api/vehicles/:id/generate-description — AI description
 router.post("/:id/generate-description", authMiddleware, requirePermission("ai.use"), requirePermission("inventory.write"), requireRole("master"), requireDealership, async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = requireVehicleIdParam(req, res);
+    if (!id) return;
     const dealershipId = req.dealershipId!;
     const vehicle = await storage.getVehicleById(id, dealershipId);
     if (!vehicle) return res.status(404).json({ error: "Vehicle not found" });
@@ -388,7 +417,8 @@ router.post("/generate-descriptions", authMiddleware, requirePermission("ai.use"
 // POST /api/vehicles/:id/force-rescrape — Trigger rescrape
 router.post("/:id/force-rescrape", authMiddleware, requirePermission("integrations.write"), requireRole("manager"), requireDealership, async (req: any, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = requireVehicleIdParam(req, res);
+    if (!id) return;
     const dealershipId = req.dealershipId!;
     const vehicle = await storage.getVehicleById(id, dealershipId);
     if (!vehicle) return res.status(404).json({ error: "Vehicle not found" });
@@ -444,7 +474,8 @@ router.post("/batch-carfax-update", authMiddleware, requirePermission("integrati
 // PATCH /api/vehicles/:id/vdp-content — Update VDP content
 router.patch("/:id/vdp-content", authMiddleware, requirePermission("inventory.write"), requireDealership, async (req: any, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = requireVehicleIdParam(req, res);
+    if (!id) return;
     const dealershipId = req.dealershipId!;
     const { description, videoUrl, videoProvider } = req.body;
     const vehicle = await storage.updateVehicle(id, { description, videoUrl, videoProvider }, dealershipId);
@@ -459,7 +490,8 @@ router.patch("/:id/vdp-content", authMiddleware, requirePermission("inventory.wr
 // POST /api/vehicles/:id/carfax — Refresh Carfax report
 router.post("/:id/carfax", authMiddleware, requirePermission("integrations.write"), requirePermission("inventory.write"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: any, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = requireVehicleIdParam(req, res);
+    if (!id) return;
     const dealershipId = req.dealershipId!;
     const vehicle = await storage.getVehicleById(id, dealershipId);
     if (!vehicle) return res.status(404).json({ error: "Vehicle not found" });
@@ -495,7 +527,8 @@ router.post("/:id/carfax", authMiddleware, requirePermission("integrations.write
 // POST /api/vehicles/:id/ai-description — Generate AI description
 router.post("/:id/ai-description", authMiddleware, requirePermission("ai.use"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: any, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = requireVehicleIdParam(req, res);
+    if (!id) return;
     const dealershipId = req.dealershipId!;
     const vehicle = await storage.getVehicleById(id, dealershipId);
     if (!vehicle) return res.status(404).json({ error: "Vehicle not found" });
@@ -532,7 +565,8 @@ router.post("/:id/ai-description", authMiddleware, requirePermission("ai.use"), 
 // POST /api/vehicles/:id/market-analysis — Get AI pricing intelligence
 router.post("/:id/market-analysis", authMiddleware, requirePermission("inventory.read"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: any, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = requireVehicleIdParam(req, res);
+    if (!id) return;
     const dealershipId = req.dealershipId!;
     const vehicle = await storage.getVehicleById(id, dealershipId);
     if (!vehicle) return res.status(404).json({ error: "Vehicle not found" });
@@ -580,7 +614,8 @@ router.post("/:id/market-analysis", authMiddleware, requirePermission("inventory
 // POST /api/vehicles/:id/photo-score — Score vehicle photos
 router.post("/:id/photo-score", authMiddleware, requirePermission("inventory.read"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: any, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = requireVehicleIdParam(req, res);
+    if (!id) return;
     const dealershipId = req.dealershipId!;
     const vehicle = await storage.getVehicleById(id, dealershipId);
     if (!vehicle) return res.status(404).json({ error: "Vehicle not found" });
@@ -630,7 +665,8 @@ router.post("/:id/photo-score", authMiddleware, requirePermission("inventory.rea
 // POST /api/vehicles/:id/smart-merge — Preview/apply smart merge
 router.post("/:id/smart-merge", authMiddleware, requirePermission("inventory.write"), requireDealership, async (req: any, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = requireVehicleIdParam(req, res);
+    if (!id) return;
     const dealershipId = req.dealershipId!;
     const vehicle = await storage.getVehicleById(id, dealershipId);
     if (!vehicle) return res.status(404).json({ error: "Vehicle not found" });
@@ -665,7 +701,8 @@ router.post("/:id/smart-merge", authMiddleware, requirePermission("inventory.wri
 // POST /api/vehicles/:id/ai-carfax-context — Get AI training context
 router.post("/:id/ai-carfax-context", authMiddleware, requirePermission("ai.use"), requirePermission("integrations.read"), requireRole("manager", "admin", "master", "super_admin"), requireDealership, async (req: any, res) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = requireVehicleIdParam(req, res);
+    if (!id) return;
     const dealershipId = req.dealershipId!;
     const vehicle = await storage.getVehicleById(id, dealershipId);
     if (!vehicle) return res.status(404).json({ error: "Vehicle not found" });
