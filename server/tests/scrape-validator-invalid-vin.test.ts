@@ -240,6 +240,43 @@ describe("scrape validator invalid VIN handling", () => {
     expect(sendQualityAlertMock).not.toHaveBeenCalled();
   });
 
+  it("fails closed when scraped price or mileage facts exceed realistic vehicle bounds", async () => {
+    const unrealisticPriceVin = validVin(27);
+    const unrealisticMileageVin = validVin(28);
+    const vehicles = [
+      ...Array.from({ length: 8 }, (_, index) => scrapedVehicle(index + 1)),
+      {
+        ...scrapedVehicle(27, unrealisticPriceVin),
+        price: 5_000_000,
+      },
+      {
+        ...scrapedVehicle(28, unrealisticMileageVin),
+        mileage: 2_000_000,
+      },
+    ];
+
+    const result = await scrapeValidator.validateScrape(7, vehicles);
+
+    expect(result).toMatchObject({
+      isValid: false,
+      vehiclesFound: 10,
+      validVins: 10,
+      invalidVins: [],
+      missingRequiredFields: [],
+    });
+    expect(result.errors).toContain(
+      `Invalid required price facts in scrape result: ${unrealisticPriceVin}(5000000)`
+    );
+    expect(result.errors).toContain(
+      `Invalid scraped mileage facts in scrape result: ${unrealisticMileageVin}(mileage=2000000)`
+    );
+    expect(sendScrapeFailureAlertMock).toHaveBeenCalledWith(
+      7,
+      expect.stringContaining("Invalid required price facts")
+    );
+    expect(sendQualityAlertMock).not.toHaveBeenCalled();
+  });
+
   it("fails closed when required identity facts have invalid runtime values", async () => {
     const invalidYearVin = validVin(17);
     const invalidMakeVin = validVin(18);

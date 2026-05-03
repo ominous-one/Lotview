@@ -48,6 +48,8 @@ Additional partial proof: the enhanced scrape pipeline now fails closed when val
 
 Additional partial proof: VIN enrichment now rejects MarketCheck and API Ninjas payloads that echo a different VIN before provider facts can be trusted. NHTSA response identity was already checked; this closes the same identity boundary for external enrichment fallbacks, but does not certify live provider accuracy, staging, observability, or rollback proof.
 
+Additional partial proof: scrape validation now fails closed on unrealistic numeric price and mileage facts instead of accepting any positive finite number. This reduces inventory poisoning risk from malformed scraper output, but does not certify live scrape accuracy, staging, observability, or rollback proof.
+
 ## Feature Certification Matrix
 
 | Feature | Status | CI Proof | Tests | Staging Proof | Logs/Monitoring | Real User Flow | Owner | Notes |
