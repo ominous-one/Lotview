@@ -354,6 +354,30 @@ function requireFacebookPostingIdParam(req: Request, res: Response, label: strin
   return postingId;
 }
 
+function requireCompetitorAlertIdParam(req: Request, res: Response): number | null {
+  const alertId = parsePositiveIntegerId(req.params.id);
+  if (!alertId) {
+    res.status(400).json({ error: "Competitor alert id must be a positive integer" });
+    return null;
+  }
+
+  return alertId;
+}
+
+function parseOptionalPositiveIntegerQueryParam(value: unknown, res: Response, label: string): number | null | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const parsed = parsePositiveIntegerId(value);
+  if (!parsed) {
+    res.status(400).json({ error: `${label} must be a positive integer` });
+    return null;
+  }
+
+  return parsed;
+}
+
 async function validateTenantIdentityAvailability(options: {
   slug?: string;
   subdomain?: string;
@@ -9715,12 +9739,16 @@ Format your response in clear sections with actionable recommendations.`;
       if (!dealershipId) {
         return res.status(400).json({ error: 'Dealership context required' });
       }
-      const { status, severity, vehicleId, limit } = req.query;
+      const { status, severity } = req.query;
+      const vehicleId = parseOptionalPositiveIntegerQueryParam(req.query.vehicleId, res, "vehicleId");
+      if (vehicleId === null) return;
+      const limit = parseOptionalPositiveIntegerQueryParam(req.query.limit, res, "limit");
+      if (limit === null) return;
       const alerts = await storage.getCompetitorPriceAlerts(dealershipId, {
         status: status as string | undefined,
         severity: severity as string | undefined,
-        vehicleId: vehicleId ? parseInt(vehicleId as string) : undefined
-      }, limit ? parseInt(limit as string) : 50);
+        vehicleId
+      }, limit ?? 50);
       res.json(alerts);
     } catch (error) {
       logError('Error fetching competitor alerts:', error instanceof Error ? error : new Error(String(error)), { route: 'api-manager-competitor-alerts' });
@@ -9753,7 +9781,8 @@ Format your response in clear sections with actionable recommendations.`;
         return res.status(400).json({ error: 'Dealership context required' });
       }
       const userId = (req as AuthRequest).user?.id;
-      const alertId = parseInt(req.params.id);
+      const alertId = requireCompetitorAlertIdParam(req, res);
+      if (!alertId) return;
       if (!userId) {
         return res.status(401).json({ error: "User not authenticated" });
       }
@@ -9775,7 +9804,8 @@ Format your response in clear sections with actionable recommendations.`;
       if (!dealershipId) {
         return res.status(400).json({ error: 'Dealership context required' });
       }
-      const alertId = parseInt(req.params.id);
+      const alertId = requireCompetitorAlertIdParam(req, res);
+      if (!alertId) return;
       const { note } = req.body;
       const alert = await storage.resolveCompetitorPriceAlert(alertId, dealershipId, note);
       if (!alert) {
