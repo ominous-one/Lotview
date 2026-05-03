@@ -21,4 +21,16 @@ describe("user management route RBAC and tenant contract", () => {
       'app.patch("/api/users/:id", authMiddleware, requirePermission("users.manage"), requireRole("master"), requireDealership'
     );
   });
+
+  it("uses strict positive integer parsing before mutating tenant users", () => {
+    const userManagementBlock = routesSource.slice(
+      routesSource.indexOf("// ===== USER MANAGEMENT ROUTES"),
+      routesSource.indexOf("// ===== ADMIN AUTH ROUTES"),
+    );
+
+    expect(routesSource).toContain("function requireUserIdParam(req: Request, res: Response): number | null");
+    expect(routesSource).toContain("const userId = parsePositiveIntegerId(req.params.id);");
+    expect(userManagementBlock).toContain("const id = requireUserIdParam(req, res);");
+    expect(userManagementBlock).not.toContain("parseInt(req.params.id)");
+  });
 });
