@@ -3,6 +3,9 @@ import { resolve } from "path";
 
 describe("FB inbox route RBAC and tenant contract", () => {
   const routesSource = readFileSync(resolve(process.cwd(), "server/routes.ts"), "utf8");
+  const fbInboxBlock = routesSource.match(
+    /app\.get\("\/api\/fb-inbox\/settings"[\s\S]*?\/\/ ===== WS4E: Appointments \(canonical internal calendar\) =====/
+  )?.[0];
 
   it("requires AI configuration permission and dealership context for FB inbox automation settings", () => {
     [
@@ -27,5 +30,12 @@ describe("FB inbox route RBAC and tenant contract", () => {
       'app.post("/api/fb-inbox/threads/:id/abort", authMiddleware, requirePermission("messages.write"), requireDealership',
       'app.post("/api/fb-inbox/threads/:id/dnc", authMiddleware, requirePermission("messages.write"), requireDealership',
     ].forEach((route) => expect(routesSource).toContain(route));
+  });
+
+  it("does not partially parse FB inbox thread ids", () => {
+    expect(fbInboxBlock).toBeDefined();
+    expect(routesSource).toContain("function requireFbInboxThreadIdParam(req: Request, res: Response): number | null");
+    expect(fbInboxBlock).toContain("const id = requireFbInboxThreadIdParam(req, res)");
+    expect(fbInboxBlock).not.toContain("parseInt(req.params.id");
   });
 });
