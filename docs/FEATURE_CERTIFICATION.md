@@ -26,6 +26,8 @@ Additional partial proof: manager autopost queue photo-override and dequeue rout
 
 Additional partial proof: appointment read/mutation/follow-up routes and notification read-marker routes validate UUID route parameters before appointment, follow-up, or notification storage/service calls. This improves lead workflow RBAC and tenant-boundary proof, but appointment scheduling and notification flows still need real service implementation, staging, observability, and user-flow proof.
 
+Additional partial proof: appointment owner query filters and notification/email-outbox limit query filters now use strict positive-integer parsing instead of permissive `parseInt`, so partially numeric values fail closed before tenant-scoped reads. This improves route contract proof but does not certify appointment or notification user flows.
+
 ## Feature Certification Matrix
 
 | Feature | Status | CI Proof | Tests | Staging Proof | Logs/Monitoring | Real User Flow | Owner | Notes |

@@ -18753,7 +18753,8 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
       const dealershipId = req.dealershipId!;
       const start = req.query.start ? new Date(req.query.start as string) : null;
       const end = req.query.end ? new Date(req.query.end as string) : null;
-      const ownerUserId = req.query.ownerUserId ? parseInt(req.query.ownerUserId as string, 10) : undefined;
+      const ownerUserId = parseOptionalPositiveIntegerQueryParam(req.query.ownerUserId, res, "ownerUserId");
+      if (ownerUserId === null) return;
       const status = req.query.status ? String(req.query.status) : undefined;
 
       // RBAC: GM/sales-manager tiers can see all; salesperson only sees own.
@@ -19079,7 +19080,8 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
       const dealershipId = req.dealershipId!;
       const role = req.user?.role;
       const selfId = req.user!.id;
-      const ownerUserId = req.query.ownerUserId ? parseInt(req.query.ownerUserId as string, 10) : undefined;
+      const ownerUserId = parseOptionalPositiveIntegerQueryParam(req.query.ownerUserId, res, "ownerUserId");
+      if (ownerUserId === null) return;
       const status = req.query.status ? String(req.query.status) : undefined;
 
       const whereClauses: any[] = [eq(followUpTasks.dealershipId, dealershipId)];
@@ -19127,7 +19129,9 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
     try {
       const dealershipId = req.dealershipId!;
       const userId = req.user!.id;
-      const limit = Math.min(parseInt((req.query.limit as string) || '50', 10) || 50, 200);
+      const parsedLimit = parseOptionalPositiveIntegerQueryParam(req.query.limit, res, "limit");
+      if (parsedLimit === null) return;
+      const limit = Math.min(parsedLimit ?? 50, 200);
 
       const rows = await db.query.notifications.findMany({
         where: and(eq(notifications.dealershipId, dealershipId), eq(notifications.recipientUserId, userId)),
@@ -19165,7 +19169,9 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
   app.get('/api/notifications/email-outbox', authMiddleware, requirePermission("messages.read"), requireDealership, requireRole('master', 'sales_manager'), async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const limit = Math.min(parseInt((req.query.limit as string) || '100', 10) || 100, 500);
+      const parsedLimit = parseOptionalPositiveIntegerQueryParam(req.query.limit, res, "limit");
+      if (parsedLimit === null) return;
+      const limit = Math.min(parsedLimit ?? 100, 500);
 
       const rows = await db.query.emailOutbox.findMany({
         where: eq(emailOutbox.dealershipId, dealershipId),
