@@ -28,6 +28,8 @@ Additional partial proof: appointment read/mutation/follow-up routes and notific
 
 Additional partial proof: appointment owner query filters and notification/email-outbox limit query filters now use strict positive-integer parsing instead of permissive `parseInt`, so partially numeric values fail closed before tenant-scoped reads. This improves route contract proof but does not certify appointment or notification user flows.
 
+Additional partial proof: FB inbox thread/message/audit read filters now use strict positive/non-negative integer parsing for `limit`, `offset`, and audit `threadId` before tenant-scoped message and audit reads. This improves Facebook inbox route-contract proof but does not certify Facebook inbox automation or real user flows.
+
 ## Feature Certification Matrix
 
 | Feature | Status | CI Proof | Tests | Staging Proof | Logs/Monitoring | Real User Flow | Owner | Notes |

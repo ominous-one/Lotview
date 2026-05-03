@@ -38,4 +38,33 @@ describe("FB inbox route RBAC and tenant contract", () => {
     expect(fbInboxBlock).toContain("const id = requireFbInboxThreadIdParam(req, res)");
     expect(fbInboxBlock).not.toContain("parseInt(req.params.id");
   });
+
+  it("does not partially parse FB inbox read query filters", () => {
+    expect(fbInboxBlock).toBeDefined();
+
+    const positiveQueryParsers = fbInboxBlock?.match(
+      /parseOptionalPositiveIntegerQueryParam\(req\.query\.(?:limit|threadId), res, "(?:limit|threadId)"\)/g
+    ) ?? [];
+    expect(positiveQueryParsers).toHaveLength(4);
+
+    const offsetParsers = fbInboxBlock?.match(
+      /parseOptionalNonNegativeIntegerQueryParam\(req\.query\.offset, res, "offset"\)/g
+    ) ?? [];
+    expect(offsetParsers).toHaveLength(2);
+
+    [
+      "if (parsedLimit === null) return;",
+      "if (parsedOffset === null) return;",
+      "if (threadId === null) return;",
+      "const limit = Math.min(parsedLimit ?? 50, 200);",
+      "const limit = Math.min(parsedLimit ?? 200, 500);",
+      "const offset = parsedOffset ?? 0;",
+    ].forEach((snippet) => expect(fbInboxBlock).toContain(snippet));
+
+    [
+      "parseInt((req.query.limit as string)",
+      "parseInt((req.query.offset as string)",
+      "parseInt(req.query.threadId as string",
+    ].forEach((snippet) => expect(fbInboxBlock).not.toContain(snippet));
+  });
 });

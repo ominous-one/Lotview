@@ -18614,8 +18614,12 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
   app.get("/api/fb-inbox/threads", authMiddleware, requirePermission("messages.read"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const limit = Math.min(parseInt((req.query.limit as string) || "50", 10) || 50, 200);
-      const offset = parseInt((req.query.offset as string) || "0", 10) || 0;
+      const parsedLimit = parseOptionalPositiveIntegerQueryParam(req.query.limit, res, "limit");
+      if (parsedLimit === null) return;
+      const parsedOffset = parseOptionalNonNegativeIntegerQueryParam(req.query.offset, res, "offset");
+      if (parsedOffset === null) return;
+      const limit = Math.min(parsedLimit ?? 50, 200);
+      const offset = parsedOffset ?? 0;
       const result = await storage.listFbInboxThreads(dealershipId, limit, offset);
       res.json(result);
     } catch (error: any) {
@@ -18643,7 +18647,9 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
       const dealershipId = req.dealershipId!;
       const id = requireFbInboxThreadIdParam(req, res);
       if (!id) return;
-      const limit = Math.min(parseInt((req.query.limit as string) || "200", 10) || 200, 500);
+      const parsedLimit = parseOptionalPositiveIntegerQueryParam(req.query.limit, res, "limit");
+      if (parsedLimit === null) return;
+      const limit = Math.min(parsedLimit ?? 200, 500);
       const msgs = await storage.listFbInboxMessages(dealershipId, id, limit);
       res.json(msgs);
     } catch (error: any) {
@@ -18734,10 +18740,15 @@ Safety: ${(techSpecs.exterior ?? []).filter((f: string) => f.toLowerCase().inclu
   app.get("/api/fb-inbox/audit", authMiddleware, requirePermission("messages.read"), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const threadId = req.query.threadId ? parseInt(req.query.threadId as string, 10) : undefined;
+      const threadId = parseOptionalPositiveIntegerQueryParam(req.query.threadId, res, "threadId");
+      if (threadId === null) return;
       const kind = (req.query.kind as string) || undefined;
-      const limit = Math.min(parseInt((req.query.limit as string) || "50", 10) || 50, 200);
-      const offset = parseInt((req.query.offset as string) || "0", 10) || 0;
+      const parsedLimit = parseOptionalPositiveIntegerQueryParam(req.query.limit, res, "limit");
+      if (parsedLimit === null) return;
+      const parsedOffset = parseOptionalNonNegativeIntegerQueryParam(req.query.offset, res, "offset");
+      if (parsedOffset === null) return;
+      const limit = Math.min(parsedLimit ?? 50, 200);
+      const offset = parsedOffset ?? 0;
       const result = await storage.listFbInboxAuditEvents(dealershipId, { threadId, kind, limit, offset });
       res.json(result);
     } catch (error: any) {
