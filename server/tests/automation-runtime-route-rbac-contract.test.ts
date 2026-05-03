@@ -8,6 +8,9 @@ describe("automation runtime route RBAC and tenant contract", () => {
   const automationSequenceBlock = routesSource.match(
     /\/\/ ===== AUTOMATION ENGINE ROUTES =====[\s\S]*?\/\/ Facebook Messenger Lead Webhook/
   )?.[0];
+  const automationReengagementAndAnalyticsBlock = routesSource.match(
+    /\/\/ ===== RE-ENGAGEMENT CAMPAIGNS =====[\s\S]*?\/\/ ===== CONTACT ACTIVITY =====/
+  )?.[0];
 
   it("requires message read permission and dealership context for automation queue, logs, campaigns, and analytics reads", () => {
     [
@@ -101,5 +104,22 @@ describe("automation runtime route RBAC and tenant contract", () => {
     expect(automationSequenceBlock).toContain("requireAutomationQueueItemIdParam(req, res)");
     expect(automationSequenceBlock).not.toContain("parseInt(req.query.limit as string)");
     expect(automationSequenceBlock).not.toContain("parseInt(req.params.id");
+  });
+
+  it("rejects malformed re-engagement and analytics ids before scoped automation storage access", () => {
+    expect(automationReengagementAndAnalyticsBlock).toBeDefined();
+    expect(routesSource).toContain("function requireReengagementCampaignIdParam(req: Request, res: Response): number | null");
+    expect(routesSource).toContain('res.status(400).json({ error: "Re-engagement campaign id must be a positive integer" })');
+    expect(routesSource).toContain("function requireAutomationExecutionIdParam(req: Request, res: Response): number | null");
+    expect(routesSource).toContain('res.status(400).json({ error: "Automation execution id must be a positive integer" })');
+    expect(automationReengagementAndAnalyticsBlock?.match(/requireReengagementCampaignIdParam\(req, res\)/g)).toHaveLength(3);
+    expect(automationReengagementAndAnalyticsBlock).toContain("requireAutomationExecutionIdParam(req, res)");
+    expect(automationReengagementAndAnalyticsBlock?.match(/parseOptionalPositiveIntegerQueryParam\(req\.query\.sequenceId, res, "sequenceId"\)/g)).toHaveLength(2);
+    expect(automationReengagementAndAnalyticsBlock).toContain("const parsedLimit = parseOptionalPositiveIntegerQueryParam(req.query.limit, res, \"limit\")");
+    expect(automationReengagementAndAnalyticsBlock).toContain("const limit = parsedLimit ?? 100;");
+    expect(automationReengagementAndAnalyticsBlock).not.toContain("parseInt(req.params.id");
+    expect(automationReengagementAndAnalyticsBlock).not.toContain("parseInt(req.params.executionId");
+    expect(automationReengagementAndAnalyticsBlock).not.toContain("parseInt(req.query.sequenceId as string)");
+    expect(automationReengagementAndAnalyticsBlock).not.toContain("parseInt(req.query.limit as string)");
   });
 });
