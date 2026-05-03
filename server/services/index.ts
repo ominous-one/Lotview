@@ -81,7 +81,7 @@ export { scrapeCarfaxByVin, getCarfaxSellingPoints, getCarfaxConfidenceScore, bu
 export type { CarfaxReport } from "./carfax-scraper";
 
 // ─── NEW: Smart merge
-export { smartMerge, applyMerge, createDefaultMergeRules, detectFieldSources } from "./smart-merge";
+export { smartMerge, applyMerge, buildSmartMergeStoragePatch, createDefaultMergeRules, detectFieldSources, isSmartMergeScrapeField } from "./smart-merge";
 export type { SmartMergeRules, MergeResult, FieldSource, VehicleFieldLock } from "./smart-merge";
 
 // ─── NEW: Vehicle edit permissions

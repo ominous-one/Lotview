@@ -60,6 +60,8 @@ Additional partial proof: `X-Dealership-Id` tenant selection now uses strict pos
 
 Additional partial proof: dealership owner/master guard tenant selectors now use strict positive-integer parsing for route and query `dealershipId` values, so malformed values cannot be partially parsed into a matching dealership ID. This improves tenant isolation proof, but does not certify full route/storage cross-tenant isolation, staging, observability, or rollback proof.
 
+Additional partial proof: vehicle smart merge now accepts only an allowlisted set of scrape fields and sends only the changed allowed-field patch into tenant-scoped storage. Client-supplied `id`, `dealershipId`, VIN, stock-number identity, lifecycle, delete, marketplace, and unknown system fields are skipped. This improves inventory and tenant-boundary proof, but does not certify full source-truth reconciliation, staging, observability, or rollback proof.
+
 ## Feature Certification Matrix
 
 | Feature | Status | CI Proof | Tests | Staging Proof | Logs/Monitoring | Real User Flow | Owner | Notes |
