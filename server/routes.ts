@@ -5566,10 +5566,22 @@ Provide a single, concise, friendly message that continues the conversation natu
         return res.status(400).json({ error: "customerMessage is required" });
       }
 
+      const parsedVehicleId = parseOptionalPositiveIntegerBodyValue(vehicleId, res, "vehicleId");
+      if (parsedVehicleId === null) return;
+      const parsedConversationId = parseOptionalPositiveIntegerBodyValue(conversationId, res, "conversationId");
+      if (parsedConversationId === null) return;
+
+      if (parsedVehicleId !== undefined) {
+        const scopedVehicle = await storage.getVehicleById(parsedVehicleId, dealershipId);
+        if (!scopedVehicle) {
+          return res.status(404).json({ error: "Vehicle not found" });
+        }
+      }
+
       const result = await generateSalesResponse({
         dealershipId,
-        vehicleId: vehicleId ? parseInt(vehicleId) : undefined,
-        conversationId: conversationId ? parseInt(conversationId) : undefined,
+        vehicleId: parsedVehicleId,
+        conversationId: parsedConversationId,
         customerMessage: customerMessage.trim(),
         customerName,
         messageHistory,

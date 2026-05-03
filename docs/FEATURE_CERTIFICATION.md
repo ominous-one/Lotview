@@ -82,6 +82,8 @@ Additional partial proof: public conversation saves now strictly parse optional 
 
 Additional partial proof: public chat generation now strictly parses optional body `vehicleId`, verifies the vehicle through `storage.getVehicleById(parsedVehicleId, finalDealershipId)`, refuses missing or wrong-tenant vehicle IDs before AI generation, and drops caller-supplied `vehicleContext` when a vehicle ID is present so AI vehicle facts come from the scoped inventory path.
 
+Additional partial proof: authenticated AI sales responses now strictly parse optional body `vehicleId` and `conversationId`, verify any provided vehicle through `storage.getVehicleById(parsedVehicleId, dealershipId)`, and refuse missing or wrong-tenant vehicles before `generateSalesResponse` can build a customer-facing reply.
+
 ## Feature Certification Matrix
 
 | Feature | Status | CI Proof | Tests | Staging Proof | Logs/Monitoring | Real User Flow | Owner | Notes |
