@@ -4,7 +4,7 @@
  * Base: /api/facebook
  */
 
-import { Router } from "express";
+import { Router, type Response } from "express";
 import { storage } from "../storage";
 import { authMiddleware, requirePermission, requireRole } from "../auth";
 import { requireDealership } from "../tenant-middleware";
@@ -14,10 +14,21 @@ import { getOptimizedPosting } from "../services/ai-posting-optimizer";
 import { isEnabled } from "../services/feature-flags";
 import { facebookService } from "../facebook-service";
 import type { InsertAdTemplate, InsertFacebookAccount, InsertFacebookPage, InsertPostingQueue } from "../../shared/schema";
+import { parsePositiveIntegerId } from "../tenant-utils";
 
 const router = Router();
 
 const OWNERSHIP_FIELDS = new Set(["id", "dealershipId", "userId", "createdAt", "updatedAt"]);
+
+function requirePositiveRouteId(value: unknown, label: string, res: Response): number | null {
+  const id = parsePositiveIntegerId(value);
+  if (!id) {
+    res.status(400).json({ error: `Invalid ${label} id` });
+    return null;
+  }
+
+  return id;
+}
 
 function stripOwnershipFields(body: unknown): Record<string, unknown> {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
@@ -56,10 +67,8 @@ router.post("/pages", authMiddleware, requirePermission("integrations.write"), r
 
 router.patch("/pages/:id", authMiddleware, requirePermission("integrations.write"), requireDealership, async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
-    if (!Number.isInteger(id)) {
-      return res.status(400).json({ error: "Invalid page id" });
-    }
+    const id = requirePositiveRouteId(req.params.id, "page", res);
+    if (!id) return;
     const updates = stripOwnershipFields(req.body) as Partial<InsertFacebookPage>;
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ error: "No update fields provided" });
@@ -101,10 +110,8 @@ router.post("/accounts", authMiddleware, requirePermission("messages.write"), re
 
 router.patch("/accounts/:id", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
   try {
-    const id = parseInt(req.params.id, 10);
-    if (!Number.isInteger(id)) {
-      return res.status(400).json({ error: "Invalid account id" });
-    }
+    const id = requirePositiveRouteId(req.params.id, "account", res);
+    if (!id) return;
     const updates = stripOwnershipFields(req.body) as Partial<InsertFacebookAccount>;
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ error: "No update fields provided" });
@@ -125,7 +132,9 @@ router.patch("/accounts/:id", authMiddleware, requirePermission("messages.write"
 
 router.delete("/accounts/:id", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
   try {
-    await storage.deleteFacebookAccount(parseInt(req.params.id), req.user!.id, req.dealershipId!);
+    const id = requirePositiveRouteId(req.params.id, "account", res);
+    if (!id) return;
+    await storage.deleteFacebookAccount(id, req.user!.id, req.dealershipId!);
     res.json({ success: true });
   } catch (error) {
     logError("Error deleting FB account:", error instanceof Error ? error : new Error(String(error)), { route: "api-facebook-accounts-id" });
@@ -189,7 +198,8 @@ router.post("/queue", authMiddleware, requirePermission("messages.write"), requi
 
 router.post("/post/:queueId", authMiddleware, requirePermission("messages.write"), requireRole("salesperson"), requireDealership, async (req, res) => {
   try {
-    const queueId = parseInt(req.params.queueId);
+    const queueId = requirePositiveRouteId(req.params.queueId, "queue", res);
+    if (!queueId) return;
     const userId = req.user!.id;
     const dealershipId = req.dealershipId!;
 

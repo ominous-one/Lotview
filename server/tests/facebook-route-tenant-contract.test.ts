@@ -10,6 +10,7 @@ const storageMock = {
   getFacebookAccountsByUser: jest.fn() as any,
   createFacebookAccount: jest.fn() as any,
   updateFacebookAccount: jest.fn() as any,
+  deleteFacebookAccount: jest.fn() as any,
   getAdTemplatesByUser: jest.fn() as any,
   createAdTemplate: jest.fn() as any,
   getPostingQueueByUser: jest.fn() as any,
@@ -188,6 +189,17 @@ describe("Facebook Pages route tenant and RBAC contracts", () => {
     expect(storageMock.updateFacebookPage).not.toHaveBeenCalled();
   });
 
+  it("rejects partially numeric page ids before storage access", async () => {
+    await request(appWithDealerOne)
+      .patch("/api/facebook/pages/9abc")
+      .set("x-test-role", "dealer_owner")
+      .send({ pageName: "Updated Page" })
+      .expect(400)
+      .expect({ error: "Invalid page id" });
+
+    expect(storageMock.updateFacebookPage).not.toHaveBeenCalled();
+  });
+
   it("blocks roles without integration write permission from updating pages", async () => {
     await request(appWithDealerOne)
       .patch("/api/facebook/pages/9")
@@ -358,6 +370,27 @@ describe("Facebook Pages route tenant and RBAC contracts", () => {
     expect(storageMock.updateFacebookAccount).not.toHaveBeenCalled();
   });
 
+  it("rejects partially numeric Facebook account ids before storage access", async () => {
+    await request(appWithDealerOne)
+      .patch("/api/facebook/accounts/3abc")
+      .set("x-test-role", "salesperson")
+      .send({ accountName: "Updated Marketplace" })
+      .expect(400)
+      .expect({ error: "Invalid account id" });
+
+    expect(storageMock.updateFacebookAccount).not.toHaveBeenCalled();
+  });
+
+  it("rejects malformed Facebook account delete ids before storage access", async () => {
+    await request(appWithDealerOne)
+      .delete("/api/facebook/accounts/3abc")
+      .set("x-test-role", "salesperson")
+      .expect(400)
+      .expect({ error: "Invalid account id" });
+
+    expect(storageMock.deleteFacebookAccount).not.toHaveBeenCalled();
+  });
+
   it("requires dealership context before listing ad templates", async () => {
     await request(appWithoutTenant)
       .get("/api/facebook/templates")
@@ -429,6 +462,16 @@ describe("Facebook Pages route tenant and RBAC contracts", () => {
       .set("x-test-role", "salesperson")
       .expect(400)
       .expect({ error: "No dealership context found. Please specify via subdomain or authentication." });
+
+    expect(storageMock.getPostingQueueByUser).not.toHaveBeenCalled();
+  });
+
+  it("rejects malformed manual marketplace queue ids before storage access", async () => {
+    await request(appWithDealerOne)
+      .post("/api/facebook/post/5abc")
+      .set("x-test-role", "salesperson")
+      .expect(400)
+      .expect({ error: "Invalid queue id" });
 
     expect(storageMock.getPostingQueueByUser).not.toHaveBeenCalled();
   });
