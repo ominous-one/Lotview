@@ -435,8 +435,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           dealership = await storage.getDealershipBySubdomain(sanitizedSubdomain);
         }
       } else if (!dealership && dealershipId) {
-        const id = parseInt(dealershipId as string, 10);
-        if (!isNaN(id) && id > 0) {
+        const id = parseDealershipIdParam(dealershipId);
+        if (id) {
           dealership = await storage.getDealership(id);
         }
       }
@@ -1249,7 +1249,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get scraper activity logs (super admin only)
   app.get("/api/super-admin/scraper-logs", authMiddleware, requirePermission("admin.audit"), superAdminOnly, async (req, res) => {
     try {
-      const dealershipId = req.query.dealershipId ? parseInt(req.query.dealershipId as string) : undefined;
+      const dealershipId = req.query.dealershipId ? parseDealershipIdParam(req.query.dealershipId) : undefined;
+      if (req.query.dealershipId && !dealershipId) {
+        return res.status(400).json({ error: "dealershipId must be a positive integer" });
+      }
       const limit = parseInt(req.query.limit as string) || 50;
       
       const logs = await storage.getScraperActivityLogs(dealershipId, limit);
@@ -1453,7 +1456,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all users across all dealerships (super admin only)
   app.get("/api/super-admin/users", authMiddleware, requirePermission("users.manage"), superAdminOnly, async (req, res) => {
     try {
-      const dealershipId = req.query.dealershipId ? parseInt(req.query.dealershipId as string) : undefined;
+      const dealershipId = req.query.dealershipId ? parseDealershipIdParam(req.query.dealershipId) : undefined;
+      if (req.query.dealershipId && !dealershipId) {
+        return res.status(400).json({ error: "dealershipId must be a positive integer" });
+      }
       const role = req.query.role as string | undefined;
       const search = req.query.search as string | undefined;
       
@@ -2326,7 +2332,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get filter groups for a specific dealership
   app.get("/api/super-admin/filter-groups/dealership/:dealershipId", authMiddleware, requirePermission("inventory.read"), superAdminOnly, async (req, res) => {
     try {
-      const dealershipId = parseInt(req.params.dealershipId);
+      const dealershipId = parseDealershipIdParam(req.params.dealershipId);
+      if (!dealershipId) {
+        return res.status(400).json({ error: "dealershipId must be a positive integer" });
+      }
       const groups = await storage.getFilterGroups(dealershipId);
       res.json(groups);
     } catch (error) {
@@ -2339,13 +2348,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/super-admin/filter-groups", authMiddleware, requirePermission("inventory.write"), superAdminOnly, async (req, res) => {
     try {
       const { dealershipId, groupName, groupSlug, description, displayOrder, isDefault } = req.body;
+      const parsedDealershipId = parseDealershipIdParam(dealershipId);
       
-      if (!dealershipId || !groupName || !groupSlug) {
+      if (!parsedDealershipId || !groupName || !groupSlug) {
         return res.status(400).json({ error: "Dealership ID, group name, and group slug are required" });
       }
       
       const group = await storage.createFilterGroup({
-        dealershipId: parseInt(dealershipId),
+        dealershipId: parsedDealershipId,
         groupName,
         groupSlug,
         description: description || null,
@@ -2366,12 +2376,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const id = parseInt(req.params.id);
       const { dealershipId, ...updates } = req.body;
+      const parsedDealershipId = parseDealershipIdParam(dealershipId);
       
-      if (!dealershipId) {
+      if (!parsedDealershipId) {
         return res.status(400).json({ error: "Dealership ID is required" });
       }
       
-      const group = await storage.updateFilterGroup(id, parseInt(dealershipId), updates);
+      const group = await storage.updateFilterGroup(id, parsedDealershipId, updates);
       if (!group) {
         return res.status(404).json({ error: "Filter group not found" });
       }
@@ -2387,7 +2398,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/super-admin/filter-groups/:id", authMiddleware, requirePermission("inventory.write"), superAdminOnly, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const dealershipId = parseInt(req.query.dealershipId as string);
+      const dealershipId = parseDealershipIdParam(req.query.dealershipId);
       
       if (!dealershipId) {
         return res.status(400).json({ error: "Dealership ID is required" });
@@ -2422,13 +2433,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/super-admin/scrape-sources", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
       const { dealershipId, sourceName, sourceUrl, sourceType, scrapeFrequency, filterGroupId } = req.body;
+      const parsedDealershipId = parseDealershipIdParam(dealershipId);
       
-      if (!dealershipId || !sourceName || !sourceUrl) {
+      if (!parsedDealershipId || !sourceName || !sourceUrl) {
         return res.status(400).json({ error: "Dealership ID, source name, and source URL are required" });
       }
       
       const source = await storage.createScrapeSource({
-        dealershipId: parseInt(dealershipId),
+        dealershipId: parsedDealershipId,
         sourceName,
         sourceUrl,
         sourceType: sourceType || "dealer_website",
@@ -2529,7 +2541,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/super-admin/browserless/test", authMiddleware, requirePermission("integrations.read"), superAdminOnly, async (req, res) => {
     try {
       const { testBrowserlessConnection } = await import("./browserless-robust-scraper");
-      const dealershipId = req.query.dealershipId ? parseInt(req.query.dealershipId as string) : undefined;
+      const dealershipId = req.query.dealershipId ? parseDealershipIdParam(req.query.dealershipId) : undefined;
+      if (req.query.dealershipId && !dealershipId) {
+        return res.status(400).json({ error: "dealershipId must be a positive integer" });
+      }
       
       const result = await testBrowserlessConnection(dealershipId);
       res.json(result);
@@ -2544,11 +2559,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { runBrowserlessInventoryScrape } = await import("./browserless-robust-scraper");
       const { dealershipId, sourceId, scrapeVdp } = req.body;
+      const parsedDealershipId = dealershipId ? parseDealershipIdParam(dealershipId) : undefined;
+      if (dealershipId && !parsedDealershipId) {
+        return res.status(400).json({ error: "dealershipId must be a positive integer" });
+      }
       
       res.json({ success: true, message: "Browserless inventory scrape started in background" });
       
       runBrowserlessInventoryScrape({
-        dealershipId: dealershipId ? parseInt(dealershipId) : undefined,
+        dealershipId: parsedDealershipId,
         sourceId: sourceId ? parseInt(sourceId) : undefined,
         triggeredBy: 'manual',
         scrapeVdp: scrapeVdp !== false,
@@ -2566,9 +2585,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { runMarketAnalysisScrape } = await import("./browserless-robust-scraper");
       const { make, model, yearMin, yearMax, postalCode, radiusKm, maxResults, dealershipId } = req.body;
+      const parsedDealershipId = dealershipId ? parseDealershipIdParam(dealershipId) : undefined;
       
       if (!make || !model) {
         return res.status(400).json({ error: "Make and model are required" });
+      }
+      if (dealershipId && !parsedDealershipId) {
+        return res.status(400).json({ error: "dealershipId must be a positive integer" });
       }
       
       const result = await runMarketAnalysisScrape(
@@ -2581,7 +2604,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           radiusKm: radiusKm ? parseInt(radiusKm) : 100,
           maxResults: maxResults ? parseInt(maxResults) : 50,
         },
-        dealershipId ? parseInt(dealershipId) : undefined
+        parsedDealershipId
       );
       
       res.json(result);
@@ -2594,7 +2617,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get Browserless scrape status (super admin only)
   app.get("/api/super-admin/browserless/status", authMiddleware, requirePermission("integrations.read"), superAdminOnly, async (req, res) => {
     try {
-      const dealershipId = req.query.dealershipId ? parseInt(req.query.dealershipId as string) : undefined;
+      const dealershipId = req.query.dealershipId ? parseDealershipIdParam(req.query.dealershipId) : undefined;
+      if (req.query.dealershipId && !dealershipId) {
+        return res.status(400).json({ error: "dealershipId must be a positive integer" });
+      }
       const runs = await storage.getScrapeRuns(dealershipId, 10);
       
       const browserlessRuns = runs.filter(r => r.scrapeMethod === 'browserless');
@@ -2616,10 +2642,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { runRobustScrape } = await import("./robust-scraper");
       const { dealershipId } = req.body;
+      const parsedDealershipId = dealershipId ? parseDealershipIdParam(dealershipId) : undefined;
+      if (dealershipId && !parsedDealershipId) {
+        return res.status(400).json({ error: "dealershipId must be a positive integer" });
+      }
       
       res.json({ success: true, message: "Robust scrape started with ZenRows -> ScrapingBee -> Puppeteer fallback chain" });
       
-      runRobustScrape('manual', dealershipId ? parseInt(dealershipId) : undefined)
+      runRobustScrape('manual', parsedDealershipId)
         .then(async (result) => {
           logInfo('[RobustScrape] Completed', { 
             route: 'api-super-admin-robust-scrape',
@@ -2633,7 +2663,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Validate scraped data quality
           if (result.success && result.vehicles && result.vehicles.length > 0) {
             try {
-              const validation = await validateScrape(dealershipId ? parseInt(dealershipId) : 0, result.vehicles);
+              const validation = await validateScrape(parsedDealershipId ?? 0, result.vehicles);
               if (!validation.isValid) {
                 logWarn(`RobustScrape validation warnings:`, { warnings: validation.warnings, errors: validation.errors });
               }
@@ -10653,9 +10683,9 @@ Format your response in clear sections with actionable recommendations.`;
       const rawDealershipIdValue = Array.isArray(rawDealershipId)
         ? rawDealershipId[0]
         : rawDealershipId;
-      const dealershipId = Number.parseInt(String(rawDealershipIdValue ?? ""), 10);
+      const dealershipId = parseDealershipIdParam(rawDealershipIdValue);
 
-      if (!Number.isInteger(dealershipId) || dealershipId <= 0) {
+      if (!dealershipId) {
         logError(
           "PBS webhook rejected: Missing explicit dealership binding",
           new Error("PBS webhook rejected: Missing explicit dealership binding"),

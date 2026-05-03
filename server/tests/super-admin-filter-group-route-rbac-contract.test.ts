@@ -37,6 +37,9 @@ describe("super-admin filter group route RBAC contract", () => {
 
     expect(filterGroupBlock).toContain("const { dealershipId, groupName, groupSlug");
     expect(filterGroupBlock).toContain("const { dealershipId, ...updates } = req.body");
-    expect(filterGroupBlock).toContain("const dealershipId = parseInt(req.query.dealershipId as string)");
+    expect(filterGroupBlock).toContain("const dealershipId = parseDealershipIdParam(req.query.dealershipId)");
+    expect(filterGroupBlock).toContain("const parsedDealershipId = parseDealershipIdParam(dealershipId)");
+    expect(filterGroupBlock).not.toContain("parseInt(dealershipId)");
+    expect(filterGroupBlock).not.toContain("parseInt(req.query.dealershipId as string)");
   });
 });
