@@ -554,6 +554,16 @@ function requireCrmTagIdParam(req: Request, res: Response, paramName = "tagId"):
   return tagId;
 }
 
+function requireCrmTaskIdParam(req: Request, res: Response): number | null {
+  const taskId = parsePositiveIntegerId(req.params.id);
+  if (!taskId) {
+    res.status(400).json({ error: "CRM task id must be a positive integer" });
+    return null;
+  }
+
+  return taskId;
+}
+
 function parseOptionalPositiveIntegerQueryParam(value: unknown, res: Response, label: string): number | null | undefined {
   if (value === undefined) {
     return undefined;
@@ -15140,16 +15150,22 @@ Format your response in clear sections with actionable recommendations.`;
       if (userRole === 'salesperson') {
         filters.assignedToId = userId;
       } else if (req.query.assignedToId) {
-        filters.assignedToId = parseInt(req.query.assignedToId as string);
+        const assignedToId = parseOptionalPositiveIntegerQueryParam(req.query.assignedToId, res, "assignedToId");
+        if (assignedToId === null) return;
+        if (assignedToId !== undefined) filters.assignedToId = assignedToId;
       }
       
-      if (req.query.contactId) filters.contactId = parseInt(req.query.contactId as string);
+      const contactId = parseOptionalPositiveIntegerQueryParam(req.query.contactId, res, "contactId");
+      if (contactId === null) return;
+      if (contactId !== undefined) filters.contactId = contactId;
       if (req.query.status) filters.status = req.query.status as string;
       if (req.query.priority) filters.priority = req.query.priority as string;
       if (req.query.dueAfter) filters.dueAfter = new Date(req.query.dueAfter as string);
       if (req.query.dueBefore) filters.dueBefore = new Date(req.query.dueBefore as string);
       
-      const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
+      const parsedLimit = parseOptionalPositiveIntegerQueryParam(req.query.limit, res, "limit");
+      if (parsedLimit === null) return;
+      const limit = parsedLimit ?? 100;
       
       const tasks = await storage.getCrmTasks(dealershipId, filters, limit);
       res.json(tasks);
@@ -15163,7 +15179,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.get("/api/crm/tasks/:id", authMiddleware, requirePermission("leads.read"), requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
-      const id = parseInt(req.params.id);
+      const id = requireCrmTaskIdParam(req, res);
+      if (!id) return;
       
       const task = await storage.getCrmTaskById(id, dealershipId);
       
@@ -15207,7 +15224,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.patch("/api/crm/tasks/:id", authMiddleware, requirePermission("leads.write"), requireRole('salesperson', 'manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
-      const id = parseInt(req.params.id);
+      const id = requireCrmTaskIdParam(req, res);
+      if (!id) return;
       const userId = req.user?.id;
       const userRole = req.user?.role;
       
@@ -15235,7 +15253,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.delete("/api/crm/tasks/:id", authMiddleware, requirePermission("leads.write"), requireRole('manager', 'admin', 'master', 'super_admin'), requireDealership, async (req: AuthRequest, res) => {
     try {
       const dealershipId = (req as any).dealershipId;
-      const id = parseInt(req.params.id);
+      const id = requireCrmTaskIdParam(req, res);
+      if (!id) return;
       
       const deleted = await storage.deleteCrmTask(id, dealershipId);
       

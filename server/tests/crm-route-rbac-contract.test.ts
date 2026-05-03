@@ -8,6 +8,10 @@ describe("CRM route RBAC and tenant contract", () => {
     routesSource.indexOf("  // ===== CRM CONTACTS ====="),
     routesSource.indexOf("  // ===== CRM TASKS =====")
   );
+  const crmTaskRoutesSource = routesSource.slice(
+    routesSource.indexOf("  // ===== CRM TASKS ====="),
+    routesSource.indexOf("  // ===== CRM MESSAGE TEMPLATES =====")
+  );
   const crmMessagingRoutesSource = routesSource.slice(
     routesSource.indexOf("  // ===== CRM MESSAGING ====="),
     routesSource.indexOf("  // =====================\n  // Email API Routes")
@@ -141,5 +145,25 @@ describe("CRM route RBAC and tenant contract", () => {
       "const contactId = parseInt(req.params.id);\n      const tagId = parseInt(req.params.tagId);",
       "const contactId = parseInt(req.params.id);\n      const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;",
     ].forEach((unsafeParse) => expect(crmContactBoundarySource).not.toContain(unsafeParse));
+  });
+
+  it("fails closed on malformed CRM task identifiers and numeric filters before storage access", () => {
+    [
+      "function requireCrmTaskIdParam(req: Request, res: Response): number | null",
+      "CRM task id must be a positive integer",
+      'const assignedToId = parseOptionalPositiveIntegerQueryParam(req.query.assignedToId, res, "assignedToId")',
+      'const contactId = parseOptionalPositiveIntegerQueryParam(req.query.contactId, res, "contactId")',
+      'const parsedLimit = parseOptionalPositiveIntegerQueryParam(req.query.limit, res, "limit")',
+      "const id = requireCrmTaskIdParam(req, res)",
+    ].forEach((guard) => expect(routesSource).toContain(guard));
+
+    [
+      "filters.assignedToId = parseInt(req.query.assignedToId as string)",
+      "if (req.query.contactId) filters.contactId = parseInt(req.query.contactId as string)",
+      "const limit = req.query.limit ? parseInt(req.query.limit as string) : 100",
+      "const id = parseInt(req.params.id);\n      \n      const task = await storage.getCrmTaskById(id, dealershipId);",
+      "const id = parseInt(req.params.id);\n      const userId = req.user?.id;\n      const userRole = req.user?.role;",
+      "const id = parseInt(req.params.id);\n      \n      const deleted = await storage.deleteCrmTask(id, dealershipId);",
+    ].forEach((unsafeParse) => expect(crmTaskRoutesSource).not.toContain(unsafeParse));
   });
 });
