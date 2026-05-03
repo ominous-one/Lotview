@@ -11,6 +11,9 @@ describe("automation runtime route RBAC and tenant contract", () => {
   const automationReengagementAndAnalyticsBlock = routesSource.match(
     /\/\/ ===== RE-ENGAGEMENT CAMPAIGNS =====[\s\S]*?\/\/ ===== CONTACT ACTIVITY =====/
   )?.[0];
+  const automationContactAndMutationBlock = routesSource.match(
+    /\/\/ ===== CONTACT ACTIVITY =====[\s\S]*?\/\/ ===== CRM CONTACTS =====/
+  )?.[0];
 
   it("requires message read permission and dealership context for automation queue, logs, campaigns, and analytics reads", () => {
     [
@@ -121,5 +124,26 @@ describe("automation runtime route RBAC and tenant contract", () => {
     expect(automationReengagementAndAnalyticsBlock).not.toContain("parseInt(req.params.executionId");
     expect(automationReengagementAndAnalyticsBlock).not.toContain("parseInt(req.query.sequenceId as string)");
     expect(automationReengagementAndAnalyticsBlock).not.toContain("parseInt(req.query.limit as string)");
+  });
+
+  it("rejects malformed contact activity and sequence mutation ids before scoped automation storage access", () => {
+    expect(automationContactAndMutationBlock).toBeDefined();
+    expect(routesSource).toContain("function requireContactActivityIdParam(req: Request, res: Response): number | null");
+    expect(routesSource).toContain('res.status(400).json({ error: "Contact activity id must be a positive integer" })');
+    expect(routesSource).toContain("function requireAutomationSequenceExecutionIdParam(req: Request, res: Response): number | null");
+    expect(routesSource).toContain('res.status(400).json({ error: "Sequence execution id must be a positive integer" })');
+    expect(routesSource).toContain("function requireAutomationSequenceMessageIdParam(req: Request, res: Response): number | null");
+    expect(routesSource).toContain('res.status(400).json({ error: "Sequence message id must be a positive integer" })');
+    expect(routesSource).toContain("function parseOptionalNonNegativeIntegerQueryParam(value: unknown, res: Response, label: string): number | null | undefined");
+    expect(automationContactAndMutationBlock).toContain("requireContactActivityIdParam(req, res)");
+    expect(automationContactAndMutationBlock).toContain("requireAutomationSequenceExecutionIdParam(req, res)");
+    expect(automationContactAndMutationBlock).toContain("requireAutomationSequenceMessageIdParam(req, res)");
+    expect(automationContactAndMutationBlock?.match(/parseOptionalPositiveIntegerQueryParam\(req\.query\.limit, res, "limit"\)/g)).toHaveLength(2);
+    expect(automationContactAndMutationBlock).toContain('parseOptionalPositiveIntegerQueryParam(req.query.inactiveDays, res, "inactiveDays")');
+    expect(automationContactAndMutationBlock).toContain('parseOptionalNonNegativeIntegerQueryParam(req.query.offset, res, "offset")');
+    expect(automationContactAndMutationBlock).not.toContain("parseInt(req.params.id");
+    expect(automationContactAndMutationBlock).not.toContain("parseInt(req.query.limit as string)");
+    expect(automationContactAndMutationBlock).not.toContain("parseInt(req.query.offset as string)");
+    expect(automationContactAndMutationBlock).not.toContain("parseInt(req.query.inactiveDays as string)");
   });
 });
