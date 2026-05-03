@@ -254,6 +254,26 @@ function requireVehicleIdParam(req: Request, res: Response): number | null {
   return vehicleId;
 }
 
+function requireFilterGroupIdParam(req: Request, res: Response): number | null {
+  const filterGroupId = parsePositiveIntegerId(req.params.id);
+  if (!filterGroupId) {
+    res.status(400).json({ error: "Filter group id must be a positive integer" });
+    return null;
+  }
+
+  return filterGroupId;
+}
+
+function requireScrapeSourceIdParam(req: Request, res: Response): number | null {
+  const scrapeSourceId = parsePositiveIntegerId(req.params.id);
+  if (!scrapeSourceId) {
+    res.status(400).json({ error: "Scrape source id must be a positive integer" });
+    return null;
+  }
+
+  return scrapeSourceId;
+}
+
 async function validateTenantIdentityAvailability(options: {
   slug?: string;
   subdomain?: string;
@@ -2414,7 +2434,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update a filter group (super admin only)
   app.patch("/api/super-admin/filter-groups/:id", authMiddleware, requirePermission("inventory.write"), superAdminOnly, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = requireFilterGroupIdParam(req, res);
+      if (!id) return;
       const { dealershipId, ...updates } = req.body;
       const parsedDealershipId = parseDealershipIdParam(dealershipId);
       
@@ -2437,7 +2458,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete a filter group (super admin only)
   app.delete("/api/super-admin/filter-groups/:id", authMiddleware, requirePermission("inventory.write"), superAdminOnly, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = requireFilterGroupIdParam(req, res);
+      if (!id) return;
       const dealershipId = parseDealershipIdParam(req.query.dealershipId);
       
       if (!dealershipId) {
@@ -2474,9 +2496,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { dealershipId, sourceName, sourceUrl, sourceType, scrapeFrequency, filterGroupId } = req.body;
       const parsedDealershipId = parseDealershipIdParam(dealershipId);
+      const parsedFilterGroupId =
+        filterGroupId === undefined || filterGroupId === null || filterGroupId === ""
+          ? null
+          : parsePositiveIntegerId(filterGroupId);
       
       if (!parsedDealershipId || !sourceName || !sourceUrl) {
         return res.status(400).json({ error: "Dealership ID, source name, and source URL are required" });
+      }
+      if (filterGroupId !== undefined && filterGroupId !== null && filterGroupId !== "" && !parsedFilterGroupId) {
+        return res.status(400).json({ error: "filterGroupId must be a positive integer" });
       }
       
       const source = await storage.createScrapeSource({
@@ -2485,7 +2514,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sourceUrl,
         sourceType: sourceType || "dealer_website",
         scrapeFrequency: scrapeFrequency || "daily",
-        filterGroupId: filterGroupId ? parseInt(filterGroupId) : null,
+        filterGroupId: parsedFilterGroupId,
         isActive: true,
       });
       
@@ -2499,7 +2528,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update a scrape source (super admin only)
   app.patch("/api/super-admin/scrape-sources/:id", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = requireScrapeSourceIdParam(req, res);
+      if (!id) return;
       const updates = req.body;
       
       const source = await storage.updateScrapeSourceAdmin(id, updates);
@@ -2517,7 +2547,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete a scrape source (super admin only)
   app.delete("/api/super-admin/scrape-sources/:id", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = requireScrapeSourceIdParam(req, res);
+      if (!id) return;
       
       const deleted = await storage.deleteScrapeSourceAdmin(id);
       if (!deleted) {
@@ -2534,7 +2565,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Trigger scrape for a source (super admin only) - uses ZenRows robust scraper
   app.post("/api/super-admin/scrape-sources/:id/scrape", authMiddleware, requirePermission("integrations.write"), superAdminOnly, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = requireScrapeSourceIdParam(req, res);
+      if (!id) return;
       
       // Get the source
       const sources = await storage.getAllScrapeSources();
@@ -2600,15 +2632,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { runBrowserlessInventoryScrape } = await import("./browserless-robust-scraper");
       const { dealershipId, sourceId, scrapeVdp } = req.body;
       const parsedDealershipId = dealershipId ? parseDealershipIdParam(dealershipId) : undefined;
+      const parsedSourceId =
+        sourceId === undefined || sourceId === null || sourceId === ""
+          ? undefined
+          : parsePositiveIntegerId(sourceId);
       if (dealershipId && !parsedDealershipId) {
         return res.status(400).json({ error: "dealershipId must be a positive integer" });
+      }
+      if (sourceId !== undefined && sourceId !== null && sourceId !== "" && !parsedSourceId) {
+        return res.status(400).json({ error: "sourceId must be a positive integer" });
       }
       
       res.json({ success: true, message: "Browserless inventory scrape started in background" });
       
       runBrowserlessInventoryScrape({
         dealershipId: parsedDealershipId,
-        sourceId: sourceId ? parseInt(sourceId) : undefined,
+        sourceId: parsedSourceId,
         triggeredBy: 'manual',
         scrapeVdp: scrapeVdp !== false,
       }).catch((err: Error) => {

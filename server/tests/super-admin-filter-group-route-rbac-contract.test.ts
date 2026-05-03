@@ -42,4 +42,15 @@ describe("super-admin filter group route RBAC contract", () => {
     expect(filterGroupBlock).not.toContain("parseInt(dealershipId)");
     expect(filterGroupBlock).not.toContain("parseInt(req.query.dealershipId as string)");
   });
+
+  it("does not partially parse targeted filter group ids", () => {
+    expect(filterGroupBlock).toBeDefined();
+
+    expect(routesSource).toContain("function requireFilterGroupIdParam(req: Request, res: Response): number | null");
+    expect(filterGroupBlock).toContain("const id = requireFilterGroupIdParam(req, res)");
+    expect(filterGroupBlock).toContain('return res.status(400).json({ error: "Dealership ID is required" });');
+    expect(routesSource).toContain('res.status(400).json({ error: "Filter group id must be a positive integer" });');
+    expect(filterGroupBlock).not.toContain("parseInt(req.params.id)");
+    expect(filterGroupBlock).not.toContain("Number.parseInt(req.params.id");
+  });
 });
