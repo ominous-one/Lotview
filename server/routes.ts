@@ -72,6 +72,7 @@ import { scrapeCarfaxReportCloud } from "./services/carfax-browserless";
 import { initializeFlagsFromEnv, isEnabled } from "./services/feature-flags";
 import { hasVehicleVINWriteError, normalizeVehicleWriteVIN, vehicleVINWriteErrorResponse } from "./services/vehicle-vin-write-guard";
 import { resolveForceRescrapeVINUpdate } from "./services/force-rescrape-vin-identity";
+import { resolveForceRescrapeScrapeResult } from "./services/force-rescrape-result-guard";
 import { vehicleCreateRequestSchema, vehicleUpdateRequestSchema, withResolvedVehicleDealership } from "./services/vehicle-write-schema";
 import { storeExternalVehicleImport } from "./services/external-vehicle-import-safety";
 import { findActiveStockNumberConflict, withNormalizedStockNumber } from "./services/vehicle-stock-number";
@@ -5022,10 +5023,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Use enhanced single vehicle scraper
       const { scrapeSingleVehicle } = await import('./enhanced-single-vehicle-scraper');
-      const result = await scrapeSingleVehicle(vehicle.dealerVdpUrl, {
+      const rawScrapeResult = await scrapeSingleVehicle(vehicle.dealerVdpUrl, {
         enableGalleryModal: true,
         dealershipId
       });
+      const scrapeDecision = resolveForceRescrapeScrapeResult(rawScrapeResult);
+      if (scrapeDecision.ok === false) {
+        return res.status(scrapeDecision.status).json(scrapeDecision.body);
+      }
+      const result = scrapeDecision.result;
 
       // Update the vehicle with fresh data using smart merge
       const updates: any = {
