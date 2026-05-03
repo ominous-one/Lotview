@@ -47,4 +47,15 @@ describe("manager notification route RBAC and tenant contract", () => {
     expect(notificationsBlock).toContain('const userId = requireUserIdParam(req, res, "userId")');
     expect(notificationsBlock).not.toContain("parseInt(req.params.userId");
   });
+
+  it("rejects malformed notification route ids before notification writes reach storage", () => {
+    expect(notificationsBlock).toBeDefined();
+
+    expect(routesSource).toContain("function requireNotificationIdParam(req: Request, res: Response): string | null");
+    expect(routesSource).toContain("const notificationId = parseUuidRouteParam(req.params.id);");
+    expect(routesSource).toContain('res.status(400).json({ error: "Notification id must be a valid UUID" });');
+    expect(notificationsBlock).toContain("const id = requireNotificationIdParam(req, res);");
+    expect(notificationsBlock).toContain("if (!id) return;");
+    expect(notificationsBlock).not.toContain("const id = req.params.id");
+  });
 });
