@@ -66,6 +66,8 @@ export interface VINBatchDecodeInput {
   modelYear?: number | string;
 }
 
+type VINDecodeSource = NonNullable<VINDecodeResult['source']>;
+
 const NHTSA_BATCH_SIZE = 50;
 const NHTSA_BATCH_THROTTLE_MS = 250;
 const VIN_DECODE_CACHE_TTL_DAYS = 30;
@@ -122,10 +124,19 @@ function normalizeProviderVIN(value: unknown): string | undefined {
   return text ? text.toUpperCase() : undefined;
 }
 
+function firstReturnedProviderVIN(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    const vin = normalizeProviderVIN(value);
+    if (vin) return vin;
+  }
+
+  return undefined;
+}
+
 function providerVINMismatchResult(
   requestedVIN: string,
   returnedVIN: string,
-  source: 'nhtsa',
+  source: VINDecodeSource,
   responseTimeMs: number
 ): VINDecodeResult {
   return {
@@ -326,6 +337,11 @@ async function decodeVINWithMarketCheck(vin: string, apiKey: string): Promise<VI
       console.log('[VIN Decoder] MarketCheck returned error:', data?.error);
       return null;
     }
+
+    const returnedVIN = firstReturnedProviderVIN(data.vin, data.VIN, data.vehicle?.vin, data.vehicle?.VIN);
+    if (returnedVIN && returnedVIN !== vin) {
+      return providerVINMismatchResult(vin, returnedVIN, 'marketcheck', responseTime);
+    }
     
     // Helper to extract string from MarketCheck item (may be string or object)
     const extractString = (item: unknown): string | null => {
@@ -441,6 +457,11 @@ async function decodeVINWithApiNinjas(vin: string, apiKey: string): Promise<VIND
     if (!data || data.error) {
       console.log('[VIN Decoder] API Ninjas returned error:', data?.error);
       return null;
+    }
+
+    const returnedVIN = firstReturnedProviderVIN(data.vin, data.VIN);
+    if (returnedVIN && returnedVIN !== vin) {
+      return providerVINMismatchResult(vin, returnedVIN, 'api_ninjas', responseTime);
     }
     
     return {

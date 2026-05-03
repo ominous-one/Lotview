@@ -46,6 +46,8 @@ Additional partial proof: scrape validation now evaluates `images` aliases plus 
 
 Additional partial proof: the enhanced scrape pipeline now fails closed when validation passes but deduplication stores or merges zero vehicles. This prevents a scrape run from being reported successful when all candidate records were skipped, but does not certify pagination, quarantine/admin review, live source-truth reconciliation, staging, observability, or rollback proof.
 
+Additional partial proof: VIN enrichment now rejects MarketCheck and API Ninjas payloads that echo a different VIN before provider facts can be trusted. NHTSA response identity was already checked; this closes the same identity boundary for external enrichment fallbacks, but does not certify live provider accuracy, staging, observability, or rollback proof.
+
 ## Feature Certification Matrix
 
 | Feature | Status | CI Proof | Tests | Staging Proof | Logs/Monitoring | Real User Flow | Owner | Notes |
