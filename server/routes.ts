@@ -384,6 +384,26 @@ function requireRemarketingVehicleIdParam(req: Request, res: Response): number |
   return remarketingVehicleId;
 }
 
+function requirePbsConfigIdParam(req: Request, res: Response): number | null {
+  const configId = parsePositiveIntegerId(req.params.id);
+  if (!configId) {
+    res.status(400).json({ error: "PBS config id must be a positive integer" });
+    return null;
+  }
+
+  return configId;
+}
+
+function requirePbsWebhookEventIdParam(req: Request, res: Response): number | null {
+  const eventId = parsePositiveIntegerId(req.params.id);
+  if (!eventId) {
+    res.status(400).json({ error: "PBS webhook event id must be a positive integer" });
+    return null;
+  }
+
+  return eventId;
+}
+
 function parseOptionalPositiveIntegerQueryParam(value: unknown, res: Response, label: string): number | null | undefined {
   if (value === undefined) {
     return undefined;
@@ -10823,7 +10843,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.delete("/api/pbs/config/:id", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const id = parseInt(req.params.id);
+      const id = requirePbsConfigIdParam(req, res);
+      if (!id) return;
       await storage.deletePbsConfig(id, dealershipId);
       res.json({ success: true });
     } catch (error) {
@@ -11040,7 +11061,9 @@ Format your response in clear sections with actionable recommendations.`;
   app.get("/api/pbs/webhook-events", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
+      const parsedLimit = parseOptionalPositiveIntegerQueryParam(req.query.limit, res, "limit");
+      if (parsedLimit === null) return;
+      const limit = parsedLimit ?? 100;
       const events = await storage.getPbsWebhookEvents(dealershipId, limit);
       res.json(events);
     } catch (error) {
@@ -11053,7 +11076,8 @@ Format your response in clear sections with actionable recommendations.`;
   app.patch("/api/pbs/webhook-events/:id", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const id = parseInt(req.params.id);
+      const id = requirePbsWebhookEventIdParam(req, res);
+      if (!id) return;
       const { status, errorMessage } = req.body;
       
       const event = await storage.updatePbsWebhookEvent(id, dealershipId, {
@@ -11093,7 +11117,9 @@ Format your response in clear sections with actionable recommendations.`;
   app.get("/api/pbs/api-logs", authMiddleware, requireRole("master"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
+      const parsedLimit = parseOptionalPositiveIntegerQueryParam(req.query.limit, res, "limit");
+      if (parsedLimit === null) return;
+      const limit = parsedLimit ?? 100;
       const pbsService = createPbsApiService(dealershipId);
       const logs = await pbsService.getApiLogs(limit);
       res.json(logs);
