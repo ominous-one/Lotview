@@ -720,7 +720,7 @@ router.post("/:id/smart-merge", authMiddleware, requirePermission("inventory.wri
     const vehicle = await storage.getVehicleById(id, dealershipId);
     if (!vehicle) return res.status(404).json({ error: "Vehicle not found" });
 
-    const { smartMerge, createDefaultMergeRules, applyMerge } = await import("../services/smart-merge");
+    const { smartMerge, createDefaultMergeRules, buildSmartMergeStoragePatch } = await import("../services/smart-merge");
     const incoming = req.body.incoming || {};
     const preview = req.body.preview === true;
 
@@ -728,8 +728,10 @@ router.post("/:id/smart-merge", authMiddleware, requirePermission("inventory.wri
     const result = smartMerge(vehicle, incoming, rules, req.user?.role || "manager", "scrape");
 
     if (!preview) {
-      const updated = applyMerge(vehicle, result, "scrape");
-      await storage.updateVehicle(id, updated, dealershipId);
+      const updateData = buildSmartMergeStoragePatch(result);
+      if (Object.keys(updateData).length > 0) {
+        await storage.updateVehicle(id, updateData, dealershipId);
+      }
     }
 
     res.json({

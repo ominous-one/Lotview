@@ -48,6 +48,50 @@ const PRICE_FIELDS = new Set([
   "price", "msrp", "salePrice", "internetPrice",
 ]);
 
+export const SMART_MERGE_SCRAPE_FIELDS = new Set([
+  "year",
+  "make",
+  "model",
+  "trim",
+  "type",
+  "price",
+  "odometer",
+  "images",
+  "badges",
+  "location",
+  "dealership",
+  "description",
+  "fullPageContent",
+  "interiorColor",
+  "exteriorColor",
+  "transmission",
+  "fuelType",
+  "drivetrain",
+  "engine",
+  "cargurusPrice",
+  "cargurusUrl",
+  "dealRating",
+  "carfaxUrl",
+  "carfaxBadges",
+  "carfaxConfidenceScore",
+  "carfaxLastUpdated",
+  "highlights",
+  "vdpDescription",
+  "techSpecs",
+  "dealerVdpUrl",
+  "photoStatus",
+  "lastScrapedAt",
+  "verificationStatus",
+  "verificationCheckedAt",
+  "missedScrapeCount",
+  "photoFingerprint",
+  "lastPriceRefreshAt",
+]);
+
+export function isSmartMergeScrapeField(field: string): boolean {
+  return SMART_MERGE_SCRAPE_FIELDS.has(field);
+}
+
 /**
  * Apply smart merge rules to incoming scraped data.
  * Returns what changed, what was skipped, and why.
@@ -76,6 +120,15 @@ export function smartMerge(
   for (const [field, incomingValue] of Object.entries(incoming)) {
     // Skip null/undefined incoming values
     if (incomingValue === null || incomingValue === undefined) continue;
+
+    if (!isSmartMergeScrapeField(field)) {
+      result.skipped[field] = {
+        reason: "Field is not allowed for scrape smart merge",
+        currentValue: current[field],
+        incomingValue,
+      };
+      continue;
+    }
 
     const currentValue = current[field];
 
@@ -219,7 +272,7 @@ export function smartMerge(
 
 function canOverrideLock(
   role: "super_admin" | "master" | "manager" | "salesperson",
-  lock: VehicleFieldLock
+  _lock: VehicleFieldLock
 ): boolean {
   // Super admin and master can override any lock
   if (role === "super_admin" || role === "master") return true;
@@ -246,6 +299,22 @@ export function applyMerge(
   }
 
   return updated;
+}
+
+/**
+ * Build the database patch for a smart merge without copying tenant/system fields
+ * from the full vehicle record back into the update payload.
+ */
+export function buildSmartMergeStoragePatch(result: MergeResult): Record<string, any> {
+  const patch: Record<string, any> = {};
+
+  for (const [field, change] of Object.entries(result.updated)) {
+    if (isSmartMergeScrapeField(field)) {
+      patch[field] = change.new;
+    }
+  }
+
+  return patch;
 }
 
 /**

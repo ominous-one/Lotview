@@ -612,4 +612,50 @@ describe("vehicle route tenant contracts", () => {
 
     expect(storageMock.updateVehicle).toHaveBeenCalledWith(42, expect.objectContaining({ price: 25000 }), 1);
   });
+
+  it("does not let smart merge request bodies rewrite tenant or system fields", async () => {
+    storageMock.getVehicleById.mockResolvedValue({
+      id: 42,
+      dealershipId: 1,
+      year: 2024,
+      make: "Honda",
+      model: "Accord",
+      trim: "EX",
+      type: "Sedan",
+      price: 25000,
+      odometer: 12000,
+      images: [],
+      badges: [],
+      location: "Vancouver",
+      dealership: "Dealer One",
+      description: "Clean local unit",
+      lifecycleStatus: "ACTIVE",
+    });
+    storageMock.updateVehicle.mockResolvedValue({ id: 42, price: 26000 });
+
+    await request(appWithDealerOne)
+      .post("/api/vehicles/42/smart-merge")
+      .set("x-test-role", "dealer_manager")
+      .send({
+        incoming: {
+          price: 26000,
+          dealershipId: 999,
+          id: 999,
+          vin: "1HGCM82633A004352",
+          stockNumber: "SPOOFED",
+          normalizedStockNumber: "SPOOFED",
+          lifecycleStatus: "DELETED",
+          deletedAt: "2026-01-01T00:00:00.000Z",
+          unknownAdminFlag: true,
+        },
+      })
+      .expect(200)
+      .expect((res) => {
+        expect(res.body.updated).toBe(1);
+        expect(res.body.skipped).toBeGreaterThanOrEqual(8);
+      });
+
+    expect(storageMock.getVehicleById).toHaveBeenCalledWith(42, 1);
+    expect(storageMock.updateVehicle).toHaveBeenCalledWith(42, { price: 26000 }, 1);
+  });
 });
