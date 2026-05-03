@@ -20,11 +20,11 @@ describe("extension posting event tenant contract", () => {
     expect(postingBlock).toContain('return res.status(400).json({ error: "vehicleId, platform, status required" });');
     expect(postingBlock).toContain("const scopedVehicle = await storage.getVehicleById(parsedVehicleId, dealershipId);");
     expect(postingBlock).toContain('return res.status(404).json({ error: "Vehicle not found" });');
-    expect(postingBlock).toContain("validatePostingToken(\n          postingToken,\n          userId,\n          parsedVehicleId,\n          platform\n        )");
+    expect(postingBlock).toMatch(/validatePostingToken\(\s*postingToken,\s*userId,\s*parsedVehicleId,\s*platform\s*\)/);
     expect(postingBlock).toContain("vehicleId: parsedVehicleId");
     expect(postingBlock).toContain("eq(fbMarketplaceListings.vehicleId, parsedVehicleId)");
     expect(postingBlock).toContain("postedPrice: scopedVehicle.price");
     expect(postingBlock).not.toContain("if (!vehicleId || !platform || !status)");
-    expect(postingBlock).not.toContain("validatePostingToken(\n          postingToken,\n          userId,\n          vehicleId,\n          platform\n        )");
+    expect(postingBlock).not.toMatch(/validatePostingToken\(\s*postingToken,\s*userId,\s*vehicleId,\s*platform\s*\)/);
   });
 });
