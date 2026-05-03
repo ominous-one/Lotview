@@ -55,6 +55,28 @@ function scrapedVehicle(index: number, vin = validVin(index)) {
 }
 
 describe("scrape validator invalid VIN handling", () => {
+  it("normalizes scraped VINs before duplicate detection", async () => {
+    const canonicalVin = validVin(20);
+    const vehicles = [
+      scrapedVehicle(20, ` ${canonicalVin.toLowerCase()} `),
+      scrapedVehicle(21, canonicalVin),
+    ];
+
+    const result = await scrapeValidator.validateScrape(7, vehicles);
+
+    expect(result).toMatchObject({
+      isValid: true,
+      vehiclesFound: 2,
+      validVins: 2,
+      invalidVins: [],
+      duplicateCount: 1,
+      duplicates: [{ vin: canonicalVin, count: 2 }],
+    });
+    expect(result.warnings).toContain("1 duplicate vehicles detected (will be merged)");
+    expect(sendScrapeFailureAlertMock).not.toHaveBeenCalled();
+    expect(sendQualityAlertMock).not.toHaveBeenCalled();
+  });
+
   it("fails closed when any scraped VIN fails full validation", async () => {
     const invalidVin = "1HGCM82643A004352";
     const vehicles = [
