@@ -46,4 +46,19 @@ describe("legacy Facebook Pages route contract", () => {
     expect(routesSource).toContain("dealershipId: _ignoredDealershipId");
     expect(routesSource).toContain("id: _ignoredId");
   });
+
+  it("strictly parses and scopes priority vehicle ids before storing legacy page priorities", () => {
+    const facebookPagesBlock = routesSource.slice(
+      routesSource.indexOf("// Get all connected Facebook pages"),
+      routesSource.indexOf("// ===== FILE DOWNLOADS ====="),
+    );
+
+    expect(facebookPagesBlock).toContain("const parsedVehicleIds: number[] = [];");
+    expect(facebookPagesBlock).toContain("const parsedVehicleId = parsePositiveIntegerId(rawVehicleId);");
+    expect(facebookPagesBlock).toContain('return res.status(400).json({ error: "vehicleIds must contain only positive integers", index });');
+    expect(facebookPagesBlock).toContain("const scopedVehicle = await storage.getVehicleById(parsedVehicleId, dealershipId);");
+    expect(facebookPagesBlock).toContain('return res.status(404).json({ error: "Vehicle not found", index });');
+    expect(facebookPagesBlock).toContain("await storage.setPagePriorityVehicles(pageId, parsedVehicleIds, dealershipId);");
+    expect(facebookPagesBlock).not.toContain("await storage.setPagePriorityVehicles(pageId, vehicleIds, dealershipId);");
+  });
 });

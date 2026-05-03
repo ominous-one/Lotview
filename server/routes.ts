@@ -5301,7 +5301,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "vehicleIds must be an array" });
       }
 
-      await storage.setPagePriorityVehicles(pageId, vehicleIds, dealershipId);
+      const parsedVehicleIds: number[] = [];
+      for (const [index, rawVehicleId] of vehicleIds.entries()) {
+        const parsedVehicleId = parsePositiveIntegerId(rawVehicleId);
+        if (!parsedVehicleId) {
+          return res.status(400).json({ error: "vehicleIds must contain only positive integers", index });
+        }
+
+        const scopedVehicle = await storage.getVehicleById(parsedVehicleId, dealershipId);
+        if (!scopedVehicle) {
+          return res.status(404).json({ error: "Vehicle not found", index });
+        }
+
+        parsedVehicleIds.push(parsedVehicleId);
+      }
+
+      await storage.setPagePriorityVehicles(pageId, parsedVehicleIds, dealershipId);
       res.status(200).json({ success: true });
     } catch (error) {
       logError('Error setting priorities:', error instanceof Error ? error : new Error(String(error)), { route: 'api-facebook-pages-id-priority-vehicles' });
