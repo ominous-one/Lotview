@@ -12,6 +12,9 @@ import { validateVIN } from "../vin-validation";
 import type { Vehicle } from "@shared/schema";
 import { findActiveStockNumberConflict, normalizeStockNumber } from "./vehicle-stock-number";
 
+const MAX_REASONABLE_VEHICLE_PRICE = 1_000_000;
+const MAX_REASONABLE_VEHICLE_MILEAGE = 1_500_000;
+
 // ---- Types ----
 
 export interface ScrapedVehicleData {
@@ -137,7 +140,7 @@ function getMissingNewInventoryFacts(scraped: ScrapedVehicleData): string[] {
 
 function getInvalidSourceFacts(scraped: ScrapedVehicleData): string[] {
   const invalid: string[] = [];
-  if (scraped.price !== undefined && scraped.price !== null && !isPositiveFiniteNumber(scraped.price)) {
+  if (scraped.price !== undefined && scraped.price !== null && !isReasonableVehiclePrice(scraped.price)) {
     invalid.push("price");
   }
   if (scraped.year !== undefined && scraped.year !== null && !isValidModelYear(scraped.year)) {
@@ -151,7 +154,7 @@ function getInvalidSourceFacts(scraped: ScrapedVehicleData): string[] {
   }
 
   const odometer = scraped.odometer ?? scraped.mileage;
-  if (odometer !== undefined && odometer !== null && !isNonNegativeFiniteNumber(odometer)) {
+  if (odometer !== undefined && odometer !== null && !isReasonableVehicleMileage(odometer)) {
     invalid.push("odometer");
   }
   if (scraped.sourceUrl !== undefined && scraped.sourceUrl !== null && !isHttpUrl(scraped.sourceUrl)) {
@@ -167,6 +170,14 @@ function isPositiveFiniteNumber(value: unknown): value is number {
 
 function isNonNegativeFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+function isReasonableVehiclePrice(value: unknown): value is number {
+  return isPositiveFiniteNumber(value) && value <= MAX_REASONABLE_VEHICLE_PRICE;
+}
+
+function isReasonableVehicleMileage(value: unknown): value is number {
+  return isNonNegativeFiniteNumber(value) && value <= MAX_REASONABLE_VEHICLE_MILEAGE;
 }
 
 function isValidModelYear(value: unknown): value is number {
@@ -398,8 +409,8 @@ export async function mergeDuplicates(
   // Merge: use most recent data for each field
   const merged: Record<string, unknown> = {};
   for (const v of toRemove) {
-    if (isPositiveFiniteNumber(v.price) && v.price !== keeper.price) merged.price = v.price;
-    if (isNonNegativeFiniteNumber(v.odometer) && v.odometer !== keeper.odometer) merged.odometer = v.odometer;
+    if (isReasonableVehiclePrice(v.price) && v.price !== keeper.price) merged.price = v.price;
+    if (isReasonableVehicleMileage(v.odometer) && v.odometer !== keeper.odometer) merged.odometer = v.odometer;
     const duplicateImages = sanitizeScrapedImageUrls((v.images as string[]) || (v.photos as string[]) || []);
     if (duplicateImages.length > 0) {
       const existingImages = ((keeper.images as string[]) || (keeper.photos as string[]) || []);

@@ -169,6 +169,33 @@ describe("vehicle dedup VIN storage guard", () => {
     expect(storageMock.updateVehicle).not.toHaveBeenCalled();
   });
 
+  it("does not create active inventory records from unrealistic source facts", async () => {
+    const result = await vehicleDedup.deduplicateAndStore(7, {
+      vin: VALID_VIN,
+      price: 1_000_001,
+      year: 2003,
+      make: "Honda",
+      model: "Accord",
+      mileage: 1_500_001,
+    });
+
+    expect(result).toMatchObject({
+      inserted: 0,
+      merged: 0,
+      skipped: 1,
+      errors: 0,
+      details: [
+        {
+          vin: VALID_VIN,
+          action: "skip",
+          reason: "INVALID_SOURCE_FACTS:price,odometer",
+        },
+      ],
+    });
+    expect(storageMock.createVehicle).not.toHaveBeenCalled();
+    expect(storageMock.updateVehicle).not.toHaveBeenCalled();
+  });
+
   it("does not create active inventory records from invalid source URLs", async () => {
     const result = await vehicleDedup.deduplicateAndStore(7, {
       vin: VALID_VIN,
@@ -390,6 +417,44 @@ describe("vehicle dedup VIN storage guard", () => {
       vin: VALID_VIN,
       price: -1,
       mileage: -10,
+      photos: ["https://cdn.example.com/new.jpg"],
+      status: "available",
+    });
+
+    expect(result).toMatchObject({
+      inserted: 0,
+      merged: 0,
+      skipped: 1,
+      errors: 0,
+      details: [
+        {
+          vin: VALID_VIN,
+          action: "skip",
+          reason: "INVALID_SOURCE_FACTS:price,odometer",
+        },
+      ],
+    });
+    expect(storageMock.updateVehicle).not.toHaveBeenCalled();
+    expect(storageMock.createVehicle).not.toHaveBeenCalled();
+  });
+
+  it("does not merge unrealistic source facts into existing inventory", async () => {
+    storageMock.getVehiclesByDealership.mockResolvedValue([
+      {
+        id: 42,
+        vin: VALID_VIN,
+        price: 21000,
+        odometer: 90000,
+        status: "available",
+        photos: [],
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      },
+    ]);
+
+    const result = await vehicleDedup.deduplicateAndStore(7, {
+      vin: VALID_VIN,
+      price: 1_000_001,
+      mileage: 1_500_001,
       photos: ["https://cdn.example.com/new.jpg"],
       status: "available",
     });
@@ -838,6 +903,43 @@ describe("vehicle dedup VIN storage guard", () => {
         vin: VALID_VIN,
         price: -1,
         odometer: -10,
+        images: ["https://cdn.example.com/new.jpg"],
+        createdAt: new Date("2026-02-01T00:00:00.000Z"),
+      },
+    ]);
+
+    const result = await vehicleDedup.mergeDuplicates(7, VALID_VIN, [42, 43]);
+
+    expect(result).toMatchObject({
+      success: true,
+      keptId: 42,
+      removedIds: [43],
+    });
+    expect(storageMock.updateVehicle).toHaveBeenCalledWith(
+      42,
+      {
+        images: ["https://cdn.example.com/keeper.jpg", "https://cdn.example.com/new.jpg"],
+      },
+      7
+    );
+    expect(storageMock.deleteVehicle).toHaveBeenCalledWith(43, 7);
+  });
+
+  it("does not promote unrealistic duplicate facts into the kept inventory record", async () => {
+    storageMock.getVehiclesByDealership.mockResolvedValue([
+      {
+        id: 42,
+        vin: VALID_VIN,
+        price: 21000,
+        odometer: 90000,
+        images: ["https://cdn.example.com/keeper.jpg"],
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      },
+      {
+        id: 43,
+        vin: VALID_VIN,
+        price: 1_000_001,
+        odometer: 1_500_001,
         images: ["https://cdn.example.com/new.jpg"],
         createdAt: new Date("2026-02-01T00:00:00.000Z"),
       },
