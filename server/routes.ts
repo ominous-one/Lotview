@@ -594,6 +594,16 @@ function requireMarketplaceVehicleIdParam(req: Request, res: Response): number |
   return vehicleId;
 }
 
+function requireVehicleIdPathParam(req: Request, res: Response, paramName = "vehicleId"): number | null {
+  const vehicleId = parsePositiveIntegerId(req.params[paramName]);
+  if (!vehicleId) {
+    res.status(400).json({ error: "Vehicle id must be a positive integer" });
+    return null;
+  }
+
+  return vehicleId;
+}
+
 function parseNonNegativeIntegerValue(value: unknown): number | null {
   if (typeof value === 'number') {
     return Number.isSafeInteger(value) && value >= 0 ? value : null;
@@ -668,6 +678,20 @@ function parseOptionalNonNegativeIntegerQueryParam(value: unknown, res: Response
   }
 
   return parsed;
+}
+
+function parseOptionalCreditScoreQueryParam(value: unknown, res: Response): number | null | undefined {
+  const creditScore = parseOptionalPositiveIntegerQueryParam(value, res, "creditScore");
+  if (creditScore === null || creditScore === undefined) {
+    return creditScore;
+  }
+
+  if (creditScore < 300 || creditScore > 850) {
+    res.status(400).json({ error: "creditScore must be an integer between 300 and 850" });
+    return null;
+  }
+
+  return creditScore;
 }
 
 async function validateTenantIdentityAvailability(options: {
@@ -5500,8 +5524,10 @@ Provide a single, concise, friendly message that continues the conversation natu
   app.get("/api/ai/payments/:vehicleId", authMiddleware, requirePermission("ai.use"), requireDealership, async (req, res) => {
     try {
       const dealershipId = req.dealershipId!;
-      const vehicleId = parseInt(req.params.vehicleId);
-      const creditScore = req.query.creditScore ? parseInt(req.query.creditScore as string) : undefined;
+      const vehicleId = requireVehicleIdPathParam(req, res);
+      if (!vehicleId) return;
+      const creditScore = parseOptionalCreditScoreQueryParam(req.query.creditScore, res);
+      if (creditScore === null) return;
 
       const vehicle = await storage.getVehicleById(vehicleId, dealershipId);
       if (!vehicle) {
