@@ -626,6 +626,8 @@ describe("vehicle route tenant contracts", () => {
   it("trims and scopes valid modular VDP content updates", async () => {
     storageMock.updateVehicle.mockResolvedValue({ id: 42, description: "Fresh service completed" });
 
+    const beforeRequest = Date.now();
+
     await request(appWithDealerOne)
       .patch("/api/vehicles/42/vdp-content")
       .set("x-test-role", "dealer_manager")
@@ -636,10 +638,15 @@ describe("vehicle route tenant contracts", () => {
       .expect(200)
       .expect({ id: 42, description: "Fresh service completed" });
 
-    expect(storageMock.updateVehicle).toHaveBeenCalledWith(42, {
+    expect(storageMock.updateVehicle).toHaveBeenCalledWith(42, expect.objectContaining({
       description: "Fresh service completed",
       videoProvider: "walkaround",
-    }, 1);
+      isManuallyEdited: true,
+      lastEditedBy: 10,
+      lastEditedAt: expect.any(Date),
+    }), 1);
+    const update = storageMock.updateVehicle.mock.calls[0][1] as { lastEditedAt: Date };
+    expect(update.lastEditedAt.getTime()).toBeGreaterThanOrEqual(beforeRequest);
   });
 
   it("does not let smart merge request bodies rewrite tenant or system fields", async () => {
