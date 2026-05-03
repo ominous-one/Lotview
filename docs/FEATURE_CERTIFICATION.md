@@ -78,6 +78,8 @@ Additional partial proof: generic vehicle create/update schemas now also strip c
 
 Additional partial proof: modular public Carfax report and summary routes now have route-level tests proving malformed IDs stop before storage, wrong-tenant vehicle misses do not read Carfax report storage, and successful report reads pass the resolved dealership context into both vehicle and report lookups.
 
+Additional partial proof: public conversation saves now strictly parse optional body `vehicleId`, verify linked vehicles through `storage.getVehicleById(parsedVehicleId, dealershipId)`, refuse missing or wrong-tenant vehicle links before saving, and derive linked vehicle names from the scoped inventory record instead of trusting public request text.
+
 ## Feature Certification Matrix
 
 | Feature | Status | CI Proof | Tests | Staging Proof | Logs/Monitoring | Real User Flow | Owner | Notes |
