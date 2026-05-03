@@ -3,6 +3,9 @@ import { resolve } from "path";
 
 describe("AI runtime route RBAC and tenant contract", () => {
   const routesSource = readFileSync(resolve(process.cwd(), "server/routes.ts"), "utf8");
+  const aiPaymentsBlock = routesSource.match(
+    /\/\/ AI Payment Calculator - Calculate payment options for a vehicle[\s\S]*?\/\/ Save conversation \(public - conversations are saved automatically\)/
+  )?.[0];
 
   it("requires dealership context for public chat generation", () => {
     expect(routesSource).toContain('app.post("/api/chat", requireDealership');
@@ -36,5 +39,16 @@ describe("AI runtime route RBAC and tenant contract", () => {
     expect(routesSource).toContain(
       'app.post("/api/ai-settings/test", authMiddleware, requirePermission("ai.configure"), requireRole("manager", "admin", "master", "super_admin"), requireDealership'
     );
+  });
+
+  it("fails closed on malformed AI payment vehicle and credit score parameters", () => {
+    expect(aiPaymentsBlock).toBeDefined();
+    expect(routesSource).toContain("function requireVehicleIdPathParam(req: Request, res: Response, paramName = \"vehicleId\"): number | null");
+    expect(routesSource).toContain("function parseOptionalCreditScoreQueryParam(value: unknown, res: Response): number | null | undefined");
+    expect(routesSource).toContain("creditScore must be an integer between 300 and 850");
+    expect(aiPaymentsBlock).toContain("const vehicleId = requireVehicleIdPathParam(req, res)");
+    expect(aiPaymentsBlock).toContain("const creditScore = parseOptionalCreditScoreQueryParam(req.query.creditScore, res)");
+    expect(aiPaymentsBlock).not.toContain("const vehicleId = parseInt(req.params.vehicleId)");
+    expect(aiPaymentsBlock).not.toContain("parseInt(req.query.creditScore as string)");
   });
 });
