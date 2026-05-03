@@ -100,6 +100,8 @@ Additional partial proof: super-admin vehicle image upload now strictly parses b
 
 Additional partial proof: deprecated legacy Facebook page priority vehicle writes now strictly parse every `vehicleIds[]` element and require `storage.getVehicleById(parsedVehicleId, dealershipId)` before saving page priority rows.
 
+Additional partial proof: remarketing add-vehicle writes now strictly parse body `vehicleId`, require `storage.getVehicleById(parsedVehicleId, dealershipId)`, compare duplicates against the parsed ID, and write only the parsed scoped ID to remarketing rows.
+
 ## Feature Certification Matrix
 
 | Feature | Status | CI Proof | Tests | Staging Proof | Logs/Monitoring | Real User Flow | Owner | Notes |

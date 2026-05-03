@@ -11170,18 +11170,24 @@ Format your response in clear sections with actionable recommendations.`;
       if (!vehicleId || budgetPriority === undefined) {
         return res.status(400).json({ error: "vehicleId and budgetPriority are required" });
       }
+
+      const parsedVehicleId = parseOptionalPositiveIntegerBodyValue(vehicleId, res, "vehicleId");
+      if (parsedVehicleId === undefined) {
+        return res.status(400).json({ error: "vehicleId and budgetPriority are required" });
+      }
+      if (parsedVehicleId === null) return;
       
       const dealershipId = req.dealershipId!;
       
       // Check if vehicle exists
-      const existingVehicle = await storage.getVehicleById(vehicleId, dealershipId);
+      const existingVehicle = await storage.getVehicleById(parsedVehicleId, dealershipId);
       if (!existingVehicle) {
         return res.status(404).json({ error: "Vehicle not found" });
       }
       
       // Check if vehicle is already in remarketing
       const remarketingVehicles = await storage.getRemarketingVehicles(dealershipId);
-      if (remarketingVehicles.some(rv => rv.vehicleId === vehicleId)) {
+      if (remarketingVehicles.some(rv => rv.vehicleId === parsedVehicleId)) {
         return res.status(400).json({ error: "Vehicle is already in remarketing" });
       }
       
@@ -11191,7 +11197,7 @@ Format your response in clear sections with actionable recommendations.`;
         return res.status(400).json({ error: "Maximum 20 vehicles allowed for remarketing" });
       }
       
-      const vehicle = await storage.addRemarketingVehicle({ dealershipId, vehicleId, budgetPriority, isActive: true });
+      const vehicle = await storage.addRemarketingVehicle({ dealershipId, vehicleId: parsedVehicleId, budgetPriority, isActive: true });
       res.json(vehicle);
     } catch (error) {
       logError('Error adding remarketing vehicle:', error instanceof Error ? error : new Error(String(error)), { route: 'api-remarketing-vehicles' });
