@@ -24,6 +24,8 @@ const VALIDATION_RULES = {
   identityFields: ["vin", "year", "make", "model"] as const,
   requiredFields: ["vin", "price", "year", "make", "model"] as const,
 };
+const MAX_REASONABLE_VEHICLE_PRICE = 1_000_000;
+const MAX_REASONABLE_VEHICLE_MILEAGE = 1_500_000;
 
 // ---- Types ----
 
@@ -198,13 +200,13 @@ export async function validateScrape(
       }
     }
 
-    if (v.price !== undefined && v.price !== null && !isPositiveFiniteNumber(v.price)) {
+    if (v.price !== undefined && v.price !== null && !isReasonableVehiclePrice(v.price)) {
       invalidPriceFields.push({ vin: v.vin || "(unknown)", price: v.price });
     }
-    if (v.mileage !== undefined && v.mileage !== null && !isNonNegativeFiniteNumber(v.mileage)) {
+    if (v.mileage !== undefined && v.mileage !== null && !isReasonableVehicleMileage(v.mileage)) {
       invalidMileageFields.push({ vin: v.vin || "(unknown)", field: "mileage", value: v.mileage });
     }
-    if (v.odometer !== undefined && v.odometer !== null && !isNonNegativeFiniteNumber(v.odometer)) {
+    if (v.odometer !== undefined && v.odometer !== null && !isReasonableVehicleMileage(v.odometer)) {
       invalidMileageFields.push({ vin: v.vin || "(unknown)", field: "odometer", value: v.odometer });
     }
     const yearValue = v.year as unknown;
@@ -283,11 +285,11 @@ export async function validateScrape(
   }
 
   // 7. Price variance check
-  const prices = vehicles.map((v) => v.price).filter(isPositiveFiniteNumber);
+  const prices = vehicles.map((v) => v.price).filter(isReasonableVehiclePrice);
   const medianPrice = prices.length > 0 ? median(prices) : null;
   const previousPrices = previousInventory
     .map((v) => v.price)
-    .filter(isPositiveFiniteNumber);
+    .filter(isReasonableVehiclePrice);
   const previousMedianPrice = previousPrices.length > 0 ? median(previousPrices) : null;
   let priceVariance: number | null = null;
   if (medianPrice && previousMedianPrice && previousMedianPrice > 0) {
@@ -366,6 +368,14 @@ function isPositiveFiniteNumber(value: unknown): value is number {
 
 function isNonNegativeFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+function isReasonableVehiclePrice(value: unknown): value is number {
+  return isPositiveFiniteNumber(value) && value <= MAX_REASONABLE_VEHICLE_PRICE;
+}
+
+function isReasonableVehicleMileage(value: unknown): value is number {
+  return isNonNegativeFiniteNumber(value) && value <= MAX_REASONABLE_VEHICLE_MILEAGE;
 }
 
 function isValidModelYear(value: unknown): value is number {
