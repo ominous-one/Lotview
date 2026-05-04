@@ -4,60 +4,74 @@ import {
   CalendarCheck,
   Check,
   ClipboardCheck,
-  Gauge,
-  Inbox,
   MessageSquare,
+  RefreshCw,
   ShieldCheck,
-  Sparkles,
   Truck,
-  Zap,
 } from "lucide-react";
 
 const appUrl = "https://app.lotview.ai";
 const demoUrl = "mailto:charlie@lotview.ai?subject=Lotview%20demo%20request";
 
-const capabilities = [
+const inventoryVisual = new URL("../../attached_assets/image_1765329726512.png", import.meta.url).href;
+const conversationsVisual = new URL("../../attached_assets/image_1765389083903.png", import.meta.url).href;
+
+const operatingNotes = [
   {
-    icon: Truck,
-    title: "Inventory stays current",
-    text: "Scrape, normalize, and review listings before they become customer-facing inventory.",
+    label: "Inventory",
+    text: "Photos, prices, payment cues, and readiness stay visible before a shopper finds the mismatch.",
   },
   {
-    icon: MessageSquare,
-    title: "Leads get immediate context",
-    text: "Route conversations with the right vehicle, customer intent, and next action already attached.",
+    label: "Leads",
+    text: "Every reply keeps the vehicle, shopper intent, and appointment ask in the same view.",
   },
   {
-    icon: CalendarCheck,
-    title: "Appointments are the goal",
-    text: "Keep sales teams focused on booked visits, follow-ups, and the highest-value work.",
-  },
-  {
-    icon: ShieldCheck,
-    title: "Tenant-safe by design",
-    text: "Dealership boundaries, permissions, and production proof are treated as launch requirements.",
+    label: "Management",
+    text: "The floor sees what is live, what is blocked, and what needs a decision today.",
   },
 ];
 
-const proofPoints = ["Live inventory checks", "CRM workflow controls", "Marketplace queue review", "Readiness monitoring"];
+const dealershipMoments = [
+  {
+    time: "8:10 AM",
+    title: "The car is online, but the facts changed",
+    text: "Photos, prices, source facts, and marketplace posts change all day. Lotview gives managers a place to catch the mismatch before a shopper does.",
+  },
+  {
+    time: "11:42 AM",
+    title: "The buyer asked after your team got busy",
+    text: "Every inquiry needs vehicle context, payment awareness, and a clear appointment ask. Lotview keeps the response grounded in the car the shopper actually wants.",
+  },
+  {
+    time: "4:05 PM",
+    title: "Nobody is sure what is actually live",
+    text: "A workflow is not ready because it looks finished. Lotview keeps readiness, blockers, and operating proof visible before managers trust it with customers.",
+  },
+];
 
-const launchPlans = [
+const workflow = [
   {
-    name: "Inventory OS",
-    fit: "For dealers that need one trusted place to review inventory, source proof, and publishing blockers.",
-    features: ["Inventory certification", "Vehicle readiness queues", "Source-truth reporting", "Manager review workflow"],
+    icon: RefreshCw,
+    title: "Inventory desk",
+    text: "Review source truth, photos, pricing, payment framing, and vehicle readiness from one operating view.",
   },
   {
-    name: "Growth Automation",
-    fit: "For teams ready to connect lead response, Marketplace workflows, and appointment-focused follow-up.",
-    features: ["AI-assisted lead response", "Appointment follow-up queues", "Marketplace review controls", "CRM workflow alignment"],
-    featured: true,
+    icon: MessageSquare,
+    title: "Response desk",
+    text: "Draft replies from the exact vehicle record and keep the conversation pointed at a next appointment.",
   },
   {
-    name: "Dealer Group",
-    fit: "For multi-location operators that need tenant boundaries, role-aware access, and rollout proof.",
-    features: ["Multi-store configuration", "Role and permission model", "Launch readiness evidence", "Operator reporting"],
+    icon: ShieldCheck,
+    title: "Operator control",
+    text: "Keep dealership boundaries, roles, and launch evidence inside the work managers already review.",
   },
+];
+
+const launchChecklist = [
+  "Public sales page on lotview.ai",
+  "Private dealer app on app.lotview.ai",
+  "Inventory and CRM workflows connected",
+  "Manager handoff built around real floor use",
 ];
 
 function MarketingNav() {
@@ -68,9 +82,9 @@ function MarketingNav() {
         <span>Lotview</span>
       </a>
       <nav aria-label="Marketing navigation">
+        <a href="#why">Why</a>
         <a href="#platform">Platform</a>
         <a href="#workflow">Workflow</a>
-        <a href="#offer">Offer</a>
         <a href="#launch">Launch</a>
       </nav>
       <div className="marketing-nav-actions">
@@ -86,74 +100,6 @@ function MarketingNav() {
   );
 }
 
-function HeroScene() {
-  return (
-    <div className="hero-scene" aria-hidden="true">
-      <div className="scene-toolbar">
-        <span />
-        <span />
-        <span />
-        <strong>dealership.lotview.ai</strong>
-      </div>
-      <div className="scene-grid">
-        <div className="scene-panel scene-inventory">
-          <div className="scene-panel-heading">
-            <Truck size={16} />
-            <span>Inventory command</span>
-          </div>
-          <div className="vehicle-preview">
-            <div className="vehicle-photo">
-              <span>2024 SUV</span>
-            </div>
-            <div>
-              <strong>Fresh arrival</strong>
-              <span>Photos, VIN, price, and source proof ready for review.</span>
-            </div>
-          </div>
-          <div className="scene-metrics">
-            <div>
-              <span>Active</span>
-              <strong>128</strong>
-            </div>
-            <div>
-              <span>Review</span>
-              <strong>12</strong>
-            </div>
-            <div>
-              <span>Blocked</span>
-              <strong>3</strong>
-            </div>
-          </div>
-        </div>
-        <div className="scene-panel scene-leads">
-          <div className="scene-panel-heading">
-            <Inbox size={16} />
-            <span>Lead response</span>
-          </div>
-          <div className="lead-thread">
-            <p>Customer asked about payments and availability.</p>
-            <p>AI draft prepared with the selected vehicle and appointment ask.</p>
-          </div>
-        </div>
-        <div className="scene-panel scene-proof">
-          <div className="scene-panel-heading">
-            <Gauge size={16} />
-            <span>Launch proof</span>
-          </div>
-          <ul>
-            {proofPoints.map((point) => (
-              <li key={point}>
-                <Check size={14} />
-                {point}
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function MarketingHome() {
   return (
     <div className="marketing-page">
@@ -161,107 +107,121 @@ export function MarketingHome() {
 
       <main>
         <section className="marketing-hero">
-          <HeroScene />
-          <div className="hero-copy">
-            <span className="hero-kicker">
-              <Sparkles size={16} />
-              Used car dominance, automated
-            </span>
-            <h1>Lotview</h1>
-            <p>
-              The AI dealership operating system that keeps inventory clean, answers shoppers with context, and turns
-              every qualified lead toward a booked appointment.
-            </p>
-            <div className="hero-actions">
-              <a className="marketing-primary-button marketing-primary-button-large" href={demoUrl}>
-                Request demo
-                <ArrowRight size={18} />
-              </a>
-              <a className="marketing-secondary-button" href={appUrl}>
-                Open app
-              </a>
+          <div className="hero-layout">
+            <div className="hero-copy">
+              <span className="hero-kicker">
+                <Truck size={16} />
+                Used inventory operations platform
+              </span>
+              <h1>Lotview</h1>
+              <p className="hero-statement">Turn live inventory into cleaner replies and better appointments.</p>
+              <p className="hero-body">
+                Lotview gives used-car teams one operating view for inventory readiness, buyer follow-up, and manager
+                handoff, so the public site sells while the private app keeps the floor aligned.
+              </p>
+              <div className="hero-actions">
+                <a className="marketing-primary-button marketing-primary-button-large" href={demoUrl}>
+                  Request demo
+                  <ArrowRight size={18} />
+                </a>
+                <a className="marketing-secondary-button" href={appUrl}>
+                  Open app
+                </a>
+              </div>
+              <div className="hero-proof-line" aria-label="Lotview operating proof">
+                <span>
+                  <strong>Public pages</strong>
+                  <em>Vehicle cards with payment context and appointment CTAs.</em>
+                </span>
+                <span>
+                  <strong>Private workflow</strong>
+                  <em>Inventory review, lead response, and follow-up in one place.</em>
+                </span>
+                <span>
+                  <strong>Manager proof</strong>
+                  <em>Launch status, blockers, and customer-facing readiness.</em>
+                </span>
+              </div>
             </div>
-            <dl className="hero-proof">
-              <div>
-                <dt>24/7</dt>
-                <dd>Lead coverage</dd>
-              </div>
-              <div>
-                <dt>1</dt>
-                <dd>Inventory source of truth</dd>
-              </div>
-              <div>
-                <dt>Live</dt>
-                <dd>Readiness monitoring</dd>
-              </div>
-            </dl>
-          </div>
-        </section>
 
-        <section className="marketing-section platform-section" id="platform">
-          <div className="section-heading">
-            <span>Platform</span>
-            <h2>Everything between inventory and the appointment, organized in one place.</h2>
+            <figure className="hero-media">
+              <div className="hero-image-frame">
+                <img src={inventoryVisual} alt="Lotview dealership inventory storefront with vehicle cards and appointment actions" />
+              </div>
+              <figcaption>
+                <strong>What buyers see before they call.</strong>
+                <span>Inventory pages with payment cues, vehicle proof, and appointment CTAs.</span>
+              </figcaption>
+            </figure>
           </div>
-          <div className="capability-grid">
-            {capabilities.map(({ icon: Icon, title, text }) => (
-              <article className="capability-card" key={title}>
-                <Icon size={22} />
-                <h3>{title}</h3>
-                <p>{text}</p>
+
+          <div className="operating-strip" aria-label="How Lotview helps dealership teams">
+            {operatingNotes.map((note) => (
+              <article key={note.label}>
+                <span>{note.label}</span>
+                <p>{note.text}</p>
               </article>
             ))}
           </div>
         </section>
 
-        <section className="workflow-band" id="workflow">
-          <div className="workflow-copy">
-            <span>Workflow</span>
-            <h2>From source data to sales action without the daily spreadsheet chase.</h2>
-            <p>
-              Lotview connects operational proof, sales follow-up, and inventory readiness so managers can see what is
-              ready, what is blocked, and what needs a human decision.
-            </p>
+        <section className="marketing-section dealership-day-section" id="why">
+          <div className="section-heading section-heading-wide">
+            <span>Where deals leak</span>
+            <h2>A used-car shopper does not care which system dropped the handoff.</h2>
           </div>
-          <div className="workflow-steps">
-            <article>
-              <ClipboardCheck size={21} />
-              <strong>1. Certify inventory</strong>
-              <span>Review source facts, photo readiness, pricing, and tenant ownership before publishing.</span>
-            </article>
-            <article>
-              <Zap size={21} />
-              <strong>2. Activate follow-up</strong>
-              <span>Give sales teams a focused queue for responses, appointments, and campaign timing.</span>
-            </article>
-            <article>
-              <BarChart3 size={21} />
-              <strong>3. Manage proof</strong>
-              <span>Track readiness, blockers, and launch checks before calling a feature production-ready.</span>
-            </article>
+          <div className="dealership-day-list">
+            {dealershipMoments.map(({ time, title, text }) => (
+              <article className="day-row" key={title}>
+                <span>{time}</span>
+                <div>
+                  <h3>{title}</h3>
+                  <p>{text}</p>
+                </div>
+              </article>
+            ))}
           </div>
         </section>
 
-        <section className="offer-section" id="offer">
-          <div className="section-heading">
-            <span>Offer</span>
-            <h2>Built around the dealership workflows that create real sales lift.</h2>
+        <section className="product-proof-band" id="platform">
+          <div className="product-visual">
+            <img src={conversationsVisual} alt="Lotview conversation workspace with AI assistant suggested reply" />
           </div>
-          <div className="offer-grid">
-            {launchPlans.map((plan) => (
-              <article className={plan.featured ? "offer-card offer-card-featured" : "offer-card"} key={plan.name}>
-                <div>
-                  <h3>{plan.name}</h3>
-                  <p>{plan.fit}</p>
-                </div>
-                <ul>
-                  {plan.features.map((feature) => (
-                    <li key={feature}>
-                      <Check size={15} />
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
+          <div className="product-copy">
+            <span>Platform</span>
+            <h2>The manager workspace behind every public promise.</h2>
+            <p>
+              The app is built around the manager's day: check what inventory can be trusted, see exactly what the
+              shopper asked for, and move the team toward the next appointment while the details are still fresh.
+            </p>
+            <div className="product-proof-list">
+              <div>
+                <ClipboardCheck size={20} />
+                <strong>Fix the record before a customer sees it.</strong>
+              </div>
+              <div>
+                <CalendarCheck size={20} />
+                <strong>Keep the appointment ask attached to the reply.</strong>
+              </div>
+              <div>
+                <BarChart3 size={20} />
+                <strong>Keep launch evidence tied to the live domains.</strong>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="workflow-section" id="workflow">
+          <div className="section-heading section-heading-wide">
+            <span>Workflow</span>
+            <h2>Designed for the rhythm of a dealership floor.</h2>
+          </div>
+          <div className="workflow-grid">
+            {workflow.map(({ icon: Icon, title, text }) => (
+              <article className="workflow-card" key={title}>
+                <Icon size={22} />
+                <h3>{title}</h3>
+                <p>{text}</p>
               </article>
             ))}
           </div>
@@ -271,12 +231,20 @@ export function MarketingHome() {
           <div className="launch-panel">
             <div>
               <span>Launch</span>
-              <h2>Ready for a serious dealership workflow, not a demo shell.</h2>
+              <h2>Public sales page in front. Private operating app behind it.</h2>
               <p>
-                We help configure the app, connect inventory and CRM workflows, and keep launch evidence visible so your
-                team knows what is live.
+                The marketing site should make the offer obvious. The app should stay focused on authenticated
+                dealership work, clean inventory, and the next appointment.
               </p>
             </div>
+            <ul className="launch-checklist">
+              {launchChecklist.map((item) => (
+                <li key={item}>
+                  <Check size={15} />
+                  {item}
+                </li>
+              ))}
+            </ul>
             <a className="marketing-primary-button marketing-primary-button-large" href={demoUrl}>
               Talk to Lotview
               <ArrowRight size={18} />
@@ -291,11 +259,11 @@ export function MarketingHome() {
             <span className="brand-mark">LV</span>
             <span>Lotview</span>
           </a>
-          <p>AI dealership operations for inventory, lead response, and appointment workflows.</p>
+          <p>Used inventory, lead response, and appointment workflows for dealership teams.</p>
         </div>
         <div className="marketing-footer-links">
+          <a href="#why">Why</a>
           <a href="#platform">Platform</a>
-          <a href="#workflow">Workflow</a>
           <a href={appUrl}>Sign in</a>
           <a href={demoUrl}>Request demo</a>
         </div>
