@@ -1,14 +1,11 @@
-if (process.env.NODE_ENV !== 'production') {
-  try {
-    await import('dotenv/config');
-  } catch {
-    // Ignore missing dotenv in bundled/runtime environments.
-  }
-}
-
 import { Pool } from 'pg';
+import dotenv from 'dotenv';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from "../shared/schema.ts";
+
+if (process.env.NODE_ENV !== 'production') {
+  dotenv.config();
+}
 
 // Use Replit's built-in database environment variables
 const dbConfig = process.env.DATABASE_URL
