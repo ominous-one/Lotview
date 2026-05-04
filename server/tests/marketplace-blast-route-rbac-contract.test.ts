@@ -102,4 +102,18 @@ describe("legacy Marketplace Blast route RBAC and tenant contract", () => {
       expect(marketplaceBlastBlock).not.toContain(unsafeParse);
     }
   });
+
+  it("strictly parses bulk generation vehicle ids before AI generation or inventory updates", () => {
+    expect(marketplaceBlastBlock).toBeDefined();
+
+    expect(marketplaceBlastBlock).toContain("const limitedIds = vehicleIds.slice(0, 20);");
+    expect(marketplaceBlastBlock).toContain("const parsedVehicleIds: number[] = [];");
+    expect(marketplaceBlastBlock).toContain("const parsedVehicleId = parsePositiveIntegerId(rawVehicleId);");
+    expect(marketplaceBlastBlock).toContain('return res.status(400).json({ error: "vehicleIds must contain only positive integers", index });');
+    expect(marketplaceBlastBlock).toContain("parsedVehicleIds.push(parsedVehicleId);");
+    expect(marketplaceBlastBlock).toContain("for (const vehicleId of parsedVehicleIds)");
+    expect(marketplaceBlastBlock).toContain("storage.getVehicleById(vehicleId, dealershipId)");
+    expect(marketplaceBlastBlock).toContain("storage.updateVehicle(vehicleId, {");
+    expect(marketplaceBlastBlock).not.toContain("for (const vehicleId of limitedIds)");
+  });
 });

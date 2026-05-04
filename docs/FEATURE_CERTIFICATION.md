@@ -102,6 +102,8 @@ Additional partial proof: deprecated legacy Facebook page priority vehicle write
 
 Additional partial proof: remarketing add-vehicle writes now strictly parse body `vehicleId`, require `storage.getVehicleById(parsedVehicleId, dealershipId)`, compare duplicates against the parsed ID, and write only the parsed scoped ID to remarketing rows.
 
+Additional partial proof: Marketplace Blast bulk AI generation now parses every limited `vehicleIds[]` entry before generation, rejects malformed IDs with the failing index, and uses only parsed IDs for scoped vehicle reads and inventory template updates.
+
 ## Feature Certification Matrix
 
 | Feature | Status | CI Proof | Tests | Staging Proof | Logs/Monitoring | Real User Flow | Owner | Notes |
