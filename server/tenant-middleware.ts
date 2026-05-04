@@ -25,6 +25,7 @@ const JWT_SECRET = JWT_SECRET_ENV || "olympic-auto-jwt-dev-secret-DO-NOT-USE-IN-
 
 // Tenant resolution sources for tracking and debugging
 type TenantResolutionSource = 'jwt' | 'hostname' | 'subdomain' | 'header' | 'default' | 'none';
+const SYSTEM_SUBDOMAINS = new Set(['app', 'www']);
 
 // Extend Express Request type to include dealership context and user
 declare module "express-serve-static-core" {
@@ -109,7 +110,7 @@ function extractDealershipFromSubdomain(hostname: string): string | null {
   const parts = host.split('.');
   
   // If we have at least 3 parts (subdomain.domain.tld), extract subdomain
-  if (parts.length >= 3 && parts[0] !== 'www') {
+  if (parts.length >= 3 && !SYSTEM_SUBDOMAINS.has(parts[0].toLowerCase())) {
     return parts[0];
   }
   

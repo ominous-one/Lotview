@@ -92,6 +92,25 @@ describe("tenant context boundary", () => {
     expect(res.status).not.toHaveBeenCalled();
   });
 
+  it("treats app.lotview.ai as a system host instead of a dealership subdomain", async () => {
+    const storage = createStorageMock();
+    const req = createRequest({
+      hostname: "app.lotview.ai",
+      headers: { accept: "text/html" },
+    });
+    const res = createResponse();
+    const next = jest.fn() as NextFunction;
+
+    await tenantMiddleware(storage)(req, res, next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(req.dealershipId).toBeUndefined();
+    expect(req.tenantSource).toBeUndefined();
+    expect(storage.getDealershipByHostname).toHaveBeenCalledWith("app.lotview.ai");
+    expect(storage.getDealershipBySubdomain).not.toHaveBeenCalled();
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
   it("keeps regular users pinned to their JWT dealership when a different header is supplied", async () => {
     const storage = createStorageMock();
     const token = signTenantToken({
