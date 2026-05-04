@@ -43,6 +43,20 @@ services:
         generateValue: true
       - key: SESSION_SECRET
         generateValue: true
+      - key: EXTENSION_HMAC_SECRET
+        generateValue: true
+      - key: GHL_WEBHOOK_SECRET
+        generateValue: true
+      - key: ENCRYPTION_KEY
+        generateValue: true
+      - key: APP_URL
+        value: https://app.lotview.ai
+      - key: PUBLIC_APP_URL
+        value: https://app.lotview.ai
+      - key: PUBLIC_API_URL
+        value: https://app.lotview.ai
+      - key: SYSTEM_BASE_DOMAIN
+        value: lotview.ai
       - key: LOTVIEW_ENABLE_SCHEDULERS
         value: "false"
       - key: LOTVIEW_SCHEDULER_PROCESS
@@ -99,6 +113,29 @@ services:
           type: web
           name: lotview-api
           envVarKey: SESSION_SECRET
+      - key: EXTENSION_HMAC_SECRET
+        fromService:
+          type: web
+          name: lotview-api
+          envVarKey: EXTENSION_HMAC_SECRET
+      - key: GHL_WEBHOOK_SECRET
+        fromService:
+          type: web
+          name: lotview-api
+          envVarKey: GHL_WEBHOOK_SECRET
+      - key: ENCRYPTION_KEY
+        fromService:
+          type: web
+          name: lotview-api
+          envVarKey: ENCRYPTION_KEY
+      - key: APP_URL
+        value: https://app.lotview.ai
+      - key: PUBLIC_APP_URL
+        value: https://app.lotview.ai
+      - key: PUBLIC_API_URL
+        value: https://app.lotview.ai
+      - key: SYSTEM_BASE_DOMAIN
+        value: lotview.ai
       - key: LOTVIEW_ENABLE_SCHEDULERS
         value: "true"
       - key: LOTVIEW_SCHEDULER_PROCESS
