@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { shouldRenderMarketingSite } from "./routing";
 
 type MockResponse = {
   body: Record<string, unknown>;
@@ -91,6 +92,14 @@ afterEach(() => {
 });
 
 describe("Lotview frontend operations workflow", () => {
+  it("routes apex and www hosts to marketing while keeping app hosts on operations", () => {
+    expect(shouldRenderMarketingSite("lotview.ai")).toBe(true);
+    expect(shouldRenderMarketingSite("www.lotview.ai")).toBe(true);
+    expect(shouldRenderMarketingSite("app.lotview.ai")).toBe(false);
+    expect(shouldRenderMarketingSite("lotview.onrender.com")).toBe(false);
+    expect(shouldRenderMarketingSite("localhost", "?site=marketing")).toBe(true);
+  });
+
   it("fetches backend health, readiness, and tenant-scoped inventory before rendering live rows", async () => {
     window.sessionStorage.setItem("lotview.auth.token", "existing-session-token");
     const fetchMock = mockFetchSequence([

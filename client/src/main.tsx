@@ -23,6 +23,8 @@ import {
   type InventoryRow,
   type OperationsSnapshot,
 } from "./api";
+import { MarketingHome } from "./marketing";
+import { shouldRenderMarketingSite } from "./routing";
 import "./styles.css";
 
 type QueueTab = "inventory" | "leads" | "scrape";
@@ -340,7 +342,7 @@ function ScrapeRunPanel() {
   );
 }
 
-function App() {
+function OperationsApp() {
   const [activeTab, setActiveTab] = useState<QueueTab>("inventory");
   const [snapshot, setSnapshot] = useState<OperationsSnapshot>(initialSnapshot);
   const [loading, setLoading] = useState(true);
@@ -498,6 +500,14 @@ function App() {
       </section>
     </main>
   );
+}
+
+function App() {
+  if (shouldRenderMarketingSite(window.location.hostname, window.location.search)) {
+    return <MarketingHome />;
+  }
+
+  return <OperationsApp />;
 }
 
 const root = document.getElementById("root");
