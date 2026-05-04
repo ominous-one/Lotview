@@ -16318,9 +16318,19 @@ Return ONLY the enhanced description, nothing else.`;
       
       // Limit to 20 at a time to avoid timeout
       const limitedIds = vehicleIds.slice(0, 20);
+      const parsedVehicleIds: number[] = [];
+      for (const [index, rawVehicleId] of limitedIds.entries()) {
+        const parsedVehicleId = parsePositiveIntegerId(rawVehicleId);
+        if (!parsedVehicleId) {
+          return res.status(400).json({ error: "vehicleIds must contain only positive integers", index });
+        }
+
+        parsedVehicleIds.push(parsedVehicleId);
+      }
+
       const results: { vehicleId: number; success: boolean; error?: string }[] = [];
       
-      for (const vehicleId of limitedIds) {
+      for (const vehicleId of parsedVehicleIds) {
         try {
           const vehicle = await storage.getVehicleById(vehicleId, dealershipId);
           if (!vehicle) {
