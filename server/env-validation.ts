@@ -56,6 +56,14 @@ const REQUIRED_ENV_VARS: EnvVar[] = [
 
   // ZenRows (fallback scraper)
   { name: "ZENROWS_API_KEY", required: false },
+
+  // Scrapling Python sidecar (optional fail-closed fallback)
+  { name: "FEATURE_SCRAPLING_SIDECAR", required: false },
+  { name: "ENABLE_SCRAPLING_SIDECAR", required: false },
+  { name: "SCRAPLING_PYTHON", required: false },
+  { name: "SCRAPLING_WORKER_PATH", required: false },
+  { name: "SCRAPLING_TIMEOUT_MS", required: false },
+  { name: "SCRAPLING_MAX_VEHICLES", required: false },
 ];
 
 /**

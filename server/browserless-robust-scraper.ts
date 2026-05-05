@@ -5,11 +5,28 @@ import {
   getBrowserlessUnifiedServiceForDealership,
   type VehicleListing,
 } from './browserless-unified';
+import {
+  isScraplingSidecarEnabled,
+  runScraplingSidecar,
+  type ScraplingMethod,
+} from './services/scrapling-sidecar';
 import type { InsertScrapeRun } from '@shared/schema';
 import { db } from './db';
-import { vehicles, scrapeSources } from '@shared/schema';
+import { scrapeSources } from '@shared/schema';
 import { eq, and } from 'drizzle-orm';
 import { logInfo, logWarn, logError } from './error-utils';
+
+type RobustScrapeMethod = 'browserless' | 'local_puppeteer' | 'zenrows' | 'zyte' | ScraplingMethod;
+
+interface InventoryScrapeResult {
+  success: boolean;
+  vehicles: VehicleListing[];
+  error?: string;
+  method: RobustScrapeMethod;
+  duration?: number;
+  sourceVehicleCount?: number;
+  sourceVehicleUrls?: string[];
+}
 
 interface RobustScrapeResult {
   success: boolean;
@@ -17,7 +34,7 @@ interface RobustScrapeResult {
   vehiclesInserted: number;
   vehiclesUpdated: number;
   vehiclesSkipped: number;
-  method: 'browserless' | 'local_puppeteer' | 'zenrows' | 'zyte';
+  method: RobustScrapeMethod;
   error?: string;
   duration?: number;
   sources?: string[];
@@ -45,6 +62,83 @@ function convertListingToScrapedVehicle(listing: VehicleListing): ScrapedVehicle
     dealRating: listing.dealRating,
     cargurusPrice: listing.cargurusPrice,
     cargurusUrl: listing.cargurusUrl,
+  };
+}
+
+function resolveSourceLocation(sourceName: string): string {
+  return sourceName.includes('Vancouver')
+    ? 'Vancouver'
+    : sourceName.includes('Burnaby')
+    ? 'Burnaby'
+    : 'BC';
+}
+
+async function applyScraplingFallbackIfNeeded(
+  result: InventoryScrapeResult,
+  source: typeof scrapeSources.$inferSelect,
+  location: string,
+): Promise<InventoryScrapeResult> {
+  if (result.success && result.vehicles.length > 0) {
+    return result;
+  }
+
+  if (!isScraplingSidecarEnabled()) {
+    return result;
+  }
+
+  logInfo('[Browserless Robust] Attempting Scrapling sidecar fallback', {
+    service: 'scraper',
+    sourceId: source.id,
+    dealershipId: source.dealershipId,
+    sourceName: source.sourceName,
+    previousMethod: result.method,
+    previousError: result.error,
+  });
+
+  const sidecar = await runScraplingSidecar({
+    sourceId: source.id,
+    dealershipId: source.dealershipId,
+    sourceUrl: source.sourceUrl,
+    sourceName: source.sourceName,
+    dealershipName: source.sourceName,
+    location,
+    maxVehicles: 200,
+    timeoutMs: 120000,
+  });
+
+  if (!sidecar.success) {
+    logWarn('[Browserless Robust] Scrapling sidecar fallback failed closed', {
+      service: 'scraper',
+      sourceId: source.id,
+      dealershipId: source.dealershipId,
+      sourceName: source.sourceName,
+      method: sidecar.method,
+      error: sidecar.error,
+      errors: sidecar.errors,
+      durationMs: sidecar.durationMs,
+      diagnostics: sidecar.diagnostics,
+    });
+    return result;
+  }
+
+  logInfo('[Browserless Robust] Scrapling sidecar fallback found vehicles', {
+    service: 'scraper',
+    sourceId: source.id,
+    dealershipId: source.dealershipId,
+    sourceName: source.sourceName,
+    method: sidecar.method,
+    vehicleCount: sidecar.vehicles.length,
+    sourceVehicleCount: sidecar.sourceVehicleCount,
+    durationMs: sidecar.durationMs,
+  });
+
+  return {
+    success: true,
+    vehicles: sidecar.vehicles,
+    method: sidecar.method,
+    duration: sidecar.durationMs,
+    sourceVehicleCount: sidecar.sourceVehicleCount,
+    sourceVehicleUrls: sidecar.sourceVehicleUrls,
   };
 }
 
@@ -84,13 +178,21 @@ export async function runBrowserlessInventoryScrape(
 
     const connectionTest = await browserlessService.testConnection();
     if (!connectionTest.success) {
-      throw new Error(`Browserless connection failed: ${connectionTest.message}`);
-    }
+      if (!isScraplingSidecarEnabled()) {
+        throw new Error(`Browserless connection failed: ${connectionTest.message}`);
+      }
 
-    logInfo('[Browserless Robust] Connection test passed', {
-      service: 'scraper',
-      method: connectionTest.method,
-    });
+      logWarn('[Browserless Robust] Browserless connection failed; Scrapling sidecar fallback is enabled', {
+        service: 'scraper',
+        method: connectionTest.method,
+        message: connectionTest.message,
+      });
+    } else {
+      logInfo('[Browserless Robust] Connection test passed', {
+        service: 'scraper',
+        method: connectionTest.method,
+      });
+    }
 
     let sources;
     if (sourceId) {
@@ -125,7 +227,7 @@ export async function runBrowserlessInventoryScrape(
     let totalUpdated = 0;
     let totalSkipped = 0;
     const scrapedSources: string[] = [];
-    let usedMethod: 'browserless' | 'local_puppeteer' | 'zenrows' | 'zyte' = 'browserless';
+    let usedMethod: RobustScrapeMethod = 'browserless';
 
     for (const source of sources) {
       logInfo('[Browserless Robust] Scraping source', {
@@ -135,19 +237,26 @@ export async function runBrowserlessInventoryScrape(
       });
 
       try {
-        const result = await browserlessService.scrapeDealerInventory(source.sourceUrl, {
-          dealershipId: source.dealershipId,
-          dealershipName: source.sourceName,
-          location: source.sourceName.includes('Vancouver')
-            ? 'Vancouver'
-            : source.sourceName.includes('Burnaby')
-            ? 'Burnaby'
-            : 'BC',
-          scrapeVdp,
-          maxVehicles: 200,
-          timeout: 120000,
-        });
+        const location = resolveSourceLocation(source.sourceName);
+        let result: InventoryScrapeResult = connectionTest.success
+          ? await browserlessService.scrapeDealerInventory(source.sourceUrl, {
+              dealershipId: source.dealershipId,
+              dealershipName: source.sourceName,
+              location,
+              scrapeVdp,
+              maxVehicles: 200,
+              timeout: 120000,
+            })
+          : {
+              success: false,
+              vehicles: [],
+              error: `Browserless connection failed: ${connectionTest.message}`,
+              method: 'browserless',
+              sourceVehicleCount: 0,
+              sourceVehicleUrls: [],
+            };
 
+        result = await applyScraplingFallbackIfNeeded(result, source, location);
         usedMethod = result.method;
 
         if (result.success && result.vehicles.length > 0) {

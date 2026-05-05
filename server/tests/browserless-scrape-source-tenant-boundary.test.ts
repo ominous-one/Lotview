@@ -22,4 +22,18 @@ describe("Browserless scrape source tenant boundary", () => {
     );
     expect(source).not.toContain(".where(eq(scrapeSources.id, source.id));");
   });
+
+  it("passes only the stored source tenant facts into the Scrapling fallback", () => {
+    const fallbackBlock = source.match(
+      /const sidecar = await runScraplingSidecar\(\{[\s\S]*?\n\s+\}\);/
+    )?.[0];
+
+    expect(fallbackBlock).toBeDefined();
+    expect(fallbackBlock).toContain("sourceId: source.id");
+    expect(fallbackBlock).toContain("dealershipId: source.dealershipId");
+    expect(fallbackBlock).toContain("sourceUrl: source.sourceUrl");
+    expect(fallbackBlock).toContain("sourceName: source.sourceName");
+    expect(fallbackBlock).not.toContain("options.dealershipId");
+    expect(fallbackBlock).not.toContain("request.body");
+  });
 });
