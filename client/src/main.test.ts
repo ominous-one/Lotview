@@ -240,7 +240,7 @@ describe("Lotview frontend operations workflow", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/auth/me", expect.objectContaining({ credentials: "same-origin" }));
     expect(document.body.textContent).toContain("No token provided");
     expect(document.body.textContent).toContain("Session: unauthenticated");
-    expect(document.body.textContent).toContain("Lotview requires an authenticated dealership session.");
+    expect(document.body.textContent).toContain("Sign in to Lotview operations.");
     expect(document.body.textContent).not.toContain("HY-API-1");
   });
 
@@ -326,7 +326,7 @@ describe("Lotview frontend operations workflow", () => {
     expect(document.body.textContent).toContain("Session: authenticated");
   });
 
-  it("lets super admins select a dealership context before loading operations", async () => {
+  it("keeps super admins global while letting them select an active dealership view", async () => {
     const fetchMock = mockFetchSequence([
       { body: { status: "healthy" } },
       { body: { status: "ready" } },
@@ -335,6 +335,19 @@ describe("Lotview frontend operations workflow", () => {
         body: {
           success: true,
           token: "super-admin-token",
+          user: {
+            id: 5,
+            name: "GM Test Super Admin",
+            email: "gm.superadmin@lotview.ai",
+            role: "super_admin",
+            dealershipId: null,
+          },
+        },
+      },
+      { body: { status: "healthy" } },
+      { body: { status: "ready" } },
+      {
+        body: {
           user: {
             id: 5,
             name: "GM Test Super Admin",
@@ -380,9 +393,19 @@ describe("Lotview frontend operations workflow", () => {
     await waitForText("Sign In");
 
     await typeIntoInput("email", "gm.superadmin@lotview.ai");
-    await typeIntoInput("dealershipId", "1");
     await typeIntoInput("password", "correct horse battery staple");
     await clickButton("Sign In");
+    await waitForText("Select an active dealership context to view dealership operations");
+
+    expect(window.sessionStorage.getItem("lotview.auth.token")).toBe("super-admin-token");
+    expect(window.sessionStorage.getItem("lotview.active.dealershipId")).toBeNull();
+    expect(document.body.textContent).toContain("GM Test Super Admin");
+    expect(document.body.textContent).toContain("super_admin");
+    expect(document.body.textContent).toContain("Global access");
+    expect(fetchMock).not.toHaveBeenCalledWith("/api/vehicles?limit=10", expect.anything());
+
+    await typeIntoInput("activeDealershipId", "1");
+    await clickButton("Open Dealership");
     await waitForText("HY-SA-1");
 
     expect(fetchMock).toHaveBeenCalledWith(
@@ -394,11 +417,11 @@ describe("Lotview frontend operations workflow", () => {
         }),
       }),
     );
-    expect(window.sessionStorage.getItem("lotview.auth.token")).toBe("super-admin-token");
     expect(window.sessionStorage.getItem("lotview.active.dealershipId")).toBe("1");
     expect(document.body.textContent).toContain("GM Test Super Admin");
     expect(document.body.textContent).toContain("super_admin");
-    expect(document.body.textContent).toContain("Dealership #1");
+    expect(document.body.textContent).toContain("Global access");
+    expect(document.body.textContent).toContain("Viewing Dealership #1");
   });
 
   it("fails closed when inventory API lacks dealership context instead of showing static vehicle facts", async () => {

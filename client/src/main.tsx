@@ -18,9 +18,11 @@ import {
   Users,
 } from "lucide-react";
 import {
+  getActiveDealershipContext,
   loadOperationsSnapshot,
   loginWithCredentials,
   logoutCurrentSession,
+  setActiveDealershipContext,
   type InventoryRow,
   type OperationsSnapshot,
 } from "./api";
@@ -51,8 +53,12 @@ function StatusPill({ status }: { status: InventoryRow["status"] }) {
   return <span className={`status-pill status-${status}`}>{statusLabels[status]}</span>;
 }
 
-function LoginPanel({ onLogin }: { onLogin: (email: string, password: string, dealershipId: string) => Promise<void> }) {
-  const [dealershipId, setDealershipId] = useState("1");
+function isTenantSwitchingRole(role: string): boolean {
+  const normalizedRole = role.trim().toLowerCase();
+  return normalizedRole === "super_admin" || normalizedRole === "master" || normalizedRole === "admin";
+}
+
+function LoginPanel({ onLogin }: { onLogin: (email: string, password: string) => Promise<void> }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -62,7 +68,7 @@ function LoginPanel({ onLogin }: { onLogin: (email: string, password: string, de
     event.preventDefault();
     setError(null);
     setSubmitting(true);
-    onLogin(email, password, dealershipId)
+    onLogin(email, password)
       .catch((loginError) => {
         setError(loginError instanceof Error ? loginError.message : "Login failed");
       })
@@ -77,7 +83,7 @@ function LoginPanel({ onLogin }: { onLogin: (email: string, password: string, de
         <ShieldCheck size={22} />
         <div>
           <h2 id="login-heading">Sign In</h2>
-          <span>Lotview requires an authenticated dealership session.</span>
+          <span>Sign in to Lotview operations.</span>
         </div>
       </div>
       <form className="login-form" onSubmit={submitLogin}>
@@ -92,22 +98,6 @@ function LoginPanel({ onLogin }: { onLogin: (email: string, password: string, de
               required
               type="email"
               value={email}
-            />
-          </div>
-        </label>
-        <label>
-          <span>Dealership ID</span>
-          <div className="input-wrap">
-            <Building2 size={17} />
-            <input
-              autoComplete="off"
-              inputMode="numeric"
-              name="dealershipId"
-              onChange={(event) => setDealershipId(event.currentTarget.value)}
-              pattern="[1-9][0-9]*"
-              required
-              type="text"
-              value={dealershipId}
             />
           </div>
         </label>
@@ -136,6 +126,78 @@ function LoginPanel({ onLogin }: { onLogin: (email: string, password: string, de
           {submitting ? "Signing In" : "Sign In"}
         </button>
       </form>
+    </section>
+  );
+}
+
+function ActiveDealershipPanel({
+  snapshot,
+  onSelect,
+}: {
+  snapshot: OperationsSnapshot;
+  onSelect: (dealershipId: string) => Promise<void>;
+}) {
+  const activeDealershipId = snapshot.user?.activeDealershipId
+    ? String(snapshot.user.activeDealershipId)
+    : getActiveDealershipContext() ?? "1";
+  const [dealershipId, setDealershipId] = useState(activeDealershipId);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    setDealershipId(activeDealershipId);
+  }, [activeDealershipId]);
+
+  function submitActiveDealership(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    onSelect(dealershipId)
+      .catch((selectError) => {
+        setError(selectError instanceof Error ? selectError.message : "Dealership context failed");
+      })
+      .finally(() => {
+        setSubmitting(false);
+      });
+  }
+
+  return (
+    <section className="context-panel" aria-labelledby="context-heading">
+      <div className="context-heading">
+        <Building2 size={18} />
+        <div>
+          <h2 id="context-heading">Active Dealership View</h2>
+          <span>{snapshot.user?.activeDealershipLabel ?? "Global super-admin account"}</span>
+        </div>
+      </div>
+      <form className="context-form" onSubmit={submitActiveDealership}>
+        <label>
+          <span>Dealership ID</span>
+          <div className="input-wrap">
+            <Building2 size={17} />
+            <input
+              autoComplete="off"
+              inputMode="numeric"
+              name="activeDealershipId"
+              onChange={(event) => setDealershipId(event.currentTarget.value)}
+              pattern="[1-9][0-9]*"
+              required
+              type="text"
+              value={dealershipId}
+            />
+          </div>
+        </label>
+        <button className="secondary-action" type="submit" disabled={submitting}>
+          <Eye size={17} />
+          {submitting ? "Opening" : "Open Dealership"}
+        </button>
+      </form>
+      {error ? (
+        <div className="login-error" role="alert">
+          <AlertTriangle size={17} />
+          <span>{error}</span>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -398,8 +460,13 @@ function OperationsApp() {
     };
   }, [refreshSnapshot]);
 
-  async function handleLogin(email: string, password: string, dealershipId: string): Promise<void> {
-    await loginWithCredentials({ dealershipId, email, password });
+  async function handleLogin(email: string, password: string): Promise<void> {
+    await loginWithCredentials({ email, password });
+    refreshSnapshot();
+  }
+
+  async function handleActiveDealership(dealershipId: string): Promise<void> {
+    setActiveDealershipContext(dealershipId);
     refreshSnapshot();
   }
 
@@ -429,6 +496,21 @@ function OperationsApp() {
     snapshot.backendStatus === "connected" ? "Authenticated tenant API response" : "No unverified inventory shown";
   const sessionValue = snapshot.authStatus === "authenticated" ? "Verified" : "Blocked";
   const loginRequired = !loading && snapshot.authStatus === "unauthenticated";
+  const globalOperator = Boolean(
+    snapshot.user && isTenantSwitchingRole(snapshot.user.role) && !snapshot.user.dealershipId,
+  );
+  const sessionContext = snapshot.user
+    ? [
+        snapshot.user.name,
+        snapshot.user.role,
+        snapshot.user.dealershipLabel,
+        snapshot.user.activeDealershipLabel && snapshot.user.activeDealershipLabel !== snapshot.user.dealershipLabel
+          ? `Viewing ${snapshot.user.activeDealershipLabel}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" | ")
+    : "";
 
   return (
     <main className="app-shell">
@@ -486,9 +568,7 @@ function OperationsApp() {
         {snapshot.user && !loading ? (
           <section className="session-strip" aria-label="Authenticated user">
             <ShieldCheck size={18} />
-            <span>
-              {snapshot.user.name} | {snapshot.user.role} | {snapshot.user.dealershipLabel}
-            </span>
+            <span>{sessionContext}</span>
           </section>
         ) : null}
         {snapshot.blocker && !loading ? (
@@ -501,6 +581,9 @@ function OperationsApp() {
           <LoginPanel onLogin={handleLogin} />
         ) : (
           <>
+            {globalOperator && !loading ? (
+              <ActiveDealershipPanel snapshot={snapshot} onSelect={handleActiveDealership} />
+            ) : null}
             <div className="metrics-grid">
               <Metric icon={Truck} label="Inventory" value={loading ? "Loading" : inventoryValue} detail="From /api/vehicles" />
               <Metric icon={Inbox} label="Leads" value="Blocked" detail="CRM route proof pending" />
