@@ -170,6 +170,11 @@ if (exists(".github/workflows/ci.yml")) {
   check("Render staging proof verifies the live health endpoint", ciWorkflow.includes("/api/health"));
   check("Render staging proof verifies the live readiness endpoint", ciWorkflow.includes("/api/ready"));
   check("Render staging proof verifies the deployed commit", ciWorkflow.includes("RENDER_EXPECTED_COMMIT") && ciWorkflow.includes("/api/version"));
+  check(
+    "Render staging proof waits for stale deployed commits",
+    ciWorkflow.includes("Render staging is still serving commit") && ciWorkflow.includes('proof_status" -ne 2'),
+    "Render auto-deploy can lag behind CI; stale commit responses must keep polling until timeout instead of failing immediately.",
+  );
 }
 
 const envTemplate = read(".env.template");

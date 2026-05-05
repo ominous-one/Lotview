@@ -244,7 +244,7 @@ jobs:
 
           for attempt in $(seq 1 60); do
             if version_response="$(curl -fsS --max-time 10 "${base_url}/api/version")"; then
-              VERSION_RESPONSE="$version_response" node <<'NODE'
+              if proof_output="$(VERSION_RESPONSE="$version_response" node <<'NODE'
           const response = process.env.VERSION_RESPONSE || "{}";
           const expected = process.env.RENDER_EXPECTED_COMMIT;
           let body;
@@ -262,17 +262,29 @@ jobs:
           }
 
           if (body.commit !== expected) {
-            console.error(`::error::Render staging is serving commit ${body.commit || "<missing>"} instead of ${expected}.`);
-            process.exit(1);
+            console.log(`Render staging is still serving commit ${body.commit || "<missing>"} instead of ${expected}.`);
+            process.exit(2);
           }
 
           console.log(`Render staging commit verified: ${body.commit}`);
           NODE
-              exit 0
+              )"; then
+                echo "$proof_output"
+                exit 0
+              else
+                proof_status=$?
+                echo "$proof_output"
+                if [ "$proof_status" -ne 2 ]; then
+                  exit "$proof_status"
+                fi
+              fi
+            else
+              echo "Waiting for Render version endpoint attempt ${attempt}/60."
             fi
 
-            echo "Waiting for Render version endpoint attempt ${attempt}/60."
-            sleep 10
+            if [ "$attempt" -lt 60 ]; then
+              sleep 10
+            fi
           done
 
           echo "::error::Render version endpoint did not expose commit proof within timeout: ${base_url}/api/version"
