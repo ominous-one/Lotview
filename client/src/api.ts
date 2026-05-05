@@ -33,6 +33,7 @@ export interface OperationsSnapshot {
 }
 
 export interface LoginCredentials {
+  dealershipId?: string;
   email: string;
   password: string;
 }
@@ -48,7 +49,9 @@ type JsonRecord = Record<string, unknown>;
 
 const requestTimeoutMs = 8_000;
 const authTokenStorageKey = "lotview.auth.token";
+const dealershipIdStorageKey = "lotview.active.dealershipId";
 let inMemoryAuthToken: string | null = null;
+let inMemoryDealershipId: string | null = null;
 
 function isRecord(value: unknown): value is JsonRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -157,6 +160,24 @@ function readAuthUser(body: JsonRecord): AuthUserSummary | null {
   };
 }
 
+function isTenantSwitchingRole(role: string): boolean {
+  const normalizedRole = role.trim().toLowerCase();
+  return normalizedRole === "super_admin" || normalizedRole === "master" || normalizedRole === "admin";
+}
+
+function normalizeDealershipSelection(rawDealershipId: string | null | undefined): string | null {
+  if (!rawDealershipId) {
+    return null;
+  }
+
+  const trimmed = rawDealershipId.trim();
+  if (!/^[1-9]\d*$/.test(trimmed)) {
+    return null;
+  }
+
+  return trimmed;
+}
+
 function readStoredAuthToken(): string | null {
   try {
     return window.sessionStorage.getItem(authTokenStorageKey) ?? inMemoryAuthToken;
@@ -174,8 +195,35 @@ function writeStoredAuthToken(token: string): void {
   }
 }
 
+function readStoredDealershipId(): string | null {
+  try {
+    return window.sessionStorage.getItem(dealershipIdStorageKey) ?? inMemoryDealershipId;
+  } catch {
+    return inMemoryDealershipId;
+  }
+}
+
+function writeStoredDealershipId(dealershipId: string): void {
+  inMemoryDealershipId = dealershipId;
+  try {
+    window.sessionStorage.setItem(dealershipIdStorageKey, dealershipId);
+  } catch {
+    // Session storage is a convenience. Tenant selection still works in memory.
+  }
+}
+
+function clearStoredDealershipId(): void {
+  inMemoryDealershipId = null;
+  try {
+    window.sessionStorage.removeItem(dealershipIdStorageKey);
+  } catch {
+    // Ignore unavailable storage in locked-down browsers.
+  }
+}
+
 export function clearStoredAuthToken(): void {
   inMemoryAuthToken = null;
+  clearStoredDealershipId();
   try {
     window.sessionStorage.removeItem(authTokenStorageKey);
   } catch {
@@ -196,6 +244,10 @@ async function fetchJson<T>(
     const token = options.authToken === undefined ? readStoredAuthToken() : options.authToken;
     if (token) {
       headers.Authorization = `Bearer ${token}`;
+    }
+    const activeDealershipId = readStoredDealershipId();
+    if (activeDealershipId) {
+      headers["X-Dealership-Id"] = activeDealershipId;
     }
     if (options.body !== undefined) {
       headers["Content-Type"] = "application/json";
@@ -268,7 +320,24 @@ export async function loginWithCredentials(
   }
 
   const user = readAuthUser(result.body);
-  if (!user || !user.dealershipId) {
+  if (!user) {
+    throw new Error("Login response did not include user context");
+  }
+
+  if (!user.dealershipId) {
+    const selectedDealershipId = normalizeDealershipSelection(credentials.dealershipId);
+    if (!selectedDealershipId || !isTenantSwitchingRole(user.role)) {
+      throw new Error("Login response did not include dealership context");
+    }
+
+    writeStoredDealershipId(selectedDealershipId);
+    user.dealershipId = Number(selectedDealershipId);
+    user.dealershipLabel = `Dealership #${selectedDealershipId}`;
+  } else {
+    writeStoredDealershipId(String(user.dealershipId));
+  }
+
+  if (!user.dealershipId) {
     throw new Error("Login response did not include dealership context");
   }
 
@@ -337,6 +406,26 @@ export async function loadOperationsSnapshot(fetcher?: FetchLike): Promise<Opera
 
     const user = readAuthUser(authResult.body);
     if (!user || !user.dealershipId) {
+      const selectedDealershipId = normalizeDealershipSelection(readStoredDealershipId());
+      if (user && selectedDealershipId && isTenantSwitchingRole(user.role)) {
+        user.dealershipId = Number(selectedDealershipId);
+        user.dealershipLabel = `Dealership #${selectedDealershipId}`;
+      } else {
+        return {
+          ...blockedSnapshot(
+            user && isTenantSwitchingRole(user.role)
+              ? "Select a dealership ID to view dealership operations"
+              : "Authenticated dealership context is required",
+          ),
+          authStatus: user ? "authenticated" : "unknown",
+          healthStatus,
+          readinessStatus,
+          user,
+        };
+      }
+    }
+
+    if (!user.dealershipId) {
       return {
         ...blockedSnapshot("Authenticated dealership context is required"),
         authStatus: user ? "authenticated" : "unknown",
