@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import {
   AlertTriangle,
   BarChart3,
+  Building2,
   CheckCircle2,
   ClipboardCheck,
   Eye,
@@ -50,7 +51,8 @@ function StatusPill({ status }: { status: InventoryRow["status"] }) {
   return <span className={`status-pill status-${status}`}>{statusLabels[status]}</span>;
 }
 
-function LoginPanel({ onLogin }: { onLogin: (email: string, password: string) => Promise<void> }) {
+function LoginPanel({ onLogin }: { onLogin: (email: string, password: string, dealershipId: string) => Promise<void> }) {
+  const [dealershipId, setDealershipId] = useState("1");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +62,7 @@ function LoginPanel({ onLogin }: { onLogin: (email: string, password: string) =>
     event.preventDefault();
     setError(null);
     setSubmitting(true);
-    onLogin(email, password)
+    onLogin(email, password, dealershipId)
       .catch((loginError) => {
         setError(loginError instanceof Error ? loginError.message : "Login failed");
       })
@@ -90,6 +92,22 @@ function LoginPanel({ onLogin }: { onLogin: (email: string, password: string) =>
               required
               type="email"
               value={email}
+            />
+          </div>
+        </label>
+        <label>
+          <span>Dealership ID</span>
+          <div className="input-wrap">
+            <Building2 size={17} />
+            <input
+              autoComplete="off"
+              inputMode="numeric"
+              name="dealershipId"
+              onChange={(event) => setDealershipId(event.currentTarget.value)}
+              pattern="[1-9][0-9]*"
+              required
+              type="text"
+              value={dealershipId}
             />
           </div>
         </label>
@@ -380,8 +398,8 @@ function OperationsApp() {
     };
   }, [refreshSnapshot]);
 
-  async function handleLogin(email: string, password: string): Promise<void> {
-    await loginWithCredentials({ email, password });
+  async function handleLogin(email: string, password: string, dealershipId: string): Promise<void> {
+    await loginWithCredentials({ dealershipId, email, password });
     refreshSnapshot();
   }
 

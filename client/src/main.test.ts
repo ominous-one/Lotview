@@ -315,12 +315,90 @@ describe("Lotview frontend operations workflow", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/vehicles?limit=10",
       expect.objectContaining({
-        headers: expect.objectContaining({ Authorization: "Bearer fresh-session-token" }),
+        headers: expect.objectContaining({
+          Authorization: "Bearer fresh-session-token",
+          "X-Dealership-Id": "7",
+        }),
       }),
     );
     expect(window.sessionStorage.getItem("lotview.auth.token")).toBe("fresh-session-token");
     expect(document.body.textContent).toContain("Login Manager");
     expect(document.body.textContent).toContain("Session: authenticated");
+  });
+
+  it("lets super admins select a dealership context before loading operations", async () => {
+    const fetchMock = mockFetchSequence([
+      { body: { status: "healthy" } },
+      { body: { status: "ready" } },
+      { body: { error: "No token provided" }, status: 401 },
+      {
+        body: {
+          success: true,
+          token: "super-admin-token",
+          user: {
+            id: 5,
+            name: "GM Test Super Admin",
+            email: "gm.superadmin@lotview.ai",
+            role: "super_admin",
+            dealershipId: null,
+          },
+        },
+      },
+      { body: { status: "healthy" } },
+      { body: { status: "ready" } },
+      {
+        body: {
+          user: {
+            id: 5,
+            name: "GM Test Super Admin",
+            email: "gm.superadmin@lotview.ai",
+            role: "super_admin",
+            dealershipId: null,
+          },
+        },
+      },
+      {
+        body: {
+          data: [
+            {
+              stockNumber: "HY-SA-1",
+              vin: "KM8J33A40MU320002",
+              year: 2023,
+              make: "Hyundai",
+              model: "Palisade",
+              price: 42995,
+              source: "Lotview API fixture",
+              status: "active",
+            },
+          ],
+          pagination: { total: 1 },
+        },
+      },
+    ]);
+
+    await renderApp();
+    await waitForText("Sign In");
+
+    await typeIntoInput("email", "gm.superadmin@lotview.ai");
+    await typeIntoInput("dealershipId", "1");
+    await typeIntoInput("password", "correct horse battery staple");
+    await clickButton("Sign In");
+    await waitForText("HY-SA-1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/vehicles?limit=10",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer super-admin-token",
+          "X-Dealership-Id": "1",
+        }),
+      }),
+    );
+    expect(window.sessionStorage.getItem("lotview.auth.token")).toBe("super-admin-token");
+    expect(window.sessionStorage.getItem("lotview.active.dealershipId")).toBe("1");
+    expect(document.body.textContent).toContain("GM Test Super Admin");
+    expect(document.body.textContent).toContain("super_admin");
+    expect(document.body.textContent).toContain("Dealership #1");
   });
 
   it("fails closed when inventory API lacks dealership context instead of showing static vehicle facts", async () => {
