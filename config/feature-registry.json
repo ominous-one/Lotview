@@ -129,7 +129,8 @@
         "server/routes/auth.ts",
         "client/src/api.ts",
         "client/src/main.tsx",
-        "client/src/main.test.ts"
+        "client/src/main.test.ts",
+        "server/tests/auth-hardening.integration.test.ts"
       ],
       "proof": {
         "ci": false,
@@ -139,7 +140,7 @@
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "Frontend login-to-inventory flow now posts credentials to /api/auth/login, stores the returned JWT in session storage, sends it as a Bearer token to /api/auth/me and /api/vehicles, and clears it on logout. Must not be called production-ready until backend JWT, failed-login, reset, rate-limit, protected-route, staging, observability, and rollback tests exist."
+      "notes": "Frontend login-to-inventory flow now posts credentials to /api/auth/login, stores the returned JWT in session storage, sends it as a Bearer token to /api/auth/me and /api/vehicles, and clears it on logout. Must not be called production-ready until backend JWT, failed-login, reset, rate-limit, protected-route, staging, observability, and rollback tests exist. Runtime integration tests now exercise the live auth router (login success/failure, unknown user, deactivated account, missing fields, protected-route rejection, invalid token, and login rate-limiting) against a real Postgres via npm run test:integration; staging, observability, rollback, and password-reset coverage still pending."
     },
     {
       "id": "rbac.permissions",

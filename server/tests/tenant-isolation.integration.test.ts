@@ -10,7 +10,6 @@
  * and `npm run db:test:setup`). Skipped in the default unit run.
  */
 import { storage } from "../storage";
-import { pool } from "../db";
 
 const hasDb = Boolean(process.env.DATABASE_URL);
 const describeIf = hasDb ? describe : describe.skip;
@@ -50,7 +49,6 @@ describeIf("Tenant isolation (storage layer, real Postgres)", () => {
     // FK cascade on dealership delete cleans up all child rows for both tenants.
     if (dealerA?.id) await storage.deleteDealership(dealerA.id);
     if (dealerB?.id) await storage.deleteDealership(dealerB.id);
-    await pool.end();
   });
 
   test("two distinct dealerships were created", () => {

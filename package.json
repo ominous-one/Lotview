@@ -23,7 +23,7 @@
     "preflight": "tsx scripts/production-preflight.ts",
     "test:smoke": "vitest run --config vitest.smoke.config.ts",
     "db:test:setup": "bash scripts/setup-test-db.sh",
-    "test:integration": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --runInBand --config jest.integration.config.cjs",
+    "test:integration": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --runInBand --forceExit --config jest.integration.config.cjs",
     "lint": "eslint .",
     "audit:high": "npm audit --audit-level=high",
     "proof:live-runtime": "node scripts/audit-live-runtime.mjs",
