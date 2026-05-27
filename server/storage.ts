@@ -2533,13 +2533,14 @@ export class DatabaseStorage implements IStorage {
 
   async deleteCreditScoreTier(id: number, dealershipId: number): Promise<boolean> {
     // REQUIRED: Soft delete only for this dealership
-    await db.update(creditScoreTiers)
+    const result = await db.update(creditScoreTiers)
       .set({ isActive: false })
       .where(and(
         eq(creditScoreTiers.id, id),
         eq(creditScoreTiers.dealershipId, dealershipId)
-      ));
-    return true;
+      ))
+      .returning({ id: creditScoreTiers.id });
+    return result.length > 0;
   }
 
   async getInterestRateForCreditScore(dealershipId: number, score: number): Promise<number | null> {
@@ -2594,13 +2595,14 @@ export class DatabaseStorage implements IStorage {
 
   async deleteModelYearTerm(id: number, dealershipId: number): Promise<boolean> {
     // REQUIRED: Soft delete only for this dealership
-    await db.update(modelYearTerms)
+    const result = await db.update(modelYearTerms)
       .set({ isActive: false })
       .where(and(
         eq(modelYearTerms.id, id),
         eq(modelYearTerms.dealershipId, dealershipId)
-      ));
-    return true;
+      ))
+      .returning({ id: modelYearTerms.id });
+    return result.length > 0;
   }
 
   async getAvailableTermsForYear(dealershipId: number, modelYear: number): Promise<string[]> {
@@ -2648,12 +2650,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteDealershipFee(id: number, dealershipId: number): Promise<boolean> {
-    await db.delete(dealershipFees)
+    const result = await db.delete(dealershipFees)
       .where(and(
         eq(dealershipFees.id, id),
         eq(dealershipFees.dealershipId, dealershipId)
-      ));
-    return true;
+      ))
+      .returning({ id: dealershipFees.id });
+    return result.length > 0;
   }
 
   async getActiveDealershipFees(dealershipId: number): Promise<DealershipFee[]> {
@@ -3250,11 +3253,11 @@ export class DatabaseStorage implements IStorage {
 
   async deletePbsConfig(id: number, dealershipId: number): Promise<boolean> {
     // REQUIRED: Only delete PBS config for this dealership
-    await db.delete(pbsConfig).where(and(
+    const result = await db.delete(pbsConfig).where(and(
       eq(pbsConfig.id, id),
       eq(pbsConfig.dealershipId, dealershipId)
-    ));
-    return true;
+    )).returning({ id: pbsConfig.id });
+    return result.length > 0;
   }
 
   // ====== PBS WEBHOOK EVENTS (Multi-Tenant) ======
@@ -5029,8 +5032,9 @@ export class DatabaseStorage implements IStorage {
   
   async deleteCallAnalysisCriteria(id: number, dealershipId: number): Promise<boolean> {
     const result = await db.delete(callAnalysisCriteria)
-      .where(and(eq(callAnalysisCriteria.id, id), eq(callAnalysisCriteria.dealershipId, dealershipId)));
-    return true;
+      .where(and(eq(callAnalysisCriteria.id, id), eq(callAnalysisCriteria.dealershipId, dealershipId)))
+      .returning({ id: callAnalysisCriteria.id });
+    return result.length > 0;
   }
   
   async getCallRecordings(dealershipId: number, filters?: { 
