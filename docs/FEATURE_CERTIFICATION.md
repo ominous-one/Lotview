@@ -30,7 +30,7 @@ A runtime integration test (`server/tests/auth-hardening.integration.test.ts`, r
 
 ### RBAC runtime enforcement (2026-05-26)
 
-A runtime integration test (`server/tests/rbac-runtime.integration.test.ts`) proves the permission matrix enforces at runtime against a real Postgres: an unauthenticated request is refused (401), a `sales_rep` is allowed a permission it holds (`inventory.read`) but denied one it lacks (`users.manage` → 403), and a `dealer_owner` is allowed the elevated permission — with the role loaded fresh from the database by `authMiddleware`. This complements the source-string RBAC contract tests with behavioral proof.
+A runtime integration test (`server/tests/rbac-runtime.integration.test.ts`) proves the permission matrix enforces at runtime against a real Postgres: an unauthenticated request is refused (401), a `sales_rep` is allowed a permission it holds (`inventory.read`) but denied one it lacks (`users.manage` → 403), and a `dealer_owner` is allowed the elevated permission — with the role loaded fresh from the database by `authMiddleware`. This complements the source-string RBAC contract tests with behavioral proof. The **super-admin boundary** is separately certified (`server/tests/admin-api.integration.test.ts`): every `/api/admin` endpoint requires authentication (401), refuses non-super-admins including `dealer_owner` (403 via `superAdminOnly`), and admits a `super_admin` past the guard chain.
 
 ### Password reset (2026-05-26)
 
