@@ -485,7 +485,8 @@
         "server/tests/ai-prompt-route-contract.test.ts",
         "server/tests/ai-runtime-route-contract.test.ts",
         "server/tests/fb-inbox-route-rbac-contract.test.ts",
-        "server/tests/public-ghl-chat-tenant-route-contract.test.ts"
+        "server/tests/public-ghl-chat-tenant-route-contract.test.ts",
+        "server/tests/lead-ops-cluster.integration.test.ts"
       ],
       "proof": {
         "ci": true,
@@ -495,7 +496,7 @@
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "AI prompt management routes require explicit ai.configure RBAC, strict prompt IDs, and dealership context where dealership-scoped, including the legacy admin prompt template write path. AI runtime generation routes require explicit ai.use RBAC, AI settings and FB inbox auto-send controls require ai.configure RBAC, and public chat fails closed without dealership context. Still needs inventory-grounding, finance guardrail, prompt injection, escalation, human approval, observability, staging, and real user-flow proof. Public chat drops caller-supplied vehicleContext when vehicleId is present and requires the vehicle to resolve in the request dealership before AI generation. Authenticated AI sales responses now reject malformed vehicleId/conversationId values and require any provided vehicleId to resolve in the request dealership before generating customer-facing copy. Extension AI listing-copy generation now rejects malformed/missing vehicleId values and requires the vehicle to resolve in the request dealership before OpenAI receives inventory facts."
+      "notes": "AI prompt management routes require explicit ai.configure RBAC, strict prompt IDs, and dealership context where dealership-scoped, including the legacy admin prompt template write path. AI runtime generation routes require explicit ai.use RBAC, AI settings and FB inbox auto-send controls require ai.configure RBAC, and public chat fails closed without dealership context. Still needs inventory-grounding, finance guardrail, prompt injection, escalation, human approval, observability, staging, and real user-flow proof. Public chat drops caller-supplied vehicleContext when vehicleId is present and requires the vehicle to resolve in the request dealership before AI generation. Authenticated AI sales responses now reject malformed vehicleId/conversationId values and require any provided vehicleId to resolve in the request dealership before generating customer-facing copy. Extension AI listing-copy generation now rejects malformed/missing vehicleId values and requires the vehicle to resolve in the request dealership before OpenAI receives inventory facts. Tenant-scoped DATA layer certified (server/tests/lead-ops-cluster.integration.test.ts): follow-up sequences + re-engagement campaigns isolation + CRUD proven. Live AI execution still needs credentials + staging."
     },
     {
       "id": "ghl.crm_sync",
@@ -508,7 +509,8 @@
         "server/routes.ts",
         "server/tests/ghl-route-boundary-contract.test.ts",
         "server/tests/email-route-rbac-contract.test.ts",
-        "server/tests/public-ghl-chat-tenant-route-contract.test.ts"
+        "server/tests/public-ghl-chat-tenant-route-contract.test.ts",
+        "server/tests/lead-ops-cluster.integration.test.ts"
       ],
       "proof": {
         "ci": true,
@@ -518,7 +520,7 @@
         "realUserFlow": false,
         "rollback": false
       },
-      "notes": "GHL/API-key integration routes now require explicit integrations read/write RBAC and dealership context, including dealership webhook-secret reads/regeneration and test email sends; public CTA send, chat handoff, and chat lead auto-sync routes fail closed without dealership context before CRM writes; GHL mutation routes are restricted to master users until write flows are certified, and outbound contact, appointment, and opportunity mutation payloads strip internal tenant ownership fields before calling GHL. Still needs OAuth, token refresh, webhook verification, sync log, duplicate-contact, staging, observability, rollback, and real user-flow proof."
+      "notes": "GHL/API-key integration routes now require explicit integrations read/write RBAC and dealership context, including dealership webhook-secret reads/regeneration and test email sends; public CTA send, chat handoff, and chat lead auto-sync routes fail closed without dealership context before CRM writes; GHL mutation routes are restricted to master users until write flows are certified, and outbound contact, appointment, and opportunity mutation payloads strip internal tenant ownership fields before calling GHL. Still needs OAuth, token refresh, webhook verification, sync log, duplicate-contact, staging, observability, rollback, and real user-flow proof. Tenant-scoped DATA layer certified (server/tests/lead-ops-cluster.integration.test.ts): GHL accounts isolation + CRUD proven against a real Postgres. Live GHL API execution still needs credentials + staging."
     },
     {
       "id": "billing.plans",
