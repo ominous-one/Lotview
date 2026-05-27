@@ -2703,12 +2703,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteFilterGroup(id: number, dealershipId: number): Promise<boolean> {
-    await db.delete(filterGroups)
+    const result = await db.delete(filterGroups)
       .where(and(
         eq(filterGroups.id, id),
         eq(filterGroups.dealershipId, dealershipId)
-      ));
-    return true;
+      ))
+      .returning({ id: filterGroups.id });
+    return result.length > 0;
   }
 
   async getActiveFilterGroups(dealershipId: number): Promise<FilterGroup[]> {
@@ -2762,12 +2763,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteScrapeSource(id: number, dealershipId: number): Promise<boolean> {
-    await db.delete(scrapeSources)
+    const result = await db.delete(scrapeSources)
       .where(and(
         eq(scrapeSources.id, id),
         eq(scrapeSources.dealershipId, dealershipId)
-      ));
-    return true;
+      ))
+      .returning({ id: scrapeSources.id });
+    return result.length > 0;
   }
 
   async getActiveScrapeSources(dealershipId: number): Promise<ScrapeSource[]> {
