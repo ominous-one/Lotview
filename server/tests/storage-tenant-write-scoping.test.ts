@@ -1,25 +1,24 @@
 /**
- * Static guard: every storage write method that accepts a `dealershipId` MUST use
- * it inside the method body (i.e. scope the WHERE clause by tenant). This prevents
- * an unscoped cross-tenant update/delete from ever being introduced. Pure source
- * analysis — no database required (runs in the default unit suite).
+ * Static guard: every storage method that accepts a `dealershipId` MUST reference
+ * it inside the method body (scoping the query by tenant). Covers BOTH reads
+ * (get/list/find/search/fetch) and writes (update/delete), so neither an unscoped
+ * cross-tenant read nor write can ever be introduced. Pure source analysis — no DB
+ * (runs in the default unit suite).
  */
 import { readFileSync } from "fs";
 import { resolve } from "path";
 
-describe("Storage tenant-write scoping (static guard)", () => {
+describe("Storage tenant scoping (static guard)", () => {
   const src = readFileSync(resolve(process.cwd(), "server/storage.ts"), "utf8");
   const lines = src.split("\n");
-  const sigRe = /async (update|delete)[A-Za-z0-9_]+\s*\(/;
 
   type M = { name: string; line: number; bodyAfterSig: string };
 
-  const methods: M[] = (() => {
+  function scopedMethods(prefixRe: RegExp): M[] {
     const out: M[] = [];
     for (let i = 0; i < lines.length; i++) {
       const l = lines[i];
-      if (!sigRe.test(l) || !l.includes("dealershipId")) continue;
-      // Capture the full method body via brace matching.
+      if (!prefixRe.test(l) || !l.includes("dealershipId")) continue;
       let depth = 0;
       let started = false;
       let body = "";
@@ -36,21 +35,27 @@ describe("Storage tenant-write scoping (static guard)", () => {
         if (started && depth <= 0) break;
       }
       const name = (l.match(/async ([A-Za-z0-9_]+)/) || [])[1] || "?";
-      // Everything after the opening brace (excludes the signature's param list).
-      const bodyAfterSig = body.slice(body.indexOf("{"));
-      out.push({ name, line: i + 1, bodyAfterSig });
+      out.push({ name, line: i + 1, bodyAfterSig: body.slice(body.indexOf("{")) });
     }
     return out;
-  })();
+  }
 
-  it("discovers the tenant-scoped write methods", () => {
-    expect(methods.length).toBeGreaterThan(50);
+  const writes = scopedMethods(/async (update|delete)[A-Za-z0-9_]+\s*\(/);
+  const reads = scopedMethods(/async (get|list|find|search|fetch)[A-Za-z0-9_]+\s*\(/);
+
+  const unscoped = (ms: M[]) =>
+    ms.filter((m) => !m.bodyAfterSig.includes("dealershipId")).map((m) => `${m.name}@${m.line}`);
+
+  it("discovers the tenant-scoped read and write methods", () => {
+    expect(writes.length).toBeGreaterThan(50);
+    expect(reads.length).toBeGreaterThan(100);
   });
 
-  it("every update/delete method taking a dealershipId references it in its body (no unscoped cross-tenant writes)", () => {
-    const unscoped = methods
-      .filter((m) => !m.bodyAfterSig.includes("dealershipId"))
-      .map((m) => `${m.name}@${m.line}`);
-    expect(unscoped).toEqual([]);
+  it("every WRITE method taking a dealershipId references it (no unscoped cross-tenant writes)", () => {
+    expect(unscoped(writes)).toEqual([]);
+  });
+
+  it("every READ method taking a dealershipId references it (no unscoped cross-tenant reads)", () => {
+    expect(unscoped(reads)).toEqual([]);
   });
 });
