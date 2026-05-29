@@ -68,7 +68,7 @@ const authModuleMock = {
     }
     return next();
   },
-  hashPassword: jest.fn().mockResolvedValue("$2a$12$hashed" as any) as any,
+  hashPassword: (jest.fn() as any).mockResolvedValue("$2a$12$hashed"),
 };
 
 const tenantMiddlewareMock = {

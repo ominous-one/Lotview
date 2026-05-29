@@ -252,7 +252,7 @@ describe("POST /api/onboarding/validate-url", () => {
   });
 
   it("returns 200 with detected platform and accessible=true when the site is reachable", async () => {
-    global.fetch = jest.fn().mockResolvedValue({ ok: true } as any) as any;
+    global.fetch = (jest.fn() as any).mockResolvedValue({ ok: true }) as any;
 
     const response = await request(app)
       .post("/api/onboarding/validate-url")
@@ -268,7 +268,7 @@ describe("POST /api/onboarding/validate-url", () => {
   });
 
   it("returns 200 with accessible=false when the site is not reachable", async () => {
-    global.fetch = jest.fn().mockRejectedValue(new Error("network down")) as any;
+    global.fetch = (jest.fn() as any).mockRejectedValue(new Error("network down")) as any;
 
     const response = await request(app)
       .post("/api/onboarding/validate-url")

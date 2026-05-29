@@ -10,13 +10,18 @@ import {
   runScraplingSidecar,
   type ScraplingMethod,
 } from './services/scrapling-sidecar';
+import {
+  isPatchrightEnabled,
+  runPatchrightFetcher,
+  type PatchrightFetchMethod,
+} from './services/patchright-fetcher';
 import type { InsertScrapeRun } from '@shared/schema';
 import { db } from './db';
 import { scrapeSources } from '@shared/schema';
 import { eq, and } from 'drizzle-orm';
 import { logInfo, logWarn, logError } from './error-utils';
 
-type RobustScrapeMethod = 'browserless' | 'local_puppeteer' | 'zenrows' | 'zyte' | ScraplingMethod;
+type RobustScrapeMethod = 'browserless' | 'local_puppeteer' | 'zenrows' | 'zyte' | ScraplingMethod | PatchrightFetchMethod;
 
 interface InventoryScrapeResult {
   success: boolean;
@@ -71,6 +76,67 @@ function resolveSourceLocation(sourceName: string): string {
     : sourceName.includes('Burnaby')
     ? 'Burnaby'
     : 'BC';
+}
+
+async function applyPatchrightFallbackIfNeeded(
+  result: InventoryScrapeResult,
+  source: typeof scrapeSources.$inferSelect,
+  location: string,
+): Promise<InventoryScrapeResult> {
+  if (result.success && result.vehicles.length > 0) {
+    return result;
+  }
+
+  if (!isPatchrightEnabled()) {
+    return result;
+  }
+
+  logInfo('[Browserless Robust] Attempting Patchright CDP stealth fallback', {
+    service: 'scraper',
+    sourceId: source.id,
+    dealershipId: source.dealershipId,
+    sourceName: source.sourceName,
+    previousMethod: result.method,
+    previousError: result.error,
+  });
+
+  const patchright = await runPatchrightFetcher({
+    sourceUrl: source.sourceUrl,
+    dealershipId: source.dealershipId,
+    dealershipName: source.sourceName,
+    location,
+    maxVehicles: 250,
+  });
+
+  if (!patchright.success) {
+    logWarn('[Browserless Robust] Patchright CDP stealth fallback failed closed', {
+      service: 'scraper',
+      sourceId: source.id,
+      dealershipId: source.dealershipId,
+      sourceName: source.sourceName,
+      method: patchright.method,
+      error: patchright.error,
+      durationMs: patchright.durationMs,
+    });
+    return result;
+  }
+
+  logInfo('[Browserless Robust] Patchright CDP stealth fallback found vehicles', {
+    service: 'scraper',
+    sourceId: source.id,
+    dealershipId: source.dealershipId,
+    sourceName: source.sourceName,
+    method: patchright.method,
+    vehicleCount: patchright.vehicles.length,
+    durationMs: patchright.durationMs,
+  });
+
+  return {
+    success: true,
+    vehicles: patchright.vehicles,
+    method: patchright.method,
+    duration: patchright.durationMs,
+  };
 }
 
 async function applyScraplingFallbackIfNeeded(
@@ -256,6 +322,7 @@ export async function runBrowserlessInventoryScrape(
               sourceVehicleUrls: [],
             };
 
+        result = await applyPatchrightFallbackIfNeeded(result, source, location);
         result = await applyScraplingFallbackIfNeeded(result, source, location);
         usedMethod = result.method;
 

@@ -33,7 +33,7 @@ const storageMock = {
 const dbMock = {
   update: jest.fn(() => ({
     set: jest.fn(() => ({
-      where: jest.fn().mockResolvedValue(undefined as any),
+      where: (jest.fn() as any).mockResolvedValue(undefined),
     })),
   })) as any,
 };
@@ -55,7 +55,7 @@ const authModuleMock = {
   },
   generateToken: jest.fn(() => "signed.jwt.token") as any,
   comparePassword: jest.fn() as any,
-  hashPassword: jest.fn().mockResolvedValue("$2a$12$hashed" as any) as any,
+  hashPassword: (jest.fn() as any).mockResolvedValue("$2a$12$hashed"),
 };
 
 const sendPasswordResetEmailMock = jest.fn() as any;
