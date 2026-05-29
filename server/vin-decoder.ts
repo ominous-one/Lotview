@@ -1,5 +1,6 @@
 import { storage } from './storage';
 import { validateVIN } from './vin-validation';
+import { extractTrim } from './services/vin-trim-extractor';
 
 export interface VINDecodeResult {
   vin: string;
@@ -168,12 +169,14 @@ function mapNHTSAResult(vin: string, result: Record<string, unknown>, responseTi
     };
   }
 
+  const trimExtraction = extractTrim(result);
+
   return {
     vin,
     year: normalizeOptionalText(result.ModelYear),
     make: normalizeOptionalText(result.Make),
     model: normalizeOptionalText(result.Model),
-    trim: normalizeOptionalText(result.Trim),
+    trim: trimExtraction.trim ?? undefined,
     bodyClass: normalizeOptionalText(result.BodyClass),
     engineCylinders: normalizeOptionalText(result.EngineCylinders),
     engineHP: normalizeOptionalText(result.EngineHP),
