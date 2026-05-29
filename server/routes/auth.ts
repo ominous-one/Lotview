@@ -242,7 +242,10 @@ router.get("/invites/:token", async (req, res) => {
     const invite = await storage.getStaffInviteByToken(token);
 
     if (!invite || invite.status !== "pending" || new Date() > invite.expiresAt) {
-      return res.json({ valid: false, ...(invite?.status !== "pending" ? { alreadyAccepted: true } : {}), ...(new Date() > invite.expiresAt ? { expired: true } : {}) });
+      const body: Record<string, unknown> = { valid: false };
+      if (invite && invite.status !== "pending") body.alreadyAccepted = true;
+      if (invite && new Date() > invite.expiresAt) body.expired = true;
+      return res.json(body);
     }
 
     const dealership = await storage.getDealershipById(invite.dealershipId);

@@ -12,7 +12,7 @@
     "start:worker": "cross-env NODE_ENV=production node dist/index-worker.js",
     "check": "tsc --noEmit",
     "test:server": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --runInBand",
-    "test:server:root": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --runInBand server/tests/runtime-readiness.test.ts server/tests/vehicle-data-quality.test.ts server/tests/vin-decode-router.test.ts server/tests/robust-scraper-validation.test.ts server/tests/robust-scraper-guardrails.test.ts server/tests/robust-scraper-fallback.test.ts server/tests/workflow-proof-closer-guardrails.test.ts",
+    "test:server:root": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --runInBand",
     "test:frontend": "vitest run --config vitest.frontend.config.ts",
     "production:gates": "tsx scripts/verify-production-gates.ts",
     "ci:verify": "npm run production:gates && npm run check && npm run test:server:root && npm run test:frontend",
