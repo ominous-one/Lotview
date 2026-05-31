@@ -28,9 +28,14 @@ import {
 } from "./api";
 import { MarketingHome } from "./marketing";
 import { shouldRenderMarketingSite } from "./routing";
+import { AdminSection } from "./admin";
 import "./styles.css";
 
-type QueueTab = "inventory" | "leads" | "scrape";
+type QueueTab = "inventory" | "leads" | "scrape" | "admin";
+
+function isSuperAdminRole(role: string | null | undefined): boolean {
+  return typeof role === "string" && role.trim().toLowerCase() === "super_admin";
+}
 
 const statusLabels: Record<InventoryRow["status"], string> = {
   active: "Active",
@@ -482,11 +487,14 @@ function OperationsApp() {
     setLoading(false);
   }
 
+  const isSuperAdmin = isSuperAdminRole(snapshot.user?.role);
+
   const activePanel = useMemo(() => {
+    if (activeTab === "admin" && isSuperAdmin) return <AdminSection />;
     if (activeTab === "leads") return <LeadQueue />;
     if (activeTab === "scrape") return <ScrapeRunPanel />;
     return <InventoryTable snapshot={snapshot} loading={loading} />;
-  }, [activeTab, loading, snapshot]);
+  }, [activeTab, loading, snapshot, isSuperAdmin]);
 
   const inventoryValue =
     snapshot.backendStatus === "connected" && snapshot.inventoryTotal !== null
@@ -544,6 +552,16 @@ function OperationsApp() {
             <Gauge size={18} />
             Scrape Proof
           </button>
+          {isSuperAdmin ? (
+            <button
+              className={activeTab === "admin" ? "is-active" : ""}
+              type="button"
+              onClick={() => setActiveTab("admin")}
+            >
+              <ShieldCheck size={18} />
+              Super Admin
+            </button>
+          ) : null}
         </nav>
       </aside>
       <section className="content">
@@ -571,7 +589,7 @@ function OperationsApp() {
             <span>{sessionContext}</span>
           </section>
         ) : null}
-        {snapshot.blocker && !loading ? (
+        {snapshot.blocker && !loading && !(isSuperAdmin && activeTab === "admin") ? (
           <div className="system-banner" role="status">
             <AlertTriangle size={18} />
             <span>{snapshot.blocker}</span>

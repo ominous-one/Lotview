@@ -1291,3 +1291,86 @@ th {
     width: 100%;
   }
 }
+
+/* Super-admin section */
+
+.system-banner.success {
+  border-color: #bbd6cf;
+  background: #edf8f4;
+  color: #174e44;
+}
+
+.admin-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.admin-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #d8e0e5;
+  border-radius: 8px;
+  background: #fafcff;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.form-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #2a3340;
+}
+
+.form-grid label.form-grid-wide {
+  grid-column: 1 / -1;
+}
+
+.form-grid input,
+.form-grid select {
+  padding: 8px 10px;
+  border: 1px solid #c9d1d9;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.admin-table th,
+.admin-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #e1e7ec;
+  text-align: left;
+  vertical-align: top;
+}
+
+.admin-table th {
+  background: #f4f7fa;
+  font-weight: 700;
+  color: #2a3340;
+}
+
+.admin-table td a {
+  color: #1e5f55;
+  word-break: break-all;
+}
+
+@media (max-width: 720px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+

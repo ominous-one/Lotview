@@ -26,6 +26,7 @@ import healthRouter from "./health";
 import vehiclesRouter from "./vehicles";
 import facebookRouter from "./facebook";
 import adminRouter from "./admin";
+import bootstrapRouter from "./bootstrap";
 
 /**
  * Register all modular routes on the Express app.
@@ -42,6 +43,9 @@ export function registerModularRoutes(app: Express): void {
 
   // Self-service onboarding
   app.use("/api/onboarding", onboardingRouter);
+
+  // First super-admin bootstrap (token-guarded, self-disables after first use)
+  app.use("/api/bootstrap", bootstrapRouter);
 
   // Domain-specific modular routers (new — extracted from monolith)
   app.use("/api/vehicles", vehiclesRouter);

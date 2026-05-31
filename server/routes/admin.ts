@@ -14,6 +14,8 @@ import type { InsertDealership } from "@shared/schema";
 import { superAdminOnly } from "../tenant-middleware";
 import { logError } from "../error-utils";
 import { getSystemHealth, getBusinessMetrics, getDealershipActivity, getAIMetrics, getScrapingMetrics, getFBMarketplaceMetrics, getSystemAlerts, resolveAlert } from "../services/admin-dashboard";
+import { decodeVIN } from "../vin-decoder";
+import { validateVIN } from "../vin-validation";
 
 const router = Router();
 
@@ -519,5 +521,48 @@ router.get("/system-health", authMiddleware, requirePermission("admin.audit"), s
     res.status(500).json({ error: "Failed to fetch system health" });
   }
 });
+
+/* ─── VIN Decoder (admin tester) ─── */
+
+router.post(
+  "/vin/decode",
+  authMiddleware,
+  requirePermission("integrations.read"),
+  superAdminOnly,
+  async (req, res) => {
+    try {
+      const vinRaw = typeof req.body?.vin === "string" ? req.body.vin.trim().toUpperCase() : "";
+      if (vinRaw.length === 0) {
+        return res.status(400).json({ error: "VIN is required" });
+      }
+
+      const validation = validateVIN(vinRaw);
+      if (!validation.isValid) {
+        return res.status(400).json({
+          error: validation.errorMessage ?? "Invalid VIN",
+          errorCode: validation.errorCode ?? "INVALID_VIN",
+        });
+      }
+
+      const dealershipIdRaw = req.body?.dealershipId;
+      const dealershipId =
+        typeof dealershipIdRaw === "number" && Number.isFinite(dealershipIdRaw)
+          ? dealershipIdRaw
+          : typeof dealershipIdRaw === "string" && /^[1-9]\d*$/.test(dealershipIdRaw.trim())
+            ? Number(dealershipIdRaw.trim())
+            : undefined;
+
+      const result = await decodeVIN(vinRaw, dealershipId);
+      res.json(result);
+    } catch (error) {
+      logError(
+        "Admin VIN decode error:",
+        error instanceof Error ? error : new Error(String(error)),
+        { route: "api-super-admin-vin-decode" },
+      );
+      res.status(500).json({ error: "VIN decode failed" });
+    }
+  },
+);
 
 export default router;

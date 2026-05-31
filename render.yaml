@@ -1,30 +1,31 @@
 # Lotview SaaS — Render Blueprint
-# Deploy the entire stack to Render.com with one click
 #
-# Architecture:
-#   - Web Service: HTTP API + static files (no schedulers)
-#   - Worker: Background jobs + queue processing + scheduled tasks
-#   - PostgreSQL: Database
-#   - Redis: Cache + sessions + job queues
+# Reconciled to match the actual deployed state on Render:
+#   - One combined web service named `lotview` that serves HTTP *and* runs
+#     the scheduler/queue worker in-process. This is appropriate for a
+#     low-volume Day-1 deploy and is what is currently live.
+#   - Postgres `lotview-db` and Redis `lotview-redis`.
 #
-# The worker owns ALL background work (scrapes, Carfax refresh, FB posting, AI,
-# GHL sync, re-engagement). The web service only serves HTTP requests.
-# This prevents duplicate job execution.
+# When scale demands it, split out a dedicated worker service by uncommenting
+# the worker block below and flipping LOTVIEW_ENABLE_SCHEDULERS to "false"
+# on the web service so jobs aren't duplicated. The worker block is preserved
+# here as a documented upgrade path, not a live service.
 
 services:
-  # ─── Web Service (API + Static Files) ───
-  # Serves HTTP only. No schedulers run here.
+  # ─── Combined Web + Scheduler Service ───
+  # Serves HTTP and runs BullMQ workers + schedulers in-process. Lower
+  # throughput than the split-service model but cheaper to operate at
+  # Day-1 volume.
   - type: web
-    name: lotview-api
-    runtime: docker
+    name: lotview
+    runtime: node
     repo: https://github.com/ominous-one/Lotview
     branch: main
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
-    env: docker
     plan: standard
     numInstances: 1
     healthCheckPath: /api/health
+    buildCommand: npm ci --ignore-scripts && npm run build
+    startCommand: node dist/index.js
     envVars:
       - key: NODE_ENV
         value: production
@@ -49,6 +50,10 @@ services:
         generateValue: true
       - key: ENCRYPTION_KEY
         generateValue: true
+      # Bootstrap token for the first super-admin create. Auto-generated on
+      # first sync. Endpoint self-disables once a super_admin row exists.
+      - key: LOTVIEW_BOOTSTRAP_TOKEN
+        generateValue: true
       - key: APP_URL
         value: https://app.lotview.ai
       - key: PUBLIC_APP_URL
@@ -57,10 +62,15 @@ services:
         value: https://app.lotview.ai
       - key: SYSTEM_BASE_DOMAIN
         value: lotview.ai
+      # Schedulers + workers run in-process on this single service.
       - key: LOTVIEW_ENABLE_SCHEDULERS
-        value: "false"
+        value: "true"
       - key: LOTVIEW_SCHEDULER_PROCESS
         value: "web"
+      # Patchright CDP stealth tier is opt-in. Flip to "true" once
+      # BROWSERLESS_API_KEY is configured.
+      - key: LOTVIEW_USE_PATCHRIGHT
+        value: "false"
       - key: LOG_FORMAT
         value: "json"
       - key: LOG_LEVEL
@@ -72,89 +82,48 @@ services:
         - server/**
         - shared/**
         - client/**
-        - Dockerfile
         - package.json
         - package-lock.json
         - render.yaml
 
-  # ─── Background Worker (Schedulers + Queue Processing) ───
-  # Owns ALL scheduled tasks and background jobs.
-  # Prevents duplicate execution by running schedulers only here.
-  - type: worker
-    name: lotview-worker
-    runtime: docker
-    repo: https://github.com/ominous-one/Lotview
-    branch: main
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
-    env: docker
-    plan: starter
-    numInstances: 1
-    dockerCommand: node dist/index-worker.js
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: DATABASE_URL
-        fromDatabase:
-          name: lotview-db
-          property: connectionString
-      - key: REDIS_URL
-        fromService:
-          type: redis
-          name: lotview-redis
-          property: connectionString
-      - key: JWT_SECRET
-        fromService:
-          type: web
-          name: lotview-api
-          envVarKey: JWT_SECRET
-      - key: SESSION_SECRET
-        fromService:
-          type: web
-          name: lotview-api
-          envVarKey: SESSION_SECRET
-      - key: EXTENSION_HMAC_SECRET
-        fromService:
-          type: web
-          name: lotview-api
-          envVarKey: EXTENSION_HMAC_SECRET
-      - key: GHL_WEBHOOK_SECRET
-        fromService:
-          type: web
-          name: lotview-api
-          envVarKey: GHL_WEBHOOK_SECRET
-      - key: ENCRYPTION_KEY
-        fromService:
-          type: web
-          name: lotview-api
-          envVarKey: ENCRYPTION_KEY
-      - key: APP_URL
-        value: https://app.lotview.ai
-      - key: PUBLIC_APP_URL
-        value: https://app.lotview.ai
-      - key: PUBLIC_API_URL
-        value: https://app.lotview.ai
-      - key: SYSTEM_BASE_DOMAIN
-        value: lotview.ai
-      - key: LOTVIEW_ENABLE_SCHEDULERS
-        value: "true"
-      - key: LOTVIEW_SCHEDULER_PROCESS
-        value: "worker"
-      - key: LOG_FORMAT
-        value: "json"
-      - key: LOG_LEVEL
-        value: "info"
-    buildFilter:
-      paths:
-        - server/**
-        - shared/**
-        - Dockerfile
-        - package.json
-        - package-lock.json
-        - render.yaml
+  # ─── Dedicated Worker (DISABLED — uncomment to split out) ───
+  #
+  # When you split jobs to a dedicated worker, flip the web service's
+  # LOTVIEW_ENABLE_SCHEDULERS to "false" so the queue is only consumed
+  # here, preventing duplicate execution.
+  #
+  # - type: worker
+  #   name: lotview-worker
+  #   runtime: node
+  #   repo: https://github.com/ominous-one/Lotview
+  #   branch: main
+  #   plan: starter
+  #   numInstances: 1
+  #   buildCommand: npm ci --ignore-scripts && npm run build
+  #   startCommand: node dist/index-worker.js
+  #   envVars:
+  #     - key: NODE_ENV
+  #       value: production
+  #     - key: DATABASE_URL
+  #       fromDatabase:
+  #         name: lotview-db
+  #         property: connectionString
+  #     - key: REDIS_URL
+  #       fromService:
+  #         type: redis
+  #         name: lotview-redis
+  #         property: connectionString
+  #     - key: JWT_SECRET
+  #       fromService:
+  #         type: web
+  #         name: lotview
+  #         envVarKey: JWT_SECRET
+  #     - key: LOTVIEW_ENABLE_SCHEDULERS
+  #       value: "true"
+  #     - key: LOTVIEW_SCHEDULER_PROCESS
+  #       value: "worker"
 
 databases:
-  # ─── PostgreSQL Database ───
   - name: lotview-db
     databaseName: lotview
     user: lotview
@@ -162,7 +131,6 @@ databases:
     ipAllowList: []
     postgresMajorVersion: "16"
 
-  # ─── Redis Cache ───
 redis:
   - name: lotview-redis
     plan: starter

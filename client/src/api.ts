@@ -495,3 +495,234 @@ export async function loadOperationsSnapshot(fetcher?: FetchLike): Promise<Opera
     return blockedSnapshot(error instanceof Error ? error.message : "Backend health check failed");
   }
 }
+
+// ---------------------------------------------------------------------------
+// Super-admin API surface
+//
+// These calls power the in-app super-admin section. Every request is sent
+// through `fetchJson` so the stored auth token and active-dealership headers
+// stay consistent with the rest of the app.
+// ---------------------------------------------------------------------------
+
+export interface DealershipSummary {
+  id: number;
+  name: string;
+  subdomain: string | null;
+  slug: string | null;
+  city: string | null;
+  province: string | null;
+  isActive: boolean;
+}
+
+export interface ScrapeSourceSummary {
+  id: number;
+  dealershipId: number;
+  sourceName: string;
+  sourceUrl: string;
+  sourceType: string | null;
+  scrapeFrequency: string | null;
+  isActive: boolean;
+}
+
+export interface VinDecodeResult {
+  vin: string;
+  year: string | null;
+  make: string | null;
+  model: string | null;
+  trim: string | null;
+  bodyClass: string | null;
+  fuelType: string | null;
+  driveType: string | null;
+  transmission: string | null;
+  manufacturer: string | null;
+  source: string | null;
+  confidence: string | null;
+  warnings: string[];
+  errorCode: string | null;
+  errorMessage: string | null;
+  responseTimeMs: number | null;
+}
+
+function mapDealership(record: JsonRecord): DealershipSummary | null {
+  const id = readNumber(record, ["id"]);
+  if (id === null) return null;
+  return {
+    id,
+    name: readString(record, ["name"], "Unnamed dealership"),
+    subdomain: readString(record, ["subdomain"], "") || null,
+    slug: readString(record, ["slug"], "") || null,
+    city: readString(record, ["city"], "") || null,
+    province: readString(record, ["province"], "") || null,
+    isActive: record.isActive !== false,
+  };
+}
+
+function mapScrapeSource(record: JsonRecord): ScrapeSourceSummary | null {
+  const id = readNumber(record, ["id"]);
+  const dealershipId = readNumber(record, ["dealershipId", "dealership_id"]);
+  if (id === null || dealershipId === null) return null;
+  return {
+    id,
+    dealershipId,
+    sourceName: readString(record, ["sourceName", "source_name"], "Unnamed source"),
+    sourceUrl: readString(record, ["sourceUrl", "source_url"], ""),
+    sourceType: readString(record, ["sourceType", "source_type"], "") || null,
+    scrapeFrequency: readString(record, ["scrapeFrequency", "scrape_frequency"], "") || null,
+    isActive: record.isActive !== false,
+  };
+}
+
+function mapVinDecodeResult(record: JsonRecord): VinDecodeResult {
+  const warningsField = Array.isArray(record.warnings) ? record.warnings : [];
+  return {
+    vin: readString(record, ["vin"]),
+    year: readString(record, ["year"]) || null,
+    make: readString(record, ["make"]) || null,
+    model: readString(record, ["model"]) || null,
+    trim: readString(record, ["trim"]) || null,
+    bodyClass: readString(record, ["bodyClass"]) || null,
+    fuelType: readString(record, ["fuelType"]) || null,
+    driveType: readString(record, ["driveType"]) || null,
+    transmission: readString(record, ["transmission"]) || null,
+    manufacturer: readString(record, ["manufacturer"]) || null,
+    source: readString(record, ["source"]) || null,
+    confidence: readString(record, ["confidence"]) || null,
+    warnings: warningsField.filter((value): value is string => typeof value === "string"),
+    errorCode: readString(record, ["errorCode"]) || null,
+    errorMessage: readString(record, ["errorMessage"]) || null,
+    responseTimeMs: readNumber(record, ["responseTimeMs"]),
+  };
+}
+
+export async function listDealerships(fetcher?: FetchLike): Promise<DealershipSummary[]> {
+  const activeFetcher = fetcher ?? window.fetch?.bind(window);
+  if (!activeFetcher) {
+    throw new Error("Browser fetch API is unavailable");
+  }
+
+  const result = await fetchJson<unknown>("/api/super-admin/dealerships", activeFetcher);
+  const data = Array.isArray(result.body) ? result.body : [];
+  return data
+    .filter(isRecord)
+    .map(mapDealership)
+    .filter((row): row is DealershipSummary => row !== null);
+}
+
+export interface CreateDealershipInput {
+  name: string;
+  slug: string;
+  subdomain: string;
+  masterAdminEmail: string;
+  masterAdminName: string;
+  masterAdminPassword: string;
+}
+
+export async function createDealership(
+  input: CreateDealershipInput,
+  fetcher?: FetchLike,
+): Promise<DealershipSummary> {
+  const activeFetcher = fetcher ?? window.fetch?.bind(window);
+  if (!activeFetcher) {
+    throw new Error("Browser fetch API is unavailable");
+  }
+
+  const result = await fetchJson<JsonRecord>("/api/super-admin/dealerships", activeFetcher, {
+    method: "POST",
+    body: input,
+  });
+
+  const dealership = isRecord(result.body.dealership)
+    ? mapDealership(result.body.dealership)
+    : null;
+  if (!dealership) {
+    throw new Error("Dealership response was malformed");
+  }
+  return dealership;
+}
+
+export async function listScrapeSources(fetcher?: FetchLike): Promise<ScrapeSourceSummary[]> {
+  const activeFetcher = fetcher ?? window.fetch?.bind(window);
+  if (!activeFetcher) {
+    throw new Error("Browser fetch API is unavailable");
+  }
+
+  const result = await fetchJson<unknown>("/api/super-admin/scrape-sources", activeFetcher);
+  const data = Array.isArray(result.body) ? result.body : [];
+  return data
+    .filter(isRecord)
+    .map(mapScrapeSource)
+    .filter((row): row is ScrapeSourceSummary => row !== null);
+}
+
+export interface CreateScrapeSourceInput {
+  dealershipId: number;
+  sourceName: string;
+  sourceUrl: string;
+  sourceType?: string;
+  scrapeFrequency?: string;
+}
+
+export async function createScrapeSource(
+  input: CreateScrapeSourceInput,
+  fetcher?: FetchLike,
+): Promise<ScrapeSourceSummary> {
+  const activeFetcher = fetcher ?? window.fetch?.bind(window);
+  if (!activeFetcher) {
+    throw new Error("Browser fetch API is unavailable");
+  }
+
+  const result = await fetchJson<JsonRecord>("/api/super-admin/scrape-sources", activeFetcher, {
+    method: "POST",
+    body: input,
+  });
+
+  const source = mapScrapeSource(result.body);
+  if (!source) {
+    throw new Error("Scrape source response was malformed");
+  }
+  return source;
+}
+
+export async function triggerScrape(
+  sourceId: number,
+  fetcher?: FetchLike,
+): Promise<{ success: boolean; message: string }> {
+  const activeFetcher = fetcher ?? window.fetch?.bind(window);
+  if (!activeFetcher) {
+    throw new Error("Browser fetch API is unavailable");
+  }
+
+  const result = await fetchJson<JsonRecord>(
+    `/api/super-admin/scrape-sources/${sourceId}/scrape`,
+    activeFetcher,
+    { method: "POST", body: {} },
+  );
+
+  return {
+    success: result.body.success === true,
+    message: readString(result.body, ["message"], "Scrape requested"),
+  };
+}
+
+export async function decodeVin(
+  vin: string,
+  dealershipId: number | null,
+  fetcher?: FetchLike,
+): Promise<VinDecodeResult> {
+  const activeFetcher = fetcher ?? window.fetch?.bind(window);
+  if (!activeFetcher) {
+    throw new Error("Browser fetch API is unavailable");
+  }
+
+  const body: JsonRecord = { vin };
+  if (dealershipId !== null) {
+    body.dealershipId = dealershipId;
+  }
+
+  const result = await fetchJson<JsonRecord>("/api/super-admin/vin/decode", activeFetcher, {
+    method: "POST",
+    body,
+  });
+
+  return mapVinDecodeResult(result.body);
+}
