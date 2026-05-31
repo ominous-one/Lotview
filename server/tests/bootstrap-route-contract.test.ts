@@ -63,6 +63,13 @@ const dbMock = {
       };
     },
   }),
+  update: (_table: unknown) => ({
+    set: (values: Record<string, unknown>) => ({
+      where: async () => {
+        dbCalls.push({ table: "users(update)", values });
+      },
+    }),
+  }),
 };
 
 const hashPasswordMock = jest.fn() as any;
@@ -169,20 +176,32 @@ describe("POST /api/bootstrap/super-admin — token gating", () => {
   });
 });
 
-describe("POST /api/bootstrap/super-admin — self-disable on existing super admin", () => {
-  it("returns 404 when at least one super_admin already exists", async () => {
-    findFirstSuperAdmin.mockResolvedValue([{ id: 99 }]);
+describe("POST /api/bootstrap/super-admin — promote-or-create behavior", () => {
+  it("promotes an existing non-super-admin user with the same email and resets their password", async () => {
+    findFirstSuperAdmin.mockResolvedValue([{ id: 7, role: "master" }]);
 
-    await request(app)
+    const response = await request(app)
       .post("/api/bootstrap/super-admin")
       .set("X-Bootstrap-Token", "this-is-a-strong-secret-token-32-chars")
       .send(validBody)
-      .expect(404);
+      .expect(201);
 
-    expect(findAuditAction()).toBe("bootstrap_disabled_already_initialized");
+    expect(response.body.action).toBe("promoted");
+    expect(findAuditAction()).toBe("bootstrap_success_promoted_existing_user");
+    expect(hashPasswordMock).toHaveBeenCalledWith("Nissan2026!!");
+  });
 
-    // Critically — the password was never hashed, the user was never inserted
-    expect(hashPasswordMock).not.toHaveBeenCalled();
+  it("rotates the password of an existing super_admin with the same email", async () => {
+    findFirstSuperAdmin.mockResolvedValue([{ id: 7, role: "super_admin" }]);
+
+    const response = await request(app)
+      .post("/api/bootstrap/super-admin")
+      .set("X-Bootstrap-Token", "this-is-a-strong-secret-token-32-chars")
+      .send(validBody)
+      .expect(201);
+
+    expect(response.body.action).toBe("rotated");
+    expect(findAuditAction()).toBe("bootstrap_success_rotated_existing_super_admin");
   });
 });
 
@@ -267,15 +286,15 @@ describe("POST /api/bootstrap/super-admin — success", () => {
 });
 
 describe("POST /api/bootstrap/super-admin — insert failure", () => {
-  it("returns 404 (not 400/409) when the unique-email constraint fires", async () => {
-    insertReturning.mockRejectedValue(new Error("duplicate key value violates unique constraint \"users_email_key\""));
+  it("returns 500 (not 400/409) when an unexpected DB error fires", async () => {
+    insertReturning.mockRejectedValue(new Error("connection terminated unexpectedly"));
 
     const response = await request(app)
       .post("/api/bootstrap/super-admin")
       .set("X-Bootstrap-Token", "this-is-a-strong-secret-token-32-chars")
       .send(validBody);
 
-    expect(response.status).toBe(404);
+    expect(response.status).toBe(500);
     expect(findAuditAction()).toBe("bootstrap_rejected_bad_input");
   });
 });

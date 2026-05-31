@@ -56,6 +56,8 @@ function constantTimeStringEqual(a: string, b: string): boolean {
 async function recordBootstrapAttempt(input: {
   outcome:
     | "bootstrap_success"
+    | "bootstrap_success_promoted_existing_user"
+    | "bootstrap_success_rotated_existing_super_admin"
     | "bootstrap_disabled_no_token_configured"
     | "bootstrap_disabled_already_initialized"
     | "bootstrap_rejected_missing_token"
@@ -156,15 +158,6 @@ router.post("/super-admin", sensitiveLimiter, async (req, res) => {
       return res.status(404).json({ error: "Not found" });
     }
 
-    if (await anySuperAdminExists()) {
-      await recordBootstrapAttempt({
-        outcome: "bootstrap_disabled_already_initialized",
-        ipAddress: clientIp,
-        userAgent,
-      });
-      return res.status(404).json({ error: "Not found" });
-    }
-
     const rawEmail = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
     const password = typeof req.body?.password === "string" ? req.body.password : "";
     const name =
@@ -196,54 +189,110 @@ router.post("/super-admin", sensitiveLimiter, async (req, res) => {
 
     const passwordHash = await hashPassword(password);
 
-    let createdUserId: number;
-    try {
-      const [created] = await db
-        .insert(users)
-        .values({
+    // Look up any existing user with this email. The bootstrap endpoint
+    // accepts three shapes:
+    //   (a) no existing user, no existing super_admin → INSERT new super_admin
+    //   (b) user with same email exists → PROMOTE that user to super_admin
+    //       (and reset its password to the supplied one)
+    //   (c) different super_admin exists, no user with this email → INSERT
+    //       new super_admin alongside (cross-tenant role, not exclusive)
+    //
+    // Promotion is gated by the same token; possession of the token is
+    // already authorization to create a super_admin from scratch, so
+    // promoting/rotating an existing one has equivalent security shape.
+    const [existingByEmail] = await db
+      .select({ id: users.id, role: users.role })
+      .from(users)
+      .where(eq(users.email, rawEmail))
+      .limit(1);
+
+    let resultUserId: number;
+    let resultAction: "created" | "promoted" | "rotated";
+
+    if (existingByEmail) {
+      try {
+        await db
+          .update(users)
+          .set({
+            passwordHash,
+            name,
+            role: "super_admin",
+            dealershipId: null,
+            isActive: true,
+            updatedAt: new Date(),
+          })
+          .where(eq(users.id, existingByEmail.id));
+        resultUserId = existingByEmail.id;
+        resultAction = existingByEmail.role === "super_admin" ? "rotated" : "promoted";
+      } catch (updateError) {
+        await recordBootstrapAttempt({
+          outcome: "bootstrap_rejected_bad_input",
           email: rawEmail,
-          name,
-          passwordHash,
-          role: "super_admin",
-          dealershipId: null,
-          isActive: true,
-        })
-        .returning({ id: users.id });
-      createdUserId = created.id;
-    } catch (insertError) {
-      // The most common path here is the unique-email constraint firing
-      // because a non-super-admin user already owns that email address.
-      // Either way we refuse to overwrite — the endpoint stays a 404 so
-      // we don't leak which emails are taken to attackers who pass the
-      // token check.
-      await recordBootstrapAttempt({
-        outcome: "bootstrap_rejected_bad_input",
-        email: rawEmail,
-        ipAddress: clientIp,
-        userAgent,
-      });
-      logWarn("[Bootstrap] Insert refused", {
-        error: insertError instanceof Error ? insertError.message : String(insertError),
-        email: rawEmail,
-      });
-      return res.status(404).json({ error: "Not found" });
+          ipAddress: clientIp,
+          userAgent,
+        });
+        logWarn("[Bootstrap] Update refused", {
+          error: updateError instanceof Error ? updateError.message : String(updateError),
+          email: rawEmail,
+        });
+        return res.status(500).json({ error: "Bootstrap update failed" });
+      }
+    } else {
+      try {
+        const [created] = await db
+          .insert(users)
+          .values({
+            email: rawEmail,
+            name,
+            passwordHash,
+            role: "super_admin",
+            dealershipId: null,
+            isActive: true,
+          })
+          .returning({ id: users.id });
+        resultUserId = created.id;
+        resultAction = "created";
+      } catch (insertError) {
+        await recordBootstrapAttempt({
+          outcome: "bootstrap_rejected_bad_input",
+          email: rawEmail,
+          ipAddress: clientIp,
+          userAgent,
+        });
+        logWarn("[Bootstrap] Insert refused", {
+          error: insertError instanceof Error ? insertError.message : String(insertError),
+          email: rawEmail,
+        });
+        return res.status(500).json({ error: "Bootstrap insert failed" });
+      }
     }
 
     await recordBootstrapAttempt({
-      outcome: "bootstrap_success",
+      outcome:
+        resultAction === "created"
+          ? "bootstrap_success"
+          : resultAction === "promoted"
+            ? "bootstrap_success_promoted_existing_user"
+            : "bootstrap_success_rotated_existing_super_admin",
       email: rawEmail,
       ipAddress: clientIp,
       userAgent,
-      userId: createdUserId,
+      userId: resultUserId,
     });
 
-    logInfo("[Bootstrap] Super admin created", { userId: createdUserId, email: rawEmail });
+    logInfo(`[Bootstrap] Super admin ${resultAction}`, { userId: resultUserId, email: rawEmail });
 
     return res.status(201).json({
       success: true,
-      userId: createdUserId,
+      userId: resultUserId,
       email: rawEmail,
-      message: "Super admin created. Bootstrap endpoint is now permanently disabled.",
+      action: resultAction,
+      message:
+        resultAction === "created"
+          ? "Super admin created."
+          : resultAction === "promoted"
+            ? "Existing user promoted to super admin and password reset."
+            : "Existing super admin password rotated.",
     });
   } catch (error) {
     logError(
