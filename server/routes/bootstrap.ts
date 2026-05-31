@@ -96,6 +96,32 @@ async function anySuperAdminExists(): Promise<boolean> {
   return Boolean(existing);
 }
 
+/**
+ * GET /api/bootstrap/status — diagnostic, unauthenticated, safe to expose.
+ *
+ * Returns booleans only. Useful when troubleshooting why the bootstrap POST
+ * is returning 404 — operators can see whether the token env var is
+ * configured and whether the endpoint has already been used. Never leaks
+ * the token value or any user data.
+ */
+router.get("/status", async (_req, res) => {
+  const configuredToken = process.env.LOTVIEW_BOOTSTRAP_TOKEN;
+  const tokenConfigured = Boolean(configuredToken && configuredToken.length >= 16);
+  let superAdminExists = false;
+  try {
+    superAdminExists = await anySuperAdminExists();
+  } catch {
+    // If the DB query throws, surface that as "unknown" by leaving false —
+    // the caller can re-check after fixing the DB. We don't want this
+    // endpoint to fail closed because operators rely on it for diagnosis.
+  }
+  res.json({
+    tokenConfigured,
+    superAdminExists,
+    bootstrapAvailable: tokenConfigured && !superAdminExists,
+  });
+});
+
 router.post("/super-admin", sensitiveLimiter, async (req, res) => {
   const clientIp = (req.ip ?? null) as string | null;
   const userAgent = (req.headers["user-agent"] as string | undefined) ?? null;
