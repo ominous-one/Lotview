@@ -29,6 +29,7 @@ import {
 import { MarketingHome } from "./marketing";
 import { shouldRenderMarketingSite } from "./routing";
 import { AdminSection } from "./admin";
+import { MockupPreview } from "./mockup";
 import "./styles.css";
 
 type QueueTab = "inventory" | "leads" | "scrape" | "admin";
@@ -622,6 +623,13 @@ function OperationsApp() {
 }
 
 function App() {
+  if (typeof window !== "undefined") {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("preview") === "1") {
+      return <MockupPreview />;
+    }
+  }
+
   if (shouldRenderMarketingSite(window.location.hostname, window.location.search)) {
     return <MarketingHome />;
   }
