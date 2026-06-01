@@ -49,17 +49,26 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
+// CAD throughout — single Olympic Hyundai is a Vancouver BC dealership.
+// Future multi-tenant work can read the dealership's `defaultCurrency`
+// off the tenant row and pick CAD / USD per tenant.
 function money(value: number, hideCents = true): string {
-  return new Intl.NumberFormat("en-US", {
+  return new Intl.NumberFormat("en-CA", {
     style: "currency",
-    currency: "USD",
+    currency: "CAD",
+    currencyDisplay: "narrowSymbol",
     minimumFractionDigits: hideCents ? 0 : 2,
     maximumFractionDigits: hideCents ? 0 : 2,
   }).format(value);
 }
 
+// Numbers in CA locale — comma-separated thousands.
 function num(value: number): string {
-  return new Intl.NumberFormat("en-US").format(value);
+  return new Intl.NumberFormat("en-CA").format(value);
+}
+
+function km(value: number): string {
+  return `${num(value)} km`;
 }
 
 // ---------------------------------------------------------------------------
@@ -117,9 +126,12 @@ export function VinInquiryTool() {
       </form>
 
       <div className="mp-tool__row">
-        {/* Decoded specs */}
+        {/* Decoded specs — NHTSA vPIC (free, real) */}
         <div className="mp-tool__pane">
-          <div className="mp-tool__pane-title">Decoded</div>
+          <div className="mp-tool__pane-title">
+            Decoded · NHTSA vPIC
+            <span className="mp-source-pill"><Cpu size={9} /> {result.decoded.decodedAt}</span>
+          </div>
           <div className="mp-tool__grid-2">
             <SpecRow label="Year / Make / Model" value={`${result.decoded.year} ${result.decoded.make} ${result.decoded.model}`} />
             <SpecRow label="Trim" value={result.decoded.trim} highlight />
@@ -128,69 +140,124 @@ export function VinInquiryTool() {
             <SpecRow label="Drivetrain" value={result.decoded.drivetrain} />
             <SpecRow label="Transmission" value={result.decoded.transmission} />
             <SpecRow label="Fuel" value={result.decoded.fuelType} />
-            <SpecRow label="Color" value={`${result.decoded.exteriorColor} / ${result.decoded.interiorColor}`} />
+            <SpecRow label="Colour" value={`${result.decoded.exteriorColor} / ${result.decoded.interiorColor}`} />
             <SpecRow label="MSRP new" value={money(result.decoded.msrpNew)} />
           </div>
         </div>
 
-        {/* History */}
+        {/* Recalls — NHTSA (free, real). Carfax fields are only shown if the
+            dealer has connected their own Carfax-for-Dealers account. */}
         <div className="mp-tool__pane">
-          <div className="mp-tool__pane-title">History</div>
-          <div className="mp-tool__grid-2">
-            <SpecRow label="Accidents" value={String(result.history.accidents)} ok={result.history.accidents === 0} />
-            <SpecRow label="Owners" value={String(result.history.owners)} ok={result.history.owners <= 1} />
-            <SpecRow label="Service records" value={String(result.history.serviceRecords)} />
-            <SpecRow label="Last odometer" value={`${num(result.history.lastOdometer)} km`} />
-            <SpecRow label="Title" value={result.history.titleStatus} ok={result.history.titleStatus === "Clean"} />
-            <SpecRow label="Open recalls" value={String(result.history.openRecalls)} ok={result.history.openRecalls === 0} />
+          <div className="mp-tool__pane-title">
+            NHTSA recalls
+            {result.recalls.length === 0 ? <span className="mp-source-pill"><CheckCircle2 size={9} /> Clean</span> : null}
           </div>
-        </div>
-      </div>
+          {result.recalls.length === 0 ? (
+            <div style={{ fontSize: 12, color: "var(--mp-text-muted)" }}>No open recalls on this VIN.</div>
+          ) : (
+            result.recalls.map((r) => (
+              <div key={r.campaign} style={{ marginBottom: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span className="mp-mono" style={{ fontSize: 11 }}>{r.campaign}</span>
+                  <span className={`mp-badge ${r.status === "Remedied" ? "mp-badge-success" : "mp-badge-warn"}`}>{r.status}</span>
+                  <span style={{ marginLeft: "auto", fontSize: 10, color: "var(--mp-text-faint)" }}>Remedy {r.remedyDate}</span>
+                </div>
+                <div style={{ fontSize: 11, color: "var(--mp-text-muted)", marginTop: 4 }}>{r.summary}</div>
+              </div>
+            ))
+          )}
 
-      {/* Market position bar */}
-      <div className="mp-tool__market">
-        <div className="mp-tool__market-head">
-          <div>
-            <div className="mp-tool__pane-title">Live market</div>
-            <div style={{ fontSize: 11, color: "var(--mp-text-muted)" }}>
-              {result.market.listingsActive} active comparable listings · {result.market.similarSold} sold in last 60 days · avg time to sell {result.market.avgDaysToSell}d
+          {/* Carfax connector — honest empty state. We do not invent accident
+              counts or owner counts. Carfax data only appears when the
+              dealer has connected their own Carfax-for-Dealers subscription. */}
+          <div className="mp-source-empty">
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <BookOpen size={13} color="var(--mp-text-muted)" />
+              <strong style={{ fontSize: 12 }}>Carfax history</strong>
+              <span className="mp-badge">Add-on · paid by dealer</span>
             </div>
+            <div style={{ fontSize: 11, color: "var(--mp-text-muted)", margin: "4px 0 8px" }}>
+              Accidents, owner count, service records, and title status require your Carfax-for-Dealers subscription.
+              Connect once — Lotview pulls per-VIN automatically.
+            </div>
+            <button className="mp-btn mp-btn-sm"><BookOpen size={11} /> Connect Carfax for Dealers</button>
           </div>
-          <span className={`mp-badge ${positionClass}`}>{positionLabel}</span>
         </div>
-        <MarketBar
-          low={result.market.marketLow}
-          avg={result.market.marketAvg}
-          high={result.market.marketHigh}
-          listed={result.appraisal.retailLow + (result.appraisal.retailHigh - result.appraisal.retailLow) * (0.5 + result.market.pricePosition * 0.5)}
-        />
       </div>
 
-      {/* Appraisal */}
-      <div className="mp-tool__appraisal">
-        <div className="mp-tool__pane-title" style={{ marginBottom: 8 }}>Appraisal range</div>
-        <div className="mp-appraisal-grid">
-          <AppraisalCell label="Wholesale" range={[result.appraisal.wholesaleLow, result.appraisal.wholesaleHigh]} tone="warn" />
-          <AppraisalCell label="Retail" range={[result.appraisal.retailLow, result.appraisal.retailHigh]} tone="success" />
-          <AppraisalCell label="Target gross" range={[result.appraisal.targetGross, result.appraisal.targetGross]} single tone="brand" />
-          <AppraisalCell label="Confidence" range={[0, 0]} text={result.appraisal.confidence} tone="info" />
+      {/* Market position bar — only when a market data source is configured */}
+      {result.market ? (
+        <div className="mp-tool__market">
+          <div className="mp-tool__market-head">
+            <div>
+              <div className="mp-tool__pane-title">
+                Live market position
+                <span className="mp-source-pill"><Target size={9} /> {result.market.source} · refreshed {result.market.refreshedAt}</span>
+              </div>
+              <div style={{ fontSize: 11, color: "var(--mp-text-muted)" }}>
+                {result.market.listingsActive} active comparable listings · {result.market.similarSold} sold in last 60 days · avg time to sell {result.market.avgDaysToSell}d
+              </div>
+            </div>
+            <span className={`mp-badge ${positionClass}`}>{positionLabel}</span>
+          </div>
+          <MarketBar
+            low={result.market.marketLow}
+            avg={result.market.marketAvg}
+            high={result.market.marketHigh}
+            listed={
+              result.appraisal
+                ? result.appraisal.retailLow + (result.appraisal.retailHigh - result.appraisal.retailLow) * (0.5 + result.market.pricePosition * 0.5)
+                : result.market.marketAvg
+            }
+          />
         </div>
-      </div>
+      ) : (
+        <div className="mp-source-empty">
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <Target size={13} color="var(--mp-text-muted)" />
+            <strong style={{ fontSize: 12 }}>Market comparison</strong>
+            <span className="mp-badge">Source required</span>
+          </div>
+          <div style={{ fontSize: 11, color: "var(--mp-text-muted)", margin: "4px 0 8px" }}>
+            Connect a data source to see how this VIN is priced against the BC market:
+            MarketCheck (paid), or AutoTrader.ca / CarGurus.ca scrapers (free, Lotview-managed).
+          </div>
+          <button className="mp-btn mp-btn-sm"><Target size={11} /> Configure source</button>
+        </div>
+      )}
+
+      {/* Appraisal — only when both market data + history exist */}
+      {result.appraisal ? (
+        <div className="mp-tool__appraisal">
+          <div className="mp-tool__pane-title" style={{ marginBottom: 8 }}>
+            Appraisal range
+            <span className="mp-source-pill"><Cpu size={9} /> Computed from live market + dealer cost model</span>
+          </div>
+          <div className="mp-appraisal-grid">
+            <AppraisalCell label="Wholesale" range={[result.appraisal.wholesaleLow, result.appraisal.wholesaleHigh]} tone="warn" />
+            <AppraisalCell label="Retail" range={[result.appraisal.retailLow, result.appraisal.retailHigh]} tone="success" />
+            <AppraisalCell label="Suggested ask" range={[result.appraisal.retailLow + result.appraisal.targetGross, result.appraisal.retailLow + result.appraisal.targetGross]} single tone="brand" />
+            <AppraisalCell label="Confidence" range={[0, 0]} text={result.appraisal.confidence} tone="info" />
+          </div>
+        </div>
+      ) : null}
 
       {/* Comparables */}
       <div style={{ marginTop: 16 }}>
-        <div className="mp-tool__pane-title" style={{ marginBottom: 8 }}>Comparable active listings · sorted by distance</div>
+        <div className="mp-tool__pane-title" style={{ marginBottom: 8 }}>
+          Comparable active listings · sorted by distance from store
+        </div>
         <table className="mp-table mp-table-compact">
           <thead>
-            <tr><th>Distance</th><th>Dealer</th><th>Year</th><th className="mp-num">Miles</th><th className="mp-num">Listed</th><th className="mp-num">Days on lot</th><th></th></tr>
+            <tr><th>Distance</th><th>Dealer</th><th>Year</th><th className="mp-num">Kilometres</th><th className="mp-num">Listed</th><th className="mp-num">Days on lot</th><th></th></tr>
           </thead>
           <tbody>
             {result.comparables.map((c) => (
               <tr key={`${c.dealer}-${c.price}`}>
-                <td className="mp-mono">{c.distance}</td>
+                <td className="mp-mono">{c.distanceKm} km</td>
                 <td>{c.dealer}</td>
                 <td>{c.year}</td>
-                <td className="mp-num mp-mono">{num(c.miles)}</td>
+                <td className="mp-num mp-mono">{km(c.odoKm)}</td>
                 <td className="mp-num"><strong>{money(c.price)}</strong></td>
                 <td className="mp-num"><span className="mp-badge">{c.daysOnLot}d</span></td>
                 <td><button className="mp-btn mp-btn-sm mp-btn-ghost"><Maximize2 size={11} /></button></td>
@@ -201,9 +268,9 @@ export function VinInquiryTool() {
       </div>
 
       <div className="mp-tool__actions">
-        <button className="mp-btn mp-btn-sm"><BookOpen size={12} /> Open Carfax</button>
         <button className="mp-btn mp-btn-sm"><Tag size={12} /> Apply to appraisal</button>
-        <button className="mp-btn mp-btn-sm mp-btn-action"><Sparkles size={12} /> Stock at recommended price</button>
+        <button className="mp-btn mp-btn-sm"><Sparkles size={12} /> Draft AI listing for this VIN</button>
+        <button className="mp-btn mp-btn-sm mp-btn-action"><Sparkles size={12} /> Stock at suggested ask</button>
       </div>
     </section>
   );
@@ -316,7 +383,7 @@ export function MarketAnalysisTable() {
             <tr>
               <th>Stock</th>
               <th>Vehicle</th>
-              <th className="mp-num">Miles</th>
+              <th className="mp-num">Kilometres</th>
               <th className="mp-num">Listed</th>
               <th className="mp-num">Market avg</th>
               <th>Position</th>
@@ -332,6 +399,9 @@ export function MarketAnalysisTable() {
             ))}
           </tbody>
         </table>
+      </div>
+      <div style={{ fontSize: 10, color: "var(--mp-text-faint)", marginTop: 8, fontWeight: 500 }}>
+        Source: AutoTrader.ca scrape · refreshed every 6h · BC + lower mainland radius
       </div>
     </section>
   );
@@ -353,7 +423,7 @@ function MarketRow({ row }: { row: MarketAnalysisRow }) {
         <div style={{ fontWeight: 600, fontSize: 13 }}>{row.vehicle}</div>
         <div style={{ fontSize: 11, color: "var(--mp-text-muted)" }}>{row.trim} · <span className="mp-mono">{row.vin}</span></div>
       </td>
-      <td className="mp-num mp-mono">{num(row.miles)}</td>
+      <td className="mp-num mp-mono">{km(row.odoKm)}</td>
       <td className="mp-num"><strong>{money(row.listed)}</strong></td>
       <td className="mp-num mp-mono">{money(row.marketAvg)}</td>
       <td>

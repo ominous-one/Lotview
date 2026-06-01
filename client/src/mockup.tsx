@@ -190,9 +190,10 @@ function Shell({
 // ---------------------------------------------------------------------------
 
 function Money({ value, hideCents }: { value: number; hideCents?: boolean }) {
-  const fmt = new Intl.NumberFormat("en-US", {
+  const fmt = new Intl.NumberFormat("en-CA", {
     style: "currency",
-    currency: "USD",
+    currency: "CAD",
+    currencyDisplay: "narrowSymbol",
     minimumFractionDigits: hideCents ? 0 : 0,
     maximumFractionDigits: hideCents ? 0 : 0,
   });
@@ -458,7 +459,7 @@ function GMScreen({ role, setRole }: ScreenProps) {
       <header className="mp-page-head">
         <div>
           <h1 className="mp-page-title">Good morning, Marcus.</h1>
-          <div className="mp-page-subtitle">Olympic Hyundai · 4 units sold so far · 38 leads in motion</div>
+          <div className="mp-page-subtitle">Olympic Hyundai Vancouver · {gmTodayMetrics.leadsToday} leads in motion · {gmTodayMetrics.appointmentsBooked} appointments booked today · {gmTodayMetrics.agingOver45d} units aging over 45d</div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button className="mp-btn"><LineChartIcon size={14} /> Weekly report</button>
@@ -466,24 +467,28 @@ function GMScreen({ role, setRole }: ScreenProps) {
         </div>
       </header>
 
+      <div className="mp-banner" style={{ background: "var(--mp-surface-sunken)", color: "var(--mp-text-muted)", borderColor: "var(--mp-border)" }}>
+        <AlertTriangle size={13} /> Lotview reports leading indicators (leads, response time, appointments, inventory health, marketplace activity). Sale prices, gross margin, and units delivered live in the DMS — connect a DMS feed to see those here.
+      </div>
+
       <div className="mp-metric-grid">
-        <MetricTile label="Units sold today" icon={Car} value={gmTodayMetrics.unitsSoldTd} trend={gmTodayMetrics.unitsSoldMtdTrend} />
-        <MetricTile label="Gross profit today" icon={DollarSign} value={gmTodayMetrics.grossProfitTd} format="money" trend={gmTodayMetrics.grossProfitMtdTrend} />
         <MetricTile label="Leads in motion" icon={Users} value={gmTodayMetrics.leadsToday} trend={gmTodayMetrics.leadsTrend} />
         <MetricTile label="Avg first response" icon={Clock} value={0} unit={gmTodayMetrics.avgResponse} trend={gmTodayMetrics.responseTrend} />
+        <MetricTile label="Appointments booked" icon={Calendar} value={gmTodayMetrics.appointmentsBooked} trend={gmTodayMetrics.appointmentsTrend} />
+        <MetricTile label="Active inventory" icon={Truck} value={gmTodayMetrics.activeInventory} unit={`${gmTodayMetrics.agingOver45d} aging >45d`} />
       </div>
 
       <div className="mp-split">
         <section className="mp-card">
           <div className="mp-card__head">
             <div>
-              <h2 className="mp-card__title">Pipeline · last 4 weeks</h2>
-              <div className="mp-card__hint">New → Qualified → Appointment → Sold</div>
+              <h2 className="mp-card__title">Lead pipeline · last 4 weeks</h2>
+              <div className="mp-card__hint">New lead → Replied → Appointment booked → Showed up — what Lotview observes end-to-end</div>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
-              <span className="mp-badge"><span className="mp-status-dot" style={{ background: "#0E7A6E" }} /> Sold</span>
-              <span className="mp-badge"><span className="mp-status-dot" style={{ background: "#0284C7" }} /> Appt</span>
-              <span className="mp-badge"><span className="mp-status-dot" style={{ background: "#6366F1" }} /> Qualified</span>
+              <span className="mp-badge"><span className="mp-status-dot" style={{ background: "#0F172A" }} /> Showed</span>
+              <span className="mp-badge"><span className="mp-status-dot" style={{ background: "#0284C7" }} /> Booked</span>
+              <span className="mp-badge"><span className="mp-status-dot" style={{ background: "#6366F1" }} /> Replied</span>
               <span className="mp-badge"><span className="mp-status-dot" style={{ background: "#CBD5E1" }} /> New</span>
             </div>
           </div>
@@ -495,9 +500,9 @@ function GMScreen({ role, setRole }: ScreenProps) {
                 <YAxis tickLine={false} axisLine={false} fontSize={12} stroke="#94A3B8" />
                 <Tooltip cursor={{ fill: "#F1F5F9" }} contentStyle={{ borderRadius: 8, fontSize: 12 }} />
                 <Bar dataKey="new" stackId="a" fill="#CBD5E1" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="qualified" stackId="a" fill="#6366F1" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="appt" stackId="a" fill="#0284C7" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="sold" stackId="a" fill="#0E7A6E" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="replied" stackId="a" fill="#6366F1" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="booked" stackId="a" fill="#0284C7" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="showed" stackId="a" fill="#0F172A" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -506,7 +511,10 @@ function GMScreen({ role, setRole }: ScreenProps) {
         <aside>
           <section className="mp-card">
             <div className="mp-card__head">
-              <h2 className="mp-card__title">Top reps · MTD</h2>
+              <div>
+                <h2 className="mp-card__title">Top reps · MTD activity</h2>
+                <div className="mp-card__hint">Ranked by Lotview-observable activity</div>
+              </div>
               <button className="mp-btn mp-btn-ghost mp-btn-sm">View team</button>
             </div>
             {gmTopReps.map((rep) => (
@@ -514,7 +522,7 @@ function GMScreen({ role, setRole }: ScreenProps) {
                 <Avatar name={rep.name} color={rep.color} />
                 <div>
                   <div style={{ fontWeight: 600 }}>{rep.name}</div>
-                  <div style={{ fontSize: 12, color: "var(--mp-text-muted)" }}>{rep.units} units · <Money value={rep.gross} hideCents /> gross</div>
+                  <div style={{ fontSize: 12, color: "var(--mp-text-muted)" }}>{rep.leadsWorked} leads · {rep.appointments} appts · {rep.avgFirstReply} reply</div>
                 </div>
                 <ChevronRight size={14} color="var(--mp-text-faint)" />
               </div>
@@ -798,7 +806,7 @@ function ConsultantScreen({ role, setRole }: ScreenProps) {
       <header className="mp-page-head">
         <div>
           <h1 className="mp-page-title">Hi Devon — {m.myLeadsHot} hot leads waiting.</h1>
-          <div className="mp-page-subtitle">{m.myMtdUnits} of {m.myMtdGoal} units this month · pipeline value <Money value={m.myPipelineValue} hideCents /></div>
+          <div className="mp-page-subtitle">{m.myAppointmentsMtd} of {m.myAppointmentsMtdGoal} appointments this month · holding <Money value={m.myHeldInventoryValue} hideCents /> in inventory</div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button className="mp-btn"><Plus size={14} /> Log walk-in</button>
@@ -809,8 +817,8 @@ function ConsultantScreen({ role, setRole }: ScreenProps) {
       <div className="mp-metric-grid">
         <MetricTile label="My open leads" icon={Users} value={m.myLeadsOpen} unit={`${m.myLeadsHot} hot`} />
         <MetricTile label="Appts today" icon={Calendar} value={m.myAppointmentsToday} />
-        <MetricTile label="Pipeline value" icon={DollarSign} value={m.myPipelineValue} format="money" />
-        <MetricTile label="MTD progress" icon={Target} value={Math.round((m.myMtdUnits / m.myMtdGoal) * 100)} format="percent" unit={`${m.myMtdUnits}/${m.myMtdGoal}`} />
+        <MetricTile label="Holding (listed price)" icon={DollarSign} value={m.myHeldInventoryValue} format="money" />
+        <MetricTile label="Appts MTD" icon={Target} value={Math.round((m.myAppointmentsMtd / m.myAppointmentsMtdGoal) * 100)} format="percent" unit={`${m.myAppointmentsMtd}/${m.myAppointmentsMtdGoal}`} />
       </div>
 
       <div className="mp-split">

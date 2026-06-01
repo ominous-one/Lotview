@@ -1125,3 +1125,32 @@
   .mp-stat-strip { grid-template-columns: repeat(3, 1fr); }
   .mp-appraisal-grid { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* Data-source attribution pill — used on every data section so the
+   operator always knows where a number came from. Operators trust
+   tools that show their work. */
+.mp-source-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--mp-text-muted);
+  background: var(--mp-surface-card);
+  border: 1px solid var(--mp-border);
+  border-radius: var(--mp-r-sm);
+  padding: 1px 6px;
+  margin-left: 8px;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+}
+
+/* Empty state for an unconfigured data source. Honest, not hidden. */
+.mp-source-empty {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px dashed var(--mp-border-strong);
+  border-radius: var(--mp-r-md);
+  background: var(--mp-surface-sunken);
+}

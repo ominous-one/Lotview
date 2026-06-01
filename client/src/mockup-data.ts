@@ -51,30 +51,43 @@ export const systemAlerts = [
 // General Manager
 // ---------------------------------------------------------------------------
 
+// GM metrics — Lotview only sees what flows through Lotview (leads,
+// conversations, appointments booked, inventory health, marketplace
+// activity). Sale prices, gross margin, F&I attach, and units delivered
+// live in the DMS and are NOT visible to Lotview unless a DMS integration
+// is wired. Until then, GM dashboards must surface LEADING indicators
+// Lotview can compute, not lagging financial outcomes.
 export const gmTodayMetrics = {
-  unitsSoldTd: 4,
-  unitsSoldMtdTrend: +12,
-  grossProfitTd: 18420,
-  grossProfitMtdTrend: +6,
   leadsToday: 38,
   leadsTrend: +21,
   avgResponse: "4m 12s",
   responseTrend: -38,
+  appointmentsBooked: 14,
+  appointmentsTrend: +8,
+  activeInventory: 142,
+  agingOver45d: 11,
+  marketplacePostsLive: 96,
+  marketplaceCtrTrend: +18,
 };
 
+// Pipeline shape Lotview owns end-to-end: lead → reply → appointment
+// booked → appointment showed. "Sold" requires DMS — not included.
 export const gmPipelineSeries = [
-  { week: "W1", new: 142, qualified: 86, appt: 38, sold: 17 },
-  { week: "W2", new: 158, qualified: 92, appt: 41, sold: 19 },
-  { week: "W3", new: 132, qualified: 81, appt: 35, sold: 14 },
-  { week: "W4", new: 174, qualified: 104, appt: 48, sold: 22 },
+  { week: "W1", new: 142, replied: 132, booked: 38, showed: 24 },
+  { week: "W2", new: 158, replied: 151, booked: 41, showed: 29 },
+  { week: "W3", new: 132, replied: 121, booked: 35, showed: 22 },
+  { week: "W4", new: 174, replied: 168, booked: 48, showed: 31 },
 ];
 
+// Top performers ranked by Lotview-observable ACTIVITY, not gross.
+// (Gross requires DMS.) These are the leading indicators that drive
+// gross even though Lotview can't observe the gross itself.
 export const gmTopReps = [
-  { name: "Devon Walker", units: 8, gross: 22150, color: "#5C6BC0" },
-  { name: "Priya Singh", units: 6, gross: 18820, color: "#26A69A" },
-  { name: "Carlos Mendez", units: 5, gross: 14060, color: "#EF5350" },
-  { name: "Aisha Patel", units: 4, gross: 12480, color: "#FFB300" },
-  { name: "Tomas Berg", units: 3, gross: 9020, color: "#8D6E63" },
+  { name: "Devon Walker", leadsWorked: 38, appointments: 11, avgFirstReply: "2m 04s", color: "#5C6BC0" },
+  { name: "Priya Singh", leadsWorked: 32, appointments: 9, avgFirstReply: "3m 11s", color: "#26A69A" },
+  { name: "Carlos Mendez", leadsWorked: 27, appointments: 7, avgFirstReply: "5m 47s", color: "#EF5350" },
+  { name: "Aisha Patel", leadsWorked: 24, appointments: 6, avgFirstReply: "4m 22s", color: "#FFB300" },
+  { name: "Tomas Berg", leadsWorked: 19, appointments: 4, avgFirstReply: "8m 19s", color: "#8D6E63" },
 ];
 
 export const gmAging = [
@@ -140,13 +153,16 @@ export const smAppointmentsToday = [
 // Sales Consultant
 // ---------------------------------------------------------------------------
 
+// Sales Consultant metrics — also Lotview-observable only. "Units delivered"
+// requires the DMS to confirm. We surface what we DO have: lead/appointment
+// volume, response speed, listed-price value of held inventory.
 export const consultantMyMetrics = {
   myLeadsOpen: 14,
   myLeadsHot: 4,
   myAppointmentsToday: 3,
-  myPipelineValue: 286800,
-  myMtdUnits: 8,
-  myMtdGoal: 12,
+  myHeldInventoryValue: 286800, // sum of listed prices on units this rep is holding
+  myAppointmentsMtd: 18,
+  myAppointmentsMtdGoal: 24,
 };
 
 export const consultantMyLeads = [
@@ -188,6 +204,7 @@ export const inventoryHighlights = [
 
 export interface VinInquiryResult {
   vin: string;
+  // Decoded specs come from NHTSA vPIC — free, real, what Lotview actually has.
   decoded: {
     year: number;
     make: string;
@@ -201,16 +218,33 @@ export interface VinInquiryResult {
     exteriorColor: string;
     interiorColor: string;
     msrpNew: number;
+    decodeConfidence: "high" | "medium" | "low";
+    decodedAt: string;
   };
-  history: {
+  // NHTSA recall lookup — also free, also real.
+  recalls: Array<{
+    campaign: string;
+    summary: string;
+    remedyDate: string;
+    status: "Open" | "Remedied" | "Owner refused";
+  }>;
+  // Carfax data — only populated if the dealer has connected their own
+  // Carfax-for-Dealers subscription. Otherwise null and we show a
+  // "Connect Carfax" CTA instead of inventing accident history.
+  carfax: null | {
+    accountConnected: true;
+    pulledAt: string;
     accidents: number;
     owners: number;
     serviceRecords: number;
-    lastOdometer: number;
     titleStatus: "Clean" | "Salvage" | "Rebuilt";
-    openRecalls: number;
+    badges: string[];
   };
-  market: {
+  // Market data — requires either MarketCheck API key OR a configured
+  // AutoTrader.ca / CarGurus.ca scraper. Honest empty state when neither.
+  market: null | {
+    source: "MarketCheck" | "AutoTrader.ca scrape" | "CarGurus.ca scrape";
+    refreshedAt: string;
     listingsActive: number;
     marketAvg: number;
     marketLow: number;
@@ -219,7 +253,7 @@ export interface VinInquiryResult {
     pricePosition: number; // -1 to 1
     similarSold: number;
   };
-  appraisal: {
+  appraisal: null | {
     wholesaleLow: number;
     wholesaleHigh: number;
     retailLow: number;
@@ -228,10 +262,10 @@ export interface VinInquiryResult {
     confidence: "high" | "medium" | "low";
   };
   comparables: Array<{
-    distance: string;
+    distanceKm: number;
     dealer: string;
     year: number;
-    miles: number;
+    odoKm: number;
     price: number;
     daysOnLot: number;
   }>;
@@ -252,16 +286,24 @@ export const sampleVinInquiry: VinInquiryResult = {
     exteriorColor: "Amazon Gray",
     interiorColor: "Black",
     msrpNew: 47999,
+    decodeConfidence: "high",
+    decodedAt: "2 sec ago via NHTSA vPIC",
   },
-  history: {
-    accidents: 0,
-    owners: 1,
-    serviceRecords: 6,
-    lastOdometer: 35921,
-    titleStatus: "Clean",
-    openRecalls: 0,
-  },
+  recalls: [
+    {
+      campaign: "24V-138",
+      summary: "Electronic Control Unit may overheat under specific charging conditions; remedy software update applied at no charge.",
+      remedyDate: "2025-03-12",
+      status: "Remedied",
+    },
+  ],
+  // Mockup shows the empty state — operator hasn't connected Carfax yet.
+  carfax: null,
+  // Mockup shows live market only because we've assumed an AutoTrader.ca
+  // scraper is configured. Set to null for the empty-state demo flow.
   market: {
+    source: "AutoTrader.ca scrape",
+    refreshedAt: "4h ago",
     listingsActive: 42,
     marketAvg: 39788,
     marketLow: 36900,
@@ -279,11 +321,11 @@ export const sampleVinInquiry: VinInquiryResult = {
     confidence: "high",
   },
   comparables: [
-    { distance: "3 km", dealer: "Premier Honda Burnaby", year: 2024, miles: 28412, price: 41995, daysOnLot: 22 },
-    { distance: "8 km", dealer: "Northshore Auto Group", year: 2024, miles: 31200, price: 40488, daysOnLot: 17 },
-    { distance: "14 km", dealer: "Westside Hyundai", year: 2024, miles: 38500, price: 38990, daysOnLot: 41 },
-    { distance: "22 km", dealer: "Coastline Ford (used)", year: 2024, miles: 33100, price: 39800, daysOnLot: 9 },
-    { distance: "31 km", dealer: "Valley Toyota", year: 2024, miles: 41200, price: 37499, daysOnLot: 55 },
+    { distanceKm: 3, dealer: "Premier Honda Burnaby", year: 2024, odoKm: 28412, price: 41995, daysOnLot: 22 },
+    { distanceKm: 8, dealer: "Northshore Auto Group", year: 2024, odoKm: 31200, price: 40488, daysOnLot: 17 },
+    { distanceKm: 14, dealer: "Westside Hyundai", year: 2024, odoKm: 38500, price: 38990, daysOnLot: 41 },
+    { distanceKm: 22, dealer: "Coastline Ford (used)", year: 2024, odoKm: 33100, price: 39800, daysOnLot: 9 },
+    { distanceKm: 31, dealer: "Valley Toyota", year: 2024, odoKm: 41200, price: 37499, daysOnLot: 55 },
   ],
 };
 
@@ -300,9 +342,9 @@ export interface MarketAnalysisRow {
   stock: string;
   vehicle: string;
   trim: string;
-  miles: number;
-  listed: number;
-  marketAvg: number;
+  odoKm: number;
+  listed: number; // CAD
+  marketAvg: number; // CAD
   pricePosition: number; // -1 to 1 (negative = below market)
   comps: number;
   estDaysToTurn: number;
@@ -311,14 +353,14 @@ export interface MarketAnalysisRow {
 }
 
 export const marketAnalysisRows: MarketAnalysisRow[] = [
-  { vin: "KM8JBCD13RU222018", stock: "OHV440942A", vehicle: "2024 Tucson Plug-In Hybrid", trim: "Ultimate", miles: 35921, listed: 39888, marketAvg: 39788, pricePosition: 0.0, comps: 42, estDaysToTurn: 31, daysOnLot: 61, action: "Drop $1,200" },
-  { vin: "5XYZUDLA8PG123456", stock: "OHV505018A", vehicle: "2025 Hyundai Tucson", trim: "Preferred", miles: 6367, listed: 33249, marketAvg: 33800, pricePosition: -0.16, comps: 38, estDaysToTurn: 18, daysOnLot: 12, action: "Hold" },
-  { vin: "5NMJCCDE4SH499388", stock: "OHV448287A", vehicle: "2025 Hyundai Tucson", trim: "S", miles: 0, listed: 40749, marketAvg: 38950, pricePosition: 0.46, comps: 24, estDaysToTurn: 52, daysOnLot: 49, action: "Drop $1,200" },
-  { vin: "KM8KMDA42RU001234", stock: "OHV600210A", vehicle: "2024 Hyundai IONIQ 5", trim: "Preferred Long Range", miles: 14211, listed: 47499, marketAvg: 46900, pricePosition: 0.13, comps: 19, estDaysToTurn: 22, daysOnLot: 8, action: "Hold" },
-  { vin: "KM8R7DGEXSH987654", stock: "OHV701337A", vehicle: "2025 Hyundai Palisade", trim: "Calligraphy", miles: 4998, listed: 56999, marketAvg: 55400, pricePosition: 0.29, comps: 16, estDaysToTurn: 28, daysOnLot: 19, action: "Promote" },
-  { vin: "5XYZUDLA8PG369874", stock: "OHV802441A", vehicle: "2023 Hyundai Santa Fe", trim: "XRT", miles: 41822, listed: 41995, marketAvg: 38300, pricePosition: 0.97, comps: 31, estDaysToTurn: 64, daysOnLot: 47, action: "Drop $1,200" },
-  { vin: "KMHL14JA3PA112233", stock: "OHV900100A", vehicle: "2023 Hyundai Elantra", trim: "N Line", miles: 22188, listed: 26999, marketAvg: 25400, pricePosition: 0.63, comps: 56, estDaysToTurn: 38, daysOnLot: 28, action: "Drop $500" },
-  { vin: "KMHRC8A35RU400112", stock: "OHV910301A", vehicle: "2024 Hyundai Sonata", trim: "Limited", miles: 18450, listed: 33490, marketAvg: 33180, pricePosition: 0.10, comps: 22, estDaysToTurn: 20, daysOnLot: 14, action: "Hold" },
+  { vin: "KM8JBCD13RU222018", stock: "OHV440942A", vehicle: "2024 Tucson Plug-In Hybrid", trim: "Ultimate", odoKm: 35921, listed: 39888, marketAvg: 39788, pricePosition: 0.0, comps: 42, estDaysToTurn: 31, daysOnLot: 61, action: "Drop $1,200" },
+  { vin: "5XYZUDLA8PG123456", stock: "OHV505018A", vehicle: "2025 Hyundai Tucson", trim: "Preferred", odoKm: 6367, listed: 33249, marketAvg: 33800, pricePosition: -0.16, comps: 38, estDaysToTurn: 18, daysOnLot: 12, action: "Hold" },
+  { vin: "5NMJCCDE4SH499388", stock: "OHV448287A", vehicle: "2025 Hyundai Tucson", trim: "S", odoKm: 0, listed: 40749, marketAvg: 38950, pricePosition: 0.46, comps: 24, estDaysToTurn: 52, daysOnLot: 49, action: "Drop $1,200" },
+  { vin: "KM8KMDA42RU001234", stock: "OHV600210A", vehicle: "2024 Hyundai IONIQ 5", trim: "Preferred Long Range", odoKm: 14211, listed: 47499, marketAvg: 46900, pricePosition: 0.13, comps: 19, estDaysToTurn: 22, daysOnLot: 8, action: "Hold" },
+  { vin: "KM8R7DGEXSH987654", stock: "OHV701337A", vehicle: "2025 Hyundai Palisade", trim: "Calligraphy", odoKm: 4998, listed: 56999, marketAvg: 55400, pricePosition: 0.29, comps: 16, estDaysToTurn: 28, daysOnLot: 19, action: "Promote" },
+  { vin: "5XYZUDLA8PG369874", stock: "OHV802441A", vehicle: "2023 Hyundai Santa Fe", trim: "XRT", odoKm: 41822, listed: 41995, marketAvg: 38300, pricePosition: 0.97, comps: 31, estDaysToTurn: 64, daysOnLot: 47, action: "Drop $1,200" },
+  { vin: "KMHL14JA3PA112233", stock: "OHV900100A", vehicle: "2023 Hyundai Elantra", trim: "N Line", odoKm: 22188, listed: 26999, marketAvg: 25400, pricePosition: 0.63, comps: 56, estDaysToTurn: 38, daysOnLot: 28, action: "Drop $500" },
+  { vin: "KMHRC8A35RU400112", stock: "OHV910301A", vehicle: "2024 Hyundai Sonata", trim: "Limited", odoKm: 18450, listed: 33490, marketAvg: 33180, pricePosition: 0.10, comps: 22, estDaysToTurn: 20, daysOnLot: 14, action: "Hold" },
 ];
 
 export interface AIContentResult {
