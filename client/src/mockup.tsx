@@ -82,6 +82,12 @@ import {
   tenants,
   type RoleSlug,
 } from "./mockup-data";
+import {
+  AIContentGenerator,
+  MarketAnalysisTable,
+  VinInquiryHistoryPanel,
+  VinInquiryTool,
+} from "./mockup-tools";
 
 import "./mockup-tokens.css";
 
@@ -585,19 +591,27 @@ function SMScreen({ role, setRole }: ScreenProps) {
       setRole={setRole}
       sidebar={[
         {
+          title: "Tools",
+          items: [
+            { icon: Search, label: "VIN Inquiry", active: true },
+            { icon: Target, label: "Market analysis", count: 142 },
+            { icon: Sparkles, label: "AI listings" },
+            { icon: Tag, label: "Pricing actions", count: gmPendingPriceApprovals.length },
+          ],
+        },
+        {
           title: "Floor",
           items: [
-            { icon: LayoutDashboard, label: "Dashboard", active: true },
             { icon: MessageSquare, label: "Conversations", count: smOpenConversations.length },
             { icon: Calendar, label: "Appointments", count: smAppointmentsToday.length },
-            { icon: AlertTriangle, label: "Actions", count: smActionsNeeded.length },
+            { icon: AlertTriangle, label: "Actions", count: smActionsNeeded.filter((a) => a.urgent).length },
+            { icon: Users, label: "Team" },
           ],
         },
         {
           title: "Inventory",
           items: [
             { icon: Truck, label: "All vehicles", count: 142 },
-            { icon: Tag, label: "Pricing" },
             { icon: Gauge, label: "Marketplace" },
           ],
         },
@@ -606,7 +620,7 @@ function SMScreen({ role, setRole }: ScreenProps) {
       <header className="mp-page-head">
         <div>
           <h1 className="mp-page-title">Sales floor</h1>
-          <div className="mp-page-subtitle">{smOpenConversations.length} open conversations · {smAppointmentsToday.length} appointments today · {smActionsNeeded.filter((a) => a.urgent).length} urgent actions</div>
+          <div className="mp-page-subtitle">{smOpenConversations.length} open conversations · {smAppointmentsToday.length} appointments · {smActionsNeeded.filter((a) => a.urgent).length} urgent actions · 142 active units</div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button className="mp-btn"><Users size={14} /> Reassign leads</button>
@@ -614,25 +628,75 @@ function SMScreen({ role, setRole }: ScreenProps) {
         </div>
       </header>
 
+      {/* Compact stat strip */}
+      <div className="mp-stat-strip">
+        <StatCell icon={MessageSquare} label="Open conv." value={smOpenConversations.length} />
+        <StatCell icon={Calendar} label="Appts today" value={smAppointmentsToday.length} />
+        <StatCell icon={AlertTriangle} label="Urgent" value={smActionsNeeded.filter((a) => a.urgent).length} accent="warn" />
+        <StatCell icon={Tag} label="Aging > 30d" value={3} accent="danger" />
+        <StatCell icon={Target} label="Avg position" value="+12%" />
+        <StatCell icon={DollarSign} label="Pipeline" value="$586K" />
+      </div>
+
+      {/* PRIMARY: VIN Inquiry + recent history */}
+      <div className="mp-split">
+        <VinInquiryTool />
+        <div>
+          <VinInquiryHistoryPanel />
+          <section className="mp-card">
+            <div className="mp-card__head">
+              <h2 className="mp-card__title">Active thread</h2>
+              <span className="mp-badge mp-badge-info">{smActiveThread.channel}</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+              <Avatar name={smActiveThread.customer} color="#26A69A" />
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 13 }}>{smActiveThread.customer}</div>
+                <div style={{ fontSize: 11, color: "var(--mp-text-muted)" }}>{smActiveThread.vehicle}</div>
+              </div>
+            </div>
+            <div className="mp-thread" style={{ maxHeight: 200, overflow: "auto" }}>
+              {smActiveThread.bubbles.slice(-3).map((b, i) => (
+                <div key={i} className={`mp-bubble mp-bubble-${b.side}`}>{b.body}</div>
+              ))}
+            </div>
+            <div className="mp-ai-suggest">
+              <div className="mp-ai-suggest__head">
+                <Sparkles size={11} /> AI reply · grounded in vehicle specs
+              </div>
+              {smActiveThread.aiSuggested}
+              <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+                <button className="mp-btn mp-btn-sm mp-btn-primary"><Send size={11} /> Send</button>
+                <button className="mp-btn mp-btn-sm">Edit</button>
+                <button className="mp-btn mp-btn-sm mp-btn-ghost">Regenerate</button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      {/* SECONDARY: Market analysis on every unit */}
+      <MarketAnalysisTable />
+
+      {/* TERTIARY: AI content generator */}
+      <AIContentGenerator />
+
+      {/* Operations: open conversations + actions needed */}
       <div className="mp-split">
         <section className="mp-card" style={{ padding: 0, overflow: "hidden" }}>
-          <div className="mp-card__head" style={{ padding: "var(--mp-sp-4) var(--mp-sp-5)" }}>
+          <div className="mp-card__head" style={{ padding: "12px 16px" }}>
             <div>
               <h2 className="mp-card__title">Open conversations</h2>
-              <div className="mp-card__hint">Sorted by AI hotness · last 24h</div>
+              <div className="mp-card__hint">{smOpenConversations.length} active · sorted by hotness</div>
             </div>
-            <span className="mp-badge mp-badge-info">{smOpenConversations.length} active</span>
+            <span className="mp-badge mp-badge-info">{smOpenConversations.filter((c) => c.hot >= 3).length} hot</span>
           </div>
           <div>
-            {smOpenConversations.map((c) => (
+            {smOpenConversations.slice(0, 5).map((c) => (
               <div key={c.id} className="mp-lead" style={{ borderTop: "1px solid var(--mp-border)", borderRadius: 0 }}>
                 <Avatar name={c.name} color={["#5C6BC0", "#26A69A", "#EF5350", "#FFB300", "#8D6E63"][c.id.charCodeAt(1) % 5]} />
                 <div className="mp-lead__body">
-                  <div className="mp-lead__name">
-                    {c.name}
-                    <span className="mp-badge">{c.channel}</span>
-                    {c.owner === "Unassigned" ? <span className="mp-badge mp-badge-warn">Unassigned</span> : null}
-                  </div>
+                  <div className="mp-lead__name">{c.name} <span className="mp-badge">{c.channel}</span> {c.owner === "Unassigned" ? <span className="mp-badge mp-badge-warn">Unassigned</span> : null}</div>
                   <div className="mp-lead__msg">{c.vehicle} · {c.lastMsg}</div>
                 </div>
                 <div className="mp-lead__meta">
@@ -644,70 +708,28 @@ function SMScreen({ role, setRole }: ScreenProps) {
           </div>
         </section>
 
-        <aside>
-          <section className="mp-card">
-            <div className="mp-card__head">
-              <h2 className="mp-card__title">Active thread</h2>
-              <span className="mp-badge mp-badge-info">{smActiveThread.channel}</span>
+        <section className="mp-card">
+          <div className="mp-card__head">
+            <div>
+              <h2 className="mp-card__title">Actions needed</h2>
+              <div className="mp-card__hint">{smActionsNeeded.filter((a) => a.urgent).length} urgent · {smActionsNeeded.length - smActionsNeeded.filter((a) => a.urgent).length} routine</div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-              <Avatar name={smActiveThread.customer} color="#26A69A" />
-              <div>
-                <div style={{ fontWeight: 600 }}>{smActiveThread.customer}</div>
-                <div style={{ fontSize: 12, color: "var(--mp-text-muted)" }}>{smActiveThread.vehicle}</div>
-              </div>
-            </div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
-              {smActiveThread.customerSignals.map((s) => (
-                <span key={s} className="mp-badge mp-badge-success">{s}</span>
-              ))}
-            </div>
-            <div className="mp-thread">
-              {smActiveThread.bubbles.map((b, i) => (
-                <div key={i} className={`mp-bubble mp-bubble-${b.side}`}>{b.body}</div>
-              ))}
-            </div>
-            <div className="mp-ai-suggest">
-              <div className="mp-ai-suggest__head">
-                <Sparkles size={11} /> AI suggested reply · grounded in 2025 Santa Fe Calligraphy specs
-              </div>
-              {smActiveThread.aiSuggested}
-              <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-                <button className="mp-btn mp-btn-sm mp-btn-primary"><Send size={12} /> Send as-is</button>
-                <button className="mp-btn mp-btn-sm"><MessageSquare size={12} /> Edit</button>
-                <button className="mp-btn mp-btn-sm mp-btn-ghost">Regenerate</button>
-              </div>
-            </div>
-          </section>
-        </aside>
-      </div>
-
-      <section className="mp-card">
-        <div className="mp-card__head">
-          <div>
-            <h2 className="mp-card__title">Actions needed</h2>
-            <div className="mp-card__hint">{smActionsNeeded.filter((a) => a.urgent).length} urgent · {smActionsNeeded.length - smActionsNeeded.filter((a) => a.urgent).length} routine</div>
           </div>
-        </div>
-        <table className="mp-table">
-          <thead>
-            <tr><th>Action</th><th>Target</th><th>Detail</th><th></th></tr>
-          </thead>
-          <tbody>
-            {smActionsNeeded.map((a) => (
-              <tr key={a.id}>
-                <td>
+          {smActionsNeeded.map((a) => (
+            <div key={a.id} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, padding: "10px 0", borderBottom: "1px solid var(--mp-border)", alignItems: "center" }}>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <span className={`mp-badge ${a.urgent ? "mp-badge-danger" : "mp-badge-warn"}`}>{a.urgent ? "Urgent" : "Routine"}</span>
-                  <span style={{ marginLeft: 8, fontWeight: 600 }}>{a.kind}</span>
-                </td>
-                <td>{a.target}</td>
-                <td style={{ color: "var(--mp-text-muted)" }}>{a.detail}</td>
-                <td className="mp-num"><button className="mp-btn mp-btn-sm mp-btn-primary">Resolve</button></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
+                  <span style={{ fontWeight: 700, fontSize: 12 }}>{a.kind}</span>
+                </div>
+                <div style={{ fontSize: 12, color: "var(--mp-text)", marginTop: 4 }}>{a.target}</div>
+                <div style={{ fontSize: 11, color: "var(--mp-text-muted)" }}>{a.detail}</div>
+              </div>
+              <button className="mp-btn mp-btn-sm mp-btn-primary">Resolve</button>
+            </div>
+          ))}
+        </section>
+      </div>
 
       <section className="mp-card">
         <div className="mp-card__head">
@@ -719,8 +741,8 @@ function SMScreen({ role, setRole }: ScreenProps) {
             <div key={a.time} className="mp-timeline__item">
               <span className="mp-timeline__time">{a.time}</span>
               <div>
-                <div style={{ fontWeight: 600 }}>{a.customer} · {a.kind}</div>
-                <div style={{ fontSize: 12, color: "var(--mp-text-muted)" }}>{a.vehicle} · {a.rep}</div>
+                <div style={{ fontWeight: 700, fontSize: 13 }}>{a.customer} · {a.kind}</div>
+                <div style={{ fontSize: 11, color: "var(--mp-text-muted)" }}>{a.vehicle} · {a.rep}</div>
               </div>
               <button className="mp-btn mp-btn-sm">Open</button>
             </div>
@@ -728,6 +750,19 @@ function SMScreen({ role, setRole }: ScreenProps) {
         </div>
       </section>
     </Shell>
+  );
+}
+
+function StatCell({ icon: Icon, label, value, accent }: { icon: React.ComponentType<{ size?: number }>; label: string; value: string | number; accent?: "warn" | "danger" }) {
+  const valColor = accent === "danger" ? "var(--mp-danger)" : accent === "warn" ? "var(--mp-warn)" : "var(--mp-text)";
+  return (
+    <div className="mp-stat-strip__cell">
+      <div className="mp-stat-strip__icon"><Icon size={14} /></div>
+      <div>
+        <div className="mp-stat-strip__label">{label}</div>
+        <div className="mp-stat-strip__value" style={{ color: valColor }}>{value}</div>
+      </div>
+    </div>
   );
 }
 

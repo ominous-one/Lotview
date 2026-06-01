@@ -778,3 +778,350 @@
   padding: var(--mp-sp-7) var(--mp-sp-4);
   color: var(--mp-text-muted);
 }
+
+/* ---- Tool components ---- */
+
+.mp-tool {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mp-sp-3);
+}
+
+.mp-tool__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--mp-sp-3);
+}
+@media (max-width: 900px) { .mp-tool__row { grid-template-columns: 1fr; } }
+
+.mp-tool__pane {
+  background: var(--mp-surface-sunken);
+  border-radius: var(--mp-r-md);
+  padding: var(--mp-sp-3);
+}
+
+.mp-tool__pane-title {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mp-text-muted);
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+
+.mp-tool__grid-2 {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 4px 12px;
+  font-size: 12px;
+}
+
+.mp-spec__label {
+  color: var(--mp-text-muted);
+  font-weight: 500;
+}
+.mp-spec__value {
+  font-weight: 600;
+  color: var(--mp-text);
+}
+.mp-spec__value.is-highlight {
+  background: linear-gradient(90deg, var(--mp-warn-tint), transparent 60%);
+  padding: 0 6px;
+  margin-left: -6px;
+  border-radius: 3px;
+  font-weight: 700;
+}
+
+/* VIN input bar */
+.mp-vin-input {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--mp-surface-card);
+  border: 2px solid var(--mp-primary);
+  border-radius: var(--mp-r-md);
+  padding: 4px 4px 4px 12px;
+  box-shadow: 0 0 0 4px rgba(30, 41, 59, 0.06);
+}
+.mp-vin-input__prefix {
+  color: var(--mp-text-muted);
+  display: flex;
+  align-items: center;
+}
+.mp-vin-input input {
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--mp-text);
+  padding: 8px 0;
+}
+.mp-vin-input input::placeholder { color: var(--mp-text-faint); }
+
+/* Market position bar */
+.mp-tool__market {
+  background: var(--mp-surface-sunken);
+  border-radius: var(--mp-r-md);
+  padding: var(--mp-sp-3);
+}
+.mp-tool__market-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+  gap: 12px;
+}
+.mp-market-bar {
+  position: relative;
+}
+.mp-market-bar__track {
+  position: relative;
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--mp-info-tint) 0%, var(--mp-live-tint) 50%, var(--mp-warn-tint) 100%);
+  margin: 8px 0 6px;
+}
+.mp-market-bar__avg {
+  position: absolute;
+  top: -4px;
+  width: 2px;
+  height: 16px;
+  background: var(--mp-text);
+  transform: translateX(-1px);
+}
+.mp-market-bar__listed {
+  position: absolute;
+  top: -6px;
+  width: 16px;
+  height: 20px;
+  background: var(--mp-primary);
+  border-radius: 4px;
+  transform: translateX(-8px);
+  border: 2px solid var(--mp-surface-card);
+  box-shadow: var(--mp-shadow-1);
+}
+.mp-market-bar__labels {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  font-size: 11px;
+  color: var(--mp-text-muted);
+  margin-top: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.mp-tag-meta {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 9px;
+  color: var(--mp-text-faint);
+  font-weight: 700;
+}
+
+/* Appraisal grid */
+.mp-tool__appraisal {
+  background: var(--mp-surface-sunken);
+  border-radius: var(--mp-r-md);
+  padding: var(--mp-sp-3);
+}
+.mp-appraisal-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.mp-appraisal-cell {
+  background: var(--mp-surface-card);
+  padding: 10px;
+  border-radius: var(--mp-r-md);
+  border-left: 3px solid var(--mp-border);
+}
+.mp-appraisal-cell.is-warn { border-left-color: var(--mp-warn); }
+.mp-appraisal-cell.is-success { border-left-color: var(--mp-live); }
+.mp-appraisal-cell.is-brand { border-left-color: var(--mp-primary); background: linear-gradient(135deg, var(--mp-surface-card) 0%, #F1F5F9 100%); }
+.mp-appraisal-cell.is-info { border-left-color: var(--mp-info); }
+.mp-appraisal-cell__label {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 10px;
+  color: var(--mp-text-muted);
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.mp-appraisal-cell__value {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--mp-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.mp-tool__actions {
+  display: flex;
+  gap: 6px;
+  margin-top: var(--mp-sp-3);
+  padding-top: var(--mp-sp-3);
+  border-top: 1px dashed var(--mp-border);
+}
+
+/* Compact table */
+.mp-table-compact th,
+.mp-table-compact td { padding: 6px 10px; font-size: 12px; height: 32px; }
+
+/* Position bar inside market analysis */
+.mp-position-bar {
+  position: relative;
+  height: 6px;
+  background: linear-gradient(90deg, var(--mp-info-tint) 0%, var(--mp-live-tint) 50%, var(--mp-warn-tint) 100%);
+  border-radius: 3px;
+  width: 88px;
+}
+.mp-position-bar__center {
+  position: absolute;
+  top: -2px;
+  left: 50%;
+  width: 1px;
+  height: 10px;
+  background: var(--mp-text-faint);
+}
+.mp-position-bar__dot {
+  position: absolute;
+  top: -3px;
+  width: 10px;
+  height: 12px;
+  border-radius: 2px;
+  background: var(--mp-primary);
+  border: 1.5px solid var(--mp-surface-card);
+  transform: translateX(-5px);
+}
+
+/* Chips (filters) */
+.mp-chip {
+  background: var(--mp-surface-sunken);
+  border: 1px solid var(--mp-border);
+  color: var(--mp-text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: var(--mp-r-pill);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.mp-chip.is-active {
+  background: var(--mp-primary);
+  border-color: var(--mp-primary);
+  color: var(--mp-text-inverse);
+}
+.mp-chip__count {
+  background: rgba(0,0,0,0.08);
+  border-radius: 8px;
+  padding: 0 6px;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.mp-chip.is-active .mp-chip__count { background: rgba(255,255,255,0.18); }
+
+/* Select */
+.mp-select {
+  background: var(--mp-surface-sunken);
+  border: 1px solid var(--mp-border);
+  border-radius: var(--mp-r-md);
+  padding: 5px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--mp-text);
+  font-family: inherit;
+}
+
+/* AI meta strip */
+.mp-ai-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--mp-border);
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+/* AI input fields */
+.mp-ai-fields { display: flex; flex-direction: column; gap: 12px; }
+.mp-field { display: flex; flex-direction: column; gap: 4px; }
+.mp-field__label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--mp-text);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.mp-field__sub {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+  font-size: 10px;
+  color: var(--mp-text-faint);
+}
+.mp-ai-input, .mp-ai-textarea {
+  background: var(--mp-surface-card);
+  border: 1px solid var(--mp-border);
+  border-radius: var(--mp-r-md);
+  padding: 8px 10px;
+  font-family: "Plus Jakarta Sans", sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--mp-text);
+  width: 100%;
+}
+.mp-ai-input:focus, .mp-ai-textarea:focus { outline: 2px solid var(--mp-primary); border-color: var(--mp-primary); }
+.mp-ai-textarea { resize: vertical; line-height: 1.5; min-height: 110px; }
+
+/* Stat strip for compact SM kpis */
+.mp-stat-strip {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+  margin-bottom: var(--mp-sp-3);
+}
+.mp-stat-strip__cell {
+  background: var(--mp-surface-card);
+  border: 1px solid var(--mp-border);
+  border-radius: var(--mp-r-md);
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mp-stat-strip__icon {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--mp-r-md);
+  background: var(--mp-surface-sunken);
+  display: grid;
+  place-items: center;
+  color: var(--mp-text-muted);
+}
+.mp-stat-strip__label {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 9px;
+  color: var(--mp-text-muted);
+  font-weight: 700;
+}
+.mp-stat-strip__value {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--mp-text);
+  line-height: 1.1;
+}
+
+@media (max-width: 1100px) {
+  .mp-stat-strip { grid-template-columns: repeat(3, 1fr); }
+  .mp-appraisal-grid { grid-template-columns: repeat(2, 1fr); }
+}

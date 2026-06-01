@@ -181,3 +181,181 @@ export const inventoryHighlights = [
   { vehicle: "2024 Hyundai Santa Fe XRT", trim: "AWD", price: 41995, days: 47, vin: "5XYZUDLA8PG369874" },
   { vehicle: "2025 Hyundai Tucson S", trim: "AWD", price: 40749, days: 49, vin: "5NMJCCDE4SH499388" },
 ];
+
+// ---------------------------------------------------------------------------
+// Sales Manager tools — VIN inquiry, market analysis, AI content
+// ---------------------------------------------------------------------------
+
+export interface VinInquiryResult {
+  vin: string;
+  decoded: {
+    year: number;
+    make: string;
+    model: string;
+    trim: string;
+    bodyClass: string;
+    engine: string;
+    drivetrain: string;
+    transmission: string;
+    fuelType: string;
+    exteriorColor: string;
+    interiorColor: string;
+    msrpNew: number;
+  };
+  history: {
+    accidents: number;
+    owners: number;
+    serviceRecords: number;
+    lastOdometer: number;
+    titleStatus: "Clean" | "Salvage" | "Rebuilt";
+    openRecalls: number;
+  };
+  market: {
+    listingsActive: number;
+    marketAvg: number;
+    marketLow: number;
+    marketHigh: number;
+    avgDaysToSell: number;
+    pricePosition: number; // -1 to 1
+    similarSold: number;
+  };
+  appraisal: {
+    wholesaleLow: number;
+    wholesaleHigh: number;
+    retailLow: number;
+    retailHigh: number;
+    targetGross: number;
+    confidence: "high" | "medium" | "low";
+  };
+  comparables: Array<{
+    distance: string;
+    dealer: string;
+    year: number;
+    miles: number;
+    price: number;
+    daysOnLot: number;
+  }>;
+}
+
+export const sampleVinInquiry: VinInquiryResult = {
+  vin: "KM8JBCD13RU222018",
+  decoded: {
+    year: 2024,
+    make: "Hyundai",
+    model: "Tucson Plug-In Hybrid",
+    trim: "Ultimate",
+    bodyClass: "Sport Utility Vehicle (SUV)",
+    engine: "1.6L I4 Turbo + Electric",
+    drivetrain: "AWD HTRAC",
+    transmission: "6-Speed Automatic",
+    fuelType: "Plug-in Hybrid",
+    exteriorColor: "Amazon Gray",
+    interiorColor: "Black",
+    msrpNew: 47999,
+  },
+  history: {
+    accidents: 0,
+    owners: 1,
+    serviceRecords: 6,
+    lastOdometer: 35921,
+    titleStatus: "Clean",
+    openRecalls: 0,
+  },
+  market: {
+    listingsActive: 42,
+    marketAvg: 39788,
+    marketLow: 36900,
+    marketHigh: 43500,
+    avgDaysToSell: 34,
+    pricePosition: 0.28,
+    similarSold: 18,
+  },
+  appraisal: {
+    wholesaleLow: 31200,
+    wholesaleHigh: 33400,
+    retailLow: 38600,
+    retailHigh: 42100,
+    targetGross: 4200,
+    confidence: "high",
+  },
+  comparables: [
+    { distance: "3 km", dealer: "Premier Honda Burnaby", year: 2024, miles: 28412, price: 41995, daysOnLot: 22 },
+    { distance: "8 km", dealer: "Northshore Auto Group", year: 2024, miles: 31200, price: 40488, daysOnLot: 17 },
+    { distance: "14 km", dealer: "Westside Hyundai", year: 2024, miles: 38500, price: 38990, daysOnLot: 41 },
+    { distance: "22 km", dealer: "Coastline Ford (used)", year: 2024, miles: 33100, price: 39800, daysOnLot: 9 },
+    { distance: "31 km", dealer: "Valley Toyota", year: 2024, miles: 41200, price: 37499, daysOnLot: 55 },
+  ],
+};
+
+export const vinInquiryHistory = [
+  { at: "2 min ago", vin: "KM8JBCD13RU222018", vehicle: "2024 Tucson Plug-In Hybrid Ultimate", actor: "Priya Singh" },
+  { at: "12 min ago", vin: "5NMJCCDE4SH499388", vehicle: "2025 Tucson S", actor: "Devon Walker" },
+  { at: "34 min ago", vin: "KM8R7DGEXSH987654", vehicle: "2025 Palisade Calligraphy", actor: "Priya Singh" },
+  { at: "1h ago", vin: "5XYZUDLA8PG369874", vehicle: "2023 Santa Fe XRT", actor: "Carlos Mendez" },
+  { at: "Yesterday", vin: "KMHRC8A35RU400112", vehicle: "2024 Sonata Limited", actor: "Aisha Patel" },
+];
+
+export interface MarketAnalysisRow {
+  vin: string;
+  stock: string;
+  vehicle: string;
+  trim: string;
+  miles: number;
+  listed: number;
+  marketAvg: number;
+  pricePosition: number; // -1 to 1 (negative = below market)
+  comps: number;
+  estDaysToTurn: number;
+  daysOnLot: number;
+  action: "Hold" | "Drop $500" | "Drop $1,200" | "Promote" | "Move to wholesale";
+}
+
+export const marketAnalysisRows: MarketAnalysisRow[] = [
+  { vin: "KM8JBCD13RU222018", stock: "OHV440942A", vehicle: "2024 Tucson Plug-In Hybrid", trim: "Ultimate", miles: 35921, listed: 39888, marketAvg: 39788, pricePosition: 0.0, comps: 42, estDaysToTurn: 31, daysOnLot: 61, action: "Drop $1,200" },
+  { vin: "5XYZUDLA8PG123456", stock: "OHV505018A", vehicle: "2025 Hyundai Tucson", trim: "Preferred", miles: 6367, listed: 33249, marketAvg: 33800, pricePosition: -0.16, comps: 38, estDaysToTurn: 18, daysOnLot: 12, action: "Hold" },
+  { vin: "5NMJCCDE4SH499388", stock: "OHV448287A", vehicle: "2025 Hyundai Tucson", trim: "S", miles: 0, listed: 40749, marketAvg: 38950, pricePosition: 0.46, comps: 24, estDaysToTurn: 52, daysOnLot: 49, action: "Drop $1,200" },
+  { vin: "KM8KMDA42RU001234", stock: "OHV600210A", vehicle: "2024 Hyundai IONIQ 5", trim: "Preferred Long Range", miles: 14211, listed: 47499, marketAvg: 46900, pricePosition: 0.13, comps: 19, estDaysToTurn: 22, daysOnLot: 8, action: "Hold" },
+  { vin: "KM8R7DGEXSH987654", stock: "OHV701337A", vehicle: "2025 Hyundai Palisade", trim: "Calligraphy", miles: 4998, listed: 56999, marketAvg: 55400, pricePosition: 0.29, comps: 16, estDaysToTurn: 28, daysOnLot: 19, action: "Promote" },
+  { vin: "5XYZUDLA8PG369874", stock: "OHV802441A", vehicle: "2023 Hyundai Santa Fe", trim: "XRT", miles: 41822, listed: 41995, marketAvg: 38300, pricePosition: 0.97, comps: 31, estDaysToTurn: 64, daysOnLot: 47, action: "Drop $1,200" },
+  { vin: "KMHL14JA3PA112233", stock: "OHV900100A", vehicle: "2023 Hyundai Elantra", trim: "N Line", miles: 22188, listed: 26999, marketAvg: 25400, pricePosition: 0.63, comps: 56, estDaysToTurn: 38, daysOnLot: 28, action: "Drop $500" },
+  { vin: "KMHRC8A35RU400112", stock: "OHV910301A", vehicle: "2024 Hyundai Sonata", trim: "Limited", miles: 18450, listed: 33490, marketAvg: 33180, pricePosition: 0.10, comps: 22, estDaysToTurn: 20, daysOnLot: 14, action: "Hold" },
+];
+
+export interface AIContentResult {
+  vehicle: string;
+  trim: string;
+  vin: string;
+  headline: string;
+  subheadline: string;
+  description: string;
+  callouts: string[];
+  generatedAt: string;
+  model: "Claude Opus 4.7" | "GPT-4o";
+}
+
+export const aiContentSamples: AIContentResult[] = [
+  {
+    vehicle: "2024 Hyundai Tucson Plug-In Hybrid",
+    trim: "Ultimate AWD",
+    vin: "KM8JBCD13RU222018",
+    headline: "One-Owner 2024 Tucson Ultimate PHEV — 33 MPGe Combined, AWD HTRAC, No Accidents",
+    subheadline: "Amazon Gray on Black · Panoramic Sunroof · BOSE Premium Audio · BlueLink Connected · Saved $9,200 off MSRP",
+    description:
+      "This 2024 Tucson Plug-In Hybrid Ultimate is a single-owner, accident-free Hyundai with comprehensive service records and zero open recalls. The 1.6L turbocharged hybrid powertrain delivers 261 combined horsepower with up to 33 miles of pure electric range — perfect for the daily commute, gas-free. HTRAC all-wheel drive provides confident traction in any weather. Inside, the Ultimate trim adds panoramic sunroof, ventilated front seats, BOSE premium sound, 10.25\" touchscreen with embedded navigation, and Highway Driving Assist 2.0. Priced $9,200 below MSRP with the remainder of Hyundai's 5-year/100,000 km new-vehicle warranty plus 8-year battery coverage. Carfax-verified, inspected, ready for delivery.",
+    callouts: ["1-Owner", "0 Accidents", "Service Records: 6", "Clean Title", "33 mi electric range"],
+    generatedAt: "12 sec ago",
+    model: "Claude Opus 4.7",
+  },
+  {
+    vehicle: "2025 Hyundai Palisade",
+    trim: "Calligraphy AWD",
+    vin: "KM8R7DGEXSH987654",
+    headline: "Practically New 2025 Palisade Calligraphy — 4,998 km, Ebony Black, Tan Quilted Leather",
+    subheadline: "Top-Trim 7-Passenger Luxury SUV · Nappa Leather · Head-Up Display · Premium Bose · Rear Sunshades",
+    description:
+      "Save thousands on this nearly-new 2025 Hyundai Palisade Calligraphy with under 5,000 km on the odometer. The top-of-the-line Calligraphy trim brings Nappa leather seating with quilted inserts, a 12.3\" digital cluster paired with 12.3\" touchscreen navigation, Highway Driving Assist 2, and a Harman/Kardon premium audio system. HTRAC all-wheel drive with terrain modes handles BC weather year-round. With seating for 7 in three-zone climate comfort plus rear-passenger window shades and ventilated/heated captain's chairs, this is the family SUV that drives like a luxury sedan. Full factory warranty applies.",
+    callouts: ["Nearly new", "Top trim", "AWD", "Bose audio", "Head-up display"],
+    generatedAt: "1 min ago",
+    model: "Claude Opus 4.7",
+  },
+];
